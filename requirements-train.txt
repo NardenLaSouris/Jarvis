@@ -1,0 +1,4 @@
+# Uniquement pour entraîner un wake word (python -m wakeword_training ...),
+# en plus de requirements.txt. Inutile pour faire tourner JARVIS.
+-r requirements.txt
+onnx==1.23.0

@@ -1,0 +1,997 @@
+{
+  "name": "jarvis_fr",
+  "phrase": "Jarvis",
+  "best_epoch": 39,
+  "train_windows": {
+    "pos": 5760,
+    "neg": 114811,
+    "hard": 29417
+  },
+  "evaluation": {
+    "model": "jarvis_fr.onnx",
+    "threshold": 0.96,
+    "max_false_activations_per_hour": 0.5,
+    "max_hard_negative_trigger_rate": 0.03,
+    "hard_negative_triggers_at_threshold": {
+      "Service": 0.075,
+      "Jarry": 0.030303030303030304,
+      "Travis": 0.0,
+      "Narvik": 0.0,
+      "Mavis": 0.0,
+      "Marvin": 0.0,
+      "Jean-Louis": 0.0,
+      "Jars": 0.0
+    },
+    "chosen": {
+      "threshold": 0.96,
+      "recall_calme": 0.9530685920577617,
+      "recall_bruit": 0.7003610108303249,
+      "recall_distance": 0.4584837545126354,
+      "fa_per_hour_speech": 2.3123789513778967,
+      "fa_per_hour_external": 0.0,
+      "fa_per_hour": 0.2746171746000549,
+      "hard_trigger_rate": 0.004338394793926247
+    },
+    "table": [
+      {
+        "threshold": 0.05,
+        "recall_calme": 1.0,
+        "recall_bruit": 0.9386281588447654,
+        "recall_distance": 0.9638989169675091,
+        "fa_per_hour_speech": 261.29882150570234,
+        "fa_per_hour_external": 42.69272319326335,
+        "fa_per_hour": 68.65429365001371,
+        "hard_trigger_rate": 0.11171366594360087
+      },
+      {
+        "threshold": 0.06,
+        "recall_calme": 1.0,
+        "recall_bruit": 0.9350180505415162,
+        "recall_distance": 0.9530685920577617,
+        "fa_per_hour_speech": 252.04930570019076,
+        "fa_per_hour_external": 38.01833744217612,
+        "fa_per_hour": 63.436567332612675,
+        "hard_trigger_rate": 0.09869848156182212
+      },
+      {
+        "threshold": 0.07,
+        "recall_calme": 1.0,
+        "recall_bruit": 0.9350180505415162,
+        "recall_distance": 0.9494584837545126,
+        "fa_per_hour_speech": 233.55027408916757,
+        "fa_per_hour_external": 33.65557740782804,
+        "fa_per_hour": 57.39498949141147,
+        "hard_trigger_rate": 0.09436008676789588
+      },
+      {
+        "threshold": 0.08,
+        "recall_calme": 1.0,
+        "recall_bruit": 0.9350180505415162,
+        "recall_distance": 0.9458483754512635,
+        "fa_per_hour_speech": 221.9883793322781,
+        "fa_per_hour_external": 29.29281737347996,
+        "fa_per_hour": 52.17726317401043,
+        "hard_trigger_rate": 0.0911062906724512
+      },
+      {
+        "threshold": 0.09,
+        "recall_calme": 1.0,
+        "recall_bruit": 0.9350180505415162,
+        "recall_distance": 0.9386281588447654,
+        "fa_per_hour_speech": 208.1141056240107,
+        "fa_per_hour_external": 28.046314506523366,
+        "fa_per_hour": 49.43109142800988,
+        "hard_trigger_rate": 0.08351409978308026
+      },
+      {
+        "threshold": 0.1,
+        "recall_calme": 1.0,
+        "recall_bruit": 0.9350180505415162,
+        "recall_distance": 0.9314079422382672,
+        "fa_per_hour_speech": 203.48934772125492,
+        "fa_per_hour_external": 26.176560206088475,
+        "fa_per_hour": 47.234154031209435,
+        "hard_trigger_rate": 0.07592190889370933
+      },
+      {
+        "threshold": 0.11,
+        "recall_calme": 1.0,
+        "recall_bruit": 0.9350180505415162,
+        "recall_distance": 0.9314079422382672,
+        "fa_per_hour_speech": 191.92745296436541,
+        "fa_per_hour_external": 24.618431622392734,
+        "fa_per_hour": 44.48798228520889,
+        "hard_trigger_rate": 0.0737527114967462
+      },
+      {
+        "threshold": 0.12,
+        "recall_calme": 0.9963898916967509,
+        "recall_bruit": 0.9350180505415162,
+        "recall_distance": 0.924187725631769,
+        "fa_per_hour_speech": 184.99031611023173,
+        "fa_per_hour_external": 23.06030303869699,
+        "fa_per_hour": 42.29104488840845,
+        "hard_trigger_rate": 0.06724511930585683
+      },
+      {
+        "threshold": 0.13,
+        "recall_calme": 0.9963898916967509,
+        "recall_bruit": 0.9314079422382672,
+        "recall_distance": 0.924187725631769,
+        "fa_per_hour_speech": 173.42842135334226,
+        "fa_per_hour_external": 21.813800171740397,
+        "fa_per_hour": 39.81949031700796,
+        "hard_trigger_rate": 0.06616052060737528
+      },
+      {
+        "threshold": 0.14,
+        "recall_calme": 0.9963898916967509,
+        "recall_bruit": 0.927797833935018,
+        "recall_distance": 0.9169675090252708,
+        "fa_per_hour_speech": 166.49128449920858,
+        "fa_per_hour_external": 20.255671588044653,
+        "fa_per_hour": 37.62255292020752,
+        "hard_trigger_rate": 0.06182212581344902
+      },
+      {
+        "threshold": 0.15,
+        "recall_calme": 0.9963898916967509,
+        "recall_bruit": 0.927797833935018,
+        "recall_distance": 0.9097472924187726,
+        "fa_per_hour_speech": 161.8665265964528,
+        "fa_per_hour_external": 19.32079443782721,
+        "fa_per_hour": 36.24946704720724,
+        "hard_trigger_rate": 0.06073752711496746
+      },
+      {
+        "threshold": 0.16,
+        "recall_calme": 0.9963898916967509,
+        "recall_bruit": 0.927797833935018,
+        "recall_distance": 0.9061371841155235,
+        "fa_per_hour_speech": 154.92938974231907,
+        "fa_per_hour_external": 18.074291570870614,
+        "fa_per_hour": 34.32714682500686,
+        "hard_trigger_rate": 0.057483731019522775
+      },
+      {
+        "threshold": 0.17,
+        "recall_calme": 0.9963898916967509,
+        "recall_bruit": 0.927797833935018,
+        "recall_distance": 0.9025270758122743,
+        "fa_per_hour_speech": 150.3046318395633,
+        "fa_per_hour_external": 17.451040137392315,
+        "fa_per_hour": 33.22867812660664,
+        "hard_trigger_rate": 0.055314533622559656
+      },
+      {
+        "threshold": 0.18,
+        "recall_calme": 0.9963898916967509,
+        "recall_bruit": 0.924187725631769,
+        "recall_distance": 0.9025270758122743,
+        "fa_per_hour_speech": 147.9922528881854,
+        "fa_per_hour_external": 16.82778870391402,
+        "fa_per_hour": 32.40482660280648,
+        "hard_trigger_rate": 0.05314533622559653
+      },
+      {
+        "threshold": 0.19,
+        "recall_calme": 0.9963898916967509,
+        "recall_bruit": 0.924187725631769,
+        "recall_distance": 0.9025270758122743,
+        "fa_per_hour_speech": 147.9922528881854,
+        "fa_per_hour_external": 16.204537270435722,
+        "fa_per_hour": 31.855592253606368,
+        "hard_trigger_rate": 0.052060737527114966
+      },
+      {
+        "threshold": 0.2,
+        "recall_calme": 0.9963898916967509,
+        "recall_bruit": 0.924187725631769,
+        "recall_distance": 0.8953068592057761,
+        "fa_per_hour_speech": 143.3674949854296,
+        "fa_per_hour_external": 15.581285836957425,
+        "fa_per_hour": 30.75712355520615,
+        "hard_trigger_rate": 0.049891540130151846
+      },
+      {
+        "threshold": 0.21,
+        "recall_calme": 0.9963898916967509,
+        "recall_bruit": 0.924187725631769,
+        "recall_distance": 0.8953068592057761,
+        "fa_per_hour_speech": 138.7427370826738,
+        "fa_per_hour_external": 14.958034403479127,
+        "fa_per_hour": 29.658654856805928,
+        "hard_trigger_rate": 0.049891540130151846
+      },
+      {
+        "threshold": 0.22,
+        "recall_calme": 0.9963898916967509,
+        "recall_bruit": 0.924187725631769,
+        "recall_distance": 0.8916967509025271,
+        "fa_per_hour_speech": 134.117979179918,
+        "fa_per_hour_external": 14.64640868673998,
+        "fa_per_hour": 28.834803333005766,
+        "hard_trigger_rate": 0.049891540130151846
+      },
+      {
+        "threshold": 0.23,
+        "recall_calme": 0.9963898916967509,
+        "recall_bruit": 0.924187725631769,
+        "recall_distance": 0.8844765342960289,
+        "fa_per_hour_speech": 131.80560022854013,
+        "fa_per_hour_external": 14.023157253261683,
+        "fa_per_hour": 28.010951809205597,
+        "hard_trigger_rate": 0.04880694143167028
+      },
+      {
+        "threshold": 0.24,
+        "recall_calme": 0.9963898916967509,
+        "recall_bruit": 0.924187725631769,
+        "recall_distance": 0.8844765342960289,
+        "fa_per_hour_speech": 131.80560022854013,
+        "fa_per_hour_external": 13.399905819783386,
+        "fa_per_hour": 27.461717460005488,
+        "hard_trigger_rate": 0.04880694143167028
+      },
+      {
+        "threshold": 0.25,
+        "recall_calme": 0.9963898916967509,
+        "recall_bruit": 0.924187725631769,
+        "recall_distance": 0.8844765342960289,
+        "fa_per_hour_speech": 127.18084232578433,
+        "fa_per_hour_external": 12.776654386305088,
+        "fa_per_hour": 26.36324876160527,
+        "hard_trigger_rate": 0.04880694143167028
+      },
+      {
+        "threshold": 0.26,
+        "recall_calme": 0.9963898916967509,
+        "recall_bruit": 0.924187725631769,
+        "recall_distance": 0.8844765342960289,
+        "fa_per_hour_speech": 122.55608442302852,
+        "fa_per_hour_external": 12.465028669565939,
+        "fa_per_hour": 25.539397237805105,
+        "hard_trigger_rate": 0.04880694143167028
+      },
+      {
+        "threshold": 0.27,
+        "recall_calme": 0.9963898916967509,
+        "recall_bruit": 0.9205776173285198,
+        "recall_distance": 0.8808664259927798,
+        "fa_per_hour_speech": 117.93132652027273,
+        "fa_per_hour_external": 12.153402952826793,
+        "fa_per_hour": 24.71554571400494,
+        "hard_trigger_rate": 0.046637744034707156
+      },
+      {
+        "threshold": 0.28,
+        "recall_calme": 0.9963898916967509,
+        "recall_bruit": 0.9169675090252708,
+        "recall_distance": 0.8772563176895307,
+        "fa_per_hour_speech": 117.93132652027273,
+        "fa_per_hour_external": 11.841777236087644,
+        "fa_per_hour": 24.440928539404883,
+        "hard_trigger_rate": 0.046637744034707156
+      },
+      {
+        "threshold": 0.29,
+        "recall_calme": 0.9963898916967509,
+        "recall_bruit": 0.9169675090252708,
+        "recall_distance": 0.8736462093862816,
+        "fa_per_hour_speech": 117.93132652027273,
+        "fa_per_hour_external": 11.841777236087644,
+        "fa_per_hour": 24.440928539404883,
+        "hard_trigger_rate": 0.046637744034707156
+      },
+      {
+        "threshold": 0.3,
+        "recall_calme": 0.9963898916967509,
+        "recall_bruit": 0.9133574007220217,
+        "recall_distance": 0.8700361010830325,
+        "fa_per_hour_speech": 117.93132652027273,
+        "fa_per_hour_external": 11.841777236087644,
+        "fa_per_hour": 24.440928539404883,
+        "hard_trigger_rate": 0.046637744034707156
+      },
+      {
+        "threshold": 0.31,
+        "recall_calme": 0.9963898916967509,
+        "recall_bruit": 0.9133574007220217,
+        "recall_distance": 0.8628158844765343,
+        "fa_per_hour_speech": 115.61894756889484,
+        "fa_per_hour_external": 11.530151519348495,
+        "fa_per_hour": 23.891694190204774,
+        "hard_trigger_rate": 0.04338394793926247
+      },
+      {
+        "threshold": 0.32,
+        "recall_calme": 0.9963898916967509,
+        "recall_bruit": 0.9133574007220217,
+        "recall_distance": 0.8628158844765343,
+        "fa_per_hour_speech": 115.61894756889484,
+        "fa_per_hour_external": 11.530151519348495,
+        "fa_per_hour": 23.891694190204774,
+        "hard_trigger_rate": 0.04338394793926247
+      },
+      {
+        "threshold": 0.33,
+        "recall_calme": 0.9963898916967509,
+        "recall_bruit": 0.9133574007220217,
+        "recall_distance": 0.8628158844765343,
+        "fa_per_hour_speech": 113.30656861751696,
+        "fa_per_hour_external": 11.530151519348495,
+        "fa_per_hour": 23.617077015604718,
+        "hard_trigger_rate": 0.04338394793926247
+      },
+      {
+        "threshold": 0.34,
+        "recall_calme": 0.9963898916967509,
+        "recall_bruit": 0.9133574007220217,
+        "recall_distance": 0.8628158844765343,
+        "fa_per_hour_speech": 113.30656861751696,
+        "fa_per_hour_external": 11.218525802609346,
+        "fa_per_hour": 23.342459841004665,
+        "hard_trigger_rate": 0.04338394793926247
+      },
+      {
+        "threshold": 0.35,
+        "recall_calme": 0.9927797833935018,
+        "recall_bruit": 0.9133574007220217,
+        "recall_distance": 0.855595667870036,
+        "fa_per_hour_speech": 108.68181071476114,
+        "fa_per_hour_external": 11.218525802609346,
+        "fa_per_hour": 22.793225491804552,
+        "hard_trigger_rate": 0.04121475054229935
+      },
+      {
+        "threshold": 0.36,
+        "recall_calme": 0.9927797833935018,
+        "recall_bruit": 0.9097472924187726,
+        "recall_distance": 0.8483754512635379,
+        "fa_per_hour_speech": 108.68181071476114,
+        "fa_per_hour_external": 10.59527436913105,
+        "fa_per_hour": 22.243991142604447,
+        "hard_trigger_rate": 0.04121475054229935
+      },
+      {
+        "threshold": 0.37,
+        "recall_calme": 0.9927797833935018,
+        "recall_bruit": 0.9061371841155235,
+        "recall_distance": 0.8411552346570397,
+        "fa_per_hour_speech": 108.68181071476114,
+        "fa_per_hour_external": 10.2836486523919,
+        "fa_per_hour": 21.96937396800439,
+        "hard_trigger_rate": 0.04013015184381779
+      },
+      {
+        "threshold": 0.38,
+        "recall_calme": 0.9927797833935018,
+        "recall_bruit": 0.9061371841155235,
+        "recall_distance": 0.8411552346570397,
+        "fa_per_hour_speech": 108.68181071476114,
+        "fa_per_hour_external": 9.97202293565275,
+        "fa_per_hour": 21.694756793404334,
+        "hard_trigger_rate": 0.03796095444685466
+      },
+      {
+        "threshold": 0.39,
+        "recall_calme": 0.9927797833935018,
+        "recall_bruit": 0.9061371841155235,
+        "recall_distance": 0.8375451263537906,
+        "fa_per_hour_speech": 106.36943176338325,
+        "fa_per_hour_external": 9.660397218913605,
+        "fa_per_hour": 21.145522444204225,
+        "hard_trigger_rate": 0.0368763557483731
+      },
+      {
+        "threshold": 0.4,
+        "recall_calme": 0.9927797833935018,
+        "recall_bruit": 0.9061371841155235,
+        "recall_distance": 0.8375451263537906,
+        "fa_per_hour_speech": 101.74467386062746,
+        "fa_per_hour_external": 9.660397218913605,
+        "fa_per_hour": 20.596288095004116,
+        "hard_trigger_rate": 0.03579175704989154
+      },
+      {
+        "threshold": 0.41,
+        "recall_calme": 0.9927797833935018,
+        "recall_bruit": 0.9061371841155235,
+        "recall_distance": 0.8339350180505415,
+        "fa_per_hour_speech": 101.74467386062746,
+        "fa_per_hour_external": 9.660397218913605,
+        "fa_per_hour": 20.596288095004116,
+        "hard_trigger_rate": 0.03579175704989154
+      },
+      {
+        "threshold": 0.42,
+        "recall_calme": 0.9891696750902527,
+        "recall_bruit": 0.9061371841155235,
+        "recall_distance": 0.8339350180505415,
+        "fa_per_hour_speech": 94.80753700649377,
+        "fa_per_hour_external": 9.037145785435307,
+        "fa_per_hour": 19.22320222200384,
+        "hard_trigger_rate": 0.03470715835140998
+      },
+      {
+        "threshold": 0.43,
+        "recall_calme": 0.9891696750902527,
+        "recall_bruit": 0.9061371841155235,
+        "recall_distance": 0.8339350180505415,
+        "fa_per_hour_speech": 92.49515805511587,
+        "fa_per_hour_external": 8.725520068696158,
+        "fa_per_hour": 18.673967872803733,
+        "hard_trigger_rate": 0.03470715835140998
+      },
+      {
+        "threshold": 0.44,
+        "recall_calme": 0.9891696750902527,
+        "recall_bruit": 0.9061371841155235,
+        "recall_distance": 0.8267148014440433,
+        "fa_per_hour_speech": 87.87040015236008,
+        "fa_per_hour_external": 8.102268635217861,
+        "fa_per_hour": 17.575499174403515,
+        "hard_trigger_rate": 0.033622559652928416
+      },
+      {
+        "threshold": 0.45,
+        "recall_calme": 0.9891696750902527,
+        "recall_bruit": 0.9061371841155235,
+        "recall_distance": 0.8122743682310469,
+        "fa_per_hour_speech": 87.87040015236008,
+        "fa_per_hour_external": 7.790642918478713,
+        "fa_per_hour": 17.300881999803458,
+        "hard_trigger_rate": 0.031453362255965296
+      },
+      {
+        "threshold": 0.46,
+        "recall_calme": 0.9891696750902527,
+        "recall_bruit": 0.9061371841155235,
+        "recall_distance": 0.8122743682310469,
+        "fa_per_hour_speech": 87.87040015236008,
+        "fa_per_hour_external": 7.4790172017395635,
+        "fa_per_hour": 17.026264825203402,
+        "hard_trigger_rate": 0.03036876355748373
+      },
+      {
+        "threshold": 0.47,
+        "recall_calme": 0.9891696750902527,
+        "recall_bruit": 0.9061371841155235,
+        "recall_distance": 0.8086642599277978,
+        "fa_per_hour_speech": 83.24564224960429,
+        "fa_per_hour_external": 7.4790172017395635,
+        "fa_per_hour": 16.477030476003293,
+        "hard_trigger_rate": 0.03036876355748373
+      },
+      {
+        "threshold": 0.48,
+        "recall_calme": 0.9891696750902527,
+        "recall_bruit": 0.9061371841155235,
+        "recall_distance": 0.7942238267148014,
+        "fa_per_hour_speech": 80.9332632982264,
+        "fa_per_hour_external": 7.167391485000415,
+        "fa_per_hour": 15.927796126803184,
+        "hard_trigger_rate": 0.03036876355748373
+      },
+      {
+        "threshold": 0.49,
+        "recall_calme": 0.9891696750902527,
+        "recall_bruit": 0.9061371841155235,
+        "recall_distance": 0.7942238267148014,
+        "fa_per_hour_speech": 80.9332632982264,
+        "fa_per_hour_external": 6.855765768261267,
+        "fa_per_hour": 15.653178952203127,
+        "hard_trigger_rate": 0.02928416485900217
+      },
+      {
+        "threshold": 0.5,
+        "recall_calme": 0.9891696750902527,
+        "recall_bruit": 0.9061371841155235,
+        "recall_distance": 0.7942238267148014,
+        "fa_per_hour_speech": 78.6208843468485,
+        "fa_per_hour_external": 6.855765768261267,
+        "fa_per_hour": 15.378561777603075,
+        "hard_trigger_rate": 0.02928416485900217
+      },
+      {
+        "threshold": 0.51,
+        "recall_calme": 0.9891696750902527,
+        "recall_bruit": 0.9061371841155235,
+        "recall_distance": 0.7906137184115524,
+        "fa_per_hour_speech": 78.6208843468485,
+        "fa_per_hour_external": 6.855765768261267,
+        "fa_per_hour": 15.378561777603075,
+        "hard_trigger_rate": 0.02928416485900217
+      },
+      {
+        "threshold": 0.52,
+        "recall_calme": 0.9891696750902527,
+        "recall_bruit": 0.9025270758122743,
+        "recall_distance": 0.7906137184115524,
+        "fa_per_hour_speech": 78.6208843468485,
+        "fa_per_hour_external": 6.855765768261267,
+        "fa_per_hour": 15.378561777603075,
+        "hard_trigger_rate": 0.02928416485900217
+      },
+      {
+        "threshold": 0.53,
+        "recall_calme": 0.9891696750902527,
+        "recall_bruit": 0.8953068592057761,
+        "recall_distance": 0.7870036101083032,
+        "fa_per_hour_speech": 78.6208843468485,
+        "fa_per_hour_external": 6.544140051522119,
+        "fa_per_hour": 15.103944603003017,
+        "hard_trigger_rate": 0.028199566160520606
+      },
+      {
+        "threshold": 0.54,
+        "recall_calme": 0.9855595667870036,
+        "recall_bruit": 0.8916967509025271,
+        "recall_distance": 0.779783393501805,
+        "fa_per_hour_speech": 76.30850539547059,
+        "fa_per_hour_external": 6.2325143347829695,
+        "fa_per_hour": 14.55471025380291,
+        "hard_trigger_rate": 0.027114967462039046
+      },
+      {
+        "threshold": 0.55,
+        "recall_calme": 0.9855595667870036,
+        "recall_bruit": 0.8916967509025271,
+        "recall_distance": 0.7725631768953068,
+        "fa_per_hour_speech": 76.30850539547059,
+        "fa_per_hour_external": 6.2325143347829695,
+        "fa_per_hour": 14.55471025380291,
+        "hard_trigger_rate": 0.026030368763557483
+      },
+      {
+        "threshold": 0.56,
+        "recall_calme": 0.9855595667870036,
+        "recall_bruit": 0.8916967509025271,
+        "recall_distance": 0.7725631768953068,
+        "fa_per_hour_speech": 67.058989589959,
+        "fa_per_hour_external": 6.2325143347829695,
+        "fa_per_hour": 13.45624155540269,
+        "hard_trigger_rate": 0.026030368763557483
+      },
+      {
+        "threshold": 0.57,
+        "recall_calme": 0.9855595667870036,
+        "recall_bruit": 0.8880866425992779,
+        "recall_distance": 0.7689530685920578,
+        "fa_per_hour_speech": 67.058989589959,
+        "fa_per_hour_external": 6.2325143347829695,
+        "fa_per_hour": 13.45624155540269,
+        "hard_trigger_rate": 0.024945770065075923
+      },
+      {
+        "threshold": 0.58,
+        "recall_calme": 0.9855595667870036,
+        "recall_bruit": 0.8844765342960289,
+        "recall_distance": 0.7689530685920578,
+        "fa_per_hour_speech": 67.058989589959,
+        "fa_per_hour_external": 5.920888618043822,
+        "fa_per_hour": 13.181624380802635,
+        "hard_trigger_rate": 0.024945770065075923
+      },
+      {
+        "threshold": 0.59,
+        "recall_calme": 0.9819494584837545,
+        "recall_bruit": 0.8844765342960289,
+        "recall_distance": 0.7689530685920578,
+        "fa_per_hour_speech": 64.74661063858112,
+        "fa_per_hour_external": 5.920888618043822,
+        "fa_per_hour": 12.907007206202579,
+        "hard_trigger_rate": 0.0227765726681128
+      },
+      {
+        "threshold": 0.6,
+        "recall_calme": 0.9819494584837545,
+        "recall_bruit": 0.8808664259927798,
+        "recall_distance": 0.7617328519855595,
+        "fa_per_hour_speech": 60.12185273582532,
+        "fa_per_hour_external": 5.297637184565525,
+        "fa_per_hour": 11.808538507802359,
+        "hard_trigger_rate": 0.020607375271149676
+      },
+      {
+        "threshold": 0.61,
+        "recall_calme": 0.9819494584837545,
+        "recall_bruit": 0.8808664259927798,
+        "recall_distance": 0.7617328519855595,
+        "fa_per_hour_speech": 60.12185273582532,
+        "fa_per_hour_external": 5.297637184565525,
+        "fa_per_hour": 11.808538507802359,
+        "hard_trigger_rate": 0.020607375271149676
+      },
+      {
+        "threshold": 0.62,
+        "recall_calme": 0.9819494584837545,
+        "recall_bruit": 0.8808664259927798,
+        "recall_distance": 0.7581227436823105,
+        "fa_per_hour_speech": 57.80947378444742,
+        "fa_per_hour_external": 4.986011467826375,
+        "fa_per_hour": 11.25930415860225,
+        "hard_trigger_rate": 0.020607375271149676
+      },
+      {
+        "threshold": 0.63,
+        "recall_calme": 0.9819494584837545,
+        "recall_bruit": 0.8808664259927798,
+        "recall_distance": 0.7545126353790613,
+        "fa_per_hour_speech": 53.18471588169162,
+        "fa_per_hour_external": 4.362760034348079,
+        "fa_per_hour": 10.16083546020203,
+        "hard_trigger_rate": 0.020607375271149676
+      },
+      {
+        "threshold": 0.64,
+        "recall_calme": 0.9819494584837545,
+        "recall_bruit": 0.8808664259927798,
+        "recall_distance": 0.7509025270758123,
+        "fa_per_hour_speech": 48.559957978935834,
+        "fa_per_hour_external": 4.362760034348079,
+        "fa_per_hour": 9.61160111100192,
+        "hard_trigger_rate": 0.020607375271149676
+      },
+      {
+        "threshold": 0.65,
+        "recall_calme": 0.9819494584837545,
+        "recall_bruit": 0.8808664259927798,
+        "recall_distance": 0.7472924187725631,
+        "fa_per_hour_speech": 46.24757902755793,
+        "fa_per_hour_external": 4.362760034348079,
+        "fa_per_hour": 9.336983936401866,
+        "hard_trigger_rate": 0.020607375271149676
+      },
+      {
+        "threshold": 0.66,
+        "recall_calme": 0.9819494584837545,
+        "recall_bruit": 0.8700361010830325,
+        "recall_distance": 0.7436823104693141,
+        "fa_per_hour_speech": 46.24757902755793,
+        "fa_per_hour_external": 4.0511343176089305,
+        "fa_per_hour": 9.06236676180181,
+        "hard_trigger_rate": 0.019522776572668113
+      },
+      {
+        "threshold": 0.67,
+        "recall_calme": 0.9819494584837545,
+        "recall_bruit": 0.8700361010830325,
+        "recall_distance": 0.740072202166065,
+        "fa_per_hour_speech": 43.93520007618004,
+        "fa_per_hour_external": 3.7395086008697818,
+        "fa_per_hour": 8.513132412601701,
+        "hard_trigger_rate": 0.01843817787418655
+      },
+      {
+        "threshold": 0.68,
+        "recall_calme": 0.9819494584837545,
+        "recall_bruit": 0.8664259927797834,
+        "recall_distance": 0.740072202166065,
+        "fa_per_hour_speech": 41.622821124802144,
+        "fa_per_hour_external": 3.7395086008697818,
+        "fa_per_hour": 8.238515238001646,
+        "hard_trigger_rate": 0.01843817787418655
+      },
+      {
+        "threshold": 0.69,
+        "recall_calme": 0.9819494584837545,
+        "recall_bruit": 0.8664259927797834,
+        "recall_distance": 0.740072202166065,
+        "fa_per_hour_speech": 41.622821124802144,
+        "fa_per_hour_external": 3.4278828841306335,
+        "fa_per_hour": 7.963898063401592,
+        "hard_trigger_rate": 0.01843817787418655
+      },
+      {
+        "threshold": 0.7,
+        "recall_calme": 0.9819494584837545,
+        "recall_bruit": 0.8664259927797834,
+        "recall_distance": 0.7292418772563177,
+        "fa_per_hour_speech": 39.31044217342425,
+        "fa_per_hour_external": 3.4278828841306335,
+        "fa_per_hour": 7.689280888801537,
+        "hard_trigger_rate": 0.01735357917570499
+      },
+      {
+        "threshold": 0.71,
+        "recall_calme": 0.9819494584837545,
+        "recall_bruit": 0.8628158844765343,
+        "recall_distance": 0.7292418772563177,
+        "fa_per_hour_speech": 39.31044217342425,
+        "fa_per_hour_external": 3.4278828841306335,
+        "fa_per_hour": 7.689280888801537,
+        "hard_trigger_rate": 0.01735357917570499
+      },
+      {
+        "threshold": 0.72,
+        "recall_calme": 0.9819494584837545,
+        "recall_bruit": 0.8628158844765343,
+        "recall_distance": 0.7256317689530686,
+        "fa_per_hour_speech": 36.99806322204635,
+        "fa_per_hour_external": 3.4278828841306335,
+        "fa_per_hour": 7.414663714201482,
+        "hard_trigger_rate": 0.016268980477223426
+      },
+      {
+        "threshold": 0.73,
+        "recall_calme": 0.9819494584837545,
+        "recall_bruit": 0.8592057761732852,
+        "recall_distance": 0.7220216606498195,
+        "fa_per_hour_speech": 36.99806322204635,
+        "fa_per_hour_external": 3.4278828841306335,
+        "fa_per_hour": 7.414663714201482,
+        "hard_trigger_rate": 0.016268980477223426
+      },
+      {
+        "threshold": 0.74,
+        "recall_calme": 0.9819494584837545,
+        "recall_bruit": 0.8592057761732852,
+        "recall_distance": 0.7220216606498195,
+        "fa_per_hour_speech": 36.99806322204635,
+        "fa_per_hour_external": 3.4278828841306335,
+        "fa_per_hour": 7.414663714201482,
+        "hard_trigger_rate": 0.016268980477223426
+      },
+      {
+        "threshold": 0.75,
+        "recall_calme": 0.9819494584837545,
+        "recall_bruit": 0.8592057761732852,
+        "recall_distance": 0.7075812274368231,
+        "fa_per_hour_speech": 34.68568427066845,
+        "fa_per_hour_external": 3.4278828841306335,
+        "fa_per_hour": 7.1400465396014265,
+        "hard_trigger_rate": 0.016268980477223426
+      },
+      {
+        "threshold": 0.76,
+        "recall_calme": 0.9819494584837545,
+        "recall_bruit": 0.8592057761732852,
+        "recall_distance": 0.7003610108303249,
+        "fa_per_hour_speech": 32.37330531929056,
+        "fa_per_hour_external": 3.4278828841306335,
+        "fa_per_hour": 6.865429365001372,
+        "hard_trigger_rate": 0.016268980477223426
+      },
+      {
+        "threshold": 0.77,
+        "recall_calme": 0.9819494584837545,
+        "recall_bruit": 0.851985559566787,
+        "recall_distance": 0.6931407942238267,
+        "fa_per_hour_speech": 32.37330531929056,
+        "fa_per_hour_external": 3.4278828841306335,
+        "fa_per_hour": 6.865429365001372,
+        "hard_trigger_rate": 0.015184381778741865
+      },
+      {
+        "threshold": 0.78,
+        "recall_calme": 0.9747292418772563,
+        "recall_bruit": 0.851985559566787,
+        "recall_distance": 0.6750902527075813,
+        "fa_per_hour_speech": 30.06092636791266,
+        "fa_per_hour_external": 3.1162571673914847,
+        "fa_per_hour": 6.316195015801263,
+        "hard_trigger_rate": 0.015184381778741865
+      },
+      {
+        "threshold": 0.79,
+        "recall_calme": 0.9747292418772563,
+        "recall_bruit": 0.8483754512635379,
+        "recall_distance": 0.6678700361010831,
+        "fa_per_hour_speech": 30.06092636791266,
+        "fa_per_hour_external": 2.4930057339131877,
+        "fa_per_hour": 5.766960666601153,
+        "hard_trigger_rate": 0.014099783080260303
+      },
+      {
+        "threshold": 0.8,
+        "recall_calme": 0.9711191335740073,
+        "recall_bruit": 0.8411552346570397,
+        "recall_distance": 0.6570397111913358,
+        "fa_per_hour_speech": 25.436168465156864,
+        "fa_per_hour_external": 2.4930057339131877,
+        "fa_per_hour": 5.217726317401043,
+        "hard_trigger_rate": 0.014099783080260303
+      },
+      {
+        "threshold": 0.81,
+        "recall_calme": 0.9711191335740073,
+        "recall_bruit": 0.8411552346570397,
+        "recall_distance": 0.6462093862815884,
+        "fa_per_hour_speech": 23.123789513778966,
+        "fa_per_hour_external": 2.4930057339131877,
+        "fa_per_hour": 4.943109142800988,
+        "hard_trigger_rate": 0.014099783080260303
+      },
+      {
+        "threshold": 0.82,
+        "recall_calme": 0.9675090252707581,
+        "recall_bruit": 0.8411552346570397,
+        "recall_distance": 0.6425992779783394,
+        "fa_per_hour_speech": 20.811410562401072,
+        "fa_per_hour_external": 2.4930057339131877,
+        "fa_per_hour": 4.668491968200933,
+        "hard_trigger_rate": 0.014099783080260303
+      },
+      {
+        "threshold": 0.83,
+        "recall_calme": 0.9675090252707581,
+        "recall_bruit": 0.8375451263537906,
+        "recall_distance": 0.6425992779783394,
+        "fa_per_hour_speech": 20.811410562401072,
+        "fa_per_hour_external": 2.1813800171740394,
+        "fa_per_hour": 4.393874793600879,
+        "hard_trigger_rate": 0.014099783080260303
+      },
+      {
+        "threshold": 0.84,
+        "recall_calme": 0.9675090252707581,
+        "recall_bruit": 0.8339350180505415,
+        "recall_distance": 0.6353790613718412,
+        "fa_per_hour_speech": 18.499031611023174,
+        "fa_per_hour_external": 2.1813800171740394,
+        "fa_per_hour": 4.119257619000823,
+        "hard_trigger_rate": 0.014099783080260303
+      },
+      {
+        "threshold": 0.85,
+        "recall_calme": 0.9675090252707581,
+        "recall_bruit": 0.8267148014440433,
+        "recall_distance": 0.628158844765343,
+        "fa_per_hour_speech": 18.499031611023174,
+        "fa_per_hour_external": 2.1813800171740394,
+        "fa_per_hour": 4.119257619000823,
+        "hard_trigger_rate": 0.014099783080260303
+      },
+      {
+        "threshold": 0.86,
+        "recall_calme": 0.9675090252707581,
+        "recall_bruit": 0.8194945848375451,
+        "recall_distance": 0.6137184115523465,
+        "fa_per_hour_speech": 18.499031611023174,
+        "fa_per_hour_external": 2.1813800171740394,
+        "fa_per_hour": 4.119257619000823,
+        "hard_trigger_rate": 0.014099783080260303
+      },
+      {
+        "threshold": 0.87,
+        "recall_calme": 0.9675090252707581,
+        "recall_bruit": 0.8158844765342961,
+        "recall_distance": 0.6064981949458483,
+        "fa_per_hour_speech": 16.18665265964528,
+        "fa_per_hour_external": 2.1813800171740394,
+        "fa_per_hour": 3.8446404444007687,
+        "hard_trigger_rate": 0.014099783080260303
+      },
+      {
+        "threshold": 0.88,
+        "recall_calme": 0.9675090252707581,
+        "recall_bruit": 0.8122743682310469,
+        "recall_distance": 0.6028880866425993,
+        "fa_per_hour_speech": 16.18665265964528,
+        "fa_per_hour_external": 1.2465028669565938,
+        "fa_per_hour": 3.0207889206006038,
+        "hard_trigger_rate": 0.013015184381778741
+      },
+      {
+        "threshold": 0.89,
+        "recall_calme": 0.9675090252707581,
+        "recall_bruit": 0.7978339350180506,
+        "recall_distance": 0.5812274368231047,
+        "fa_per_hour_speech": 16.18665265964528,
+        "fa_per_hour_external": 0.9348771502174454,
+        "fa_per_hour": 2.746171746000549,
+        "hard_trigger_rate": 0.013015184381778741
+      },
+      {
+        "threshold": 0.9,
+        "recall_calme": 0.9675090252707581,
+        "recall_bruit": 0.7978339350180506,
+        "recall_distance": 0.5740072202166066,
+        "fa_per_hour_speech": 13.874273708267381,
+        "fa_per_hour_external": 0.9348771502174454,
+        "fa_per_hour": 2.471554571400494,
+        "hard_trigger_rate": 0.013015184381778741
+      },
+      {
+        "threshold": 0.91,
+        "recall_calme": 0.9675090252707581,
+        "recall_bruit": 0.7906137184115524,
+        "recall_distance": 0.555956678700361,
+        "fa_per_hour_speech": 6.937136854133691,
+        "fa_per_hour_external": 0.6232514334782969,
+        "fa_per_hour": 1.3730858730002744,
+        "hard_trigger_rate": 0.013015184381778741
+      },
+      {
+        "threshold": 0.92,
+        "recall_calme": 0.9638989169675091,
+        "recall_bruit": 0.776173285198556,
+        "recall_distance": 0.5487364620938628,
+        "fa_per_hour_speech": 6.937136854133691,
+        "fa_per_hour_external": 0.6232514334782969,
+        "fa_per_hour": 1.3730858730002744,
+        "hard_trigger_rate": 0.010845986984815618
+      },
+      {
+        "threshold": 0.93,
+        "recall_calme": 0.9638989169675091,
+        "recall_bruit": 0.7653429602888087,
+        "recall_distance": 0.51985559566787,
+        "fa_per_hour_speech": 6.937136854133691,
+        "fa_per_hour_external": 0.31162571673914846,
+        "fa_per_hour": 1.0984686984002197,
+        "hard_trigger_rate": 0.010845986984815618
+      },
+      {
+        "threshold": 0.94,
+        "recall_calme": 0.9602888086642599,
+        "recall_bruit": 0.740072202166065,
+        "recall_distance": 0.5090252707581228,
+        "fa_per_hour_speech": 6.937136854133691,
+        "fa_per_hour_external": 0.31162571673914846,
+        "fa_per_hour": 1.0984686984002197,
+        "hard_trigger_rate": 0.008676789587852495
+      },
+      {
+        "threshold": 0.95,
+        "recall_calme": 0.9602888086642599,
+        "recall_bruit": 0.7256317689530686,
+        "recall_distance": 0.49458483754512633,
+        "fa_per_hour_speech": 4.6247579027557935,
+        "fa_per_hour_external": 0.0,
+        "fa_per_hour": 0.5492343492001098,
+        "hard_trigger_rate": 0.007592190889370932
+      },
+      {
+        "threshold": 0.96,
+        "recall_calme": 0.9530685920577617,
+        "recall_bruit": 0.7003610108303249,
+        "recall_distance": 0.4584837545126354,
+        "fa_per_hour_speech": 2.3123789513778967,
+        "fa_per_hour_external": 0.0,
+        "fa_per_hour": 0.2746171746000549,
+        "hard_trigger_rate": 0.004338394793926247
+      },
+      {
+        "threshold": 0.97,
+        "recall_calme": 0.9386281588447654,
+        "recall_bruit": 0.6606498194945848,
+        "recall_distance": 0.40794223826714804,
+        "fa_per_hour_speech": 2.3123789513778967,
+        "fa_per_hour_external": 0.0,
+        "fa_per_hour": 0.2746171746000549,
+        "hard_trigger_rate": 0.0032537960954446853
+      },
+      {
+        "threshold": 0.98,
+        "recall_calme": 0.9169675090252708,
+        "recall_bruit": 0.6425992779783394,
+        "recall_distance": 0.36101083032490977,
+        "fa_per_hour_speech": 2.3123789513778967,
+        "fa_per_hour_external": 0.0,
+        "fa_per_hour": 0.2746171746000549,
+        "hard_trigger_rate": 0.0032537960954446853
+      },
+      {
+        "threshold": 0.99,
+        "recall_calme": 0.8736462093862816,
+        "recall_bruit": 0.5631768953068592,
+        "recall_distance": 0.26353790613718414,
+        "fa_per_hour_speech": 0.0,
+        "fa_per_hour_external": 0.0,
+        "fa_per_hour": 0.0,
+        "hard_trigger_rate": 0.0021691973969631237
+      }
+    ],
+    "test_set": {
+      "positive_clips": 277,
+      "negative_clips": 549,
+      "hard_negative_clips": 922,
+      "negative_speech_minutes": 25.947304166666665,
+      "external_hours": 3.2089777777777777,
+      "real_positive": 0,
+      "real_negative_minutes": 0.0
+    }
+  }
+}

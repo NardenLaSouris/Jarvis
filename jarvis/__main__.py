@@ -64,25 +64,29 @@ def wake_test(cfg) -> int:
     """Calibration : prononcez le wake word et observez les scores obtenus."""
     from jarvis.audio.devices import MicrophoneSource
     from jarvis.audio.endpointing import rms
-    from jarvis.wakeword.openwakeword import OpenWakeWordDetector
+    from jarvis.factory import build_wake_word
 
     ww = cfg.wake_word
-    detector = OpenWakeWordDetector(ww.model, ww.melspectrogram_model, ww.embedding_model)
+    detector = build_wake_word(cfg)
     mic = MicrophoneSource(cfg.audio.sample_rate, cfg.audio.frame_samples, cfg.audio.input_device)
-    print(f"Dites « {ww.phrase} » plusieurs fois (seuil actuel : {ww.threshold}). Ctrl+C pour quitter.")
-    peak = 0.0
+    print(f"Wake word: {ww.phrase}\nModèle: {ww.model.name}\nSeuil: {ww.threshold}\n"
+          f"Prononcez « {ww.phrase} » plusieurs fois. Ctrl+C pour quitter.\n")
+    peak, detections = 0.0, 0
     try:
         while True:
             frame = mic.read()
             score = detector.process(frame)
             peak = max(peak, score)
             if score >= ww.threshold:
-                print(f"\n  >>> DÉTECTÉ (score {score:.2f})")
+                detections += 1
+                print(f"\rScore: {score:.2f}  Detected: YES  (#{detections})" + " " * 40)
                 detector.reset()
-            bar = "#" * int(score * 40)
-            print(f"\rscore {score:.2f} |{bar:<40}| max {peak:.2f}  niveau {rms(frame):6.0f}", end="", flush=True)
+                continue
+            bar = "#" * int(score * 30)
+            print(f"\rScore: {score:.2f} |{bar:<30}| Detected: no   max {peak:.2f}  niveau micro {rms(frame):5.0f}",
+                  end="", flush=True)
     except KeyboardInterrupt:
-        print(f"\nScore maximal observé : {peak:.2f}")
+        print(f"\n\nDétections : {detections} — score maximal observé : {peak:.2f}")
     finally:
         mic.close()
     return 0

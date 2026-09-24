@@ -1,5 +1,11 @@
 .venv/
 __pycache__/
 *.pyc
-models/
 *.part
+data/
+# Modèles téléchargés (scripts/download_models.py), sauf les wake words entraînés ici.
+models/*
+!models/openwakeword/
+models/openwakeword/*
+!models/openwakeword/jarvis_fr.onnx
+!models/openwakeword/jarvis_fr.json

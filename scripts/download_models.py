@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -47,8 +48,16 @@ def main() -> None:
 
     print("Wake word (openWakeWord)")
     ww = cfg.wake_word
-    for path in (ww.melspectrogram_model, ww.embedding_model, ww.model):
+    for path in (ww.melspectrogram_model, ww.embedding_model):
         fetch(f"{OWW_RELEASE}/{path.name}", path)
+    if ww.model.exists():
+        print(f"  présent : {ww.model.relative_to(ROOT)}")
+    else:
+        try:  # modèles pré-entraînés publiés par openWakeWord (ex. hey_jarvis_v0.1.onnx)
+            fetch(f"{OWW_RELEASE}/{ww.model.name}", ww.model)
+        except urllib.error.HTTPError:
+            print(f"  ATTENTION : {ww.model.name} est un modèle personnalisé absent. "
+                  "Entraînez-le avec `python -m wakeword_training all` (voir README).")
 
     print("Voix TTS (Piper)")
     voice = cfg.tts.voice.name.removesuffix(".onnx")

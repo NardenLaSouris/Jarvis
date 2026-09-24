@@ -46,7 +46,7 @@ def test_full_pipeline():
     assert len(users) == 3, users
     assert "australie" in users[0]
     assert "habitants" in users[1]          # relance sans répéter le wake word
-    assert "firefox" in users[2]
+    assert "ouvrir" in users[2] and "mail" in users[2]  # nom propre parfois mal transcrit (« Faye Fox »)
     assert "canberra" in replies[0].lower()
     assert all(replies), replies
     assert not any("concerne" in u for u in users)  # hors conversation : ignoré

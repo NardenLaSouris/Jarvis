@@ -12,7 +12,7 @@ from jarvis.agent import Agent, AgentSettings, EventHandler
 from jarvis.audio.endpointing import EndpointerSettings, UtteranceRecorder
 from jarvis.capabilities import CapabilityRegistry
 from jarvis.config import Config
-from jarvis.interfaces import AudioSink, AudioSource, LanguageModel
+from jarvis.interfaces import AudioSink, AudioSource, LanguageModel, WakeWordDetector
 
 log = logging.getLogger(__name__)
 
@@ -26,6 +26,13 @@ def build_llm(cfg: Config) -> LanguageModel:
     raise ValueError(f"Backend LLM inconnu : {cfg.llm.backend}")
 
 
+def build_wake_word(cfg: Config) -> WakeWordDetector:
+    from jarvis.wakeword.openwakeword import OpenWakeWordDetector
+
+    ww = cfg.wake_word
+    return OpenWakeWordDetector(ww.model, ww.melspectrogram_model, ww.embedding_model)
+
+
 def build_agent(
     cfg: Config,
     source: AudioSource | None = None,
@@ -34,7 +41,6 @@ def build_agent(
 ) -> Agent:
     from jarvis.stt.faster_whisper import FasterWhisperSTT
     from jarvis.tts.piper import PiperTTS
-    from jarvis.wakeword.openwakeword import OpenWakeWordDetector
 
     if source is None or sink is None:
         from jarvis.audio.devices import MicrophoneSource, SpeakerSink
@@ -42,9 +48,9 @@ def build_agent(
         source = source or MicrophoneSource(cfg.audio.sample_rate, cfg.audio.frame_samples, cfg.audio.input_device)
         sink = sink or SpeakerSink(cfg.audio.output_device)
 
-    log.info("Chargement du wake word…")
+    log.info("Chargement du wake word (%s)…", cfg.wake_word.model.name)
     ww = cfg.wake_word
-    wake_word = OpenWakeWordDetector(ww.model, ww.melspectrogram_model, ww.embedding_model)
+    wake_word = build_wake_word(cfg)
 
     log.info("Chargement du STT (whisper %s)…", cfg.stt.model)
     stt = FasterWhisperSTT(

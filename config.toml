@@ -15,13 +15,16 @@ max_history_turns = 6
 [wake_word]
 # Mot affiché/utilisé dans les messages ; le modèle ci-dessous fait la détection.
 phrase = "Jarvis"
-# Modèle openWakeWord (pré-entraîné "hey_jarvis", qui réagit aussi à "Jarvis" seul).
-# Pour un autre mot, entraîner un modèle openWakeWord personnalisé et pointer ici.
-model = "models/openwakeword/hey_jarvis_v0.1.onnx"
+# Classifieur openWakeWord entraîné dans ce dépôt pour « Jarvis » prononcé à la française
+# (python -m wakeword_training all). Pour un autre mot : entraîner un modèle et pointer ici.
+model = "models/openwakeword/jarvis_fr.onnx"
 melspectrogram_model = "models/openwakeword/melspectrogram.onnx"
 embedding_model = "models/openwakeword/embedding_model.onnx"
 # Score (0-1) au-delà duquel le wake word est considéré comme détecté.
-threshold = 0.5
+# 0.96 = seuil recommandé par l'évaluation (models/openwakeword/jarvis_fr.json) : le plus bas
+# qui garde < 0,5 fausse alerte/h et < 3 % de mots pièges déclencheurs sur des voix de test.
+# À ajuster avec `python -m jarvis --wake-test` : plus bas = détecte mieux de loin, se trompe plus.
+threshold = 0.96
 
 [stt]
 # Modèle faster-whisper : tiny, base, small, medium... ("small" = bon compromis FR).

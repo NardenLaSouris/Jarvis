@@ -1,0 +1,116 @@
+# Spécification d'entraînement du wake word « Jarvis » (prononciation française).
+# Pour un autre wake word : copier ce fichier, changer `name`, `phrase`, les textes
+# positifs et les négatifs proches, puis relancer `python -m wakeword_training all --spec ...`.
+
+name = "jarvis_fr"      # -> models/openwakeword/jarvis_fr.onnx
+phrase = "Jarvis"
+
+[voices]
+# Voix Piper françaises (https://huggingface.co/rhasspy/piper-voices), dans data/wakeword/voices/.
+files = [
+    "fr_FR-mls-medium",      # 125 locuteurs (hommes et femmes)
+    "fr_FR-siwis-medium",    # femme
+    "fr_FR-tom-medium",      # homme
+    "fr_FR-gilles-low",      # homme
+    "fr_FR-upmc-medium",     # 2 locuteurs (femme, homme)
+]
+# Écartée : fr_FR-mls_1840-low (aucun « Jarvis » intelligible sur les essais, pas d'alignement).
+# fr_FR-mls-medium prononce rarement le mot correctement (~15 % des essais validés par
+# Whisper) : elle n'apporte qu'un complément de timbres, avec peu d'essais par locuteur.
+# Locuteurs exclus de l'entraînement, réservés à l'évaluation ("voix" ou "voix:locuteur").
+test_voices = ["fr_FR-tom-medium", "fr_FR-upmc-medium:1"]
+# Part des locuteurs des voix à nombreux locuteurs réservée à l'évaluation.
+test_speaker_fraction = 0.15
+
+[positives]
+# Le wake word est toujours le DERNIER mot prononcé : la fin du clip marque la fin du mot.
+# Graphies phonétiques pour guider espeak : « Jarvis » y serait lu /ʒaʁvi/ (s muet), alors
+# qu'on prononce naturellement /ʒaʁvis/. /ʒaʁvi/ est volontairement exclu : trop proche de
+# « Jarry » ou « Gervais », il faisait réagir le modèle à ces mots. Un peu de /dʒaʁvis/.
+# Seuls les clips dont le texte se termine par l'une de ces graphies sont utilisés.
+texts = [
+    "Jarvisse", "Jarvisse.", "Jarvisse !", "Jarvisse ?", "Jarviss", "Jarvice", "Jarvice !", "Djarvisse",
+]
+# Mots parfois prononcés juste avant (parole naturelle) ; "" = mot seul.
+prefixes = ["", "", "", "", "", "Euh, ", "Bon, ", "Dis, ", "Hé, ", "Alors, ", "Oui, ", "Dis-moi "]
+# Les voix Piper sont instables sur un mot isolé (elles « inventent » de la parole).
+# On leur fait donc aussi dire des phrases longues terminées par le mot, puis on
+# découpe exactement le mot grâce à l'alignement des phonèmes. {w} = le mot.
+carriers = [
+    "Bonjour, je voulais simplement te demander quelque chose, {w}.",
+    "Il est tard et je voudrais que tu m'écoutes un instant, {w} !",
+    "Dis-moi franchement ce que tu en penses maintenant, {w} ?",
+    "J'ai une petite question à te poser ce matin, {w}.",
+    "Est-ce que tu peux m'aider avec quelque chose, {w} ?",
+    "Je rentre à la maison dans une heure environ, {w}.",
+    "Attends, j'ai encore une chose à te dire, {w} !",
+    "Tu m'entends bien depuis l'autre pièce, {w} ?",
+]
+# Chaque exemple est transcrit par Whisper et gardé seulement si la transcription se
+# termine par un mot correspondant à ce motif (expression régulière, minuscules).
+verify_pattern = "[jg]\\W?[aeè]r\\W?v[iy]"
+clips_per_speaker = 2
+# Minimum par voix : les voix à un seul locuteur produiraient sinon trop peu d'exemples.
+min_clips_per_voice = 200
+
+[negatives]
+# Mots et phrases phonétiquement proches : les plus importants contre les faux positifs.
+hard = [
+    "J'arrive", "J'arrive vite", "J'avais", "J'avais vu", "J'ai vu", "J'avise", "Jardin", "Jarre",
+    "Jarret", "Jarnac", "Jarry", "Gervais", "Travis", "Marvin", "Harvey", "Mavis", "Avis", "Service",
+    "Chavire", "Jamais", "Jacques", "Charles", "Garbis", "Narvik", "Jars",
+    "Chat vicieux", "J'ai bu", "J'ai vis", "Jean-Louis", "Gare de Vichy", "Par avis", "La vis",
+    "J'arrive Louis", "J'ai fini", "Je vis", "Je lis",
+    # Pas de quasi-homophones (« Jervis », « Jarvik ») : ils apprendraient au modèle
+    # à rejeter des prononciations naturelles du wake word.
+]
+phrases = [
+    "Bonjour", "Bonsoir", "Merci", "Ça marche", "D'accord", "Salut", "À plus tard", "Bonne nuit",
+    "J'ai besoin de quelque chose", "J'avais prévu de partir", "J'arrive dans deux minutes",
+    "Tu peux me passer le sel ?", "On mange à quelle heure ce soir ?", "Il fait vraiment froid dehors",
+    "Je vais prendre une douche", "Où est-ce que j'ai mis mes clés ?", "Le film commence à neuf heures",
+    "Tu as vu le match hier ?", "Il faut racheter du pain", "Je travaille demain matin",
+    "Qu'est-ce qu'on regarde ce soir ?", "Ferme la porte s'il te plaît", "Les enfants sont couchés",
+    "J'ai reçu un message de ta mère", "On part en vacances en juillet", "Le café est prêt",
+    "Je n'ai pas bien dormi", "Il pleut depuis ce matin", "La réunion est reportée à jeudi",
+    "Tu veux un verre d'eau ?", "C'est l'heure du dîner", "J'ai oublié mon téléphone",
+    "Le chat a encore renversé son bol", "Tu as pensé à appeler le garagiste ?",
+    "Je reviens tout de suite", "Il reste des pâtes d'hier", "On se voit samedi",
+    "Monte le son un peu", "Baisse le chauffage", "Quelle heure est-il ?", "Je suis fatigué",
+    "C'est une bonne idée", "Pas de problème", "Attends une seconde", "Regarde par la fenêtre",
+    "Allô, oui, je t'écoute", "Je ne sais pas trop", "Viens voir ça", "On y va",
+    "Ça sent bon dans la cuisine", "Il y a quelqu'un à la porte", "Tu as fini tes devoirs ?",
+    "Le train a du retard", "Je passe à la boulangerie", "Mets la table s'il te plaît",
+    "Les informations de vingt heures", "Et maintenant, la météo", "Place à la publicité",
+    "Merci d'avoir regardé cette vidéo", "Abonnez-vous à la chaîne", "Voici le programme de la soirée",
+    "Il était une fois un petit garçon", "Nous sommes en direct de Paris", "Le score est de deux à un",
+    "Jardiner, c'est ma passion", "Service compris", "J'ai vu Marvin et Harvey hier soir",
+]
+clips_per_speaker = 12
+# Part de mots pièges parmi les négatifs : ce sont eux qui provoquent les fausses alertes.
+hard_fraction = 0.7
+
+[augmentation]
+copies_per_positive = 6
+copies_per_negative = 1
+copies_per_hard_negative = 3
+snr_db = [3.0, 30.0]            # bruit de fond : rapport signal/bruit
+clean_probability = 0.25        # part des exemples sans bruit ajouté
+far_probability = 0.35          # part des exemples « à distance » (réverbération, atténuation)
+pitch_factor = [0.85, 1.2]      # rééchantillonnage : hauteur et débit (compense le peu de voix)
+
+[training]
+external_negatives = "data/wakeword/negatives/validation_set_features.npy"
+external_negatives_train_fraction = 0.7   # le reste sert à mesurer les fausses alertes
+hidden_units = 64
+epochs = 40
+learning_rate = 0.001
+negative_weight = 5.0           # pénalise davantage les fausses alertes que les oublis
+hard_negative_weight = 3.0      # poids supplémentaire des mots pièges
+
+[evaluation]
+# Plafonds retenus pour choisir le seuil (le plus bas seuil qui respecte les deux) :
+# fausses alertes par heure sur de la parole ordinaire et de l'audio varié (TV, musique...)
+max_false_activations_per_hour = 0.5
+# part des mots pièges prononcés isolément qui déclenchent JARVIS
+max_hard_negative_trigger_rate = 0.03
