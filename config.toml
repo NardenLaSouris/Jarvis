@@ -1,0 +1,64 @@
+# Configuration centrale de JARVIS.
+# Les chemins relatifs sont résolus par rapport au dossier de ce fichier.
+
+[assistant]
+name = "Jarvis"
+language = "fr"
+# Formules prononcées à la détection du wake word (tirées au hasard).
+acknowledgements = ["Oui, monsieur ?", "Monsieur ?", "Je vous écoute, monsieur.", "À votre service, monsieur."]
+# Durée (s) pendant laquelle JARVIS reste à l'écoute après une réponse,
+# sans qu'il soit nécessaire de répéter le wake word.
+conversation_timeout = 8.0
+# Nombre maximal d'échanges conservés dans le contexte d'une conversation.
+max_history_turns = 6
+
+[wake_word]
+# Mot affiché/utilisé dans les messages ; le modèle ci-dessous fait la détection.
+phrase = "Jarvis"
+# Modèle openWakeWord (pré-entraîné "hey_jarvis", qui réagit aussi à "Jarvis" seul).
+# Pour un autre mot, entraîner un modèle openWakeWord personnalisé et pointer ici.
+model = "models/openwakeword/hey_jarvis_v0.1.onnx"
+melspectrogram_model = "models/openwakeword/melspectrogram.onnx"
+embedding_model = "models/openwakeword/embedding_model.onnx"
+# Score (0-1) au-delà duquel le wake word est considéré comme détecté.
+threshold = 0.5
+
+[stt]
+# Modèle faster-whisper : tiny, base, small, medium... ("small" = bon compromis FR).
+model = "small"
+device = "cpu"          # "cpu" ou "cuda"
+compute_type = "int8"   # int8 recommandé sur CPU
+beam_size = 1
+download_root = "models/whisper"
+
+[tts]
+# Voix Piper (https://huggingface.co/rhasspy/piper-voices). Le .onnx.json doit être à côté.
+voice = "models/piper/fr_FR-tom-medium.onnx"
+length_scale = 1.0      # > 1 = plus lent
+volume = 1.0
+
+[llm]
+backend = "ollama"
+host = "http://127.0.0.1:11434"
+# À adapter au matériel : sur un mini-PC sans GPU, un modèle 3-4B (ex. qwen2.5:3b,
+# llama3.2:3b) est plus réactif qu'un 7B.
+model = "mistral:latest"
+temperature = 0.7
+max_tokens = 200
+keep_alive = "30m"
+timeout = 120.0
+
+[audio]
+sample_rate = 16000
+# Taille d'un bloc audio : 1280 échantillons = 80 ms (attendu par openWakeWord).
+frame_samples = 1280
+input_device = ""       # vide = périphérique par défaut ; sinon nom partiel ou index
+output_device = ""
+# Délai max (s) pour commencer à parler après "Oui, monsieur ?".
+listen_timeout = 6.0
+# Silence (s) marquant la fin d'une phrase.
+end_of_speech_silence = 0.9
+max_utterance = 15.0
+# Détection de parole par énergie : seuil = max(min_rms, bruit_de_fond * ratio).
+min_rms = 300.0
+speech_to_noise_ratio = 3.0
