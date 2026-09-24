@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import os
 import tomllib
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Any
 
@@ -37,9 +38,14 @@ class STTConfig:
 
 @dataclass(frozen=True)
 class TTSConfig:
+    engine: str = "piper"
+    fallback_to_piper: bool = True
+    elevenlabs: dict = field(default_factory=dict)
     voice: Path = Path("models/piper/fr_FR-tom-medium.onnx")
+    speaker: str = ""
     length_scale: float = 1.0
     volume: float = 1.0
+    pronunciations: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -100,6 +106,17 @@ def _build(cls: type, data: dict[str, Any], base_dir: Path):
         if isinstance(value, Path) and not value.is_absolute():
             object.__setattr__(instance, name, (base_dir / value).resolve())
     return instance
+
+
+def secret(name: str, env_file: Path) -> str:
+    if os.environ.get(name):
+        return os.environ[name]
+    if env_file.exists():
+        for line in env_file.read_text(encoding="utf-8").splitlines():
+            key, sep, value = line.strip().partition("=")
+            if sep and key.strip() == name:
+                return value.strip().strip('"').strip("'")
+    return ""
 
 
 def load_config(path: str | Path = "config.toml") -> Config:

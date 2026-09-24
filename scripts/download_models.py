@@ -43,8 +43,19 @@ def piper_voice_url(voice: str) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default=str(ROOT / "config.toml"))
+    parser.add_argument("--voice", action="append", default=[],
+                        help="télécharge seulement cette voix Piper dans models/piper (répétable)")
     args = parser.parse_args()
     cfg = load_config(args.config)
+
+    if args.voice:
+        for voice in args.voice:
+            name = voice.partition(":")[0].removesuffix(".onnx")
+            dest = cfg.tts.voice.parent / f"{name}.onnx"
+            print(f"Voix Piper {name}")
+            fetch(piper_voice_url(name), dest)
+            fetch(piper_voice_url(name) + ".json", dest.with_suffix(".onnx.json"))
+        return
 
     print("Wake word (openWakeWord)")
     ww = cfg.wake_word
@@ -60,8 +71,7 @@ def main() -> None:
                   "Entraînez-le avec `python -m wakeword_training all` (voir README).")
 
     print("Voix TTS (Piper)")
-    voice = cfg.tts.voice.name.removesuffix(".onnx")
-    url = piper_voice_url(voice)
+    url = piper_voice_url(cfg.tts.voice.name.removesuffix(".onnx"))
     fetch(url, cfg.tts.voice)
     fetch(url + ".json", cfg.tts.voice.with_suffix(".onnx.json"))
 

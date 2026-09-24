@@ -9,3 +9,4 @@ models/*
 models/openwakeword/*
 !models/openwakeword/jarvis_fr.onnx
 !models/openwakeword/jarvis_fr.json
+.env

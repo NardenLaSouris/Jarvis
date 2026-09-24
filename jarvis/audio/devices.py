@@ -89,6 +89,10 @@ class SpeakerSink:
     def __init__(self, device: str = ""):
         self._device = _device(device)
 
+    @property
+    def device_name(self) -> str:
+        return sd.query_devices(self._device, "output")["name"]
+
     def play(self, audio: np.ndarray, sample_rate: int) -> None:
         if audio.size == 0:
             return

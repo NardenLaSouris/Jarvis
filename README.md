@@ -57,7 +57,86 @@ python -m jarvis                    # lancement normal
 python -m jarvis --list-devices     # périphériques audio (pour [audio] input_device / output_device)
 python -m jarvis --wake-test        # affiche en direct le score du wake word pour régler le seuil
 python -m jarvis --input-wav f.wav --output-dir out/   # simule le micro avec un fichier
+python -m jarvis --tts-test "Bonjour monsieur."        # voix de JARVIS sur la sortie audio configurée
 ```
+
+## Voix ElevenLabs (cloud)
+
+Par défaut, JARVIS parle avec une voix ElevenLabs : `[tts] engine = "elevenlabs"`, voix réglée
+dans `[tts.elevenlabs] voice_id`. Chaque phrase prononcée est envoyée à l'API ElevenLabs, ce
+qui demande une connexion Internet et une clé API ; le service est payant au-delà du quota
+gratuit.
+
+La clé ne doit jamais être écrite dans `config.toml` ni dans `.env.example` :
+
+```bash
+copy .env.example .env      # puis mettez la clé dans .env (fichier ignoré par git)
+```
+
+Si ElevenLabs est indisponible (pas de clé, pas de réseau, quota épuisé, erreur de l'API),
+JARVIS bascule automatiquement sur la voix locale Piper (`fallback_to_piper = true`). Pour
+revenir au tout-local : `engine = "piper"`.
+
+```bash
+python -m jarvis --tts-test "Bonjour monsieur. Je suis Jarvis."   # teste la voix configurée
+```
+
+## Choisir la voix Piper
+
+Pour comparer plusieurs voix Piper à l'oreille, avec exactement le même chemin TTS → sortie audio
+que JARVIS :
+
+```bash
+python -m jarvis --tts-voices-test                                   # candidats par défaut
+python -m jarvis --tts-voices-test fr_FR-gilles-low fr_FR-upmc-medium:pierre
+python -m jarvis --tts-test "Bonjour monsieur" --tts-voice fr_FR-upmc-medium:pierre
+python -m jarvis --tts-voices-test --no-pronunciations               # sans le lexique (voir plus bas)
+```
+
+- **Candidats par défaut** (voix masculines) : `fr_FR-tom-medium`, `fr_FR-gilles-low` et
+  `fr_FR-upmc-medium:pierre`.
+- **Phrases jouées** : les quatre mêmes pour chaque voix. La dernière, « Jarvis. Bonjour monsieur.
+  Je vais vous assister. », sert à vérifier le « s » final de Jarvis.
+- **Logs** : pour chaque phrase, la voix, les phonèmes, la génération et la lecture.
+- **Voix multi-locuteurs** : elles s'écrivent `voix:locuteur`, par exemple `fr_FR-upmc-medium:pierre`
+  ou `:jessica`.
+- **Voix absente de `models/piper/`** : le test indique la commande de téléchargement, par exemple :
+
+```bash
+python scripts/download_models.py --voice fr_FR-gilles-low --voice fr_FR-upmc-medium
+```
+
+Pour adopter une voix, modifiez `[tts]` dans `config.toml` :
+
+```toml
+[tts]
+voice = "models/piper/fr_FR-upmc-medium.onnx"
+speaker = "pierre"          # vide pour une voix à un seul locuteur
+```
+
+Voix françaises Piper disponibles :
+
+| voix | locuteurs | remarques |
+|---|---|---|
+| `fr_FR-tom-medium` | homme | 44,1 kHz |
+| `fr_FR-gilles-low` | homme | 16 kHz, qualité « low », parfois instable sur les textes courts |
+| `fr_FR-upmc-medium` | `pierre` (homme), `jessica` (femme) | |
+| `fr_FR-siwis-medium` | femme | |
+| `fr_FR-mls-medium` | 125 locuteurs sans nom (hommes et femmes) | souvent incompréhensible sur les phrases courtes |
+| `fr_FR-mls_1840-low` | femme | peu intelligible |
+
+**Prononciation de « Jarvis ».** espeak-ng, qui convertit le texte en phonèmes pour toutes les voix
+Piper, applique la règle française du « s » muet : « Jarvis » devient /ʒaʁvi/, quelle que soit la
+voix. La section `[tts.pronunciations]` de `config.toml` impose des phonèmes pour certains mots,
+sans changer leur orthographe :
+
+```toml
+[tts.pronunciations]
+Jarvis = "ʒaʁvˈis"
+```
+
+Ce lexique est appliqué à tout texte prononcé, y compris les réponses du LLM, en conservant la
+ponctuation qui suit le mot. On peut y ajouter d'autres mots mal prononcés.
 
 ## Réglages utiles (`config.toml`)
 

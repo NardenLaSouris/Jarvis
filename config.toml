@@ -24,7 +24,7 @@ embedding_model = "models/openwakeword/embedding_model.onnx"
 # 0.96 = seuil recommandé par l'évaluation (models/openwakeword/jarvis_fr.json) : le plus bas
 # qui garde < 0,5 fausse alerte/h et < 3 % de mots pièges déclencheurs sur des voix de test.
 # À ajuster avec `python -m jarvis --wake-test` : plus bas = détecte mieux de loin, se trompe plus.
-threshold = 0.96
+threshold = 0.3
 
 [stt]
 # Modèle faster-whisper : tiny, base, small, medium... ("small" = bon compromis FR).
@@ -35,10 +35,30 @@ beam_size = 1
 download_root = "models/whisper"
 
 [tts]
+# Moteur de synthèse : "elevenlabs" (cloud) ou "piper" (local).
+engine = "elevenlabs"
+# Si ElevenLabs échoue (pas de clé, pas de réseau, quota), JARVIS parle avec Piper.
+fallback_to_piper = true
 # Voix Piper (https://huggingface.co/rhasspy/piper-voices). Le .onnx.json doit être à côté.
 voice = "models/piper/fr_FR-tom-medium.onnx"
+# Locuteur des voix multi-locuteurs (ex. "pierre" pour fr_FR-upmc-medium) ; vide sinon.
+speaker = ""
 length_scale = 1.0      # > 1 = plus lent
 volume = 1.0
+
+[tts.pronunciations]
+# Mot = phonèmes espeak (IPA) imposés à la synthèse. espeak lit « Jarvis » /ʒaʁvˈi/
+# (s final muet, règle du français) : on impose /ʒaʁvˈis/ sans changer l'orthographe.
+Jarvis = "ʒaʁvˈis"
+
+[tts.elevenlabs]
+voice_id = "CwhRBWXzGAHq8TQ4Fs17"
+# La clé API n'est jamais écrite ici : variable d'environnement ou fichier .env (voir .env.example).
+api_key_env = "ELEVENLABS_API_KEY"
+model = "eleven_multilingual_v2"
+# PCM brut 16 bits : aucun décodage nécessaire. pcm_44100 exige un abonnement Pro.
+output_format = "pcm_22050"
+timeout = 30.0
 
 [llm]
 backend = "ollama"
