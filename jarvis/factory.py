@@ -7,13 +7,18 @@ nouveau moteur (autre STT, autre LLM...) se fait ici, sans toucher à l'agent.
 from __future__ import annotations
 
 import logging
+import time
 from pathlib import Path
 
 from jarvis.agent import Agent, AgentSettings, EventHandler
 from jarvis.audio.endpointing import EndpointerSettings, UtteranceRecorder
 from jarvis.capabilities import CapabilityRegistry
+from jarvis.personality import load_personality
+from jarvis.router import IntentRouter
 from jarvis.config import Config
-from jarvis.interfaces import AudioSink, AudioSource, LanguageModel, TextToSpeech, WakeWordDetector
+from jarvis.interfaces import (
+    AudioSink, AudioSource, LanguageModel, SpeechToText, TextToSpeech, WakeWordDetector,
+)
 
 log = logging.getLogger(__name__)
 
@@ -36,54 +41,49 @@ def build_wake_word(cfg: Config) -> WakeWordDetector:
     return OpenWakeWordDetector(ww.model, ww.melspectrogram_model, ww.embedding_model)
 
 
-ELEVENLABS_PREFIX = "elevenlabs:"
+def build_tts(cfg: Config) -> TextToSpeech:
+    t = cfg.tts
+    if t.engine == "piper":
+        from jarvis.tts.piper import PiperTTS
+
+        return PiperTTS(t.voice, t.length_scale, t.volume, t.speaker, t.pronunciations)
+    if t.engine == "neutts":
+        from jarvis.config import secret
+        from jarvis.tts.neutts import NeuTTSEngine
+
+        n = t.neutts
+        return NeuTTSEngine(n.get("backbone", "neuphonic/neutts-nano-french-q8-gguf"),
+                            n.get("codec", "neuphonic/neucodec-onnx-decoder"),
+                            ENV_FILE.parent / n.get("voice", "models/neutts/voices/bernard.wav"),
+                            hf_token=secret("HF_TOKEN", ENV_FILE), pronunciations=n.get("pronunciations"))
+    raise ValueError(f"Moteur TTS inconnu : {t.engine}")
 
 
-def build_tts(cfg: Config, voice: str | None = None, pronunciations: bool = True) -> TextToSpeech:
-    from jarvis.tts.piper import PiperTTS, parse_voice_spec
+def build_stt(cfg: Config) -> SpeechToText:
+    from jarvis.stt.faster_whisper import FasterWhisperSTT
 
-    eleven_voice = voice[len(ELEVENLABS_PREFIX):] if voice and voice.startswith(ELEVENLABS_PREFIX) else None
-    piper_voice = None if eleven_voice else voice
-    path, speaker = (cfg.tts.voice, cfg.tts.speaker) if piper_voice is None else parse_voice_spec(piper_voice, cfg.tts.voice.parent)
-    lexicon = cfg.tts.pronunciations if pronunciations else {}
-    piper = PiperTTS(path, cfg.tts.length_scale, cfg.tts.volume, speaker, lexicon)
-    if eleven_voice:
-        return _with_fallback(cfg, _build_elevenlabs(cfg, eleven_voice), piper)
-    if piper_voice is not None or cfg.tts.engine == "piper":
-        return piper
-    if cfg.tts.engine == "elevenlabs":
-        return _with_fallback(cfg, _build_elevenlabs(cfg), piper)
-    raise ValueError(f"Moteur TTS inconnu : {cfg.tts.engine}")
+    c = cfg.stt
+    return FasterWhisperSTT(
+        c.model, cfg.assistant.language, c.device, c.compute_type, c.beam_size, c.download_root,
+        c.fallback_device, c.fallback_compute_type,
+    )
 
 
-def _build_elevenlabs(cfg: Config, voice_id: str | None = None) -> TextToSpeech | Exception:
-    from jarvis.config import secret
-    from jarvis.tts.elevenlabs import ElevenLabsTTS, TTSError
+def build_web(cfg: Config):
+    """Recherche Web configurée, ou None si elle est désactivée ou sans moteur."""
+    w = cfg.web
+    if not w.enabled:
+        return None
+    if not w.provider:
+        log.warning("Recherche Web activée mais aucun moteur configuré ([web] provider) : désactivée.")
+        return None
+    if w.provider != "searxng":
+        raise ValueError(f"Moteur de recherche inconnu : {w.provider}")
+    from jarvis.web.research import WebResearch
+    from jarvis.web.searxng import SearXNGProvider
 
-    e = cfg.tts.elevenlabs
-    try:
-        return ElevenLabsTTS(
-            voice_id=voice_id or e["voice_id"],
-            api_key=secret(e.get("api_key_env", "ELEVENLABS_API_KEY"), ENV_FILE),
-            model=e.get("model", "eleven_multilingual_v2"),
-            output_format=e.get("output_format", "pcm_22050"),
-            voice_settings=e.get("voice_settings"),
-            timeout=float(e.get("timeout", 30.0)),
-        )
-    except TTSError as exc:
-        return exc
-
-
-def _with_fallback(cfg: Config, primary: TextToSpeech | Exception, piper: TextToSpeech) -> TextToSpeech:
-    from jarvis.tts.fallback import FallbackTTS
-
-    if isinstance(primary, Exception):
-        if not cfg.tts.fallback_to_piper:
-            raise primary
-        log.warning("ElevenLabs indisponible (%s) : voix locale Piper utilisée", primary)
-        return piper
-    log.info("Voix : %s", primary.voice_name)
-    return FallbackTTS(primary, piper) if cfg.tts.fallback_to_piper else primary
+    provider = SearXNGProvider(w.base_url, w.language, w.max_results, w.timeout, max_page_bytes=w.max_page_bytes)
+    return WebResearch(provider, w.max_results, w.fetch_pages)
 
 
 def build_sink(cfg: Config) -> AudioSink:
@@ -98,26 +98,31 @@ def build_agent(
     sink: AudioSink | None = None,
     on_event: EventHandler | None = None,
 ) -> Agent:
-    from jarvis.stt.faster_whisper import FasterWhisperSTT
-
     if source is None:
         from jarvis.audio.devices import MicrophoneSource
 
         source = MicrophoneSource(cfg.audio.sample_rate, cfg.audio.frame_samples, cfg.audio.input_device)
     sink = sink or build_sink(cfg)
+    from jarvis.hardware import machine_summary
+
+    log.info("Machine : %s", machine_summary())
 
     log.info("Chargement du wake word (%s)…", cfg.wake_word.model.name)
     ww = cfg.wake_word
     wake_word = build_wake_word(cfg)
 
     log.info("Chargement du STT (whisper %s)…", cfg.stt.model)
-    stt = FasterWhisperSTT(
-        cfg.stt.model, cfg.assistant.language, cfg.stt.device, cfg.stt.compute_type,
-        cfg.stt.beam_size, cfg.stt.download_root,
-    )
+    stt = build_stt(cfg)
 
     log.info("Chargement de la voix…")
+    started = time.perf_counter()
     tts = build_tts(cfg)
+    loaded = time.perf_counter()
+    warm_up = getattr(tts, "warm_up", None)
+    if warm_up:
+        warm_up()
+    log.info("TTS %s : chargement %.2f s, préchauffage %.2f s", getattr(tts, "voice_name", ""),
+             loaded - started, time.perf_counter() - loaded)
 
     log.info("Chargement du LLM (%s)…", cfg.llm.model)
     llm = build_llm(cfg)
@@ -126,17 +131,30 @@ def build_agent(
     except Exception as exc:  # JARVIS démarre quand même et le signalera à l'usage.
         log.warning("Préchargement du LLM impossible : %s", exc)
 
+    personality = load_personality(cfg.assistant.personality)
+    capabilities = CapabilityRegistry()
+    web = build_web(cfg)
+    if web is not None:
+        from jarvis.web.research import WebSearchCapability
+
+        capabilities.register(WebSearchCapability())
+        available = getattr(web.provider, "available", lambda: True)()
+        log.info("Recherche Web : %s (%s)", cfg.web.base_url, "joignable" if available else "INJOIGNABLE pour le moment")
+    router = IntentRouter(personality, capabilities, web_enabled=web is not None)
+    log.info("Personnalité : %s, %d intentions prédéfinies", personality.assistant_name, len(personality.intents))
+
     a = cfg.audio
     recorder = UtteranceRecorder(
         source, EndpointerSettings(a.end_of_speech_silence, a.max_utterance, a.min_rms, a.speech_to_noise_ratio)
     )
     settings = AgentSettings(
-        assistant_name=cfg.assistant.name,
+        assistant_name=personality.assistant_name,
         wake_phrase=ww.phrase,
         wake_threshold=ww.threshold,
-        acknowledgements=cfg.assistant.acknowledgements,
+        acknowledgements=router.wake_phrases(),
         listen_timeout=a.listen_timeout,
         conversation_timeout=cfg.assistant.conversation_timeout,
         max_history_turns=cfg.assistant.max_history_turns,
     )
-    return Agent(settings, source, sink, wake_word, recorder, stt, llm, tts, CapabilityRegistry(), on_event)
+    return Agent(settings, source, sink, wake_word, recorder, stt, llm, tts, router, on_event,
+                 stream_audio=cfg.tts.stream_audio, merge_under=cfg.tts.merge_under, web=web)

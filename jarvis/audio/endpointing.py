@@ -7,6 +7,7 @@ pas en temps réel, ce qui rend le comportement identique en test sur fichier.
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 
 import numpy as np
@@ -35,6 +36,8 @@ class UtteranceRecorder:
         self._s = settings
         self._frame_s = source.frame_samples / source.sample_rate
         self._noise = settings.min_rms / settings.speech_to_noise_ratio
+        self.speech_ended_at = 0.0
+        self.endpoint_delay = 0.0
 
     def _threshold(self) -> float:
         return max(self._s.min_rms, self._noise * self._s.speech_to_noise_ratio)
@@ -59,6 +62,7 @@ class UtteranceRecorder:
                 self._noise = 0.95 * self._noise + 0.05 * level
             pre_roll = (pre_roll + [frame])[-(PRE_ROLL_FRAMES + MIN_SPEECH_FRAMES):]
             if loud_run >= MIN_SPEECH_FRAMES:
+                self.speech_ended_at = time.perf_counter()
                 break
             waited += self._frame_s
             if waited >= start_timeout:
@@ -72,5 +76,10 @@ class UtteranceRecorder:
             if frame is None:
                 break
             frames.append(frame)
-            silence = 0.0 if rms(frame) > self._threshold() else silence + self._frame_s
+            if rms(frame) > self._threshold():
+                silence = 0.0
+                self.speech_ended_at = time.perf_counter()
+            else:
+                silence += self._frame_s
+        self.endpoint_delay = time.perf_counter() - self.speech_ended_at
         return np.concatenate(frames)

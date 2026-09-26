@@ -60,6 +60,178 @@ python -m jarvis --input-wav f.wav --output-dir out/   # simule le micro avec un
 python -m jarvis --tts-test "Bonjour monsieur."        # voix de JARVIS sur la sortie audio configurée
 ```
 
+## Réponse en flux (LLM → TTS → audio)
+
+JARVIS commence à parler dès que la première phrase de la réponse est prête, pendant qu'Ollama
+génère la suite (`jarvis/streaming.py`) :
+
+```
+Ollama (stream) -> SentenceBuffer -> file de phrases -> thread TTS -> file audio -> AudioSink
+   thread « llm-phrases »                               thread « tts »          thread principal
+```
+
+- **`SentenceBuffer`** accumule les fragments du LLM. Il ne rend que des phrases complètes, terminées
+  par `. ! ? ; …`, d'au moins 12 caractères, sans couper sur « M. », « etc. » ni sur « 2.5 ».
+- **Filtrage phrase par phrase** par le routeur (`ReplyFilter`) : formules d'entrée creuses,
+  salutations non sollicitées, relances de fin, « monsieur » au plus une fois. Une fausse action
+  prétendue **coupe la génération**.
+- **Trois étapes en parallèle** : le thread LLM remplit la file de phrases, le thread TTS la
+  synthétise, et le thread principal joue l'audio dans l'ordre. Chaque phrase est synthétisée puis
+  jouée une seule fois, sans superposition.
+- **Réponses courtes et prédéfinies** : même chemin, avec une seule phrase, sans attente superflue.
+- **Interruption** : `SpeechPipeline.cancel()` arrête la génération (le flux Ollama est fermé), vide
+  les files et n'en joue plus rien. C'est prêt pour un futur « Jarvis, stop ».
+- **Voix Piper** : chargée et préchauffée au démarrage, jamais rechargée entre deux phrases. Le TTS
+  reste interchangeable : ElevenLabs fonctionne aussi avec ce pipeline (`[tts] engine`), avec une
+  requête par phrase.
+
+Métriques affichées à chaque réponse : `STT`, `LLM first token`, `LLM first sentence`,
+`TTS first sentence`, `Audio first chunk`, `LLM total`, `TTS total` et `Total response`.
+
+## Personnalité et réponses prédéfinies
+
+Tout se règle dans `personality.toml`, sans toucher au code :
+- **Identité** : nom de l'assistant, prénom et titre de l'utilisateur (« monsieur »), ton, humour,
+  exemples de style.
+- **Phrases** : réponses au wake word, phrases d'indisponibilité, réponse si le LLM est injoignable.
+- **Intentions prédéfinies** : formulations reconnues et variantes de réponse.
+
+Chaque demande transcrite passe par le routeur (`jarvis/router.py`), dans cet ordre :
+
+1. **commandes critiques** : « stop », « tais-toi »…, et retour en veille ;
+2. **intentions prédéfinies** : salutations, remerciements, identité, nom, créateur, capacités,
+   au revoir. Réponse immédiate, sans LLM ;
+3. **capacités** (outils) enregistrées dans `jarvis/capabilities` : aucune en V1 ;
+4. **intentions de repli** : demande d'action vers une fonction pas encore disponible
+   (« éteins la lumière », « envoie un message »…). Elles passent après les capacités, pour qu'une
+   capacité ajoutée plus tard soit prioritaire ;
+5. **LLM** (Ollama) : pour tout le reste. Son prompt est construit à partir de la personnalité et des
+   capacités réelles.
+
+**Contexte de conversation.** Une intention peut n'être reconnue que juste après une autre
+(`after`). Par exemple, « Moi ça va » après « Comment allez-vous ? » donne « Parfait. ». Ce contexte
+repart de zéro à chaque réveil par le wake word. Le prompt indique aussi au LLM si la conversation
+est déjà engagée, pour qu'il ne resalue pas.
+
+**Identité.** `assistant_name`, `user_name` et `user_title` sont la source de vérité : elles alimentent
+les réponses prédéfinies (« Qui es-tu ? », « Qui est Jules ? ») et un bloc d'identité explicite dans le
+prompt. Le prénom de l'utilisateur n'apparaît que lorsque la conversation porte sur lui.
+
+Chaque demande produit une ligne de log `[routing]` : `predefined:identity`, `critical:stop`,
+`unavailable:unavailable_home`, `capability:…` ou `llm`. Une ligne `[timing] LLM` n'apparaît que si le
+LLM a réellement été sollicité.
+
+**Tolérance aux erreurs du STT** (`[matching]` dans `personality.toml`) :
+- Le texte est normalisé : minuscules, accents, apostrophes, ponctuation, espaces.
+- Des **réécritures** explicites corrigent les confusions fréquentes (« qui est-tu » → « qui es-tu »,
+  « t'es qui » → « tu es qui »).
+- Pour les phrases de 6 mots au plus, une **petite faute par mot** est tolérée (`fuzzy_threshold`),
+  sauf sur les mots porteurs de sens (`strict_words` : tu, ton, son, qui…). Ainsi, « présante-toi » est
+  reconnu, mais « Quel est son nom ? » n'est pas pris pour « Quel est ton nom ? ».
+
+**Garde-fous sur les réponses du LLM :**
+- Une réponse qui prétend avoir agi sans qu'aucun outil n'ait été exécuté (« La lumière est éteinte »,
+  « Je m'en occupe »…) est remplacée par une phrase d'indisponibilité.
+- Une formule d'entrée creuse (« Bien sûr, monsieur. », « Je suis heureux de vous aider. ») est
+  retirée quand la vraie réponse suit (liste `filler_openings`).
+- Une salutation d'ouverture (« Bonjour, monsieur. ») est retirée, sauf si l'utilisateur vient de saluer
+  (`greeting_openings`).
+- Une relance creuse en fin de réponse (« N'hésitez pas à me demander. ») est retirée (`filler_closings`).
+- « monsieur » est conservé au plus une fois par réponse.
+- Une réponse coupée par la limite de longueur est ramenée à sa dernière phrase complète.
+
+Les variantes sont tirées au hasard, sans jamais répéter deux fois de suite la même. Les réponses
+peuvent utiliser `{title}`, `{assistant_name}`, `{salutation}` (Bonjour/Bonsoir selon l'heure),
+`{available}` et `{planned}`.
+
+```bash
+python tests/test_personality.py
+```
+
+## Visage graphique
+
+Au lancement, JARVIS ouvre son visage animé dans le navigateur (`http://127.0.0.1:8765/`) : anneaux
+holographiques dessinés en direct (canvas, HTML/CSS/JS sans dépendance), qui suivent son état.
+
+| JARVIS | Visage |
+|---|---|
+| en veille (`sleep`) | STANDBY : rotations lentes, faible lumière, pulsation lente du noyau |
+| wake word, écoute, STT | LISTENING : plus lumineux, anneaux internes plus rapides, pulsation régulière |
+| demande comprise, routage, recherche Web | THINKING : rotations rapides, segments en mouvement, particules vers le centre |
+| lecture audio | SPEAKING : noyau et anneaux réagissent au niveau réel de la voix |
+
+Le niveau audio est mesuré sur les échantillons réellement envoyés au haut-parleur (`MeteredSink`),
+sans toucher à Piper. Le visage est non critique : port pris, page fermée ou erreur, JARVIS
+continue en vocal. Réglages dans `[face]` de `config.toml` (`host = "0.0.0.0"` pour une tablette
+ou un écran mural du réseau local).
+
+```bash
+python -m jarvis                  # JARVIS + visage
+python -m jarvis --no-face        # sans visage
+python -m jarvis --face-demo      # défilement des états, parole avec la vraie voix
+```
+
+Dans le navigateur : `?demo=1` (démo autonome, touches 1-4), `?debug=1` (état et FPS). API JS :
+`JarvisFace.setVisualState("thinking")`, `JarvisFace.setAudioLevel(0.4)`, `JarvisFace.standby()`.
+
+## Recherche Web
+
+Pour les questions qui demandent une information actuelle (prix, dernière version, actualités,
+« actuel », « en ce moment », « cherche-moi… »), le routeur choisit l'intention `web.search` :
+
+```
+STT -> routeur (web.search) -> SearXNG -> résultats structurés -> sélection des plus pertinents
+    -> bloc de données NON FIABLES dans le message utilisateur -> Ollama -> réponse -> Piper
+```
+
+- Moteur interchangeable (`jarvis/web/base.py`, `WebSearchProvider` : `search`, `fetch`, `extract`),
+  implémentation SearXNG dans `jarvis/web/searxng.py`.
+- Résultats structurés (`title`, `url`, `snippet`, `source`, `position`, `published_at`), dédoublonnés ;
+  seuls les 3 plus pertinents et un extrait de la meilleure page vont au LLM, sans URL.
+- Pages : adresses http(s) publiques uniquement (jamais le réseau local), redirections vérifiées,
+  délai et taille bornés, texte extrait sans scripts ni styles ; aucun code de page n'est exécuté.
+- Tout contenu Web est traité comme une donnée non fiable, encadré par des balises et jamais placé
+  dans le prompt système : une page qui dit « ignore tes instructions » n'est qu'un texte trouvé.
+- Les URL ne sont jamais lues à voix haute ; les sources restent disponibles (`agent.last_sources`).
+- SearXNG injoignable, aucun résultat, `[web] enabled = false` : JARVIS le dit simplement ou garde
+  son comportement habituel.
+
+Configuration dans `[web]` de `config.toml`. L'instance SearXNG doit autoriser le format JSON
+(`search: formats: [html, json]` dans son `settings.yml`).
+
+SearXNG local (Docker, même procédure sur le PC et sur le mini-PC), accessible seulement depuis la
+machine (`127.0.0.1:8080`). Réglages dans `searxng/config/settings.yml` ; la clé secrète, propre à
+chaque machine, va dans `searxng/.env` (non versionné) :
+
+```bash
+python -c "import secrets; print('SEARXNG_SECRET=' + secrets.token_hex(32))" > searxng/.env
+docker compose -f searxng/docker-compose.yml up -d        # démarrer (redémarre avec Docker)
+docker compose -f searxng/docker-compose.yml down         # arrêter
+```
+
+Tester :
+
+```bash
+python -m jarvis --web-test "Combien coûte une RTX 3060 actuellement ?"   # sans micro ni voix
+python -m jarvis --web-test "Quelle est la dernière version de Python ?" -v  # + données envoyées au LLM
+python -m pytest tests/test_web.py -q      # sans Internet : moteur et pages simulés
+```
+
+## STT sur GPU NVIDIA
+
+Le STT est configuré en `[stt] device = "cuda"` et `compute_type = "float16"`. Sur une RTX 3060,
+une phrase de 5 s est transcrite en ~0,3 s, contre ~3 s sur CPU. Il faut la bibliothèque cuBLAS :
+
+```bash
+pip install -r requirements-gpu.txt
+python -m jarvis --stt-test                  # diagnostic : GPU, device utilisé, temps
+python -m jarvis --stt-test phrase.wav       # sur un enregistrement
+```
+
+Sans GPU NVIDIA, ou si CUDA échoue, le STT bascule automatiquement sur
+`fallback_device` / `fallback_compute_type` (CPU / int8) et l'indique dans les logs.
+Au démarrage, JARVIS affiche `STT device`, `STT compute type` et `STT model`.
+
 ## Voix ElevenLabs (cloud)
 
 Par défaut, JARVIS parle avec une voix ElevenLabs : `[tts] engine = "elevenlabs"`, voix réglée

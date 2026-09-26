@@ -1,4 +1,5 @@
 .venv/
+.venv-neutts/
 __pycache__/
 *.pyc
 *.part
@@ -10,3 +11,10 @@ models/openwakeword/*
 !models/openwakeword/jarvis_fr.onnx
 !models/openwakeword/jarvis_fr.json
 .env
+# Voix de référence NeuTTS (LibriVox, domaine public), versionnée pour que JARVIS parle sans étape manuelle.
+!models/neutts/
+models/neutts/*
+!models/neutts/voices/
+
+# SearXNG local : clé secrète propre à chaque machine
+searxng/.env

@@ -1,0 +1,7 @@
+# Optionnel : TTS NeuTTS Nano French (engine = "neutts" dans config.toml), en plus de requirements.txt.
+# llama-cpp-python : paquet précompilé CPU via
+#   pip install -r requirements-neutts.txt --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+-r requirements.txt
+neutts[llama]==1.4.1
+llama-cpp-python==0.3.19
+torchao==0.15.0         # version compatible avec torchtune (tiré par le décodeur NeuCodec)

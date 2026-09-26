@@ -1,5 +1,6 @@
 numpy==2.5.3
 sounddevice==0.5.6      # Linux : nécessite libportaudio2 (apt)
-onnxruntime==1.30.0     # wake word (openWakeWord, inférence ONNX)
+onnxruntime==1.30.0     # wake word (openWakeWord)
 faster-whisper==1.2.1   # STT
-piper-tts==1.8.0        # TTS (embarque espeak-ng)
+piper-tts==1.8.0        # TTS
+httpx==0.28.1           # recherche Web (SearXNG, récupération de pages)

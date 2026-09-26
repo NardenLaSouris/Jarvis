@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import urllib.error
 import urllib.request
+from typing import Iterator
 
 from jarvis.interfaces import Message
 
@@ -28,6 +29,8 @@ class OllamaLLM:
         self._options = {"temperature": temperature, "num_predict": max_tokens}
         self._keep_alive = keep_alive
         self._timeout = timeout
+        self.last_stats: dict[str, float] = {}
+        self.last_done_reason = ""
 
     def _post(self, path: str, payload: dict) -> dict:
         request = urllib.request.Request(
@@ -44,18 +47,54 @@ class OllamaLLM:
         except (urllib.error.URLError, TimeoutError) as exc:
             raise LLMError(f"Ollama injoignable sur {self._url} : {exc}") from exc
 
+    def _chat_payload(self, messages: list[Message], stream: bool) -> dict:
+        return {
+            "model": self._model,
+            "messages": [{"role": m.role, "content": m.content} for m in messages],
+            "stream": stream,
+            "keep_alive": self._keep_alive,
+            "options": self._options,
+        }
+
+    def _record_stats(self, data: dict) -> None:
+        self.last_done_reason = data.get("done_reason", "")
+        self.last_stats = {
+            "chargement": data.get("load_duration", 0) / 1e9,
+            "prompt": data.get("prompt_eval_duration", 0) / 1e9,
+            "génération": data.get("eval_duration", 0) / 1e9,
+            "jetons": data.get("eval_count", 0),
+        }
+
     def chat(self, messages: list[Message]) -> str:
-        data = self._post(
-            "/api/chat",
-            {
-                "model": self._model,
-                "messages": [{"role": m.role, "content": m.content} for m in messages],
-                "stream": False,
-                "keep_alive": self._keep_alive,
-                "options": self._options,
-            },
-        )
+        data = self._post("/api/chat", self._chat_payload(messages, stream=False))
+        self._record_stats(data)
         return data["message"]["content"].strip()
+
+    def stream(self, messages: list[Message]) -> Iterator[str]:
+        """Fragments de la réponse au fil de la génération. Fermer l'itérateur interrompt Ollama."""
+        request = urllib.request.Request(
+            self._url + "/api/chat",
+            data=json.dumps(self._chat_payload(messages, stream=True)).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        self.last_done_reason = ""
+        try:
+            with urllib.request.urlopen(request, timeout=self._timeout) as response:
+                for line in response:
+                    if not line.strip():
+                        continue
+                    data = json.loads(line)
+                    piece = data.get("message", {}).get("content", "")
+                    if piece:
+                        yield piece
+                    if data.get("done"):
+                        self._record_stats(data)
+                        return
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", "replace")
+            raise LLMError(f"Ollama a répondu {exc.code} : {detail}") from exc
+        except (urllib.error.URLError, TimeoutError) as exc:
+            raise LLMError(f"Ollama injoignable sur {self._url} : {exc}") from exc
 
     def warm_up(self) -> None:
         # Une requête sans prompt charge le modèle en mémoire sans rien générer.

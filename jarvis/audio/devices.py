@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import queue
+import time
 
 import numpy as np
 import sounddevice as sd
@@ -19,6 +20,21 @@ def _device(value: str) -> int | str | None:
     if not value:
         return None
     return int(value) if value.isdigit() else value
+
+
+def list_devices(kind: str) -> list[tuple[str, str]]:
+    """Périphériques d'entrée (kind="input") ou de sortie ("output") de l'API audio par défaut.
+
+    Rend des couples (requête à mettre dans config.toml, nom affiché).
+    """
+    api = sd.default.hostapi
+    api_name = sd.query_hostapis(api)["name"]
+    return [
+        (f"{d['name']}, {api_name}", d["name"])
+        for d in sd.query_devices()
+        if d["hostapi"] == api and d[f"max_{kind}_channels"] > 0 and "mappeur de sons" not in d["name"].lower()
+        and "sound mapper" not in d["name"].lower()
+    ]
 
 
 class MicrophoneSource:
@@ -88,6 +104,9 @@ class MicrophoneSource:
 class SpeakerSink:
     def __init__(self, device: str = ""):
         self._device = _device(device)
+        self._stream: sd.OutputStream | None = None
+        self._rate = 0
+        self._stream_rate = 0
 
     @property
     def device_name(self) -> str:
@@ -96,8 +115,31 @@ class SpeakerSink:
     def play(self, audio: np.ndarray, sample_rate: int) -> None:
         if audio.size == 0:
             return
+        stream = self._open(sample_rate)
+        if self._stream_rate != sample_rate:
+            audio = resample(audio, sample_rate, self._stream_rate)
+        stream.write(np.ascontiguousarray(audio.astype(np.int16).reshape(-1, 1)))
+
+    def drain(self) -> None:
+        if self._stream is not None:
+            time.sleep(self._stream.latency)
+
+    def close(self) -> None:
+        if self._stream is not None:
+            self._stream.close()
+            self._stream = None
+
+    def _open(self, sample_rate: int) -> sd.OutputStream:
+        if self._stream is not None and self._rate == sample_rate:
+            return self._stream
+        self.close()
         try:
-            sd.play(audio, sample_rate, device=self._device, blocking=True)
+            stream = sd.OutputStream(samplerate=sample_rate, channels=1, dtype="int16", device=self._device)
+            self._stream_rate = sample_rate
         except sd.PortAudioError:
             native = int(sd.query_devices(self._device, "output")["default_samplerate"])
-            sd.play(resample(audio, sample_rate, native), native, device=self._device, blocking=True)
+            stream = sd.OutputStream(samplerate=native, channels=1, dtype="int16", device=self._device)
+            self._stream_rate = native
+        stream.start()
+        self._stream, self._rate = stream, sample_rate
+        return stream

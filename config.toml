@@ -2,10 +2,9 @@
 # Les chemins relatifs sont résolus par rapport au dossier de ce fichier.
 
 [assistant]
-name = "Jarvis"
 language = "fr"
-# Formules prononcées à la détection du wake word (tirées au hasard).
-acknowledgements = ["Oui, monsieur ?", "Monsieur ?", "Je vous écoute, monsieur.", "À votre service, monsieur."]
+# Personnalité : nom, titre de l'utilisateur, ton, phrases et réponses prédéfinies.
+personality = "personality.toml"
 # Durée (s) pendant laquelle JARVIS reste à l'écoute après une réponse,
 # sans qu'il soit nécessaire de répéter le wake word.
 conversation_timeout = 8.0
@@ -29,36 +28,46 @@ threshold = 0.3
 [stt]
 # Modèle faster-whisper : tiny, base, small, medium... ("small" = bon compromis FR).
 model = "small"
-device = "cpu"          # "cpu" ou "cuda"
-compute_type = "int8"   # int8 recommandé sur CPU
+# "auto" : GPU NVIDIA s'il est utilisable (float16, voir requirements-gpu.txt), sinon CPU (int8).
+# Le même fichier fonctionne donc sur le PC et sur le mini-PC. Forcer avec "cuda" ou "cpu".
+device = "auto"
+compute_type = "auto"
 beam_size = 1
 download_root = "models/whisper"
+# Utilisé si CUDA est indisponible (pas de GPU NVIDIA, bibliothèque manquante...).
+fallback_device = "cpu"
+fallback_compute_type = "int8"
 
 [tts]
-# Moteur de synthèse : "elevenlabs" (cloud) ou "piper" (local).
-engine = "elevenlabs"
-# Si ElevenLabs échoue (pas de clé, pas de réseau, quota), JARVIS parle avec Piper.
-fallback_to_piper = true
+# Moteur de synthèse, 100 % local : "piper" (rapide, défaut) ou "neutts" (NeuTTS Nano French,
+# voix plus naturelle mais ~1,2 fois plus lente que le temps réel sur le CPU ; voir [tts.neutts]).
+engine = "piper"
 # Voix Piper (https://huggingface.co/rhasspy/piper-voices). Le .onnx.json doit être à côté.
 voice = "models/piper/fr_FR-tom-medium.onnx"
 # Locuteur des voix multi-locuteurs (ex. "pierre" pour fr_FR-upmc-medium) ; vide sinon.
 speaker = ""
 length_scale = 1.0      # > 1 = plus lent
 volume = 1.0
+# true : lecture par morceaux pendant la synthèse (NeuTTS seulement ; hache la voix si le CPU est trop lent).
+stream_audio = false
+# Une phrase de moins de N caractères est synthétisée avec la suivante, pour éviter un silence
+# quand le moteur est lent (utile avec NeuTTS : 40). 0 : désactivé.
+merge_under = 0
 
 [tts.pronunciations]
-# Mot = phonèmes espeak (IPA) imposés à la synthèse. espeak lit « Jarvis » /ʒaʁvˈi/
+# Mot = phonèmes espeak (IPA) imposés à Piper. espeak lit « Jarvis » /ʒaʁvˈi/
 # (s final muet, règle du français) : on impose /ʒaʁvˈis/ sans changer l'orthographe.
 Jarvis = "ʒaʁvˈis"
 
-[tts.elevenlabs]
-voice_id = "CwhRBWXzGAHq8TQ4Fs17"
-# La clé API n'est jamais écrite ici : variable d'environnement ou fichier .env (voir .env.example).
-api_key_env = "ELEVENLABS_API_KEY"
-model = "eleven_multilingual_v2"
-# PCM brut 16 bits : aucun décodage nécessaire. pcm_44100 exige un abonnement Pro.
-output_format = "pcm_22050"
-timeout = 30.0
+[tts.neutts]
+# Utilisé seulement avec engine = "neutts" (dépendances : requirements-neutts.txt).
+# Modèles soumis à licence sur Hugging Face : accepter les conditions puis mettre HF_TOKEN dans .env.
+backbone = "neuphonic/neutts-nano-french-q8-gguf"
+codec = "neuphonic/neucodec-onnx-decoder"
+# Voix clonée : WAV de 3 à 15 s + transcription exacte dans le .txt du même nom.
+voice = "models/neutts/voices/bernard.wav"
+# Orthographe prononcée par NeuTTS (mot entier, sans tenir compte des majuscules).
+pronunciations = { Jarvis = "Jarvisse" }
 
 [llm]
 backend = "ollama"
@@ -66,17 +75,40 @@ host = "http://127.0.0.1:11434"
 # À adapter au matériel : sur un mini-PC sans GPU, un modèle 3-4B (ex. qwen2.5:3b,
 # llama3.2:3b) est plus réactif qu'un 7B.
 model = "mistral:latest"
-temperature = 0.7
+# Bas = réponses plus sobres et centrées sur la demande ; haut = plus créatif et dispersé.
+temperature = 0.3
 max_tokens = 200
 keep_alive = "30m"
 timeout = 120.0
+
+[web]
+# Recherche Web pour les questions d'actualité (prix, versions, nouvelles...), via une instance
+# SearXNG auto-hébergée (format json activé). Si le service est injoignable, JARVIS le dit simplement.
+enabled = true
+provider = "searxng"
+base_url = "http://127.0.0.1:8080"
+language = "fr"
+max_results = 5         # résultats demandés au moteur ; seuls les 3 plus pertinents vont au LLM
+timeout = 10.0
+fetch_pages = 1         # pages lues en entier pour compléter les extraits (0 = extraits seulement)
+max_page_bytes = 1000000
+
+[face]
+# Visage graphique animé (page Web locale). Non critique : si le port est pris ou la page fermée,
+# JARVIS continue en vocal. host = "0.0.0.0" pour l'afficher sur une tablette ou un écran du réseau local.
+enabled = true
+host = "127.0.0.1"
+port = 8765
+open_browser = true     # ouvre la page dans le navigateur au lancement
 
 [audio]
 sample_rate = 16000
 # Taille d'un bloc audio : 1280 échantillons = 80 ms (attendu par openWakeWord).
 frame_samples = 1280
-input_device = ""       # vide = périphérique par défaut ; sinon nom partiel ou index
-output_device = ""
+# Micro et sortie de JARVIS, indépendants de ceux de Windows. Pour choisir dans une liste :
+#   python -m jarvis --choose-audio
+input_device = "Microphone (Voicemod Virtual Au, MME"       # vide = périphérique par défaut de Windows ; sinon nom partiel ou index
+output_device = "Chat (2- TC-HELICON GoXLR), MME"
 # Délai max (s) pour commencer à parler après "Oui, monsieur ?".
 listen_timeout = 6.0
 # Silence (s) marquant la fin d'une phrase.

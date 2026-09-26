@@ -1,4 +1,4 @@
-"""Test de bout en bout du pipeline avec les vrais moteurs (wake word, Whisper, Ollama, Piper).
+"""Test de bout en bout du pipeline avec les vrais moteurs (wake word, Whisper, Ollama, NeuTTS).
 
 Le micro est remplacé par ``fixtures/scenario.wav`` et le haut-parleur par un
 enregistreur. Scénario :
@@ -50,8 +50,9 @@ def test_full_pipeline():
     assert "canberra" in replies[0].lower()
     assert all(replies), replies
     assert not any("concerne" in u for u in users)  # hors conversation : ignoré
-    # 2 accusés de réception + 3 réponses prononcées
-    assert len(sink.played) == 5
+    # 2 accusés de réception + 3 réponses, chacune jouée phrase par phrase (au moins une phrase chacune)
+    sentences = sum(int(t.split(" phrase(s)")[0].rsplit(", ", 1)[-1]) for k, t in events if k == "latency")
+    assert len(sink.played) == 2 + sentences and sentences >= 3
     # Chaque conversation se termine par un retour en veille.
     assert kinds.count("sleep") >= 3
 

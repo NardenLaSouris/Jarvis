@@ -1,7 +1,7 @@
 """Cœur de JARVIS : la boucle veille -> écoute -> réflexion -> réponse.
 
 L'agent ne connaît que les interfaces de ``jarvis.interfaces`` ; il ignore quels
-moteurs (openWakeWord, Whisper, Ollama, Piper...) sont utilisés.
+moteurs (openWakeWord, Whisper, Ollama, NeuTTS...) sont utilisés.
 """
 
 from __future__ import annotations
@@ -16,15 +16,15 @@ from typing import Callable
 import numpy as np
 
 from jarvis.audio.endpointing import UtteranceRecorder
-from jarvis.capabilities import CapabilityRegistry
 from jarvis.interfaces import (
     AudioSink, AudioSource, LanguageModel, Message, SpeechToText, TextToSpeech, WakeWordDetector,
 )
-from jarvis.prompts import build_system_prompt
+from jarvis.router import IntentRouter
+from jarvis.streaming import SpeechPipeline, sentences_from_llm
+from jarvis.personality import normalize
+from jarvis.web.research import web_request, without_name
 
 log = logging.getLogger(__name__)
-
-LLM_FAILURE_REPLY = "Je suis navré, monsieur, je n'arrive pas à joindre mon module de réflexion."
 
 EventHandler = Callable[[str, str], None]
 
@@ -48,6 +48,58 @@ def clean_for_speech(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+URL = re.compile(r"\(?\b(?:https?://|www\.)\S+?(?=[.,;:!?)]*(?:\s|$))\)?", re.IGNORECASE)
+
+
+def without_urls(text: str) -> str:
+    """Retire les adresses Web d'une phrase : elles ne sont jamais lues à voix haute."""
+    if not URL.search(text):
+        return text
+    return re.sub(r"\s+([.,;:!?])", r"\1", " ".join(URL.sub("", text).split()))
+
+
+def polish_web_sentence(sentence: str, question: str, first: bool, assistant_name: str = "JARVIS") -> str:
+    """Phrase d'une réponse Web prête à dire : sans URL, sans « JARVIS : » en tête, et sans la
+    question répétée en guise de première phrase ("" si la phrase est à taire)."""
+    sentence = without_urls(sentence)
+    sentence = re.sub(rf"^\s*{re.escape(assistant_name)}\s*:\s*", "", sentence, flags=re.IGNORECASE)
+    if first and normalize(sentence) == normalize(without_name(question, assistant_name)):
+        return ""
+    return sentence
+
+
+LATENCY_LABELS = (
+    ("stt", "STT"),
+    ("web", "Web search"),
+    ("llm_first_token", "LLM first token"),
+    ("llm_first_sentence", "LLM first sentence"),
+    ("tts_first", "TTS first sentence"),
+    ("audio_first", "Audio first chunk"),
+    ("llm_total", "LLM total"),
+    ("tts_total", "TTS total"),
+    ("total_response", "Total response"),
+)
+
+
+def format_latency(latency: dict, speech_ended_at: float) -> str:
+    total = latency.get("début lecture", speech_ended_at) - speech_ended_at
+    llm = latency.get("llm_détail") or {}
+    lines = ["Latence de la réponse", f"  Routage : {latency.get('route', 'llm')}",
+             f"  Fin de parole : {latency.get('fin de parole', 0):.2f} s (silence attendu avant de conclure)"]
+    for key, label in LATENCY_LABELS:
+        if key in latency:
+            lines.append(f"  {label}: {latency[key]:.2f} s")
+    if "llm_total" not in latency:
+        lines.append("  LLM : non sollicité (réponse prédéfinie)")
+    if llm:
+        lines.append(f"  Ollama : chargement {llm['chargement']:.2f} s, prompt {llm['prompt']:.2f} s, "
+                     f"génération {llm['génération']:.2f} s pour {llm['jetons']} jetons")
+    lines.append(f"  Voix : {latency.get('tts_voix', '')}, {latency.get('phrases', 0)} phrase(s), "
+                 f"{latency.get('durée audio', 0):.2f} s d'audio")
+    lines.append(f"  TOTAL: {total:.2f} s (fin de parole -> début de lecture)")
+    return "\n".join(lines)
+
+
 class Agent:
     def __init__(
         self,
@@ -59,8 +111,11 @@ class Agent:
         stt: SpeechToText,
         llm: LanguageModel,
         tts: TextToSpeech,
-        capabilities: CapabilityRegistry,
+        router: IntentRouter,
         on_event: EventHandler | None = None,
+        stream_audio: bool = False,
+        merge_under: int = 0,
+        web=None,
     ):
         self.settings = settings
         self._source = source
@@ -70,7 +125,10 @@ class Agent:
         self._stt = stt
         self._llm = llm
         self._tts = tts
-        self._capabilities = capabilities
+        self._router = router
+        self._web = web
+        self.last_sources: list[dict] = []
+        self._pipeline = SpeechPipeline(tts, sink, stream_audio, merge_under)
         self._on_event = on_event or (lambda kind, text: None)
         self._acks = [tts.synthesize(text) for text in settings.acknowledgements]
 
@@ -93,6 +151,7 @@ class Agent:
         return False
 
     def _conversation(self) -> None:
+        self._router.start_conversation()
         self._play(*random.choice(self._acks))
         history: list[Message] = []
         timeout = self.settings.listen_timeout
@@ -102,45 +161,132 @@ class Agent:
             if audio is None:
                 break
             timeout = self.settings.conversation_timeout
+            latency = {"fin de parole": self._recorder.endpoint_delay}
+            speech_ended_at = self._recorder.speech_ended_at
 
             started = time.perf_counter()
             text = self._stt.transcribe(audio, self._source.sample_rate)
+            latency["stt"] = time.perf_counter() - started
             if not text:
                 self._event("stt", "(rien compris)")
                 continue
             self._event("user", text)
-            self._event("timing", f"STT {time.perf_counter() - started:.1f} s")
+            self._event("timing", f"STT {latency['stt']:.1f} s")
 
-            reply = self._ask(history, text)
+            route = self._router.route(text)
+            latency["route"] = route.label
+            self._event("routing", route.label)
+            if route.source == "web.search":
+                reply = self._search_and_answer(history, text, latency)
+            elif route.reply is not None:
+                reply = self._speak([route.reply], latency)
+                self._remember(history, Message("user", text))
+                self._remember(history, Message("assistant", reply))
+            else:
+                reply = self._ask(history, text, latency)
             self._event("assistant", reply)
-            self._say(reply)
+            self._event("latency", format_latency(latency, speech_ended_at))
+            if route.end_conversation:
+                break
         self._event("sleep", "Retour en veille")
 
     # --- Étapes ------------------------------------------------------------
 
-    def _ask(self, history: list[Message], text: str) -> str:
+    def _remember(self, history: list[Message], message: Message) -> None:
+        history.append(message)
+        del history[: max(0, len(history) - 2 * self.settings.max_history_turns)]
+
+    def _search_and_answer(self, history: list[Message], text: str, latency: dict) -> str:
+        """Recherche Web puis réponse du LLM à partir des résultats ; phrase d'excuse si la recherche échoue."""
+        context = None
+        if self._web is not None:
+            started = time.perf_counter()
+            context = self._web.run(text)
+            latency["web"] = time.perf_counter() - started
+            self.last_sources = context.sources
+            self._event("web", f"« {context.query} » : {len(context.results)} résultat(s) retenu(s), "
+                               f"{len(context.pages)} page(s) lue(s)" + (f" — {context.error}" if context.error else ""))
+            self._event("timing", f"Web search {latency['web']:.2f} s")
+        if context is None or not context.found:
+            key = "web_no_results" if context is not None and context.error is None else "web_unavailable"
+            reply = self._speak([self._router.phrase(key)], latency)
+            self._remember(history, Message("user", text))
+            self._remember(history, Message("assistant", reply))
+            return reply
+        return self._ask(history, text, latency, web_context=context)
+
+    def _ask(self, history: list[Message], text: str, latency: dict, web_context=None) -> str:
+        """Réponse du LLM en flux : chaque phrase est prononcée dès qu'elle est complète.
+
+        Avec ``web_context``, les résultats de recherche (données non fiables) accompagnent la demande
+        dans le message de l'utilisateur envoyé au LLM ; l'historique ne garde que la demande.
+        """
         history.append(Message("user", text))
         del history[: max(0, len(history) - 2 * self.settings.max_history_turns + 1)]
-        system = Message("system", build_system_prompt(self.settings.assistant_name, self._capabilities))
-        started = time.perf_counter()
-        try:
-            reply = clean_for_speech(self._llm.chat([system, *history]))
-        except Exception:
-            log.exception("Échec de l'appel au LLM")
+        searched = web_context is not None
+        system = Message("system", self._router.system_prompt(ongoing=len(history) > 1, searched=searched))
+        messages = [system, *history]
+        if searched:
+            messages[-1] = Message("user", web_request(text, web_context))
+        marks: dict[str, float] = {}
+        failed, spoken = [], []
+
+        def sentences():
+            try:
+                if hasattr(self._llm, "stream"):
+                    fragments = self._llm.stream(messages)
+                else:
+                    fragments = iter([self._llm.chat(messages)])
+                for sentence in sentences_from_llm(
+                    fragments,
+                    self._router.reply_filter(user_text=text),
+                    marks,
+                    done_reason=lambda: getattr(self._llm, "last_done_reason", ""),
+                ):
+                    sentence = clean_for_speech(sentence)
+                    if searched:
+                        sentence = polish_web_sentence(sentence, text, first=not spoken,
+                                                       assistant_name=self.settings.assistant_name)
+                    if sentence:
+                        spoken.append(sentence)
+                        yield sentence
+            except Exception:
+                log.exception("Échec de l'appel au LLM")
+                failed.append(True)
+                if "llm_first_sentence" not in marks:
+                    yield self._router.phrase("llm_unavailable")
+
+        reply = self._speak(sentences(), latency, marks)
+        if not failed:
+            latency["llm_détail"] = dict(getattr(self._llm, "last_stats", {}))
+            history.append(Message("assistant", reply))
+        else:
             history.pop()
-            return LLM_FAILURE_REPLY
-        self._event("timing", f"LLM {time.perf_counter() - started:.1f} s")
-        history.append(Message("assistant", reply))
         return reply
 
-    def _say(self, text: str) -> None:
-        started = time.perf_counter()
-        audio, rate = self._tts.synthesize(text)
-        self._event("timing", f"TTS {time.perf_counter() - started:.1f} s")
-        self._play(audio, rate)
+    def _speak(self, sentences, latency: dict, marks: dict | None = None) -> str:
+        stats = self._pipeline.speak(sentences)
+        self._source.flush()
+        latency.update(marks or {})
+        latency["tts_first"] = stats.tts_first or 0.0
+        latency["tts_total"] = stats.tts_total
+        if stats.first_audio is not None:
+            latency["audio_first"] = stats.since_start(stats.first_audio)
+            latency["début lecture"] = stats.first_audio
+        latency["total_response"] = stats.since_start(stats.finished)
+        latency["tts_voix"] = getattr(self._tts, "last_voice", "") or getattr(self._tts, "voice_name", "")
+        latency["phrases"] = len(stats.sentences)
+        latency["durée audio"] = stats.audio_seconds
+        for key, label in LATENCY_LABELS[1:]:
+            if key in latency and key != "total_response":
+                self._event("timing", f"{label} {latency[key]:.2f} s")
+        return " ".join(stats.sentences)
 
     def _play(self, audio: np.ndarray, rate: int) -> None:
         self._sink.play(audio, rate)
+        drain = getattr(self._sink, "drain", None)
+        if drain:
+            drain()
         # Ne pas s'écouter soi-même : on jette ce que le micro a capté pendant ce temps.
         self._source.flush()
 

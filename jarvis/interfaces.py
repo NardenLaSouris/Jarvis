@@ -8,7 +8,7 @@ L'audio circule en blocs numpy int16 mono.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, Protocol
+from typing import Iterator, Literal, Protocol
 
 import numpy as np
 
@@ -41,8 +41,13 @@ class SpeechToText(Protocol):
 
 
 class TextToSpeech(Protocol):
+    sample_rate: int
+
     def synthesize(self, text: str) -> tuple[np.ndarray, int]:
         """Retourne (audio int16, fréquence d'échantillonnage)."""
+
+    def stream(self, text: str) -> Iterator[np.ndarray]:
+        """Morceaux d'audio int16 (à ``sample_rate``) au fil de la génération."""
 
 
 @dataclass(frozen=True)

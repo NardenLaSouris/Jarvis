@@ -1,0 +1,29 @@
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #01040a;
+}
+
+body {
+  cursor: none;
+}
+
+#face {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  display: block;
+}
+
+#debug {
+  position: fixed;
+  left: 12px;
+  bottom: 10px;
+  font: 12px/1.4 ui-monospace, "Cascadia Mono", Consolas, monospace;
+  color: rgba(150, 215, 255, 0.55);
+  pointer-events: none;
+  white-space: pre;
+}

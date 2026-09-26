@@ -1,0 +1,2 @@
+# Optionnel : STT sur GPU NVIDIA ([stt] device = "cuda"), en plus de requirements.txt.
+nvidia-cublas-cu12==12.9.2.10

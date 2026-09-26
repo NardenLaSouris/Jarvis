@@ -1,0 +1,16 @@
+# SearXNG local pour la recherche Web de JARVIS (même fichier sur le PC et sur le mini-PC).
+#   docker compose -f searxng/docker-compose.yml up -d     # démarrer
+#   docker compose -f searxng/docker-compose.yml down      # arrêter
+# Accessible uniquement depuis la machine elle-même (127.0.0.1).
+services:
+  searxng:
+    image: searxng/searxng:latest
+    container_name: jarvis-searxng
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ./config:/etc/searxng
+    environment:
+      - SEARXNG_BASE_URL=http://127.0.0.1:8080/
+      - SEARXNG_SECRET=${SEARXNG_SECRET:?créez searxng/.env avec SEARXNG_SECRET=... (voir README)}
+    restart: unless-stopped

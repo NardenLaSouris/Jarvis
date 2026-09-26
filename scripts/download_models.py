@@ -17,7 +17,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from jarvis.config import load_config  # noqa: E402
+from jarvis.config import load_config, secret  # noqa: E402
 
 OWW_RELEASE = "https://github.com/dscripka/openWakeWord/releases/download/v0.5.1"
 PIPER_VOICES = "https://huggingface.co/rhasspy/piper-voices/resolve/main"
@@ -35,7 +35,6 @@ def fetch(url: str, dest: Path) -> None:
 
 
 def piper_voice_url(voice: str) -> str:
-    # ex. fr_FR-tom-medium -> fr/fr_FR/tom/medium/fr_FR-tom-medium.onnx
     locale, name, quality = voice.split("-")
     return f"{PIPER_VOICES}/{locale.split('_')[0]}/{locale}/{name}/{quality}/{voice}.onnx"
 
@@ -43,19 +42,8 @@ def piper_voice_url(voice: str) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default=str(ROOT / "config.toml"))
-    parser.add_argument("--voice", action="append", default=[],
-                        help="télécharge seulement cette voix Piper dans models/piper (répétable)")
     args = parser.parse_args()
     cfg = load_config(args.config)
-
-    if args.voice:
-        for voice in args.voice:
-            name = voice.partition(":")[0].removesuffix(".onnx")
-            dest = cfg.tts.voice.parent / f"{name}.onnx"
-            print(f"Voix Piper {name}")
-            fetch(piper_voice_url(name), dest)
-            fetch(piper_voice_url(name) + ".json", dest.with_suffix(".onnx.json"))
-        return
 
     print("Wake word (openWakeWord)")
     ww = cfg.wake_word
@@ -70,10 +58,22 @@ def main() -> None:
             print(f"  ATTENTION : {ww.model.name} est un modèle personnalisé absent. "
                   "Entraînez-le avec `python -m wakeword_training all` (voir README).")
 
-    print("Voix TTS (Piper)")
-    url = piper_voice_url(cfg.tts.voice.name.removesuffix(".onnx"))
-    fetch(url, cfg.tts.voice)
-    fetch(url + ".json", cfg.tts.voice.with_suffix(".onnx.json"))
+    if cfg.tts.engine == "neutts":
+        n = cfg.tts.neutts
+        print(f"TTS (NeuTTS : {n['backbone']}, {n['codec']})")
+        from huggingface_hub import snapshot_download
+
+        token = secret("HF_TOKEN", ROOT / ".env") or None
+        snapshot_download(n["backbone"], allow_patterns=["*.gguf"], token=token)
+        snapshot_download(n["codec"], token=token)
+        voice = ROOT / n["voice"]
+        if not voice.exists() or not voice.with_suffix(".txt").exists():
+            print(f"  ATTENTION : voix de référence absente ({n['voice']} + .txt).")
+    else:
+        print(f"TTS (voix Piper '{cfg.tts.voice.name}')")
+        url = piper_voice_url(cfg.tts.voice.name.removesuffix(".onnx"))
+        fetch(url, cfg.tts.voice)
+        fetch(url + ".json", cfg.tts.voice.with_suffix(".onnx.json"))
 
     print(f"STT (faster-whisper '{cfg.stt.model}')")
     from faster_whisper import download_model

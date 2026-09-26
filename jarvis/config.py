@@ -11,9 +11,8 @@ from typing import Any
 
 @dataclass(frozen=True)
 class AssistantConfig:
-    name: str = "Jarvis"
     language: str = "fr"
-    acknowledgements: tuple[str, ...] = ("Oui, monsieur ?",)
+    personality: Path = Path("personality.toml")
     conversation_timeout: float = 8.0
     max_history_turns: int = 6
 
@@ -34,18 +33,21 @@ class STTConfig:
     compute_type: str = "int8"
     beam_size: int = 1
     download_root: Path = Path("models/whisper")
+    fallback_device: str = "cpu"
+    fallback_compute_type: str = "int8"
 
 
 @dataclass(frozen=True)
 class TTSConfig:
     engine: str = "piper"
-    fallback_to_piper: bool = True
-    elevenlabs: dict = field(default_factory=dict)
     voice: Path = Path("models/piper/fr_FR-tom-medium.onnx")
     speaker: str = ""
     length_scale: float = 1.0
     volume: float = 1.0
-    pronunciations: dict[str, str] = field(default_factory=dict)
+    pronunciations: dict = field(default_factory=dict)
+    stream_audio: bool = False
+    merge_under: int = 0
+    neutts: dict = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -57,6 +59,26 @@ class LLMConfig:
     max_tokens: int = 200
     keep_alive: str = "30m"
     timeout: float = 120.0
+
+
+@dataclass(frozen=True)
+class WebConfig:
+    enabled: bool = False
+    provider: str = "searxng"
+    base_url: str = "http://127.0.0.1:8080"
+    language: str = "fr"
+    max_results: int = 5
+    timeout: float = 10.0
+    fetch_pages: int = 1
+    max_page_bytes: int = 1_000_000
+
+
+@dataclass(frozen=True)
+class FaceConfig:
+    enabled: bool = False
+    host: str = "127.0.0.1"
+    port: int = 8765
+    open_browser: bool = True
 
 
 @dataclass(frozen=True)
@@ -80,6 +102,8 @@ class Config:
     tts: TTSConfig
     llm: LLMConfig
     audio: AudioConfig
+    web: WebConfig = WebConfig()
+    face: FaceConfig = FaceConfig()
 
 
 def _build(cls: type, data: dict[str, Any], base_dir: Path):
@@ -131,6 +155,8 @@ def load_config(path: str | Path = "config.toml") -> Config:
         "tts": TTSConfig,
         "llm": LLMConfig,
         "audio": AudioConfig,
+        "web": WebConfig,
+        "face": FaceConfig,
     }
     unknown = set(raw) - set(sections)
     if unknown:
