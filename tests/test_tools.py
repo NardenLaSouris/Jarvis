@@ -736,9 +736,7 @@ def test_open_discord_by_voice_without_confirmation():
     llm = PlannerLLM({"type": "tool_call", "tool": "open_application", "parameters": {"application": "discord"}},
                      reply="Discord est ouvert, monsieur.")
     spoken, events = run_agent(["Jarvis, ouvre Discord."], llm, make_core(launcher=launcher, processes=processes))
-    assert spoken == ["Discord est ouvert, monsieur."] and launcher.calls == [["C:/Apps/discord.exe"]]
-    assert result_sent_to_llm(llm) == {"type": "tool_result", "tool": "open_application", "success": True,
-                                       "result": {"application": "discord", "label": "Discord", "status": "ouverte"}}
+    assert spoken == ["Discord est ouvert."] and launcher.calls == [["C:/Apps/discord.exe"]] and llm.calls == []
 
 
 def test_volume_by_voice():
@@ -746,9 +744,8 @@ def test_volume_by_voice():
     llm = PlannerLLM({"type": "tool_call", "tool": "set_volume", "parameters": {"volume": 40}},
                      {"type": "tool_call", "tool": "mute_volume", "parameters": {}}, reply="C'est fait, monsieur.")
     spoken, events = run_agent(["Jarvis, mets le son à 40 %.", "Coupe le son."], llm, make_core(volume=volume))
-    assert volume.level == 40 and volume.is_muted
-    assert result_sent_to_llm(llm, 0)["result"] == {"volume": 40, "muted": False}
-    assert result_sent_to_llm(llm, 1)["result"] == {"muted": True, "volume": 40}
+    assert volume.level == 40 and volume.is_muted and llm.calls == []
+    assert spoken == ["Le volume est à 40 %.", "Le son est coupé."]
 
 
 def test_unmute_by_voice_goes_straight_to_the_tool():
@@ -763,8 +760,8 @@ def test_close_discord_asks_then_closes():
     llm = PlannerLLM({"type": "tool_call", "tool": "close_application", "parameters": {"application": "discord"}},
                      reply="Discord est fermé, monsieur.")
     spoken, events = run_agent(["Jarvis, ferme Discord.", "Oui."], llm, make_core(processes=processes))
-    assert spoken == ["Voulez-vous que je ferme Discord ?", "Discord est fermé, monsieur."]
-    assert processes.stopped == [(("Discord.exe",), True)] and result_sent_to_llm(llm)["success"] is True
+    assert spoken == ["Voulez-vous que je ferme Discord ?", "Discord est fermé."]
+    assert processes.stopped == [(("Discord.exe",), True)] and llm.calls == []
 
 
 def test_lock_pc_asks_and_respects_the_answer():
@@ -775,8 +772,7 @@ def test_lock_pc_asks_and_respects_the_answer():
                                make_core(locker=locker))
     assert spoken[0] == spoken[2] == "Voulez-vous que je verrouille l'ordinateur ?"
     assert spoken[1] in [PERSONALITY.render(t) for t in PERSONALITY.phrases["tool_cancelled"]]
-    assert locker.calls == 1 and result_sent_to_llm(llm) == {"type": "tool_result", "tool": "lock_pc", "success": True,
-                                                             "result": {"locked": True}}
+    assert locker.calls == 1 and spoken[3] == "L'ordinateur est verrouillé." and llm.calls == []
 
 
 def test_failed_tool_is_never_reported_as_success(monkeypatch):
@@ -832,7 +828,7 @@ def test_corrected_transcription_opens_the_right_application():
                      reply="Steam est lancé, monsieur.")
     corrector = build_corrector(load_config(ROOT / "config.toml"), PERSONALITY)
     spoken, events = run_agent(["Jarvis, ou vos teams."], llm, make_core(launcher=launcher), corrector=corrector)
-    assert spoken == ["Steam est lancé, monsieur."] and launcher.calls == [["C:/Apps/steam.exe"]]
+    assert spoken == ["Steam est en cours de lancement."] and launcher.calls == [["C:/Apps/steam.exe"]]
     assert ("correction", "« Jarvis, ou vos teams. » -> « ouvre steam »") in events
 
 
@@ -841,3 +837,30 @@ def test_configuration_builds_the_core_with_the_mission_risks():
     core = build_tools(cfg, PERSONALITY)
     assert {t.name: t.risk for t in core.registry.list()} == EXPECTED_RISKS
     assert build_tools(replace(cfg, tools=replace(cfg.tools, enabled=False)), PERSONALITY) is None
+
+
+def test_capability_description_is_a_short_summary():
+    description = ToolsCapability(make_core().registry).description
+    assert "régler le son" in description and "get_" not in description
+    assert len(description) < 250
+
+
+def test_tool_replies_speak_of_the_users_timer():
+    from jarvis.agent import polish_web_sentence
+
+    assert polish_web_sentence("Mon minuteur a été annulé.", "Annule mon minuteur.", True) == "Votre minuteur a été annulé."
+
+
+def test_short_follow_up_reuses_the_previous_tool_request():
+    first = {"type": "tool_call", "tool": "set_volume", "parameters": {"volume": 30}}
+    llm = PlannerLLM(first, {"type": "tool_call", "tool": "set_volume", "parameters": {"volume": 50}},
+                     reply="Le son est à 30 %.")
+    spoken, events = run_agent(["Mets le son à 30 %.", "Et à 50 ?"], llm, make_core(volume=FakeVolume()))
+    assert routes(events) == ["tool:tool.action", "tool:tool.follow_up"]
+    assert llm.planned[1][0][1].content == "Mets le son à 30 % à 50 ?"
+
+
+def test_jarvis_prefix_is_removed_from_tool_replies():
+    from jarvis.agent import polish_web_sentence
+
+    assert polish_web_sentence("JARVIS. Votre minuteur est lancé.", "Mets un minuteur.", True) == "Votre minuteur est lancé."

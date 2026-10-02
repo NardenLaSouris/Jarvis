@@ -273,7 +273,12 @@ def open_app_tool(apps: dict[str, Application], launcher: Callable[[list[str]], 
     return Tool("open_application", f"Ouvre une application autorisée ({', '.join(apps) or 'aucune'}).",
                 {"application": _app_param(apps, "ouvrir")},
                 {"application": "identifiant", "label": "nom", "status": "ouverte, déjà ouverte ou lancement en cours"},
-                Risk.SAFE, run, question=lambda p: f"Voulez-vous que j'ouvre {apps[p['application']].label} ?")
+                Risk.SAFE, run, question=lambda p: f"Voulez-vous que j'ouvre {apps[p['application']].label} ?",
+                say=lambda r: OPENED[r["status"]].format(label=r["label"]))
+
+
+OPENED = {"ouverte": "{label} est ouvert.", "déjà ouverte": "{label} est déjà ouvert.",
+          "lancement en cours": "{label} est en cours de lancement."}
 
 
 def close_app_tool(apps: dict[str, Application], processes: Processes, launcher: Callable[[list[str]], None],
@@ -301,7 +306,8 @@ def close_app_tool(apps: dict[str, Application], processes: Processes, launcher:
                 {"application": _app_param(apps, "fermer")},
                 {"application": "identifiant", "label": "nom", "closed": "true"},
                 Risk.CONFIRMATION_REQUIRED, run,
-                question=lambda p: f"Voulez-vous que je ferme {apps[p['application']].label} ?")
+                question=lambda p: f"Voulez-vous que je ferme {apps[p['application']].label} ?",
+                say=lambda r: f"{r['label']} est fermé.")
 
 
 def list_apps_tool(apps: dict[str, Application], processes: Processes) -> Tool:
@@ -323,7 +329,7 @@ def validate_url(url: str) -> str:
         raise ToolError(INVALID_URL, "Cette adresse n'est pas valide.")
     try:
         parts = urlsplit(url)
-        parts.port
+        _ = parts.port
     except ValueError as exc:
         raise ToolError(INVALID_URL, "Cette adresse n'est pas valide.") from exc
     if parts.scheme.lower() not in ("http", "https") or not parts.hostname or "@" in parts.netloc:
@@ -352,4 +358,5 @@ def url_tool(opener: Callable[[str], bool]) -> Tool:
                 {"url": Param(str, "adresse complète, par exemple https://www.example.com", max_length=MAX_URL,
                               check=validate_url)},
                 {"url": "adresse ouverte", "site": "nom du site", "opened": "true"},
-                Risk.SAFE, run, question=lambda p: f"Voulez-vous que j'ouvre la page {site_name(p['url'])} ?")
+                Risk.SAFE, run, question=lambda p: f"Voulez-vous que j'ouvre la page {site_name(p['url'])} ?",
+                say=lambda r: f"{r['site'].split('.')[0].capitalize()} est ouvert dans le navigateur.")

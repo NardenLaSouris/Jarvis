@@ -29,7 +29,7 @@ from jarvis.router import IntentRouter  # noqa: E402
 from jarvis.web.base import SearchResult, WebSearchError  # noqa: E402
 from jarvis.web.fetch import PageFetcher, extract_text, is_public_url  # noqa: E402
 from jarvis.web.research import (  # noqa: E402
-    DATA_END, DATA_START, WebContext, WebResearch, WebSearchCapability, search_query, select_relevant, web_request,
+    DATA_END, DATA_START, WebContext, WebResearch, WebSearchCapability, search_query, select_relevant,
 )
 from jarvis.web.searxng import SearXNGProvider  # noqa: E402
 
@@ -345,7 +345,7 @@ def test_web_disabled_keeps_the_previous_behaviour():
 
 def test_prompt_announces_web_search_only_when_enabled():
     prompt = router().system_prompt()
-    assert "rechercher des informations actuelles sur Internet" in prompt
+    assert "chercher des informations actuelles sur Internet" in prompt
     assert "(informations en temps réel" not in prompt
     assert "Aucune recherche Internet n'a été effectuée" in prompt
     searched = router().system_prompt(searched=True)

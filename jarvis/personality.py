@@ -22,6 +22,25 @@ MONTHS = ("janvier", "février", "mars", "avril", "mai", "juin", "juillet",
           "août", "septembre", "octobre", "novembre", "décembre")
 
 
+SECOND_PERSON = {"ma": "votre", "mon": "votre", "mes": "vos", "moi": "vous", "me": "vous", "je": "vous",
+                 "mien": "vôtre", "mienne": "vôtre"}
+
+
+def second_person(text: str) -> str:
+    """Phrase de l'utilisateur redite par JARVIS : « appeler ma mère » -> « appeler votre mère »."""
+    text = re.sub(r"\b[mM]['’](?=\w)", "vous ", text)
+    return re.sub(r"\b(\w+)\b", lambda m: SECOND_PERSON.get(m.group(1).lower(), m.group(1)), text)
+
+
+def with_de(message: str) -> str:
+    """« sortir le linge » -> « de sortir le linge » ; « appeler Paul » -> « d'appeler Paul »."""
+    message = message.strip()
+    for prefix in ("de ", "d'", "d’"):
+        if message.lower().startswith(prefix):
+            message = message[len(prefix):].lstrip()
+    return f"d'{message}" if message[:1].lower() in "aeiouyhéèêàâîôû" else f"de {message}"
+
+
 def spoken_date(now: datetime) -> str:
     day = "1er" if now.day == 1 else str(now.day)
     return f"{WEEKDAYS[now.weekday()]} {day} {MONTHS[now.month - 1]}"
@@ -46,6 +65,7 @@ class Intent:
     web: bool = False
     replaces: tuple[str, ...] = ()
     tool: str = ""
+    needs: str = ""
     planner: bool = False
     explicit: tuple[str, ...] = ()
 
@@ -151,6 +171,7 @@ def load_personality(path: str | Path) -> Personality:
             web=spec.get("web", False),
             replaces=tuple(spec.get("replaces", [])),
             tool=spec.get("tool", ""),
+            needs=spec.get("needs", ""),
             planner=spec.get("planner", False),
             explicit=tuple(canonical(x) for x in spec.get("explicit", [])),
         )

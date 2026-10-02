@@ -20,7 +20,7 @@ from jarvis.audio.endpointing import UtteranceRecorder
 from jarvis.interfaces import (
     AudioSink, AudioSource, LanguageModel, Message, SpeechToText, TextToSpeech, WakeWordDetector,
 )
-from jarvis.router import IntentRouter
+from jarvis.router import IntentRouter, Route
 from jarvis.streaming import SpeechPipeline, sentences_from_llm
 from jarvis.personality import normalize
 from jarvis.tools.core import CANCELLED, CONFIRM, DONE
@@ -61,14 +61,17 @@ def without_urls(text: str) -> str:
     return re.sub(r"\s+([.,;:!?])", r"\1", " ".join(URL.sub("", text).split()))
 
 
+YOURS = re.compile(r"\b([Mm]on) (minuteur|rappel|ordinateur|PC)\b")
+
+
 def polish_web_sentence(sentence: str, question: str, first: bool, assistant_name: str = "JARVIS") -> str:
     """Phrase d'une réponse Web ou d'outil prête à dire : sans URL, sans « JARVIS : » en tête, et sans la
     question répétée en guise de première phrase ("" si la phrase est à taire)."""
     sentence = without_urls(sentence)
-    sentence = re.sub(rf"^\s*{re.escape(assistant_name)}\s*:\s*", "", sentence, flags=re.IGNORECASE)
+    sentence = re.sub(rf"^\s*{re.escape(assistant_name)}\s*[:.,]\s*", "", sentence, flags=re.IGNORECASE)
     if first and normalize(sentence) == normalize(without_name(question, assistant_name)):
         return ""
-    return sentence
+    return YOURS.sub(lambda m: ("Votre" if m.group(1)[0].isupper() else "votre") + " " + m.group(2), sentence)
 
 
 LATENCY_LABELS = (
@@ -137,6 +140,7 @@ class Agent:
         self._router = router
         self._web = web
         self._tools = tools
+        self._last_tool_request = ""
         self._corrector = corrector
         self._notifications = notifications
         self._services = services
@@ -220,10 +224,12 @@ class Agent:
                 self._event("routing", latency["route"])
                 reply, end = self._after_tool(history, text, outcome, latency), False
             else:
-                route = self._router.route(text)
+                follow_up = self._tool_follow_up(text)
+                self._last_tool_request = ""
+                route = Route("tool", "tool.follow_up") if follow_up else self._router.route(text)
                 latency["route"] = route.label
                 self._event("routing", route.label)
-                reply, end = self._answer(history, text, route, latency), route.end_conversation
+                reply, end = self._answer(history, follow_up or text, route, latency), route.end_conversation
             self._event("assistant", reply)
             self._event("latency", format_latency(latency, speech_ended_at))
             if end:
@@ -246,6 +252,15 @@ class Agent:
 
     # --- Outils ------------------------------------------------------------
 
+    def _tool_follow_up(self, text: str) -> str:
+        """« Et à Lyon ? » juste après « Quel temps fera-t-il demain ? » : la demande d'outil précédente,
+        complétée ("" si ce n'est pas une suite courte d'une demande d'outil réussie)."""
+        words = normalize(text).split()
+        if not self._last_tool_request or not words or words[0] != "et" or len(words) > 8:
+            return ""
+        rest = re.sub(r"^\W*et\b\W*", "", text, flags=re.IGNORECASE)
+        return f"{self._last_tool_request.rstrip(' ?.!')} {rest}"
+
     def _use_tool(self, history: list[Message], text: str, route, latency: dict) -> str:
         """Demande d'outil (directe ou proposée par le LLM) -> Core : validation, permission, confirmation, exécution."""
         if route.tool:
@@ -263,14 +278,17 @@ class Agent:
         started = time.perf_counter()
         outcome = self._tools.submit(data)
         latency["tool"] = time.perf_counter() - started
-        return self._after_tool(history, text, outcome, latency)
+        reply = self._after_tool(history, text, outcome, latency)
+        if not route.tool and outcome.status == DONE and outcome.result.success:
+            self._last_tool_request = text
+        return reply
 
     def _after_tool(self, history: list[Message], text: str, outcome, latency: dict) -> str:
-        """Exécution réussie : réponse du LLM à partir du résultat. Échec, refus, annulation ou question de
-        confirmation : phrase du Core, sans LLM (qui pourrait inventer le résultat d'une action échouée)."""
+        """Exécution réussie : phrase de l'outil, ou à défaut réponse du LLM à partir du résultat. Échec, refus,
+        annulation ou question de confirmation : phrase du Core, sans LLM (qui pourrait inventer le résultat)."""
         if outcome.status == DONE:
             self._event("tool", json.dumps(outcome.result.as_dict(), ensure_ascii=False)[:200])
-            if outcome.result.success:
+            if outcome.result.success and not outcome.result.message:
                 return self._ask(history, text, latency, tool_result=outcome.result)
         if outcome.status == CONFIRM:
             spoken = outcome.question

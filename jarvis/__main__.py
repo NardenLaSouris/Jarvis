@@ -127,7 +127,7 @@ def choose_audio(config_path: Path, ask=input, devices=None) -> int:
             print("Choix invalide, inchangé.")
             continue
         value = "" if answer == "0" else devices[kind][int(answer) - 1][0]
-        text = re.sub(rf'^({key}\s*=\s*)"[^"]*"', lambda m: f'{m.group(1)}"{value}"', text, count=1, flags=re.MULTILINE)
+        text = re.sub(rf'^({key}\s*=\s*)"[^"]*"', lambda m, value=value: f'{m.group(1)}"{value}"', text, count=1, flags=re.MULTILINE)
         print(f"-> {value or 'celui de Windows'}")
     config_path.write_text(text, encoding="utf-8")
     print(f"\nEnregistré dans {config_path.name}. Relancez JARVIS pour l'utiliser.")

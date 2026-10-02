@@ -123,6 +123,14 @@ def duration_in_text(value: str, text: str) -> bool:
     return False
 
 
+def spoken_remaining(seconds: float) -> str:
+    """Temps restant dit naturellement : à la minute près au-delà de deux minutes (« 59 minutes 58 secondes »
+    devient « 1 heure »)."""
+    if seconds >= 120:
+        seconds = round(seconds / 60) * 60
+    return spoken_duration(seconds)
+
+
 def spoken_duration(seconds: int) -> str:
     """Secondes -> durée lisible à voix haute (« 1 heure 30 minutes », « 45 secondes »)."""
     seconds = max(0, int(round(seconds)))

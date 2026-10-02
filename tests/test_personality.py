@@ -291,7 +291,7 @@ def test_prompt_describes_personality_capabilities_and_forbids_fake_actions():
     for expected in ("Nom de l'assistant : JARVIS", "Utilisateur principal : la personne qui vous parle", "Forme d'adresse : « monsieur »",
                      "Langue : français", "ne le tutoyez jamais", "aucune", "domotique", "Aucun outil",
                      "n'écrivez donc jamais qu'une action est faite", "au plus une", "Ne commencez jamais par une salutation",
-                     "« Paris. »", "C'est le début de l'échange"):
+                     "« Léonard de Vinci. »", "C'est le début de l'échange"):
         assert expected in prompt, expected
     assert "déjà engagée" in router().system_prompt(ongoing=True)
 
@@ -436,3 +436,29 @@ def test_thanks_survive_stt_misspellings_of_jarvis():
         route = r.route(heard)
         assert route.name == "thanks" and route.end_conversation, (heard, route)
     assert r.route("Merci de me dire la capitale de l'Italie").source == "llm"
+
+
+def test_volume_change_claims_are_detected():
+    for claim in ("Le son est maintenant monté à 30 %.", "Le volume est baissé.", "Votre minuteur est annulé.",
+                  "L'ordinateur est verrouillé.", "Le son est remis."):
+        assert claims_action(claim), claim
+
+
+def test_relative_volume_asks_for_a_level_only_when_the_tool_exists():
+    from jarvis.capabilities import CapabilityRegistry
+
+    with_tool = IntentRouter(PERSONALITY, CapabilityRegistry(), tools=("set_volume",))
+    for request in ("Monte un peu le son.", "Jarvis, baisse le son.", "Plus fort !"):
+        route = with_tool.route(request)
+        assert route.name == "volume_without_level" and "niveau" in route.reply, (request, route)
+    assert with_tool.route("Monte le son à 60 %.").name != "volume_without_level"
+    without = IntentRouter(PERSONALITY, CapabilityRegistry())
+    assert without.route("Monte un peu le son.").name != "volume_without_level"
+
+
+def test_second_person():
+    from jarvis.personality import second_person
+
+    assert second_person("appeler ma mère") == "appeler votre mère"
+    assert second_person("m'occuper de mes plantes") == "vous occuper de vos plantes"
+    assert second_person("sortir le linge") == "sortir le linge"

@@ -3,14 +3,19 @@
 
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from datetime import datetime, timedelta
 from typing import Callable
 
 from jarvis.events import Event, EventBus
+from jarvis.personality import normalize
+from jarvis.weather.cities import closest_city
 from jarvis.weather.models import Location, WeatherCurrent, WeatherForecast
-from jarvis.weather.provider import WeatherError, WeatherProvider
+from jarvis.weather.provider import UNKNOWN_LOCATION, WeatherError, WeatherProvider
+
+log = logging.getLogger(__name__)
 
 WEATHER_REQUESTED, WEATHER_RECEIVED, WEATHER_FAILED = "weather.requested", "weather.received", "weather.failed"
 EVENT_TYPES = (WEATHER_REQUESTED, WEATHER_RECEIVED, WEATHER_FAILED)
@@ -42,9 +47,16 @@ def period(day: str, moment: str, now: datetime) -> tuple[datetime, datetime, st
 class WeatherService:
     def __init__(self, provider: WeatherProvider, default_location: str, events: EventBus | None = None,
                  current_ttl: float = 300, forecast_ttl: float = 900, location_ttl: float = 86400,
-                 clock: Callable[[], datetime] = datetime.now, monotonic: Callable[[], float] = time.monotonic):
+                 clock: Callable[[], datetime] = datetime.now, monotonic: Callable[[], float] = time.monotonic,
+                 default_coordinates: tuple[float, float] | None = None):
         self.provider = provider
         self.default_location = default_location
+        self._default_place = None
+        if default_coordinates is not None:
+            latitude, longitude = default_coordinates
+            if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
+                raise ValueError("Coordonnées par défaut invalides")
+            self._default_place = Location(default_location, float(latitude), float(longitude))
         self._events = events
         self._ttl = {"current": current_ttl, "forecast": forecast_ttl, "location": location_ttl}
         self._clock = clock
@@ -70,8 +82,31 @@ class WeatherService:
                                done=place.name)
         return place, report, label
 
+    def clear_cache(self) -> None:
+        """Oublie toutes les données mémorisées : le prochain appel interroge de nouveau le fournisseur."""
+        with self._lock:
+            self._cache.clear()
+
     def _locate(self, query: str) -> Location:
-        return self._cached(("location", query.lower()), "location", lambda: self.provider.locate(query))
+        if self._default_place is not None and query.lower() == self.default_location.lower():
+            return self._default_place
+        """Ville demandée ; si elle est introuvable, ou si le fournisseur propose un autre nom alors qu'une grande
+        ville se prononce presque pareil (« Toulouze » -> Toulouse plutôt que Toulouzette), cette grande ville."""
+        try:
+            place = self._cached(("location", query.lower()), "location", lambda: self.provider.locate(query))
+        except WeatherError as exc:
+            if exc.code != UNKNOWN_LOCATION:
+                raise
+            place = None
+        if place is not None and normalize(place.name) == normalize(query):
+            return place
+        guess = closest_city(query, extra=(self.default_location,))
+        if guess is None or (place is not None and normalize(guess) == normalize(place.name)):
+            if place is None:
+                raise WeatherError(UNKNOWN_LOCATION, f"Je ne trouve pas la ville « {query[:40]} ».")
+            return place
+        log.info("Météo : « %s » compris comme « %s » (prononciation proche)", query, guess)
+        return self._cached(("location", guess.lower()), "location", lambda: self.provider.locate(guess))
 
     def _request(self, query: str, kind: str, label: str, action: Callable, done: str | None = None):
         if done is None:
@@ -93,6 +128,8 @@ class WeatherService:
                 return hit[1]
         value = fetch()
         with self._lock:
+            for stale in [k for k, (expires, _) in self._cache.items() if expires <= now]:
+                del self._cache[stale]
             self._cache[key] = (now + self._ttl[kind], value)
         return value
 

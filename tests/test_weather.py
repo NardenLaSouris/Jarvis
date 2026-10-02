@@ -499,3 +499,113 @@ def test_weather_failure_is_spoken_honestly_without_the_llm():
                    reply="Il fait beau et 20 degrés, monsieur.")
     spoken, events = run_agent(["Quel temps fait-il ?"], llm, make_core(broken))
     assert spoken == ["Je n'arrive pas à récupérer les données météo pour le moment."] and llm.calls == []
+
+
+# --- Coordonnées par défaut, unité de température, invalidation du cache -----------------------------
+
+def test_default_coordinates_skip_geocoding_but_not_explicit_cities():
+    fake = FakeProvider()
+    s = WeatherService(fake, "Maison", default_coordinates=(47.2, -1.55), clock=lambda: NOW, monotonic=Clock())
+    place, _ = s.current()
+    assert (place.name, place.latitude, place.longitude) == ("Maison", 47.2, -1.55)
+    assert ("locate", "Maison") not in fake.calls
+    s.current("Lyon")
+    assert ("locate", "Lyon") in fake.calls
+    with pytest.raises(ValueError):
+        WeatherService(fake, "Maison", default_coordinates=(120.0, 0.0))
+
+
+def test_fahrenheit_is_requested_and_checked():
+    reply = {**CURRENT, "current_units": {**CURRENT["current_units"], "temperature_2m": "°F",
+                                          "apparent_temperature": "°F"}}
+    requests = []
+    client = httpx.Client(transport=httpx.MockTransport(lambda r: requests.append(r) or httpx.Response(200, json=reply)))
+    fahrenheit = OpenMeteoProvider(client, temperature_unit="fahrenheit")
+    assert fahrenheit.get_current(NANTES).temperature == 22.7 and fahrenheit.temperature_symbol == "°F"
+    assert requests[0].url.params["temperature_unit"] == "fahrenheit"
+    celsius, _ = provider(json_reply(reply))
+    with pytest.raises(WeatherError) as err:
+        celsius.get_current(NANTES)
+    assert err.value.code == "invalid_response"
+    with pytest.raises(ValueError):
+        OpenMeteoProvider(client, temperature_unit="kelvin")
+
+
+def test_tool_reports_the_configured_temperature_unit():
+    class Fahrenheit(FakeProvider):
+        temperature_symbol = "°F"
+
+    result = make_core(service(Fahrenheit())).submit(call()).result.result
+    assert result["units"]["temperature"] == "°F"
+
+
+def test_cache_can_be_cleared_and_drops_stale_entries():
+    fake, clock = FakeProvider(), Clock()
+    s = service(fake, monotonic=clock)
+    s.current()
+    s.clear_cache()
+    s.current()
+    assert [c[0] for c in fake.calls] == ["locate", "current", "locate", "current"]
+    clock.t += 1000
+    s.current("Lyon")
+    assert set(s._cache) == {("location", "nantes"), ("location", "lyon"), ("current", replace(NANTES, name="Lyon"))}
+
+
+def test_coordinates_and_unit_come_from_configuration():
+    cfg = load_config(ROOT / "config.toml")
+    assert cfg.weather.temperature_unit == "celsius" and cfg.weather.latitude is None
+    with_coordinates = replace(cfg, weather=replace(cfg.weather, latitude=47.2, longitude=-1.55,
+                                                    temperature_unit="fahrenheit"))
+    weather = build_weather(with_coordinates, None)
+    assert weather._default_place.latitude == 47.2 and weather.provider.temperature_symbol == "°F"
+    with pytest.raises(ValueError):
+        build_weather(replace(cfg, weather=replace(cfg.weather, latitude=47.2)), None)
+
+
+
+# --- Villes mal transcrites ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("heard, city", [
+    ("Allion", "Lyon"), ("Lion", "Lyon"), ("nante", "Nantes"), ("la nante", "Nantes"), ("Toulouze", "Toulouse"),
+    ("Bordo", "Bordeaux"), ("Marseil", "Marseille"), ("Strasbour", "Strasbourg"), ("Paris", "Paris"),
+    ("tous les demains", None), ("Zzyxqwvill", None), ("Tokyo", None), ("ab", None),
+])
+def test_closest_french_city(heard, city):
+    from jarvis.weather.cities import closest_city
+
+    assert closest_city(heard) == city
+
+
+class Geocoder(FakeProvider):
+    """Faux géocodage : ``known`` = nom demandé -> nom de la ville trouvée."""
+
+    def __init__(self, known):
+        super().__init__()
+        self.known = known
+
+    def locate(self, query):
+        self.calls.append(("locate", query))
+        if query not in self.known:
+            raise WeatherError("unknown_location", f"Je ne trouve pas la ville « {query} ».")
+        return replace(NANTES, name=self.known[query])
+
+
+def test_misheard_city_falls_back_to_the_closest_big_city():
+    s = service(Geocoder({"Lyon": "Lyon", "Toulouze": "Toulouzette", "Toulouse": "Toulouse",
+                          "Saint-Herblain": "Saint-Herblain"}))
+    assert s.current("Allion")[0].name == "Lyon"
+    assert s.current("Toulouze")[0].name == "Toulouse"
+    assert s.current("Saint-Herblain")[0].name == "Saint-Herblain"
+    with pytest.raises(WeatherError) as err:
+        s.current("Zzyxqwvill")
+    assert err.value.code == "unknown_location" and "Zzyxqwvill" in err.value.message
+
+
+def test_city_fallback_keeps_network_errors():
+    class Down(FakeProvider):
+        def locate(self, query):
+            raise WeatherError("weather_unavailable", "Je n'arrive pas à récupérer les données météo pour le moment.")
+
+    with pytest.raises(WeatherError) as err:
+        service(Down()).current("Allion")
+    assert err.value.code == "weather_unavailable"

@@ -53,7 +53,7 @@ class PiperTTS:
 
     def prepare(self, text: str) -> str:
         for pattern, phonemes in self._lexicon:
-            text = pattern.sub(lambda m: f"[[ {phonemes}{m.group(1)} ]]", text)
+            text = pattern.sub(lambda m, phonemes=phonemes: f"[[ {phonemes}{m.group(1)} ]]", text)
         return text
 
     def phonemes(self, text: str) -> str:

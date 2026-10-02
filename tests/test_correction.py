@@ -74,7 +74,13 @@ def test_no_corrector_without_application_tools():
 
 def test_whisper_gets_the_vocabulary_hint():
     assert vocabulary_hint(CFG) == ("Jarvis, ouvre Discord, ferme Steam, lance Google Chrome, quitte Spotify, "
-                                   "ouvre Visual Studio Code, ferme le Bloc-notes.")
+                                   "ouvre Visual Studio Code, ferme le Bloc-notes. Mets un minuteur. Rappelle-moi. "
+                                   f"Recherche-moi. Raconte-moi. Quel temps fera-t-il à {CFG.weather.default_location} ?")
+    from dataclasses import replace
+
+    quiet = replace(CFG, web=replace(CFG.web, enabled=False), timers=replace(CFG.timers, enabled=False),
+                    weather=replace(CFG.weather, enabled=False))
+    assert vocabulary_hint(quiet).endswith("ferme le Bloc-notes. Raconte-moi.")
 
     class Model:
         def transcribe(self, samples, **options):
@@ -88,3 +94,13 @@ def test_whisper_gets_the_vocabulary_hint():
     stt.hotwords = ""
     stt.transcribe(np.zeros(1600, np.int16), 16000)
     assert stt._model.options["hotwords"] is None
+
+
+
+@pytest.mark.parametrize("heard", ["Quel heure est-il ?", "Quelle heure est-il ?"])
+def test_common_grammar_slips_still_route(heard):
+    from jarvis.capabilities import CapabilityRegistry
+    from jarvis.router import IntentRouter
+
+    router = IntentRouter(load_personality(ROOT / "personality.toml"), CapabilityRegistry(), tools=("get_time",))
+    assert router.route(heard).label == "tool:time"

@@ -17,7 +17,7 @@ sys.path.insert(0, str(ROOT))
 
 from jarvis.activity import ActivityLog, JsonlActivityStore  # noqa: E402
 from jarvis.config import load_config  # noqa: E402
-from jarvis.events import ALL, Event, EventBus  # noqa: E402
+from jarvis.events import ALL, EventBus  # noqa: E402
 from jarvis.personality import load_personality  # noqa: E402
 from jarvis.scheduling import DurationError, SchedulingError, Status, TimerManager, parse_duration, spoken_duration  # noqa: E402
 from jarvis.scheduling.durations import duration_in_text  # noqa: E402
@@ -455,3 +455,28 @@ def test_timer_requests_reach_the_tools(heard):
 
     router = IntentRouter(PERSONALITY, CapabilityRegistry(), tools=("create_timer", "create_reminder"))
     assert router.route(heard).label == "tool:tool.action"
+
+
+def test_remaining_time_is_rounded_to_the_minute():
+    from jarvis.scheduling.durations import spoken_remaining
+
+    assert spoken_remaining(3598) == "1 heure"
+    assert spoken_remaining(125) == "2 minutes"
+    assert spoken_remaining(45) == "45 secondes"
+
+
+def test_timer_and_reminder_tools_speak_without_the_llm(manager):
+    tools = {t.name: t for t in timer_tools(manager)}
+
+    def say(name, **parameters):
+        tool = tools[name]
+        return tool.say(tool.execute(parameters))
+
+    assert say("list_timers") == "Aucun minuteur n'est en cours."
+    assert say("create_timer", duration=300).startswith("Minuteur de 5 minutes lancé, il sonnera à ")
+    assert say("list_timers") == "Il reste 5 minutes sur votre minuteur de 5 minutes."
+    assert say("cancel_timer") == "Votre minuteur de 5 minutes est annulé."
+    assert say("create_reminder", delay=1200, message="sortir mon linge") == (
+        "Entendu, je vous rappellerai de sortir votre linge dans 20 minutes.")
+    assert say("list_reminders") == "Je dois vous rappeler de sortir votre linge dans 20 minutes."
+    assert say("cancel_reminder") == "Le rappel de sortir votre linge est annulé."

@@ -20,7 +20,7 @@ detail_words = ["explique", "expliquer", "explique moi", "detaille", "details", 
                 "raconte", "liste", "resume", "decris", "pourquoi", "comment faire"]
 # Exemples de réponses naturelles donnés au LLM.
 style_examples = [
-    "Paris.",
+    "Léonard de Vinci.",
     "Très bien, merci. Et vous ?",
     "Une tradition informatique bien établie, monsieur.",
     "Je crains que cette fonction ne soit pas encore disponible.",
@@ -67,7 +67,9 @@ filler_openings = ["bien sur", "bien entendu", "certainement", "avec plaisir", "
 # Phrases de clôture creuses retirées en fin de réponse du LLM (s'il reste du contenu).
 filler_closings = ["n hesitez pas", "si vous avez besoin", "je reste a votre disposition", "je reste a votre service",
                    "je suis la pour vous aider", "puis je faire autre chose", "autre chose pour vous",
-                   "que puis je faire d autre", "j espere que cela vous aide", "j espere avoir repondu"]
+                   "que puis je faire d autre", "j espere que cela vous aide", "j espere avoir repondu",
+                   "je peux effectuer une recherche", "je peux faire une recherche", "je peux chercher",
+                   "je peux vous chercher", "pour obtenir cette information"]
 # Salutations retirées en début de réponse du LLM, sauf si l'utilisateur vient lui-même de saluer.
 greeting_openings = ["bonjour", "bonsoir", "salut", "rebonjour", "bonjour a vous", "bonsoir a vous"]
 
@@ -108,6 +110,7 @@ strict_words = ["tu", "toi", "te", "t", "ton", "ta", "tes", "vous", "votre", "vo
 "presenter toi" = "presente toi"
 # « Jarvis » mal transcrit par le STT : ramené à « jarvis » pour être ignoré comme le vrai nom
 # (sinon « Merci Jervis » n'est pas reconnu comme un remerciement et part au LLM).
+"quel heure" = "quelle heure"
 "rappele" = "rappelle"
 "rapelle" = "rappelle"
 "rapele" = "rappelle"
@@ -253,6 +256,16 @@ tool = "unmute_volume"
 patterns = ["remets le son", "remet le son", "remettre le son", "remets moi le son", "reactive le son",
             "rallume le son", "enleve la sourdine", "retire la sourdine"]
 
+# Changement de volume sans niveau précis : JARVIS ne devine pas, il demande le niveau.
+[intents.volume_without_level]
+match = "exact"
+needs = "set_volume"
+patterns = ["monte le son", "monte un peu le son", "baisse le son", "baisse un peu le son", "augmente le son",
+            "augmente le volume", "baisse le volume", "monte le volume", "plus fort", "moins fort",
+            "monte un peu", "baisse un peu"]
+responses = ["Volontiers, {title}. À quel niveau, par exemple « mets le son à 40 % » ?",
+             "Dites-moi le niveau souhaité, par exemple « mets le volume à 40 % »."]
+
 # Demandes d'action pour les outils ([tools] dans config.toml) : le LLM choisit l'outil et ses paramètres,
 # puis JARVIS valide, fait confirmer si besoin et exécute. Testée après les demandes d'action
 # indisponibles (domotique, messages...), dont elle remplace celle sur l'ordinateur (replaces).
@@ -262,7 +275,7 @@ match = "contains"
 replaces = ["unavailable_computer", "unavailable_reminders", "unavailable_realtime"]
 patterns = [
     "ouvre", "ouvrir", "ouvre moi", "lance", "lancer", "lance moi", "demarre", "demarrer", "va sur", "affiche le site",
-    "ferme", "fermer", "ferme moi", "quitte", "quitter", "arrete", "coupe",
+    "ferme", "fermer", "ferme moi", "quitte", "quitter", "arrete", "coupe le", "coupe la", "coupe les", "coupe moi",
     "volume", "le son", "du son", "remets le son", "verrouille", "verrouiller", "verrouillage",
     "applications ouvertes", "application ouverte", "applications sont ouvertes", "applications en cours",
     "quelles applications", "quels programmes", "qu est ce qui est ouvert", "qu est ce qui tourne", "est ouvert",
@@ -270,7 +283,7 @@ patterns = [
     "espace disque", "stockage", "carte graphique", "cette machine", "ce pc", "cet ordinateur", "mon pc",
     "mon ordinateur", "la machine", "caracteristiques",
     "minuteur", "minuteurs", "minuterie", "timer", "chrono", "compte a rebours", "rappelle moi", "rappelez moi",
-    "rappel", "rappels", "previens moi", "fais moi penser",
+    "rappel", "rappels", "previens moi", "fais moi penser", "temps reste", "reste t il", "temps restant",
     "meteo", "quel temps", "temps fait il", "temps fera t il", "temps qu il fait", "temps qu il fera",
     "il fait combien", "pleuvoir", "pleut", "pluie", "neiger", "neige", "temperature", "degres",
     "fait il froid", "fait il chaud", "fera t il froid", "fera t il chaud", "parapluie", "orage", "du vent",

@@ -22,8 +22,7 @@ log = logging.getLogger(__name__)
 
 GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search"
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
-UNITS = {"temperature_unit": "celsius", "wind_speed_unit": "kmh", "precipitation_unit": "mm"}
-EXPECTED_UNITS = {"temperature_2m": "°C", "wind_speed_10m": "km/h", "precipitation": "mm"}
+TEMPERATURE_UNITS = {"celsius": "°C", "fahrenheit": "°F"}
 CURRENT_FIELDS = "temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,precipitation"
 HOURLY_FIELDS = "temperature_2m,precipitation_probability,precipitation,weather_code,wind_speed_10m"
 UNAVAILABLE_MESSAGE = "Je n'arrive pas à récupérer les données météo pour le moment."
@@ -53,7 +52,12 @@ class OpenMeteoProvider:
     name = "open-meteo"
 
     def __init__(self, client: httpx.Client | None = None, timeout: float = 8.0, country: str = "FR",
-                 language: str = "fr"):
+                 language: str = "fr", temperature_unit: str = "celsius"):
+        if temperature_unit not in TEMPERATURE_UNITS:
+            raise ValueError(f"Unité de température inconnue : {temperature_unit} (celsius ou fahrenheit)")
+        self.temperature_symbol = TEMPERATURE_UNITS[temperature_unit]
+        self._units = {"temperature_unit": temperature_unit, "wind_speed_unit": "kmh", "precipitation_unit": "mm"}
+        self._expected = {"temperature_2m": self.temperature_symbol, "wind_speed_10m": "km/h", "precipitation": "mm"}
         self._client = client or httpx.Client(headers={"User-Agent": "JARVIS-assistant/1.0"})
         self._timeout = timeout
         self._country = country.upper()
@@ -120,13 +124,12 @@ class OpenMeteoProvider:
 
     def _forecast(self, location: Location, params: dict) -> dict:
         return self._get(FORECAST_URL, {"latitude": location.latitude, "longitude": location.longitude,
-                                        "timezone": location.timezone or "auto", **UNITS, **params})
+                                        "timezone": location.timezone or "auto", **self._units, **params})
 
-    @staticmethod
-    def _check_units(units) -> None:
+    def _check_units(self, units) -> None:
         if not isinstance(units, dict):
             raise WeatherError(INVALID_RESPONSE, UNAVAILABLE_MESSAGE)
-        for field, unit in EXPECTED_UNITS.items():
+        for field, unit in self._expected.items():
             if field in units and units[field] != unit:
                 log.warning("Météo : unité inattendue pour %s (%s)", field, units[field])
                 raise WeatherError(INVALID_RESPONSE, UNAVAILABLE_MESSAGE)

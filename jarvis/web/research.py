@@ -32,7 +32,7 @@ _REQUEST = re.compile(
     r"^\s*(?:(?:est-ce que\s+)?(?:tu peux|peux-tu|pourrais-tu|vous pouvez|pouvez-vous|tu pourrais)\s+)?"
     r"(?:me\s+)?(?:re)?cherche[rz]?(?:-moi)?\s+", re.IGNORECASE)
 _WHERE = re.compile(r"\s*\b(?:sur (?:internet|le web|google)|en ligne)\b", re.IGNORECASE)
-_CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f​-‏ -‮⁦-⁩]")
+_CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f\u200b-\u200f\u2028-\u202e\u2066-\u2069]")
 _MARKERS = re.compile(r"<{2,}|>{2,}")
 
 
@@ -184,8 +184,7 @@ class WebSearchCapability:
     """
 
     name = "recherche web"
-    description = ("rechercher des informations actuelles sur Internet, comme des prix, des actualités "
-                   "ou les dernières versions d'un produit")
+    description = "chercher des informations actuelles sur Internet"
     replaces = "la recherche sur Internet"
 
     def handle(self, text: str) -> None:

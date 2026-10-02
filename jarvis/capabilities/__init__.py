@@ -15,6 +15,7 @@ from typing import Protocol
 # Fonctionnalités annoncées mais pas encore développées : (nom court prononçable, détail pour le LLM).
 PLANNED_FEATURES = (
     ("le contrôle de votre ordinateur", "lancer des programmes, gérer des fichiers, exécuter des commandes"),
+    ("la gestion de vos fichiers", "créer, déplacer ou supprimer des fichiers, exécuter des commandes"),
     ("la domotique", "lumières, chauffage, appareils connectés"),
     ("les e-mails et messages", "lire ou envoyer des e-mails et des messages WhatsApp"),
     ("l'agenda", "rendez-vous, réveils à une heure précise"),
@@ -49,6 +50,8 @@ class CapabilityRegistry:
     def planned(self) -> tuple[tuple[str, str], ...]:
         """Fonctionnalités prévues, moins celles qu'une capacité enregistrée rend disponibles."""
         done = {getattr(c, "replaces", None) for c in self}
+        if "le contrôle de votre ordinateur" not in done:
+            done.add("la gestion de vos fichiers")
         return tuple(f for f in PLANNED_FEATURES if f[0] not in done)
 
     def __iter__(self):

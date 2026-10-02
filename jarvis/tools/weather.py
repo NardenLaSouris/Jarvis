@@ -15,8 +15,7 @@ from jarvis.weather.provider import WeatherError
 from jarvis.weather.service import DAYS, MOMENTS, WeatherService
 
 CITY = re.compile(r"^[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ' -]{0,59}$")
-UNITS = {"temperature": "°C", "wind_speed": "km/h", "precipitation": "mm", "humidity": "%",
-         "precipitation_probability": "%"}
+UNITS = {"wind_speed": "km/h", "precipitation": "mm", "humidity": "%", "precipitation_probability": "%"}
 DAY_WORDS = {"tomorrow": (r"\bdemain\b",), "day_after_tomorrow": (r"\bapres demain\b",)}
 MOMENT_WORDS = {"morning": (r"\bmatin(ee)?\b",), "afternoon": (r"\bapres midi\b", r"\baprem\b"),
                 "evening": (r"\bsoir(ee)?\b", r"\bcette nuit\b", r"\bce soir\b")}
@@ -58,6 +57,8 @@ def _moment_said(value: str, text: str) -> bool:
 
 
 def weather_tool(service: WeatherService) -> Tool:
+    units = {"temperature": getattr(service.provider, "temperature_symbol", "°C"), **UNITS}
+
     def run(location: str | None = None, day: str | None = None, moment: str | None = None) -> dict:
         day = day or "today"
         moment = moment or ("now" if day == "today" else "day")
@@ -71,7 +72,7 @@ def weather_tool(service: WeatherService) -> Tool:
                         "temperature": round(current.temperature), "feels_like": _rounded(current.feels_like),
                         "humidity": current.humidity, "wind_speed": _rounded(current.wind_speed),
                         "precipitation": current.precipitation,
-                        "rain_risk": "pluie en cours" if current.precipitation else "pas de pluie", "units": UNITS}
+                        "rain_risk": "pluie en cours" if current.precipitation else "pas de pluie", "units": units}
             place, forecast, label = service.forecast(day, moment, location)
         except WeatherError as exc:
             raise ToolError(exc.code, exc.message) from exc
@@ -82,7 +83,7 @@ def weather_tool(service: WeatherService) -> Tool:
                 "precipitation_probability": forecast.precipitation_probability,
                 "precipitation": forecast.precipitation,
                 "rain_risk": _rain_risk(forecast.precipitation_probability, forecast.precipitation),
-                "wind_speed": _rounded(forecast.wind_speed), "units": UNITS}
+                "wind_speed": _rounded(forecast.wind_speed), "units": units}
 
     return Tool(
         "get_weather",

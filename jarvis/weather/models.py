@@ -1,6 +1,7 @@
 """Données météo internes à JARVIS, indépendantes du fournisseur.
 
-Unités : températures en °C, vent en km/h, précipitations en mm, probabilité de pluie en %.
+Unités : températures dans l'unité configurée (°C par défaut), vent en km/h, précipitations en mm,
+probabilité de pluie en %.
 """
 
 from __future__ import annotations

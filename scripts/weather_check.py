@@ -23,15 +23,16 @@ def main() -> int:
         print("Météo désactivée dans config.toml ([weather] enabled).")
         return 1
     city = sys.argv[1] if len(sys.argv) > 1 else None
+    unit = weather.provider.temperature_symbol
     try:
         place, current = weather.current(city)
-        print(f"{place.name} ({place.region}, {place.country}) — maintenant : {current.temperature} °C, "
-              f"ressenti {current.feels_like} °C, {current.condition.label}, humidité {current.humidity} %, "
+        print(f"{place.name} ({place.region}, {place.country}) — maintenant : {current.temperature} {unit}, "
+              f"ressenti {current.feels_like} {unit}, {current.condition.label}, humidité {current.humidity} %, "
               f"vent {current.wind_speed} km/h")
         for day, moment in (("today", "evening"), ("tomorrow", "morning"), ("tomorrow", "day"),
                             ("day_after_tomorrow", "day")):
             _, forecast, label = weather.forecast(day, moment, city)
-            print(f"  {label} : {forecast.temperature_min:.0f} à {forecast.temperature_max:.0f} °C, "
+            print(f"  {label} : {forecast.temperature_min:.0f} à {forecast.temperature_max:.0f} {unit}, "
                   f"{forecast.condition.label}, pluie {forecast.precipitation_probability} % "
                   f"({forecast.precipitation} mm), vent jusqu'à {forecast.wind_speed} km/h")
     except WeatherError as exc:

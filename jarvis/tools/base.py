@@ -62,6 +62,7 @@ class Tool:
     risk: Risk
     run: Callable[..., dict]
     question: Callable[[dict], str] | None = None
+    say: Callable[[dict], str] | None = None  # phrase de succès dite sans LLM
 
     @property
     def requires_confirmation(self) -> bool:

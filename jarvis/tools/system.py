@@ -185,4 +185,5 @@ def lock_tool(locker: Callable[[], bool] = lock_session) -> Tool:
 
     return Tool("lock_pc", "Verrouille la session de l'ordinateur (l'écran de connexion s'affiche).", {},
                 {"locked": "true"}, Risk.CONFIRMATION_REQUIRED, run,
-                question=lambda p: "Voulez-vous que je verrouille l'ordinateur ?")
+                question=lambda p: "Voulez-vous que je verrouille l'ordinateur ?",
+                say=lambda r: "L'ordinateur est verrouillé.")

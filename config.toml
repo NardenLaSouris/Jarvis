@@ -178,7 +178,11 @@ max_active = 20         # nombre maximal d'échéances en cours
 enabled = true
 provider = "open-meteo"
 default_location = "Nantes"   # à remplacer par votre ville
+# Position précise de la ville par défaut (facultatif) : sinon, elle est cherchée par son nom.
+# latitude = 47.2173
+# longitude = -1.5534
 country = "FR"                # pays préféré quand plusieurs villes portent le même nom
+temperature_unit = "celsius"  # celsius ou fahrenheit
 timeout = 8.0
 current_cache_minutes = 5     # temps actuel : pas de nouvel appel pendant 5 minutes pour la même ville
 forecast_cache_minutes = 15

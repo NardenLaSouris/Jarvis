@@ -43,6 +43,7 @@ EXAMPLES = (
     ("Annule mon minuteur", "cancel_timer", {}),
     ("Annule le minuteur de 5 minutes", "cancel_timer", {"duration": "5 minutes"}),
     ("Quels sont mes minuteurs ?", "list_timers", {}),
+    ("Combien de temps reste-t-il ?", "list_timers", {}),
     ("Annule le rappel pour le linge", "cancel_reminder", {"message": "linge"}),
     ("Quels rappels sont prévus ?", "list_reminders", {}),
     ("Réveille-moi à 7 heures", None, None),
@@ -192,23 +193,21 @@ class ToolsCapability:
     """
 
     name = "outils"
-    replaces = None
+    replaces = "le contrôle de votre ordinateur"
+
+    GROUPS = (
+        (("get_time", "get_date"), "donner l'heure et la date"),
+        (("get_weather",), "donner la météo"),
+        (("create_timer", "create_reminder"), "gérer vos minuteurs et rappels"),
+        (("open_application", "close_application", "open_url"), "ouvrir ou fermer vos applications et pages Web"),
+        (("set_volume", "mute_volume", "unmute_volume"), "régler le son"),
+        (("system_info", "list_running_applications"), "décrire la machine"),
+        (("lock_pc",), "verrouiller l'ordinateur"),
+    )
 
     def __init__(self, registry: ToolRegistry):
-        known = {
-            "get_time": "donner l'heure", "get_date": "donner la date", "system_info": "décrire la machine",
-            "open_url": "ouvrir une page Web", "open_application": "ouvrir certaines applications",
-            "close_application": "fermer certaines applications",
-            "list_running_applications": "dire quelles applications sont ouvertes", "set_volume": "régler le volume",
-            "mute_volume": "couper le son", "unmute_volume": "remettre le son", "lock_pc": "verrouiller l'ordinateur",
-            "create_timer": "lancer des minuteurs", "cancel_timer": "annuler un minuteur",
-            "list_timers": "dire quels minuteurs sont en cours", "create_reminder": "programmer des rappels",
-            "cancel_reminder": "annuler un rappel", "list_reminders": "dire quels rappels sont prévus",
-            "get_weather": "donner la météo",
-        }
-        parts = [known.get(t.name, t.name) for t in registry.list()]
-        actions = ", ".join(parts[:-1]) + " et " + parts[-1] if len(parts) > 1 else "".join(parts)
-        self.description = f"{actions} ; certaines actions (fermer une application, verrouiller) sont confirmées avant"
+        parts = [label for names, label in self.GROUPS if any(registry.exists(n) for n in names)]
+        self.description = ", ".join(parts[:-1]) + " et " + parts[-1] if len(parts) > 1 else "".join(parts)
 
     def handle(self, text: str) -> None:
         return None

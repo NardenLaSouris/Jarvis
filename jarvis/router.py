@@ -35,10 +35,11 @@ ACTION_VERBS = (
 )
 ACTION_CLAIMS = (
     re.compile(rf"\bj ai (bien |deja )?({ACTION_VERBS})\b"),
-    re.compile(rf"\bje viens d (eteindre|allumer|ouvrir|fermer|lancer|envoyer|programmer|regler|activer|couper)\b"),
+    re.compile(r"\bje viens d (eteindre|allumer|ouvrir|fermer|lancer|envoyer|programmer|regler|activer|couper)\b"),
     re.compile(r"\b(c est|voila c est|voila qui est) fait\b"),
     re.compile(r"\b(est|sont) (maintenant |desormais |bien )?(eteinte?s?|allumee?s?|ouverte?s?|fermee?s?|"
-               r"lancee?s?|envoyee?s?|activee?s?|desactivee?s?|programmee?s?|reglee?s?|coupee?s?)\b"),
+               r"lancee?s?|envoyee?s?|activee?s?|desactivee?s?|programmee?s?|reglee?s?|coupee?s?|montee?s?|baissee?s?|"
+               r"augmentee?s?|diminuee?s?|verrouillee?s?|remise?s?|annulee?s?|mise?s?)\b"),
     re.compile(r"\b(message|mail|e mail|sms|musique|lumiere) (est )?(bien )?(envoye|lancee?|allumee|eteinte)\b"),
     re.compile(r"\bje m en occupe\b"),
     re.compile(r"\bj ai (bien )?(pris note|note|pris en compte|transmis)\b"),
@@ -128,6 +129,8 @@ class IntentRouter:
         for intent, exact in self._intents:
             if intent.tool and intent.tool not in self._tools and not intent.responses:
                 continue
+            if intent.needs and intent.needs not in self._tools:
+                continue
             if self._matches(intent, exact, norm, core):
                 if intent.tool and intent.tool in self._tools:
                     return Route("tool", intent.name, tool=intent.tool)
@@ -169,7 +172,7 @@ class IntentRouter:
         a, b = said.split(), expected.split()
         if not threshold or len(a) != len(b) or len(a) > FUZZY_MAX_WORDS:
             return False
-        for x, y in zip(a, b):
+        for x, y in zip(a, b, strict=True):
             if x == y:
                 continue
             if x in self.personality.strict_words or y in self.personality.strict_words or min(len(x), len(y)) < 4:
@@ -247,11 +250,19 @@ class IntentRouter:
         return self._render(choice)
 
     def _render(self, template: str) -> str:
-        available = "; ".join(c.description for c in self.capabilities) or self.personality.no_tools
-        labels = [label for label, _ in self.capabilities.planned()]
-        planned = ", ".join(labels[:-1]) + " et " + labels[-1] if len(labels) > 1 else "".join(labels)
+        available = enumerate_fr([c.description for c in self.capabilities]) or self.personality.no_tools
+        planned = enumerate_fr([label for label, _ in self.capabilities.planned()])
         return self.personality.without_user_name(self.personality.render(
             template, self._clock(), available=available, planned=planned[:1].upper() + planned[1:]))
+
+
+def enumerate_fr(items: list[str]) -> str:
+    """[« a », « b », « c »] -> « a, b et c » ; pas de second « et » si le dernier élément est déjà une
+    énumération (« a, b, c et d »)."""
+    if len(items) < 2:
+        return "".join(items)
+    last = items[-1] if " et " in items[-1] else "et " + items[-1]
+    return ", ".join(items[:-1]) + (", " if " et " in items[-1] else " ") + last
 
 
 class ReplyFilter:

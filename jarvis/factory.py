@@ -71,11 +71,21 @@ def allowed_apps(cfg: Config) -> dict:
 
 
 def vocabulary_hint(cfg: Config, personality_name: str = "JARVIS") -> str:
-    """Phrase donnée à Whisper pour orienter la transcription vers le nom de JARVIS et les applications."""
+    """Phrases données à Whisper pour orienter la transcription vers le vocabulaire de JARVIS : son nom, les
+    applications autorisées et les commandes activées (minuteurs, rappels, recherche, météo et ville par défaut)."""
     labels = [a.label for a in allowed_apps(cfg).values()]
     verbs = ("ouvre", "ferme", "lance", "quitte")
     commands = ", ".join(f"{verbs[i % len(verbs)]} {label}" for i, label in enumerate(labels))
-    return f"{personality_name.capitalize()}, {commands}." if commands else f"{personality_name.capitalize()}."
+    hint = f"{personality_name.capitalize()}, {commands}." if commands else f"{personality_name.capitalize()}."
+    phrases = []
+    if cfg.tools.enabled and cfg.timers.enabled:
+        phrases += ["Mets un minuteur.", "Rappelle-moi."]
+    if cfg.web.enabled:
+        phrases.append("Recherche-moi.")
+    phrases.append("Raconte-moi.")
+    if cfg.tools.enabled and cfg.weather.enabled:
+        phrases.append(f"Quel temps fera-t-il à {cfg.weather.default_location} ?")
+    return " ".join([hint, *phrases])
 
 
 def build_stt(cfg: Config) -> SpeechToText:
@@ -163,9 +173,12 @@ def build_weather(cfg: Config, events: EventBus | None):
         raise ValueError(f"Fournisseur météo inconnu : {w.provider}")
     from jarvis.weather import OpenMeteoProvider, WeatherService
 
-    provider = OpenMeteoProvider(timeout=w.timeout, country=w.country)
+    if (w.latitude is None) != (w.longitude is None):
+        raise ValueError("[weather] latitude et longitude vont ensemble")
+    coordinates = (float(w.latitude), float(w.longitude)) if w.latitude is not None else None
+    provider = OpenMeteoProvider(timeout=w.timeout, country=w.country, temperature_unit=w.temperature_unit)
     return WeatherService(provider, w.default_location, events, current_ttl=w.current_cache_minutes * 60,
-                          forecast_ttl=w.forecast_cache_minutes * 60)
+                          forecast_ttl=w.forecast_cache_minutes * 60, default_coordinates=coordinates)
 
 
 def build_tools(cfg: Config, personality, events: EventBus | None = None, timers=None, weather=None):

@@ -135,7 +135,7 @@ class ToolCore:
         future = self._pool.submit(tool.execute, dict(request.parameters))
         try:
             output = future.result(timeout=self._timeout)
-            result = ToolResult(tool.name, True, result=output)
+            result = ToolResult(tool.name, True, result=output, message=tool.say(output) if tool.say else "")
         except FutureTimeout:
             result = ToolResult(tool.name, False, error=TIMEOUT, message="L'action a pris trop de temps.")
         except ToolError as exc:

@@ -107,7 +107,10 @@ class WeatherConfig:
     enabled: bool = False
     provider: str = "open-meteo"
     default_location: str = "Paris"
+    latitude: float | None = None
+    longitude: float | None = None
     country: str = "FR"
+    temperature_unit: str = "celsius"
     timeout: float = 8.0
     current_cache_minutes: float = 5.0
     forecast_cache_minutes: float = 15.0
@@ -182,7 +185,7 @@ def _build(cls: type, data: dict[str, Any], base_dir: Path):
         kwargs[name] = value
     instance = cls(**kwargs)
     # Les chemins non surchargés sont aussi résolus par rapport au fichier.
-    for name, f in known.items():
+    for name in known:
         value = getattr(instance, name)
         if isinstance(value, Path) and not value.is_absolute():
             object.__setattr__(instance, name, (base_dir / value).resolve())

@@ -215,7 +215,10 @@ afternoon / evening / day), dates calculées sur l'horloge du système.
 - `jarvis/weather/` : modèles internes (°C, km/h, mm), interface `WeatherProvider` (changer de fournisseur =
   une nouvelle classe), `OpenMeteoProvider`, `WeatherService` (ville par défaut, périodes, cache court,
   événements `weather.requested / received / failed`, journalisés).
-- Une ville n'est utilisée que si elle a été dite ; sinon, `[weather] default_location`.
+- Une ville n'est utilisée que si elle a été dite ; sinon, `[weather] default_location` (cherchée par son nom,
+  ou placée exactement avec `latitude` / `longitude`). `temperature_unit` : `celsius` (défaut) ou `fahrenheit`.
+- Cache : `current_cache_minutes` (temps actuel) et `forecast_cache_minutes` (prévisions) ; une donnée périmée
+  est retirée et redemandée au fournisseur. Aucune clé ni variable d'environnement n'est nécessaire.
 - Si la météo est indisponible, JARVIS le dit simplement (jamais de météo inventée) ; « cherche / recherche
   la météo » passe par la recherche Web.
 

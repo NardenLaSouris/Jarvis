@@ -10,8 +10,10 @@ from __future__ import annotations
 import re
 from typing import Callable
 
-from jarvis.personality import normalize
-from jarvis.scheduling.durations import DurationError, duration_in_text, parse_duration, spoken_duration
+from jarvis.personality import normalize, second_person, with_de
+from jarvis.scheduling.durations import (
+    DurationError, duration_in_text, parse_duration, spoken_duration, spoken_remaining,
+)
 from jarvis.scheduling.manager import REMINDER_NOT_FOUND, TIMER_NOT_FOUND, SchedulingError, TimerManager
 from jarvis.scheduling.models import Reminder, Scheduled, Timer
 from jarvis.tools.base import INVALID_PARAMETERS, Param, Risk, Tool, ToolError
@@ -64,12 +66,38 @@ def _pick(active: list, item_id: str | None, matches: Callable[[Scheduled], bool
 
 def _timer_view(timer: Timer, manager: TimerManager) -> dict:
     return {"timer_id": timer.id, "duration": spoken_duration(timer.seconds),
-            "remaining": spoken_duration(timer.remaining(manager.now())), "ends_at": f"{timer.expires_at:%H:%M}"}
+            "remaining": spoken_remaining(timer.remaining(manager.now())), "ends_at": f"{timer.expires_at:%H:%M}"}
 
 
 def _reminder_view(reminder: Reminder, manager: TimerManager) -> dict:
-    return {"reminder_id": reminder.id, "message": reminder.message,
-            "remaining": spoken_duration(reminder.remaining(manager.now())), "at": f"{reminder.expires_at:%H:%M}"}
+    return {"reminder_id": reminder.id, "message": second_person(reminder.message),
+            "remaining": spoken_remaining(reminder.remaining(manager.now())), "at": f"{reminder.expires_at:%H:%M}"}
+
+
+def _at(hhmm: str) -> str:
+    hours, minutes = hhmm.split(":")
+    return f"{int(hours)} h {minutes}" if minutes != "00" else f"{int(hours)} heures"
+
+
+def _timers_said(result: dict) -> str:
+    timers = result["timers"]
+    if not timers:
+        return "Aucun minuteur n'est en cours."
+    if len(timers) == 1:
+        return f"Il reste {timers[0]['remaining']} sur votre minuteur de {timers[0]['duration']}."
+    listing = " ; ".join(f"{t['duration']}, encore {t['remaining']}" for t in timers)
+    return f"Vous avez {len(timers)} minuteurs : {listing}."
+
+
+def _reminders_said(result: dict) -> str:
+    reminders = result["reminders"]
+    if not reminders:
+        return "Aucun rappel n'est prévu."
+    if len(reminders) == 1:
+        r = reminders[0]
+        return f"Je dois vous rappeler {with_de(r['message'])} dans {r['remaining']}."
+    listing = " ; ".join(f"{r['message']} dans {r['remaining']}" for r in reminders)
+    return f"Vous avez {len(reminders)} rappels : {listing}."
 
 
 def timer_tools(manager: TimerManager) -> list[Tool]:
@@ -98,7 +126,7 @@ def timer_tools(manager: TimerManager) -> list[Tool]:
         chosen = _pick(manager.reminders(), reminder_id, matches, "rappel", REMINDER_NOT_FOUND,
                        lambda r: f"n° {r.id} : {r.message}")
         reminder = _call(lambda: manager.cancel_reminder(chosen))
-        return {"reminder_id": reminder.id, "message": reminder.message, "cancelled": True}
+        return {"reminder_id": reminder.id, "message": second_person(reminder.message), "cancelled": True}
 
     def list_reminders() -> dict:
         reminders = [_reminder_view(r, manager) for r in manager.reminders()]
@@ -108,25 +136,30 @@ def timer_tools(manager: TimerManager) -> list[Tool]:
         Tool("create_timer", f"Lance un minuteur (jusqu'à {limit}).",
              {"duration": _duration_param("durée telle qu'elle a été dite, par exemple « 10 minutes »")},
              {"timer_id": "numéro", "duration": "durée", "remaining": "temps restant", "ends_at": "HH:MM"},
-             Risk.SAFE, create_timer),
+             Risk.SAFE, create_timer,
+             say=lambda r: f"Minuteur de {r['duration']} lancé, il sonnera à {_at(r['ends_at'])}."),
         Tool("cancel_timer", "Annule un minuteur en cours (le seul, ou celui désigné par son numéro ou sa durée).",
              {"timer_id": Param(str, "numéro du minuteur, s'il a été dit", required=False, max_length=6,
                                 check=_identifier),
               "duration": _duration_param("durée du minuteur à annuler, si elle a été dite", required=False)},
-             {"timer_id": "numéro", "duration": "durée", "cancelled": "true"}, Risk.SAFE, cancel_timer),
+             {"timer_id": "numéro", "duration": "durée", "cancelled": "true"}, Risk.SAFE, cancel_timer,
+             say=lambda r: f"Votre minuteur de {r['duration']} est annulé."),
         Tool("list_timers", "Liste les minuteurs en cours et leur temps restant.", {},
-             {"count": "nombre", "timers": "liste de {timer_id, duration, remaining, ends_at}"}, Risk.SAFE, list_timers),
+             {"count": "nombre", "timers": "liste de {timer_id, duration, remaining, ends_at}"}, Risk.SAFE, list_timers,
+             say=_timers_said),
         Tool("create_reminder", f"Programme un rappel dans un délai donné (jusqu'à {limit}).",
              {"delay": _duration_param("délai tel qu'il a été dit, par exemple « 20 minutes »"),
               "message": Param(str, "ce qu'il faudra rappeler, par exemple « sortir le linge »", max_length=200)},
              {"reminder_id": "numéro", "message": "message", "remaining": "délai", "at": "HH:MM"},
-             Risk.SAFE, create_reminder),
+             Risk.SAFE, create_reminder,
+             say=lambda r: f"Entendu, je vous rappellerai {with_de(r['message'])} dans {r['remaining']}."),
         Tool("cancel_reminder", "Annule un rappel prévu (le seul, ou celui désigné par son numéro ou son message).",
              {"reminder_id": Param(str, "numéro du rappel, s'il a été dit", required=False, max_length=6,
                                    check=_identifier),
               "message": Param(str, "mots du rappel à annuler, s'ils ont été dits", required=False, max_length=200)},
-             {"reminder_id": "numéro", "message": "message", "cancelled": "true"}, Risk.SAFE, cancel_reminder),
+             {"reminder_id": "numéro", "message": "message", "cancelled": "true"}, Risk.SAFE, cancel_reminder,
+             say=lambda r: f"Le rappel {with_de(r['message'])} est annulé."),
         Tool("list_reminders", "Liste les rappels prévus.", {},
              {"count": "nombre", "reminders": "liste de {reminder_id, message, remaining, at}"}, Risk.SAFE,
-             list_reminders),
+             list_reminders, say=_reminders_said),
     ]

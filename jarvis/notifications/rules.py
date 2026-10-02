@@ -11,7 +11,7 @@ import random
 from jarvis.events import Event, EventBus
 from jarvis.notifications.manager import NotificationManager
 from jarvis.notifications.models import Notification, Priority
-from jarvis.personality import Personality
+from jarvis.personality import Personality, second_person, with_de
 from jarvis.scheduling.durations import spoken_duration
 from jarvis.scheduling.manager import REMINDER_FINISHED, TIMER_FINISHED
 
@@ -19,15 +19,6 @@ DEFAULT_PHRASES = {
     "timer_finished": ("{Title}, votre minuteur{of_duration} est terminé.",),
     "reminder_finished": ("{Title}, vous m'aviez demandé de vous rappeler {de_message}.",),
 }
-
-
-def with_de(message: str) -> str:
-    """« sortir le linge » -> « de sortir le linge » ; « appeler Paul » -> « d'appeler Paul »."""
-    message = message.strip()
-    for prefix in ("de ", "d'", "d’"):
-        if message.lower().startswith(prefix):
-            message = message[len(prefix):].lstrip()
-    return f"d'{message}" if message[:1].lower() in "aeiouyhéèêàâîôû" else f"de {message}"
 
 
 class EventNotifications:
@@ -53,7 +44,7 @@ class EventNotifications:
             return Notification("Minuteur terminé", text, "timer", Priority.NORMAL,
                                 {"timer_id": payload.get("timer_id"), "duration_seconds": seconds})
         if event.type == REMINDER_FINISHED:
-            message = str(payload.get("message", "")).strip()
+            message = second_person(str(payload.get("message", "")).strip())
             text = self._render("reminder_finished", message=message, de_message=with_de(message))
             return Notification("Rappel", text, "reminder", Priority.NORMAL,
                                 {"reminder_id": payload.get("reminder_id"), "message": message})

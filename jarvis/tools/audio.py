@@ -144,7 +144,8 @@ def set_volume_tool(control: VolumeControl) -> Tool:
 
     return Tool("set_volume", "Règle le volume du système sur un niveau précis, de 0 à 100 %.",
                 {"volume": Param(int, "niveau de 0 à 100", minimum=0, maximum=100)},
-                {"volume": "niveau réel après réglage", "muted": "son coupé ou non"}, Risk.SAFE, run)
+                {"volume": "niveau réel après réglage", "muted": "son coupé ou non"}, Risk.SAFE, run,
+                say=lambda r: f"Le volume est à {r['volume']} %." + (" Le son reste coupé." if r["muted"] else ""))
 
 
 def mute_tool(control: VolumeControl, mute: bool) -> Tool:
@@ -160,6 +161,7 @@ def mute_tool(control: VolumeControl, mute: bool) -> Tool:
 
     if mute:
         return Tool("mute_volume", "Coupe le son du système.", {}, {"muted": "true", "volume": "niveau"},
-                    Risk.SAFE, run)
+                    Risk.SAFE, run, say=lambda r: "Le son est coupé.")
     return Tool("unmute_volume", "Remet le son du système (annule la coupure).", {},
-                {"muted": "false", "volume": "niveau"}, Risk.SAFE, run)
+                {"muted": "false", "volume": "niveau"}, Risk.SAFE, run,
+                say=lambda r: f"Le son est revenu, à {r['volume']} %.")
