@@ -52,6 +52,8 @@ web_no_results = [
     "Ma recherche n'a rien donné de concluant, {title}.",
     "Je n'ai rien trouvé de pertinent à ce sujet, {title}.",
 ]
+# Action à confirmer refusée par l'utilisateur.
+tool_cancelled = ["Très bien, {title}, je n'en fais rien.", "Entendu, j'annule.", "Bien, je laisse cela de côté."]
 # Formules d'entrée retirées d'une réponse du LLM quand elles forment toute sa première phrase
 # (« Bien sûr, monsieur. La capitale est Paris. » -> « La capitale est Paris. »).
 filler_openings = ["bien sur", "bien entendu", "certainement", "avec plaisir", "tout a fait", "absolument",
@@ -64,6 +66,18 @@ filler_closings = ["n hesitez pas", "si vous avez besoin", "je reste a votre dis
                    "que puis je faire d autre", "j espere que cela vous aide", "j espere avoir repondu"]
 # Salutations retirées en début de réponse du LLM, sauf si l'utilisateur vient lui-même de saluer.
 greeting_openings = ["bonjour", "bonsoir", "salut", "rebonjour", "bonjour a vous", "bonsoir a vous"]
+
+# Réponses acceptées quand JARVIS demande confirmation avant une action (« Voulez-vous que j'ouvre Discord ? »).
+# La phrase entière doit figurer dans une liste (hors nom de l'assistant et « monsieur ») ; toute
+# autre phrase annule l'action en attente.
+[confirmation]
+yes = ["oui", "oui oui", "ouais", "oui vas y", "vas y", "allez y", "ok", "okay", "oui ok", "d accord", "oui d accord",
+       "confirme", "je confirme", "oui je confirme", "fais le", "oui fais le", "oui s il te plait",
+       "oui s il vous plait", "oui merci", "oui bien sur", "bien sur", "absolument", "exactement", "c est ca",
+       "oui c est ca", "ouvre", "ouvre le", "ouvre la", "oui ouvre le", "oui ouvre la", "lance", "lance le", "go"]
+no = ["non", "non non", "non merci", "annule", "annuler", "non annule", "laisse tomber", "non laisse tomber",
+      "pas maintenant", "non pas maintenant", "surtout pas", "stop", "oublie", "ne fais rien", "non ne fais rien",
+      "je ne veux pas", "non c est bon"]
 
 [matching]
 # Mots ignorés pour reconnaître les formules courtes (salutations, remerciements...).
@@ -163,12 +177,16 @@ match = "contains"
 patterns = ["quel jour sommes nous", "quel jour on est", "on est quel jour", "quel jour est on", "quel jour est il",
             "c est quel jour", "nous sommes quel jour", "on est le combien", "quelle est la date",
             "quelle date sommes nous", "quelle date on est", "on est quelle date", "date d aujourd hui"]
+# tool : quand les outils sont activés ([tools] dans config.toml), la réponse vient de l'outil
+# get_date via le LLM ; sinon, des réponses ci-dessous.
+tool = "get_date"
 responses = ["Nous sommes {date}.", "Nous sommes {date}, {title}."]
 
 [intents.time]
 match = "contains"
 patterns = ["quelle heure est il", "quelle heure il est", "il est quelle heure", "tu as l heure", "vous avez l heure",
             "tu peux me donner l heure", "donne moi l heure"]
+tool = "get_time"
 responses = ["Il est {time}, {title}.", "Il est {time}."]
 
 [intents.greeting]
@@ -219,6 +237,35 @@ end_conversation = true
 patterns = ["au revoir", "a plus tard", "a plus", "a tout a l heure", "a demain", "bonne soiree", "bonne journee",
             "ce sera tout", "c est tout", "merci c est tout", "merci ce sera tout"]
 responses = ["À plus tard, {title}.", "Je reste à votre disposition.", "À plus tard."]
+
+# Outil direct, sans passer par le choix du LLM (qui ne reconnaît pas bien « remets le son »).
+# Ignorée si l'outil unmute_volume est désactivé.
+[intents.unmute]
+match = "exact"
+tool = "unmute_volume"
+patterns = ["remets le son", "remet le son", "remettre le son", "remets moi le son", "reactive le son",
+            "rallume le son", "enleve la sourdine", "retire la sourdine"]
+
+# Demandes d'action pour les outils ([tools] dans config.toml) : le LLM choisit l'outil et ses paramètres,
+# puis JARVIS valide, fait confirmer si besoin et exécute. Testée après les demandes d'action
+# indisponibles (domotique, messages...), dont elle remplace celle sur l'ordinateur (replaces).
+[intents."tool.action"]
+planner = true
+match = "contains"
+replaces = ["unavailable_computer"]
+patterns = [
+    "ouvre", "ouvrir", "ouvre moi", "lance", "lancer", "lance moi", "demarre", "demarrer", "va sur", "affiche le site",
+    "ferme", "fermer", "ferme moi", "quitte", "quitter", "arrete", "coupe",
+    "volume", "le son", "du son", "remets le son", "verrouille", "verrouiller", "verrouillage",
+    "applications ouvertes", "application ouverte", "applications sont ouvertes", "applications en cours",
+    "quelles applications", "quels programmes", "qu est ce qui est ouvert", "qu est ce qui tourne", "est ouvert",
+    "rallume le son", "reactive le son",
+    "espace disque", "stockage", "carte graphique", "cette machine", "ce pc", "cet ordinateur", "mon pc",
+    "mon ordinateur", "la machine", "caracteristiques",
+    "informations systeme", "infos systeme", "info systeme", "quel processeur", "quelle memoire", "combien de memoire",
+    "memoire disponible", "memoire vive", "quel systeme d exploitation", "configuration de l ordinateur",
+    "configuration du pc", "configuration de la machine", "sur quelle machine",
+]
 
 # Demandes qui nécessitent probablement des informations actuelles : recherche Web ([web] dans
 # config.toml). Testée après les intentions prédéfinies, les capacités et les demandes d'action indisponibles.

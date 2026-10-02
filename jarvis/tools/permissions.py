@@ -1,0 +1,46 @@
+"""Décision d'exécution d'un outil, prise par le Core et jamais par le LLM."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from enum import Enum
+
+from jarvis.tools.base import Risk, Tool
+
+OWNER = "owner"
+
+
+class Decision(str, Enum):
+    ALLOW = "allow"
+    DENY = "deny"
+    REQUIRES_CONFIRMATION = "requires_confirmation"
+
+
+@dataclass(frozen=True)
+class PermissionDecision:
+    decision: Decision
+    reason: str
+
+
+class PermissionManager:
+    """SAFE -> ALLOW ; CONFIRMATION_REQUIRED -> confirmation (ALLOW une fois confirmé) ; RESTRICTED -> DENY.
+
+    ``confirmed`` n'est fourni que par le Core, après une réponse de l'utilisateur recueillie par le
+    gestionnaire de confirmation ; il ne vient jamais de la demande du LLM.
+    """
+
+    def __init__(self, users: tuple[str, ...] = (OWNER,)):
+        self._users = set(users)
+
+    def decide(self, user: str, tool: Tool, parameters: dict, confirmed: bool = False) -> PermissionDecision:
+        if user not in self._users:
+            return PermissionDecision(Decision.DENY, "utilisateur inconnu")
+        if tool.risk is Risk.RESTRICTED:
+            return PermissionDecision(Decision.DENY, "outil à risque restreint")
+        if tool.risk is Risk.CONFIRMATION_REQUIRED:
+            if confirmed:
+                return PermissionDecision(Decision.ALLOW, "confirmé par l'utilisateur")
+            return PermissionDecision(Decision.REQUIRES_CONFIRMATION, "action à confirmer")
+        if tool.risk is Risk.SAFE:
+            return PermissionDecision(Decision.ALLOW, "outil sans risque")
+        return PermissionDecision(Decision.DENY, "niveau de risque inconnu")

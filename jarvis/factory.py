@@ -16,6 +16,7 @@ from jarvis.capabilities import CapabilityRegistry
 from jarvis.personality import load_personality
 from jarvis.router import IntentRouter
 from jarvis.config import Config
+from jarvis.events import EventBus
 from jarvis.interfaces import (
     AudioSink, AudioSource, LanguageModel, SpeechToText, TextToSpeech, WakeWordDetector,
 )
@@ -59,14 +60,46 @@ def build_tts(cfg: Config) -> TextToSpeech:
     raise ValueError(f"Moteur TTS inconnu : {t.engine}")
 
 
+def allowed_apps(cfg: Config) -> dict:
+    """Applications que les outils peuvent ouvrir ou fermer ({clé: Application}), vide sans ces outils."""
+    from jarvis.tools.applications import load_applications
+
+    t = cfg.tools
+    if not t.enabled or not (t.open_application.get("enabled", True) or t.close_application.get("enabled", True)):
+        return {}
+    return load_applications(t.applications)
+
+
+def vocabulary_hint(cfg: Config, personality_name: str = "JARVIS") -> str:
+    """Phrase donnée à Whisper pour orienter la transcription vers le nom de JARVIS et les applications."""
+    labels = [a.label for a in allowed_apps(cfg).values()]
+    verbs = ("ouvre", "ferme", "lance", "quitte")
+    commands = ", ".join(f"{verbs[i % len(verbs)]} {label}" for i, label in enumerate(labels))
+    return f"{personality_name.capitalize()}, {commands}." if commands else f"{personality_name.capitalize()}."
+
+
 def build_stt(cfg: Config) -> SpeechToText:
     from jarvis.stt.faster_whisper import FasterWhisperSTT
 
     c = cfg.stt
     return FasterWhisperSTT(
         c.model, cfg.assistant.language, c.device, c.compute_type, c.beam_size, c.download_root,
-        c.fallback_device, c.fallback_compute_type,
+        c.fallback_device, c.fallback_compute_type, hotwords=vocabulary_hint(cfg) if c.vocabulary_hint else "",
     )
+
+
+def build_corrector(cfg: Config, personality):
+    """Correcteur des commandes mal transcrites, pour les applications autorisées ; None sans outils."""
+    from jarvis.stt.correction import CommandCorrector
+
+    apps = allowed_apps(cfg)
+    if not apps:
+        return None
+    verbs = {"ouvre": ("ouvre", "ouvrir", "lance", "lancer", "demarre", "demarrer", "ouvre moi", "lance moi"),
+             "ferme": ("ferme", "fermer", "quitte", "quitter", "ferme moi")}
+    objects = {alias: key for key, app in apps.items() for alias in (key, *app.app.aliases)}
+    return CommandCorrector(verbs, objects, ignored=(personality.assistant_name, personality.user_title),
+                            rewrite=personality.canonical)
 
 
 def build_web(cfg: Config):
@@ -86,6 +119,30 @@ def build_web(cfg: Config):
     return WebResearch(provider, w.max_results, w.fetch_pages)
 
 
+def build_events(cfg: Config) -> EventBus:
+    """Bus d'événements de JARVIS, avec le journal d'activité s'il est activé."""
+    bus = EventBus()
+    if cfg.activity.enabled:
+        from jarvis.activity import ActivityLog, JsonlActivityStore
+
+        ActivityLog(JsonlActivityStore(cfg.activity.path, cfg.activity.max_kb * 1024)).attach(bus)
+    return bus
+
+
+def build_tools(cfg: Config, personality, events: EventBus | None = None):
+    """Core des outils (registre, permissions, confirmation), ou None si les outils sont désactivés."""
+    if not cfg.tools.enabled:
+        return None
+    from jarvis.tools import ConfirmationManager, PermissionManager, ToolCore, ToolRegistry, builtin_tools
+
+    registry = ToolRegistry()
+    for tool in builtin_tools(cfg.tools.settings()):
+        registry.register(tool)
+    confirmations = ConfirmationManager(personality.confirm_yes, personality.confirm_no,
+                                        ignored=(personality.assistant_name, personality.user_title))
+    return ToolCore(registry, PermissionManager(), confirmations, timeout=cfg.tools.timeout, events=events)
+
+
 def build_sink(cfg: Config) -> AudioSink:
     from jarvis.audio.devices import SpeakerSink
 
@@ -97,6 +154,7 @@ def build_agent(
     source: AudioSource | None = None,
     sink: AudioSink | None = None,
     on_event: EventHandler | None = None,
+    events: EventBus | None = None,
 ) -> Agent:
     if source is None:
         from jarvis.audio.devices import MicrophoneSource
@@ -140,7 +198,15 @@ def build_agent(
         capabilities.register(WebSearchCapability())
         available = getattr(web.provider, "available", lambda: True)()
         log.info("Recherche Web : %s (%s)", cfg.web.base_url, "joignable" if available else "INJOIGNABLE pour le moment")
-    router = IntentRouter(personality, capabilities, web_enabled=web is not None)
+    tools = build_tools(cfg, personality, events if events is not None else build_events(cfg))
+    if tools is not None and len(tools.registry):
+        from jarvis.tools import ToolsCapability
+
+        capabilities.register(ToolsCapability(tools.registry))
+        log.info("Outils : %s", ", ".join(t.name for t in tools.registry.list()))
+    tool_names = tuple(t.name for t in tools.registry.list()) if tools is not None else ()
+    router = IntentRouter(personality, capabilities, web_enabled=web is not None, tools=tool_names)
+    corrector = build_corrector(cfg, personality) if tools is not None else None
     log.info("Personnalité : %s, %d intentions prédéfinies", personality.assistant_name, len(personality.intents))
 
     a = cfg.audio
@@ -157,4 +223,5 @@ def build_agent(
         max_history_turns=cfg.assistant.max_history_turns,
     )
     return Agent(settings, source, sink, wake_word, recorder, stt, llm, tts, router, on_event,
-                 stream_audio=cfg.tts.stream_audio, merge_under=cfg.tts.merge_under, web=web)
+                 stream_audio=cfg.tts.stream_audio, merge_under=cfg.tts.merge_under, web=web,
+                 tools=tools, corrector=corrector)

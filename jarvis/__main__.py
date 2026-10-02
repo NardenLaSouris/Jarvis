@@ -27,6 +27,8 @@ def main() -> int:
     parser.add_argument("--stt-test", metavar="WAV", nargs="?", const="",
                         help="diagnostic STT : GPU/CUDA, device et type de calcul utilisés, temps de chargement "
                              "et de transcription (WAV facultatif, sinon extrait de tests/fixtures/scenario.wav)")
+    parser.add_argument("--activity", metavar="N", nargs="?", type=int, const=20,
+                        help="affiche les N dernières entrées du journal d'activité (20 par défaut) et quitte")
     parser.add_argument("--web-test", metavar="QUESTION",
                         help="recherche Web sans micro ni voix : route, sources, temps et réponse de JARVIS "
                              "(-v affiche aussi les données transmises au LLM)")
@@ -65,6 +67,8 @@ def main() -> int:
         return tts_test(cfg, args.tts_test)
     if args.web_test is not None:
         return web_test(cfg, args.web_test)
+    if args.activity is not None:
+        return show_activity(cfg, args.activity)
     if args.face_demo:
         return face_demo(cfg)
 
@@ -78,6 +82,9 @@ def main() -> int:
         source = ArraySource(audio, cfg.audio.sample_rate, cfg.audio.frame_samples, source_rate=rate)
         sink = RecordingSink(args.output_dir)
 
+    from jarvis.factory import build_events
+
+    events = build_events(cfg)
     on_event = None
     visual = None if args.no_face else start_face(cfg)
     if visual is not None:
@@ -85,8 +92,10 @@ def main() -> int:
         from jarvis.factory import build_sink
 
         sink = MeteredSink(sink or build_sink(cfg), visual)
-        on_event = FaceBridge(visual).on_event
-    agent = build_agent(cfg, source, sink, on_event)
+        bridge = FaceBridge(visual)
+        bridge.attach(events)
+        on_event = bridge.on_event
+    agent = build_agent(cfg, source, sink, on_event, events=events)
     try:
         agent.run()
     except KeyboardInterrupt:
@@ -120,6 +129,17 @@ def choose_audio(config_path: Path, ask=input, devices=None) -> int:
         print(f"-> {value or 'celui de Windows'}")
     config_path.write_text(text, encoding="utf-8")
     print(f"\nEnregistré dans {config_path.name}. Relancez JARVIS pour l'utiliser.")
+    return 0
+
+
+def show_activity(cfg, limit: int) -> int:
+    from jarvis.activity import ActivityLog, JsonlActivityStore
+
+    entries = ActivityLog(JsonlActivityStore(cfg.activity.path)).recent(max(1, limit))
+    if not entries:
+        print(f"Journal d'activité vide ({cfg.activity.path}).")
+    for entry in entries:
+        print(entry.line())
     return 0
 
 

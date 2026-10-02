@@ -23,7 +23,7 @@ embedding_model = "models/openwakeword/embedding_model.onnx"
 # 0.96 = seuil recommandé par l'évaluation (models/openwakeword/jarvis_fr.json) : le plus bas
 # qui garde < 0,5 fausse alerte/h et < 3 % de mots pièges déclencheurs sur des voix de test.
 # À ajuster avec `python -m jarvis --wake-test` : plus bas = détecte mieux de loin, se trompe plus.
-threshold = 0.3
+threshold = 0.80
 
 [stt]
 # Modèle faster-whisper : tiny, base, small, medium... ("small" = bon compromis FR).
@@ -37,6 +37,10 @@ download_root = "models/whisper"
 # Utilisé si CUDA est indisponible (pas de GPU NVIDIA, bibliothèque manquante...).
 fallback_device = "cpu"
 fallback_compute_type = "int8"
+# Indique à Whisper le vocabulaire attendu (« Jarvis », noms des applications autorisées dans [tools]) :
+# « ouvre Steam » est moins souvent entendu « ouvre-ste-iem ». Les commandes encore mal transcrites
+# (« ou vos teams ») sont ensuite corrigées si elles ressemblent nettement à une commande connue.
+vocabulary_hint = true
 
 [tts]
 # Moteur de synthèse, 100 % local : "piper" (rapide, défaut) ou "neutts" (NeuTTS Nano French,
@@ -92,6 +96,81 @@ max_results = 5         # résultats demandés au moteur ; seuls les 3 plus pert
 timeout = 10.0
 fetch_pages = 1         # pages lues en entier pour compléter les extraits (0 = extraits seulement)
 max_page_bytes = 1000000
+
+[tools]
+# Outils : JARVIS agit sur le PC via des outils enregistrés, jamais via un shell. Le LLM propose un outil,
+# JARVIS valide, applique le niveau de risque de l'outil (SAFE : exécuté ; à confirmer : question ;
+# RESTRICTED : refusé) et rapporte le résultat réel. Chaque outil : enabled = true/false.
+# confirm = true ajoute une confirmation à un outil SAFE ; elle ne peut jamais être retirée à un outil
+# qui l'exige (fermer une application, verrouiller le PC).
+enabled = true
+timeout = 15.0          # délai maximal d'exécution d'un outil (s)
+
+[tools.get_time]
+enabled = true
+
+[tools.get_date]
+enabled = true
+
+[tools.system_info]
+enabled = true
+
+[tools.open_url]
+enabled = true          # SAFE : pas de confirmation (http/https uniquement)
+
+[tools.open_application]
+enabled = true          # SAFE : pas de confirmation
+
+[tools.close_application]
+enabled = true          # confirmation obligatoire
+
+[tools.list_running_applications]
+enabled = true
+
+[tools.set_volume]
+enabled = true
+
+[tools.mute_volume]
+enabled = true
+
+[tools.unmute_volume]
+enabled = true
+
+[tools.lock_pc]
+enabled = true          # confirmation obligatoire
+
+# Applications que JARVIS peut ouvrir, fermer et surveiller : seule cette liste fait foi.
+# Les applications du catalogue de JARVIS sont trouvées automatiquement (registre Windows,
+# emplacements habituels, Microsoft Store) ; executable = "..." impose un chemin.
+# Application hors catalogue : executable (chemin absolu) et process (nom du processus) requis, ex. :
+# [tools.applications.obs]
+# label = "OBS Studio"
+# executable = "C:/Program Files/obs-studio/bin/64bit/obs64.exe"
+# process = "obs64.exe"
+[tools.applications.discord]
+enabled = true
+
+[tools.applications.steam]
+enabled = true
+
+[tools.applications.chrome]
+enabled = true
+
+[tools.applications.spotify]
+enabled = true
+
+[tools.applications.vscode]
+enabled = true
+
+[tools.applications.notepad]
+enabled = true
+
+[activity]
+# Journal d'activité (actions des outils réussies ou échouées), une ligne JSON par événement.
+# Consulter : python -m jarvis --activity
+enabled = true
+path = "data/activity.jsonl"
+max_kb = 1024           # au-delà, le fichier est archivé en activity.1.jsonl
 
 [face]
 # Visage graphique animé (page Web locale). Non critique : si le port est pris ou la page fermée,

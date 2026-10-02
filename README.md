@@ -148,6 +148,80 @@ peuvent utiliser `{title}`, `{assistant_name}`, `{salutation}` (Bonjour/Bonsoir 
 python tests/test_personality.py
 ```
 
+## Outils (V2) : contrôle du PC
+
+JARVIS agit sur le PC via des outils explicitement enregistrés, jamais via un shell. Le LLM ne fait que
+proposer un appel structuré ; JARVIS le valide, applique le niveau de risque de l'outil et rapporte le
+résultat réel (état relu après l'action).
+
+| Outil | Rôle | Risque |
+|---|---|---|
+| `get_time`, `get_date` | heure, date | SAFE |
+| `system_info` | système, processeur, mémoire, disque, carte graphique, durée d'allumage | SAFE |
+| `open_url` | ouvre une page http(s) dans le navigateur par défaut | SAFE |
+| `open_application` | ouvre une application autorisée | SAFE |
+| `list_running_applications` | lesquelles des applications autorisées sont ouvertes | SAFE |
+| `set_volume` | volume du système de 0 à 100 % (relu après réglage) | SAFE |
+| `mute_volume`, `unmute_volume` | coupe / remet le son | SAFE |
+| `close_application` | ferme une application autorisée | CONFIRMATION_REQUIRED |
+| `lock_pc` | verrouille la session (`LockWorkStation`) | CONFIRMATION_REQUIRED |
+
+Code : `jarvis/tools/system.py`, `applications.py`, `audio.py` (assemblés par `builtin.py`).
+
+```
+demande -> routeur -> LLM : appel JSON contraint par le schéma de chaque outil -> validation stricte
+        -> registre -> permissions (SAFE : exécuté ; à confirmer : question ; RESTRICTED : refusé)
+        -> exécution (délai max) -> résultat réel -> LLM -> Piper
+```
+
+- Applications : seule la section `[tools.applications]` de `config.toml` fait foi. Les applications du
+  catalogue (discord, steam, chrome, spotify, vscode, notepad) sont trouvées automatiquement (registre
+  Windows « App Paths », emplacements habituels, Microsoft Store) ; `executable = "..."` impose un chemin ;
+  une application hors catalogue demande `executable` (chemin absolu) et `process`.
+- Le LLM ne fournit jamais de chemin, de commande, de PID ni de nom de processus.
+- Un nombre (volume) proposé par le LLM doit figurer dans la demande : « monte un peu le son » ne règle rien.
+- `confirm = true` peut ajouter une confirmation à un outil SAFE ; la confirmation d'un outil qui l'exige
+  ne peut pas être retirée.
+- JARVIS n'annonce une action réussie que si l'outil a réellement réussi (sinon : message d'erreur).
+- Chaque exécution est journalisée (`outil {...}` : outil, paramètres, décision, confirmation, succès, durée).
+- Transcription : Whisper reçoit le vocabulaire attendu (`[stt] vocabulary_hint`), puis
+  `jarvis/stt/correction.py` corrige une commande courte mal entendue (« ou vos teams » -> « ouvre steam »).
+
+```bash
+python -m pytest tests/test_tools.py -q      # simulé : rien n'est réellement lancé, fermé, réglé ni verrouillé
+```
+
+### Événements et journal d'activité
+
+Les composants communiquent par un bus d'événements interne (`jarvis/events.py`) : `publish(Event)`,
+`subscribe(type, handler)` (ou `"*"` pour tout recevoir), désabonnement. Un événement a un `type`
+(`domaine.action`), une `source`, un `payload` et un horodatage ; un abonné en erreur est journalisé
+sans bloquer les autres ni JARVIS.
+
+Chaque demande d'outil publie `tool.started` puis `tool.executed` ou `tool.failed` (outil, étape,
+décision, confirmation, erreur, durée, paramètres nettoyés ; jamais le résultat brut). Le visage écoute
+`tool.started` ; le journal d'activité (`jarvis/activity.py`, section `[activity]`) enregistre
+`tool.executed` et `tool.failed` dans `data/activity.jsonl` :
+
+```bash
+python -m jarvis --activity        # [14:32:01] tool.executed — open_application ...
+```
+
+### Test manuel (vraies actions)
+
+Lancer `python -m jarvis`, puis dire « Jarvis… » avant chaque phrase et vérifier :
+
+1. « Ouvre Discord » : Discord s'ouvre, JARVIS le confirme (sans question).
+2. « Ouvre YouTube » : la page s'ouvre dans le navigateur par défaut.
+3. « Mets le volume à 30 % » : le volume Windows passe à 30 (icône du son).
+4. « Coupe le son », puis « Remets le son » : le son est coupé puis rétabli.
+5. « Donne-moi les informations de cette machine » : processeur, mémoire, carte graphique réels.
+6. « Ferme Discord » : JARVIS demande « Voulez-vous que je ferme Discord ? » ; « Oui » : Discord se ferme
+   (« Non » : rien ne se passe).
+7. « Verrouille le PC » : JARVIS demande confirmation ; « Oui » : l'écran de verrouillage s'affiche.
+
+Dans le terminal, chaque action laisse une ligne `outil {...}` avec son résultat.
+
 ## Visage graphique
 
 Au lancement, JARVIS ouvre son visage animé dans le navigateur (`http://127.0.0.1:8765/`) : anneaux

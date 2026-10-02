@@ -12,6 +12,7 @@ from typing import Callable
 
 import numpy as np
 
+from jarvis.events import TOOL_STARTED, Event, EventBus
 from jarvis.face.state import VisualState
 
 log = logging.getLogger(__name__)
@@ -24,6 +25,11 @@ EVENT_STATES = {
     "user": "thinking",
     "routing": "thinking",
     "web": "thinking",
+    "tool": "thinking",
+}
+
+BUS_STATES = {
+    TOOL_STARTED: "thinking",
 }
 
 
@@ -33,14 +39,25 @@ class FaceBridge:
         self._forward = forward
 
     def on_event(self, kind: str, text: str) -> None:
-        state = EVENT_STATES.get(kind)
-        if state is not None:
-            try:
-                self.visual.set_state(state)
-            except Exception:
-                log.debug("Visage : changement d'état ignoré", exc_info=True)
+        self._show(EVENT_STATES.get(kind))
         if self._forward is not None:
             self._forward(kind, text)
+
+    def attach(self, bus: EventBus) -> None:
+        """Écoute aussi les événements système (bus) qui ont un état visuel associé."""
+        for event_type in BUS_STATES:
+            bus.subscribe(event_type, self.on_bus_event)
+
+    def on_bus_event(self, event: Event) -> None:
+        self._show(BUS_STATES.get(event.type))
+
+    def _show(self, state: str | None) -> None:
+        if state is None:
+            return
+        try:
+            self.visual.set_state(state)
+        except Exception:
+            log.debug("Visage : changement d'état ignoré", exc_info=True)
 
 
 class MeteredSink:

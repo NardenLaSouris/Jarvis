@@ -14,7 +14,7 @@ def _now_fr(now: datetime) -> str:
 
 
 def build_system_prompt(personality: Personality, capabilities: CapabilityRegistry, now: datetime | None = None,
-                        ongoing: bool = False, searched: bool = False) -> str:
+                        ongoing: bool = False, searched: bool = False, tool_result: bool = False) -> str:
     """``searched`` : une recherche Web a été faite pour la demande en cours (ses résultats sont dans
     le message de l'utilisateur, jamais dans ce prompt)."""
     p = personality
@@ -79,14 +79,30 @@ Règles impératives sur les actions :
   domotique n'est pas encore disponible. »
 - Des formules comme « Je m'en occupe » ou « Bien entendu » ne s'emploient pour une action que si un outil
   l'exécute réellement ; sinon, elles laissent croire à une action qui n'aura pas lieu.
+- Vous ne connaissez pas le matériel ni l'état de cet ordinateur (processeur, mémoire, carte graphique, volume,
+  applications ouvertes) : ne les inventez jamais ; seul un outil peut les fournir.
 - N'inventez jamais une capacité que vous n'avez pas, ne proposez pas d'en utiliser une (par exemple la météo),
   et n'inventez aucune information en temps réel (météo, actualités...).
 - Pour une question de culture générale, de conseil ou de conversation, répondez directement avec vos
   connaissances, sans évoquer vos limites.
-{WEB_RULES if searched else NO_SEARCH_RULE}
+{WEB_RULES if searched else NO_SEARCH_RULE}{TOOL_RULES if tool_result else ""}
 
 Date et heure actuelles : {_now_fr(now or datetime.now())}."""
 
+
+TOOL_RULES = """
+
+Outil exécuté (pour cette demande uniquement, prioritaire sur « Aucun outil n'a été exécuté ») :
+- JARVIS vient d'exécuter un outil. Son résultat, produit par JARVIS lui-même, figure dans le dernier message
+  entre <<<RESULTAT_OUTIL>>> et <<<FIN_RESULTAT_OUTIL>>>, au format JSON.
+- Si "success" vaut true : annoncez le résultat naturellement et brièvement. Pour une heure ou une date,
+  utilisez le champ "spoken" (par exemple « Il est 13 heures 42. »).
+- Si "success" vaut false : l'action n'a PAS été faite. Dites-le simplement, en vous appuyant sur "message"
+  (par exemple « Discord n'est pas installé sur cette machine. »). Ne prétendez jamais le contraire.
+- Informations sur la machine : ne citez que ce qui est demandé ; pour une demande générale, résumez en
+  une phrase (système, processeur, mémoire, carte graphique), sans énumérer tous les champs.
+- N'annoncez aucune autre action et ne proposez pas d'en faire une autre.
+- Une ou deux phrases courtes, sans JSON, sans nom d'outil technique, sans URL."""
 
 NO_SEARCH_RULE = """- Aucune recherche Internet n'a été effectuée pour cette demande : ne prétendez jamais en avoir fait une,
   ne citez aucune source en ligne et n'inventez aucune URL."""

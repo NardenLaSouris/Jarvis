@@ -65,8 +65,10 @@ class FasterWhisperSTT:
         download_root: Path | None = None,
         fallback_device: str = "cpu",
         fallback_compute_type: str = "int8",
+        hotwords: str = "",
     ):
         self.model_name = model
+        self.hotwords = hotwords
         self._language = language
         self._beam_size = beam_size
         self._download_root = str(download_root) if download_root else None
@@ -116,6 +118,7 @@ class FasterWhisperSTT:
             beam_size=self._beam_size,
             condition_on_previous_text=False,
             vad_filter=False,
+            hotwords=self.hotwords or None,
         )
         # Whisper « invente » parfois du texte sur du bruit : on écarte ces segments.
         kept = [s.text.strip() for s in segments if s.no_speech_prob < NO_SPEECH_THRESHOLD]

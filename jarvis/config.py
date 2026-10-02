@@ -35,6 +35,7 @@ class STTConfig:
     download_root: Path = Path("models/whisper")
     fallback_device: str = "cpu"
     fallback_compute_type: str = "int8"
+    vocabulary_hint: bool = True
 
 
 @dataclass(frozen=True)
@@ -74,6 +75,34 @@ class WebConfig:
 
 
 @dataclass(frozen=True)
+class ToolsConfig:
+    enabled: bool = False
+    timeout: float = 10.0
+    get_time: dict = field(default_factory=dict)
+    get_date: dict = field(default_factory=dict)
+    system_info: dict = field(default_factory=dict)
+    open_url: dict = field(default_factory=dict)
+    open_application: dict = field(default_factory=dict)
+    close_application: dict = field(default_factory=dict)
+    list_running_applications: dict = field(default_factory=dict)
+    set_volume: dict = field(default_factory=dict)
+    mute_volume: dict = field(default_factory=dict)
+    unmute_volume: dict = field(default_factory=dict)
+    lock_pc: dict = field(default_factory=dict)
+    applications: dict = field(default_factory=dict)
+
+    def settings(self) -> dict[str, dict]:
+        return {f.name: getattr(self, f.name) for f in fields(self) if isinstance(getattr(self, f.name), dict)}
+
+
+@dataclass(frozen=True)
+class ActivityConfig:
+    enabled: bool = False
+    path: Path = Path("data/activity.jsonl")
+    max_kb: int = 1024
+
+
+@dataclass(frozen=True)
 class FaceConfig:
     enabled: bool = False
     host: str = "127.0.0.1"
@@ -104,6 +133,8 @@ class Config:
     audio: AudioConfig
     web: WebConfig = WebConfig()
     face: FaceConfig = FaceConfig()
+    tools: ToolsConfig = ToolsConfig()
+    activity: ActivityConfig = ActivityConfig()
 
 
 def _build(cls: type, data: dict[str, Any], base_dir: Path):
@@ -157,6 +188,8 @@ def load_config(path: str | Path = "config.toml") -> Config:
         "audio": AudioConfig,
         "web": WebConfig,
         "face": FaceConfig,
+        "tools": ToolsConfig,
+        "activity": ActivityConfig,
     }
     unknown = set(raw) - set(sections)
     if unknown:

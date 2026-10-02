@@ -70,6 +70,18 @@ class OllamaLLM:
         self._record_stats(data)
         return data["message"]["content"].strip()
 
+    def chat_json(self, messages: list[Message], schema: dict) -> dict:
+        """Réponse JSON contrainte par un schéma (sortie structurée d'Ollama), température nulle."""
+        payload = self._chat_payload(messages, stream=False)
+        payload["format"] = schema
+        payload["options"] = {**self._options, "temperature": 0}
+        data = self._post("/api/chat", payload)
+        self._record_stats(data)
+        try:
+            return json.loads(data["message"]["content"])
+        except (KeyError, ValueError) as exc:
+            raise LLMError("Réponse JSON d'Ollama illisible") from exc
+
     def stream(self, messages: list[Message]) -> Iterator[str]:
         """Fragments de la réponse au fil de la génération. Fermer l'itérateur interrompt Ollama."""
         request = urllib.request.Request(

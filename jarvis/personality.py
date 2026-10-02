@@ -45,6 +45,8 @@ class Intent:
     after: tuple[str, ...] = ()
     web: bool = False
     replaces: tuple[str, ...] = ()
+    tool: str = ""
+    planner: bool = False
 
 
 @dataclass(frozen=True)
@@ -69,6 +71,8 @@ class Personality:
     intents: tuple[Intent, ...] = ()
     max_sentences: int = 0
     detail_words: tuple[str, ...] = ()
+    confirm_yes: tuple[str, ...] = ()
+    confirm_no: tuple[str, ...] = ()
 
     def without_user_name(self, text: str) -> str:
         """Retire le prénom de l'utilisateur d'une réponse : JARVIS ne le prononce jamais."""
@@ -145,6 +149,8 @@ def load_personality(path: str | Path) -> Personality:
             after=tuple(spec.get("after", [])),
             web=spec.get("web", False),
             replaces=tuple(spec.get("replaces", [])),
+            tool=spec.get("tool", ""),
+            planner=spec.get("planner", False),
         )
         for name, spec in raw.get("intents", {}).items()
     )
@@ -169,4 +175,6 @@ def load_personality(path: str | Path) -> Personality:
         intents=intents,
         max_sentences=int(p.get("max_sentences", 0)),
         detail_words=tuple(normalize(w) for w in p.get("detail_words", [])),
+        confirm_yes=tuple(raw.get("confirmation", {}).get("yes", [])),
+        confirm_no=tuple(raw.get("confirmation", {}).get("no", [])),
     )

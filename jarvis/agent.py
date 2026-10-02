@@ -6,6 +6,7 @@ moteurs (openWakeWord, Whisper, Ollama, NeuTTS...) sont utilisés.
 
 from __future__ import annotations
 
+import json
 import logging
 import random
 import re
@@ -22,6 +23,8 @@ from jarvis.interfaces import (
 from jarvis.router import IntentRouter
 from jarvis.streaming import SpeechPipeline, sentences_from_llm
 from jarvis.personality import normalize
+from jarvis.tools.core import CANCELLED, CONFIRM, DONE
+from jarvis.tools.planner import plan, tool_request
 from jarvis.web.research import web_request, without_name
 
 log = logging.getLogger(__name__)
@@ -71,6 +74,8 @@ def polish_web_sentence(sentence: str, question: str, first: bool, assistant_nam
 LATENCY_LABELS = (
     ("stt", "STT"),
     ("web", "Web search"),
+    ("tool_plan", "Tool choice"),
+    ("tool", "Tool"),
     ("llm_first_token", "LLM first token"),
     ("llm_first_sentence", "LLM first sentence"),
     ("tts_first", "TTS first sentence"),
@@ -116,6 +121,8 @@ class Agent:
         stream_audio: bool = False,
         merge_under: int = 0,
         web=None,
+        tools=None,
+        corrector=None,
     ):
         self.settings = settings
         self._source = source
@@ -127,6 +134,8 @@ class Agent:
         self._tts = tts
         self._router = router
         self._web = web
+        self._tools = tools
+        self._corrector = corrector
         self.last_sources: list[dict] = []
         self._pipeline = SpeechPipeline(tts, sink, stream_audio, merge_under)
         self._on_event = on_event or (lambda kind, text: None)
@@ -170,25 +179,80 @@ class Agent:
             if not text:
                 self._event("stt", "(rien compris)")
                 continue
+            if self._corrector is not None:
+                corrected = self._corrector.correct(text)
+                if corrected != text:
+                    self._event("correction", f"« {text} » -> « {corrected} »")
+                    text = corrected
             self._event("user", text)
             self._event("timing", f"STT {latency['stt']:.1f} s")
 
-            route = self._router.route(text)
-            latency["route"] = route.label
-            self._event("routing", route.label)
-            if route.source == "web.search":
-                reply = self._search_and_answer(history, text, latency)
-            elif route.reply is not None:
-                reply = self._speak([route.reply], latency)
-                self._remember(history, Message("user", text))
-                self._remember(history, Message("assistant", reply))
+            outcome = self._tools.answer(text) if self._tools is not None else None
+            if outcome is not None:
+                latency["route"] = "tool:confirmation"
+                self._event("routing", latency["route"])
+                reply, end = self._after_tool(history, text, outcome, latency), False
             else:
-                reply = self._ask(history, text, latency)
+                route = self._router.route(text)
+                latency["route"] = route.label
+                self._event("routing", route.label)
+                reply, end = self._answer(history, text, route, latency), route.end_conversation
             self._event("assistant", reply)
             self._event("latency", format_latency(latency, speech_ended_at))
-            if route.end_conversation:
+            if end:
                 break
+        if self._tools is not None:
+            self._tools.cancel_pending()
         self._event("sleep", "Retour en veille")
+
+    def _answer(self, history: list[Message], text: str, route, latency: dict) -> str:
+        if route.source == "tool" and self._tools is not None:
+            return self._use_tool(history, text, route, latency)
+        if route.source == "web.search":
+            return self._search_and_answer(history, text, latency)
+        if route.reply is not None:
+            reply = self._speak([route.reply], latency)
+            self._remember(history, Message("user", text))
+            self._remember(history, Message("assistant", reply))
+            return reply
+        return self._ask(history, text, latency)
+
+    # --- Outils ------------------------------------------------------------
+
+    def _use_tool(self, history: list[Message], text: str, route, latency: dict) -> str:
+        """Demande d'outil (directe ou proposée par le LLM) -> Core : validation, permission, confirmation, exécution."""
+        if route.tool:
+            data = {"type": "tool_call", "tool": route.tool, "parameters": {}}
+        else:
+            started = time.perf_counter()
+            data = plan(self._llm, text, self._tools.registry)
+            latency["tool_plan"] = time.perf_counter() - started
+            if data is None:
+                fallback = self._router.route(text, tools=False)
+                latency["route"] = fallback.label
+                self._event("routing", f"{fallback.label} (aucun outil)")
+                return self._answer(history, text, fallback, latency)
+        self._event("tool", json.dumps(data, ensure_ascii=False)[:200])
+        started = time.perf_counter()
+        outcome = self._tools.submit(data)
+        latency["tool"] = time.perf_counter() - started
+        return self._after_tool(history, text, outcome, latency)
+
+    def _after_tool(self, history: list[Message], text: str, outcome, latency: dict) -> str:
+        """Question de confirmation, refus ou annulation : phrases du Core. Exécution : réponse du LLM."""
+        if outcome.status == DONE:
+            self._event("tool", json.dumps(outcome.result.as_dict(), ensure_ascii=False)[:200])
+            return self._ask(history, text, latency, tool_result=outcome.result)
+        if outcome.status == CONFIRM:
+            spoken = outcome.question
+        elif outcome.status == CANCELLED:
+            spoken = self._router.phrase("tool_cancelled")
+        else:
+            spoken = outcome.result.message
+        reply = self._speak([spoken], latency)
+        self._remember(history, Message("user", text))
+        self._remember(history, Message("assistant", reply))
+        return reply
 
     # --- Étapes ------------------------------------------------------------
 
@@ -215,19 +279,25 @@ class Agent:
             return reply
         return self._ask(history, text, latency, web_context=context)
 
-    def _ask(self, history: list[Message], text: str, latency: dict, web_context=None) -> str:
+    def _ask(self, history: list[Message], text: str, latency: dict, web_context=None, tool_result=None) -> str:
         """Réponse du LLM en flux : chaque phrase est prononcée dès qu'elle est complète.
 
         Avec ``web_context``, les résultats de recherche (données non fiables) accompagnent la demande
-        dans le message de l'utilisateur envoyé au LLM ; l'historique ne garde que la demande.
+        dans le message de l'utilisateur envoyé au LLM ; avec ``tool_result``, le résultat structuré de
+        l'outil exécuté. L'historique ne garde que la demande.
         """
         history.append(Message("user", text))
         del history[: max(0, len(history) - 2 * self.settings.max_history_turns + 1)]
         searched = web_context is not None
-        system = Message("system", self._router.system_prompt(ongoing=len(history) > 1, searched=searched))
+        system = Message("system", self._router.system_prompt(ongoing=len(history) > 1, searched=searched,
+                                                              tool_result=tool_result is not None))
         messages = [system, *history]
         if searched:
             messages[-1] = Message("user", web_request(text, web_context))
+        if tool_result is not None:
+            messages[-1] = Message("user", tool_request(text, tool_result))
+        succeeded = tool_result is not None and tool_result.success
+        fallback = tool_result.message if tool_result is not None and not tool_result.success else None
         marks: dict[str, float] = {}
         failed, spoken = [], []
 
@@ -239,7 +309,7 @@ class Agent:
                     fragments = iter([self._llm.chat(messages)])
                 for sentence in sentences_from_llm(
                     fragments,
-                    self._router.reply_filter(user_text=text),
+                    self._router.reply_filter(user_text=text, tools_used=succeeded, fallback=fallback),
                     marks,
                     done_reason=lambda: getattr(self._llm, "last_done_reason", ""),
                 ):

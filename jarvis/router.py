@@ -2,12 +2,14 @@
 
 Ordre de priorité :
   1. commandes critiques (arrêt, silence...) ;
-  2. intentions prédéfinies de la personnalité (salutations, identité...) ;
-  3. capacités / outils enregistrés ;
+  2. intentions prédéfinies de la personnalité (salutations, identité...) ; celles liées à un outil
+     (heure, date) passent par cet outil quand les outils sont activés ;
+  3. capacités enregistrées ;
   4. intentions de repli (demande d'action vers une fonction pas encore disponible) ;
-  5. recherche Web (intention web.search, si elle est activée) : informations actuelles ;
-  6. LLM généraliste.
-Seules les étapes 5 et 6 sollicitent le LLM.
+  5. demandes d'action (intention tool.action, si les outils sont activés) : le LLM choisit l'outil ;
+  6. recherche Web (intention web.search, si elle est activée) : informations actuelles ;
+  7. LLM généraliste.
+Les outils, la recherche Web et le LLM généraliste sollicitent le LLM.
 """
 
 from __future__ import annotations
@@ -59,6 +61,7 @@ class Route:
     name: str = ""
     reply: str | None = None
     end_conversation: bool = False
+    tool: str = ""
 
     @property
     def label(self) -> str:
@@ -81,6 +84,7 @@ class IntentRouter:
         rng: random.Random | None = None,
         clock: Callable[[], datetime] = datetime.now,
         web_enabled: bool = False,
+        tools: tuple[str, ...] = (),
     ):
         self.personality = personality
         self.capabilities = capabilities
@@ -88,27 +92,36 @@ class IntentRouter:
         self._clock = clock
         self._last: dict[str, str] = {}
         self._previous: str | None = None
+        self._tools = set(tools)
         web = [i for i in personality.intents if i.web] if web_enabled else []
-        replaced = {name for i in web for name in i.replaces}
+        planners = [i for i in personality.intents if i.planner] if self._tools else []
+        replaced = {name for i in web + planners for name in i.replaces}
         ordered = [i for i in personality.intents if i.critical] + [
-            i for i in personality.intents if not i.critical and not i.fallback and not i.web]
-        self._intents = [(i, {personality.strip_ignored(p) for p in i.patterns} - {""}) for i in ordered]
-        self._web = [(i, {personality.strip_ignored(p) for p in i.patterns} - {""}) for i in web]
+            i for i in personality.intents if not i.critical and not i.fallback and not i.web and not i.planner]
+        patterns = lambda i: {personality.strip_ignored(p) for p in i.patterns} - {""}  # noqa: E731
+        self._intents = [(i, patterns(i)) for i in ordered]
+        self._planners = [(i, patterns(i)) for i in planners]
+        self._web = [(i, patterns(i)) for i in web]
         self._fallbacks = [(i, set()) for i in personality.intents if i.fallback and i.name not in replaced]
 
     def start_conversation(self) -> None:
         self._previous = None
 
-    def route(self, text: str) -> Route:
-        route = self._route(text)
+    def route(self, text: str, tools: bool = True) -> Route:
+        """``tools=False`` : même routage sans les demandes d'action (quand aucun outil ne convient)."""
+        route = self._route(text, tools)
         self._previous = route.name or route.source
         return route
 
-    def _route(self, text: str) -> Route:
+    def _route(self, text: str, tools: bool = True) -> Route:
         norm = self.personality.canonical(text)
         core = self.personality.strip_ignored(norm)
         for intent, exact in self._intents:
+            if intent.tool and intent.tool not in self._tools and not intent.responses:
+                continue
             if self._matches(intent, exact, norm, core):
+                if intent.tool and intent.tool in self._tools:
+                    return Route("tool", intent.name, tool=intent.tool)
                 source = "critical" if intent.critical else "predefined"
                 return Route(source, intent.name, self._pick(intent.name, intent.responses), intent.end_conversation)
         handled = self.capabilities.handle(text)
@@ -117,6 +130,9 @@ class IntentRouter:
         for intent, exact in self._fallbacks:
             if self._matches(intent, exact, norm, core):
                 return Route("unavailable", intent.name, self._pick(intent.name, intent.responses))
+        for intent, exact in self._planners if tools else ():
+            if self._matches(intent, exact, norm, core):
+                return Route("tool", intent.name)
         for intent, exact in self._web:
             if self._matches(intent, exact, norm, core):
                 return Route(intent.name)
@@ -153,11 +169,11 @@ class IntentRouter:
     def wake_phrases(self) -> tuple[str, ...]:
         return tuple(self._render(t) for t in self.personality.phrases.get("wake", ()))
 
-    def system_prompt(self, ongoing: bool = False, searched: bool = False) -> str:
-        return build_system_prompt(self.personality, self.capabilities, self._clock(), ongoing, searched)
+    def system_prompt(self, ongoing: bool = False, searched: bool = False, tool_result: bool = False) -> str:
+        return build_system_prompt(self.personality, self.capabilities, self._clock(), ongoing, searched, tool_result)
 
-    def reply_filter(self, user_text: str = "", tools_used: bool = False) -> "ReplyFilter":
-        return ReplyFilter(self, user_text, tools_used)
+    def reply_filter(self, user_text: str = "", tools_used: bool = False, fallback: str | None = None) -> "ReplyFilter":
+        return ReplyFilter(self, user_text, tools_used, fallback)
 
     def check_reply(self, reply: str, user_text: str = "", tools_used: bool = False) -> str:
         if not tools_used and claims_action(reply):
@@ -232,9 +248,11 @@ class ReplyFilter:
     - titre (« monsieur ») employé au plus une fois.
     """
 
-    def __init__(self, router: IntentRouter, user_text: str = "", tools_used: bool = False):
+    def __init__(self, router: IntentRouter, user_text: str = "", tools_used: bool = False,
+                 fallback: str | None = None):
         self._router = router
         self._tools_used = tools_used
+        self._fallback = fallback
         greetings = router.personality.greeting_openings
         self._greeted = any(f" {g} " in f" {normalize(user_text)} " for g in greetings)
         self._title_left = 1
@@ -263,7 +281,7 @@ class ReplyFilter:
     def finish(self) -> list[str]:
         if self.stopped and not self.emitted:
             self.emitted += 1
-            return [self._router.phrase("action_unavailable")]
+            return [self._fallback or self._router.phrase("action_unavailable")]
         if not self.emitted and self._held_opening:
             return [s for s in [self._emit(self._held_opening)] if s]
         return []

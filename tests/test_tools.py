@@ -1,0 +1,842 @@
+"""Système d'outils et outils de contrôle du PC : registre, validation, permissions, confirmation,
+outils système / applications / audio, sécurité, planificateur et intégration dans l'agent.
+
+Aucun test n'agit réellement sur la machine : lancement, arrêt de processus, volume, verrouillage et
+navigateur sont simulés, et toute tentative d'action réelle fait échouer le test (voir ``no_real_actions``).
+Les vérifications réelles sont décrites dans la procédure de test manuel du README.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import os
+import sys
+import time
+from dataclasses import replace
+from datetime import datetime
+from pathlib import Path
+
+import numpy as np
+import pytest
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+import jarvis.tools.applications as apps_module  # noqa: E402
+import jarvis.tools.audio as audio_module  # noqa: E402
+from jarvis.agent import Agent, AgentSettings  # noqa: E402
+from jarvis.audio.endpointing import EndpointerSettings, UtteranceRecorder  # noqa: E402
+from jarvis.audio.files import ArraySource, RecordingSink  # noqa: E402
+from jarvis.capabilities import CapabilityRegistry  # noqa: E402
+from jarvis.config import load_config  # noqa: E402
+from jarvis.factory import build_corrector, build_tools  # noqa: E402
+from jarvis.personality import load_personality  # noqa: E402
+from jarvis.router import IntentRouter  # noqa: E402
+from jarvis.tools import (  # noqa: E402
+    CANCELLED, CONFIRM, DONE, REJECTED, ConfirmationManager, Decision, Param, PermissionManager, Risk, Tool,
+    ToolCore, ToolError, ToolRegistry, ToolsCapability, builtin_tools, parse_request, plan,
+)
+from jarvis.tools.applications import Application, load_applications  # noqa: E402
+from jarvis.tools.planner import plan_schema, planner_prompt  # noqa: E402
+
+PERSONALITY = load_personality(ROOT / "personality.toml")
+CLOCK = lambda: datetime(2026, 9, 26, 13, 42)  # noqa: E731
+REAL_FIND_COMMAND = apps_module.find_command
+EXPECTED_RISKS = {
+    "get_time": Risk.SAFE, "get_date": Risk.SAFE, "system_info": Risk.SAFE, "open_url": Risk.SAFE,
+    "open_application": Risk.SAFE, "close_application": Risk.CONFIRMATION_REQUIRED,
+    "list_running_applications": Risk.SAFE, "set_volume": Risk.SAFE, "mute_volume": Risk.SAFE,
+    "unmute_volume": Risk.SAFE, "lock_pc": Risk.CONFIRMATION_REQUIRED,
+}
+
+
+@pytest.fixture(autouse=True)
+def no_real_actions(monkeypatch):
+    """Filet de sécurité : aucun test ne lance, n'arrête, ne règle ni ne verrouille réellement quoi que ce soit."""
+    def forbidden(*args, **kwargs):
+        raise AssertionError("action réelle interdite dans les tests automatiques")
+
+    monkeypatch.setattr(apps_module.subprocess, "Popen", forbidden)
+    monkeypatch.setattr(apps_module.subprocess, "run", forbidden)
+    monkeypatch.setattr(audio_module.VolumeControl, "set", forbidden)
+    monkeypatch.setattr(audio_module.VolumeControl, "set_mute", forbidden)
+    monkeypatch.setattr(apps_module, "find_command", lambda entry: [f"C:/Apps/{entry.key}.exe"])
+
+
+# --- Doublures ------------------------------------------------------------------------------------
+
+def echo_tool(name="echo", risk=Risk.SAFE, run=None, **params):
+    return Tool(name, "Outil de test.", params or {"text": Param(str, "texte")}, {"text": "texte"}, risk,
+                run or (lambda **kw: dict(kw)))
+
+
+class FakeProcesses:
+    """Processus simulés : ``alive`` = noms en cours ; ``stubborn`` = ne s'arrêtent pas."""
+
+    def __init__(self, alive=(), stubborn=False):
+        self.alive = set(alive)
+        self.stubborn = stubborn
+        self.stopped = []
+
+    def running(self, names):
+        return any(n in self.alive for n in names)
+
+    def stop(self, names, force):
+        self.stopped.append((tuple(names), force))
+        if not self.stubborn:
+            self.alive -= set(names)
+
+
+class Launcher:
+    """Lanceur simulé ; ``starts`` : processus qui apparaissent après le lancement."""
+
+    def __init__(self, processes=None, starts=(), error=None):
+        self.calls = []
+        self.processes, self.starts, self.error = processes, set(starts), error
+
+    def __call__(self, argv):
+        self.calls.append(argv)
+        if self.error:
+            raise self.error
+        if self.processes is not None:
+            self.processes.alive |= self.starts
+
+
+class Browser:
+    def __init__(self, ok=True):
+        self.ok, self.opened = ok, []
+
+    def __call__(self, url):
+        self.opened.append(url)
+        return self.ok
+
+
+class FakeVolume:
+    def __init__(self, level=30, muted=False, stuck=False, broken=False):
+        self.level, self.is_muted, self.stuck, self.broken = level, muted, stuck, broken
+        self.calls = []
+
+    def _check(self):
+        if self.broken:
+            raise OSError("périphérique audio absent")
+
+    def get(self):
+        self._check()
+        return self.level
+
+    def set(self, percent):
+        self._check()
+        self.calls.append(("set", percent))
+        if not self.stuck:
+            self.level = percent
+
+    def muted(self):
+        self._check()
+        return self.is_muted
+
+    def set_mute(self, mute):
+        self._check()
+        self.calls.append(("mute", mute))
+        if not self.stuck:
+            self.is_muted = mute
+
+
+class Locker:
+    def __init__(self, ok=True):
+        self.ok, self.calls = ok, 0
+
+    def __call__(self):
+        self.calls += 1
+        return self.ok
+
+
+def make_core(settings=None, launcher=None, opener=None, processes=None, volume=None, locker=None, timeout=5.0):
+    processes = processes if processes is not None else FakeProcesses()
+    registry = ToolRegistry()
+    for tool in builtin_tools(settings, clock=CLOCK, opener=opener or Browser(),
+                              launcher=launcher or Launcher(processes, ("Discord.exe",)), processes=processes,
+                              volume=volume or FakeVolume(), locker=locker or Locker(), open_wait=0.3, close_wait=0.3):
+        registry.register(tool)
+    confirmations = ConfirmationManager(PERSONALITY.confirm_yes, PERSONALITY.confirm_no,
+                                        ignored=(PERSONALITY.assistant_name, PERSONALITY.user_title))
+    return ToolCore(registry, PermissionManager(), confirmations, timeout=timeout)
+
+
+def call(tool, **parameters):
+    return {"type": "tool_call", "tool": tool, "parameters": parameters}
+
+
+# --- Registre ------------------------------------------------------------------------------------
+
+def test_registry_register_get_exists_list():
+    registry = ToolRegistry()
+    tool = echo_tool()
+    registry.register(tool)
+    assert registry.get("echo") is tool and registry.exists("echo") and registry.list() == [tool] and len(registry) == 1
+
+
+def test_registry_unknown_tool():
+    registry = ToolRegistry()
+    assert not registry.exists("rm") and not registry.exists(None)
+    with pytest.raises(ToolError) as err:
+        registry.get("rm")
+    assert err.value.code == "tool_not_found"
+
+
+def test_registry_refuses_duplicates_and_bad_definitions():
+    registry = ToolRegistry()
+    registry.register(echo_tool())
+    with pytest.raises(ValueError):
+        registry.register(echo_tool())
+    for name in ("Echo", "1tool", "rm -rf", "a" * 60, "../x"):
+        with pytest.raises(ValueError):
+            registry.register(echo_tool(name=name))
+    with pytest.raises(ValueError):
+        registry.register(echo_tool(name="bad_risk", risk="safe"))
+
+
+# --- Validation ----------------------------------------------------------------------------------
+
+def registry_with_echo():
+    registry = ToolRegistry()
+    registry.register(echo_tool(count=Param(int, "nombre", required=False, minimum=0, maximum=10),
+                                text=Param(str, "texte", max_length=10)))
+    return registry
+
+
+def test_valid_request():
+    request = parse_request(call("echo", text="  bonjour ", count=3), registry_with_echo())
+    assert request.tool == "echo" and dict(request.parameters) == {"text": "bonjour", "count": 3}
+    assert parse_request(json.dumps(call("echo", text="ok")), registry_with_echo()).parameters == {"text": "ok"}
+
+
+@pytest.mark.parametrize("data, code", [
+    (call("rm", path="/"), "tool_not_found"),
+    (call("echo"), "invalid_parameters"),
+    (call("echo", text=42), "invalid_parameters"),
+    (call("echo", text="ok", count="3"), "invalid_parameters"),
+    (call("echo", text="ok", count=True), "invalid_parameters"),
+    (call("echo", text="ok", count=11), "invalid_parameters"),
+    (call("echo", text="ok", count=-1), "invalid_parameters"),
+    (call("echo", text="ok", shell="calc.exe"), "invalid_parameters"),
+    (call("echo", text="beaucoup trop long"), "invalid_parameters"),
+    (call("echo", text="a\nb"), "invalid_parameters"),
+    (call("echo", text="   "), "invalid_parameters"),
+    ({"type": "tool_call", "tool": "echo", "parameters": "text=ok"}, "invalid_parameters"),
+    ({"type": "answer", "tool": "echo", "parameters": {"text": "ok"}}, "invalid_parameters"),
+    ({**call("echo", text="ok"), "confirmed": True}, "invalid_parameters"),
+    ({**call("echo", text="ok"), "risk": "safe"}, "invalid_parameters"),
+    ({**call("echo", text="ok"), "user": "admin"}, "invalid_parameters"),
+    (["echo"], "invalid_parameters"),
+    ("pas du json", "invalid_parameters"),
+])
+def test_invalid_requests_are_rejected(data, code):
+    with pytest.raises(ToolError) as err:
+        parse_request(data, registry_with_echo())
+    assert err.value.code == code
+
+
+# --- Permissions ---------------------------------------------------------------------------------
+
+def test_permissions_follow_the_risk_level():
+    manager = PermissionManager()
+    assert manager.decide("owner", echo_tool(), {}).decision is Decision.ALLOW
+    assert manager.decide("owner", echo_tool(risk=Risk.CONFIRMATION_REQUIRED), {}).decision is Decision.REQUIRES_CONFIRMATION
+    assert manager.decide("owner", echo_tool(risk=Risk.CONFIRMATION_REQUIRED), {}, confirmed=True).decision is Decision.ALLOW
+    assert manager.decide("owner", echo_tool(risk=Risk.RESTRICTED), {}).decision is Decision.DENY
+    assert manager.decide("owner", echo_tool(risk=Risk.RESTRICTED), {}, confirmed=True).decision is Decision.DENY
+    assert manager.decide("inconnu", echo_tool(), {}).decision is Decision.DENY
+
+
+def test_restricted_tools_are_never_executed():
+    ran = []
+    registry = ToolRegistry()
+    registry.register(echo_tool(name="shutdown", risk=Risk.RESTRICTED, run=lambda **kw: ran.append(kw) or {}))
+    outcome = ToolCore(registry).submit(call("shutdown", text="now"))
+    assert outcome.status == REJECTED and outcome.result.error == "permission_denied" and ran == []
+
+
+def test_each_pc_tool_has_the_risk_level_of_the_mission():
+    assert {t.name: t.risk for t in make_core().registry.list()} == EXPECTED_RISKS
+
+
+def test_configuration_can_only_make_tools_stricter(caplog):
+    core = make_core({"open_application": {"confirm": True}, "close_application": {"confirm": False},
+                      "lock_pc": {"confirm": False}})
+    risks = {t.name: t.risk for t in core.registry.list()}
+    assert risks["open_application"] is Risk.CONFIRMATION_REQUIRED
+    assert risks["close_application"] is Risk.CONFIRMATION_REQUIRED and risks["lock_pc"] is Risk.CONFIRMATION_REQUIRED
+    assert "confirm = false ignoré" in caplog.text
+
+
+# --- Confirmation --------------------------------------------------------------------------------
+
+@pytest.mark.parametrize("tool, parameters", [
+    ("get_time", {}), ("open_application", {"application": "discord"}), ("open_url", {"url": "https://example.com"}),
+    ("set_volume", {"volume": 40}), ("mute_volume", {}), ("unmute_volume", {}), ("list_running_applications", {}),
+    ("system_info", {}),
+])
+def test_safe_tools_run_without_confirmation(tool, parameters):
+    outcome = make_core(processes=FakeProcesses({"Discord.exe"})).submit(call(tool, **parameters))
+    assert outcome.status == DONE and outcome.result.success, outcome
+
+
+@pytest.mark.parametrize("answer", ["Oui.", "Oui Jarvis.", "D'accord.", "Vas-y !", "Oui, monsieur.", "OK"])
+def test_confirmation_accepted(answer):
+    processes = FakeProcesses({"Discord.exe"})
+    core = make_core(processes=processes)
+    outcome = core.submit(call("close_application", application="Discord"))
+    assert outcome.status == CONFIRM and outcome.question == "Voulez-vous que je ferme Discord ?"
+    assert processes.stopped == []
+    outcome = core.answer(answer)
+    assert outcome.status == DONE and outcome.result.success and processes.stopped == [(("Discord.exe",), True)]
+
+
+@pytest.mark.parametrize("answer", ["Non.", "Non merci.", "Annule.", "Laisse tomber, Jarvis."])
+def test_confirmation_refused(answer):
+    locker = Locker()
+    core = make_core(locker=locker)
+    assert core.submit(call("lock_pc")).status == CONFIRM
+    outcome = core.answer(answer)
+    assert outcome.status == CANCELLED and outcome.result.error == "confirmation_refused" and locker.calls == 0
+
+
+def test_any_other_sentence_abandons_the_pending_action():
+    locker = Locker()
+    core = make_core(locker=locker)
+    core.submit(call("lock_pc"))
+    assert core.answer("Oui mais d'abord dis-moi l'heure") is None
+    assert core.answer("Oui") is None and locker.calls == 0
+
+
+def test_confirmation_expires_and_nothing_pending_means_no_answer():
+    clock = [0.0]
+    manager = ConfirmationManager(["oui"], ["non"], ttl=30, clock=lambda: clock[0])
+    assert manager.answer("oui") == ("none", None)
+    manager.ask(parse_request(call("echo", text="x"), registry_with_echo()), "Sûr ?")
+    clock[0] = 31
+    assert manager.answer("oui") == ("none", None)
+
+
+# --- Outils système ------------------------------------------------------------------------------
+
+def test_get_time_and_get_date():
+    core = make_core()
+    assert core.submit(call("get_time")).result.result == {"time": "13:42", "spoken": "13 heures 42"}
+    date = core.submit(call("get_date")).result.result
+    assert date == {"date": "2026-09-26", "weekday": "samedi", "spoken": "samedi 26 septembre 2026"}
+
+
+def test_system_info_is_useful_and_leaks_nothing(monkeypatch):
+    monkeypatch.setenv("JARVIS_TEST_SECRET", "sk-ne-doit-jamais-sortir")
+    info = make_core().submit(call("system_info")).result.result
+    assert set(info) == {"os", "os_version", "architecture", "python", "cpu", "cpu_cores", "memory_total_gb",
+                         "memory_available_gb", "disk_total_gb", "disk_free_gb", "gpu", "uptime_hours"}
+    dumped = json.dumps(info)
+    assert "sk-ne-doit-jamais-sortir" not in dumped and os.environ.get("USERNAME", "§") not in dumped
+    assert info["cpu_cores"] >= 1 and isinstance(info["gpu"], list)
+    assert info["disk_free_gb"] is None or 0 <= info["disk_free_gb"] <= info["disk_total_gb"]
+
+
+def test_lock_pc_asks_then_locks():
+    locker = Locker()
+    core = make_core(locker=locker)
+    outcome = core.submit(call("lock_pc"))
+    assert outcome.status == CONFIRM and outcome.question == "Voulez-vous que je verrouille l'ordinateur ?"
+    assert locker.calls == 0
+    result = core.answer("oui").result
+    assert result.success and result.result == {"locked": True} and locker.calls == 1
+
+
+def test_lock_failure_is_reported():
+    core = make_core(locker=Locker(ok=False))
+    core.submit(call("lock_pc"))
+    result = core.answer("oui").result
+    assert not result.success and result.error == "execution_failed"
+
+
+# --- Applications --------------------------------------------------------------------------------
+
+def test_open_application_reports_the_real_state():
+    processes = FakeProcesses()
+    launcher = Launcher(processes, ("Discord.exe",))
+    result = make_core(launcher=launcher, processes=processes).submit(call("open_application", application="Discord")).result
+    assert result.success and result.result == {"application": "discord", "label": "Discord", "status": "ouverte"}
+    assert launcher.calls == [["C:/Apps/discord.exe"]]
+
+
+def test_open_application_already_open_or_still_starting():
+    processes = FakeProcesses({"steam.exe"})
+    result = make_core(launcher=Launcher(processes), processes=processes).submit(call("open_application", application="steam"))
+    assert result.result.result["status"] == "déjà ouverte"
+    result = make_core(launcher=Launcher(), processes=FakeProcesses()).submit(call("open_application", application="spotify"))
+    assert result.result.success and result.result.result["status"] == "lancement en cours"
+
+
+@pytest.mark.parametrize("said, key", [("VS Code", "vscode"), ("visual studio code", "vscode"),
+                                       ("Google Chrome", "chrome"), ("bloc-notes", "notepad"), ("Spotify", "spotify")])
+def test_application_aliases(said, key):
+    launcher = Launcher()
+    make_core(launcher=launcher).submit(call("open_application", application=said))
+    assert launcher.calls == [[f"C:/Apps/{key}.exe"]]
+
+
+def test_application_not_installed(monkeypatch):
+    monkeypatch.setattr(apps_module, "find_command", lambda entry: None)
+    launcher = Launcher()
+    result = make_core(launcher=launcher).submit(call("open_application", application="discord")).result
+    assert not result.success and result.error == "application_not_found"
+    assert result.message == "Discord n'est pas installé sur cette machine." and launcher.calls == []
+
+
+def test_launch_error_is_reported():
+    result = make_core(launcher=Launcher(error=OSError("accès refusé"))).submit(
+        call("open_application", application="chrome")).result
+    assert not result.success and result.error == "execution_failed"
+
+
+def test_close_application_modes():
+    processes = FakeProcesses({"Notepad.exe", "Discord.exe"})
+    core = make_core(processes=processes)
+    core.submit(call("close_application", application="bloc-notes"))
+    assert core.answer("oui").result.result == {"application": "notepad", "label": "le Bloc-notes", "closed": True}
+    core.submit(call("close_application", application="discord"))
+    core.answer("oui")
+    assert processes.stopped == [(("Notepad.exe",), False), (("Discord.exe",), True)]
+
+
+def test_steam_is_closed_with_its_own_shutdown_command(monkeypatch):
+    monkeypatch.setattr(apps_module, "find_command", lambda entry: ["C:/Steam/steam.exe"])
+    processes = FakeProcesses({"steam.exe"})
+    launcher = Launcher()
+
+    def shutdown(argv):
+        launcher(argv)
+        processes.alive.clear()
+
+    core = make_core(processes=processes, launcher=shutdown)
+    core.submit(call("close_application", application="steam"))
+    assert core.answer("oui").result.success
+    assert launcher.calls == [["C:/Steam/steam.exe", "-shutdown"]] and processes.stopped == []
+
+
+def test_close_errors():
+    core = make_core(processes=FakeProcesses())
+    core.submit(call("close_application", application="discord"))
+    result = core.answer("oui").result
+    assert result.error == "application_not_running" and result.message == "Discord n'est pas ouvert."
+    core = make_core(processes=FakeProcesses({"chrome.exe"}, stubborn=True))
+    core.submit(call("close_application", application="chrome"))
+    result = core.answer("oui").result
+    assert result.error == "execution_failed" and result.message == "Google Chrome ne s'est pas fermé complètement."
+
+
+def test_list_running_applications_only_covers_configured_apps():
+    processes = FakeProcesses({"Discord.exe", "svchost.exe", "explorer.exe", "lsass.exe"})
+    settings = {"applications": {"discord": {"enabled": True}, "steam": {"enabled": True}, "chrome": {"enabled": False}}}
+    result = make_core(settings, processes=processes).submit(call("list_running_applications")).result.result
+    assert result == {"applications": [{"application": "discord", "label": "Discord", "running": True},
+                                       {"application": "steam", "label": "Steam", "running": False}]}
+    assert "svchost" not in json.dumps(result)
+
+
+def test_open_url_is_immediate():
+    browser = Browser()
+    outcome = make_core(opener=browser).submit(call("open_url", url="https://www.youtube.com/watch?v=abc"))
+    assert outcome.status == DONE and browser.opened == ["https://www.youtube.com/watch?v=abc"]
+    assert outcome.result.result == {"url": "https://www.youtube.com/watch?v=abc", "site": "youtube.com", "opened": True}
+    failed = make_core(opener=Browser(ok=False)).submit(call("open_url", url="https://example.com")).result
+    assert not failed.success and failed.error == "execution_failed"
+
+
+# --- Configuration des applications ---------------------------------------------------------------
+
+def test_applications_come_from_configuration():
+    apps = load_applications({
+        "discord": {"enabled": True, "executable": "D:/Discord/Discord.exe"},
+        "steam": {"enabled": False},
+        "obs": {"label": "OBS Studio", "executable": "C:/Program Files/obs/obs64.exe", "process": "obs64.exe"},
+        "sanschemin": {"process": "x.exe"},
+        "relatif": {"executable": "obs64.exe", "process": "obs64.exe"},
+        "bad name!": {"executable": "C:/x.exe", "process": "x.exe"},
+        "piege": {"executable": "C:/x.exe", "process": "x.exe & calc"},
+    })
+    assert list(apps) == ["discord", "obs"]
+    assert apps["discord"].executable == "D:/Discord/Discord.exe" and apps["obs"].label == "OBS Studio"
+    assert load_applications(None).keys() == apps_module.CATALOG.keys()
+    core = make_core({"applications": {"discord": {}}})
+    assert core.submit(call("open_application", application="steam")).result.error == "invalid_parameters"
+
+
+def test_find_command_prefers_configured_executable_then_detection(tmp_path, monkeypatch):
+    exe = tmp_path / "Discord.exe"
+    exe.write_text("")
+    entry = Application("discord", apps_module.CATALOG["discord"], str(exe))
+    assert REAL_FIND_COMMAND(entry) == [str(exe)]
+    monkeypatch.setattr(apps_module, "_app_path", lambda name: None)
+    monkeypatch.setattr(apps_module, "_resolve", lambda command: None)
+    monkeypatch.setattr(apps_module.sys, "platform", "win32")
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    spotify = Application("spotify", apps_module.CATALOG["spotify"])
+    assert REAL_FIND_COMMAND(spotify) is None
+    (tmp_path / "Packages" / "SpotifyAB.SpotifyMusic_zpdnekdrzrea0").mkdir(parents=True)
+    argv = REAL_FIND_COMMAND(spotify)
+    assert argv[0].lower().endswith("explorer.exe")
+    assert argv[1] == "shell:AppsFolder\\SpotifyAB.SpotifyMusic_zpdnekdrzrea0!Spotify"
+
+
+# --- Audio ---------------------------------------------------------------------------------------
+
+def test_set_volume_reads_back_the_real_level():
+    volume = FakeVolume(level=30)
+    result = make_core(volume=volume).submit(call("set_volume", volume=40)).result
+    assert result.success and result.result == {"volume": 40, "muted": False} and volume.calls == [("set", 40)]
+
+
+def test_volume_that_does_not_change_is_a_failure():
+    result = make_core(volume=FakeVolume(level=30, stuck=True)).submit(call("set_volume", volume=80)).result
+    assert not result.success and result.message == "Le volume est resté à 30 %."
+    result = make_core(volume=FakeVolume(broken=True)).submit(call("set_volume", volume=80)).result
+    assert result.error == "execution_failed" and result.message == "Je n'ai pas pu régler le volume."
+
+
+@pytest.mark.parametrize("value", [-1, 101, 150, "50", 50.5, True, None])
+def test_volume_out_of_range_or_wrong_type_is_rejected(value):
+    volume = FakeVolume()
+    outcome = make_core(volume=volume).submit(call("set_volume", volume=value))
+    assert outcome.status == REJECTED and outcome.result.error == "invalid_parameters" and volume.calls == []
+
+
+def test_mute_and_unmute():
+    volume = FakeVolume(level=55)
+    core = make_core(volume=volume)
+    assert core.submit(call("mute_volume")).result.result == {"muted": True, "volume": 55}
+    assert core.submit(call("unmute_volume")).result.result == {"muted": False, "volume": 55}
+    stuck = make_core(volume=FakeVolume(muted=False, stuck=True)).submit(call("mute_volume")).result
+    assert not stuck.success and stuck.error == "execution_failed"
+
+
+# --- Sécurité ------------------------------------------------------------------------------------
+
+@pytest.mark.parametrize("application", [
+    "photoshop", "cmd", "cmd.exe /c calc", "powershell -Command Remove-Item C:\\ -Recurse",
+    "C:\\Windows\\System32\\cmd.exe", "../../Windows/System32/calc.exe", "discord && calc", "discord; rm -rf /",
+    "notepad.exe", "/bin/sh", "svchost.exe", "explorer", "lsass", "winlogon", "1234", "pid 4", "*",
+])
+def test_unknown_apps_paths_commands_pids_and_system_processes_are_refused(application):
+    processes, launcher = FakeProcesses({"svchost.exe", "explorer.exe"}), Launcher()
+    core = make_core(processes=processes, launcher=launcher)
+    for tool in ("open_application", "close_application"):
+        outcome = core.submit(call(tool, application=application))
+        assert outcome.status == REJECTED and outcome.result.error == "invalid_parameters"
+    assert launcher.calls == [] and processes.stopped == []
+
+
+@pytest.mark.parametrize("data", [
+    call("close_application", application="discord", pid=1234),
+    call("close_application", pid=1234),
+    call("open_application", application="discord", path="C:/evil.exe"),
+    call("open_application", application="discord", arguments="--inject"),
+    call("set_volume", volume=40, device="all"),
+    call("lock_pc", force=True),
+    call("kill_process", pid=4),
+    call("run_command", command="shutdown /s"),
+])
+def test_extra_parameters_pids_and_unknown_tools_are_refused(data):
+    outcome = make_core(processes=FakeProcesses({"Discord.exe"})).submit(data)
+    assert outcome.status == REJECTED and outcome.result.error in ("invalid_parameters", "tool_not_found")
+
+
+@pytest.mark.parametrize("url", [
+    "file:///C:/Windows/System32/config/SAM", "javascript:alert(1)", "data:text/html,<script>", "vbscript:msgbox",
+    "ms-settings:privacy", "ftp://site.fr/x", "calc.exe", "https://", "https://exa mple.com",
+    "https://user:pass@example.com", 'https://example.com/"&calc.exe', "https://example.com/`whoami`",
+    "https://example.com/|cmd", "https://example.com:99999/", "https://-bad-.com",
+    "https://example.com/" + "a" * 3000, "\\\\serveur\\partage", "https://example.com\n/&calc",
+])
+def test_invalid_or_dangerous_urls_are_refused(url):
+    browser = Browser()
+    outcome = make_core(opener=browser).submit(call("open_url", url=url))
+    assert outcome.status == REJECTED and outcome.result.error in ("invalid_url", "invalid_parameters")
+    assert browser.opened == []
+
+
+def test_system_tools_are_called_without_shell(monkeypatch):
+    seen = []
+    monkeypatch.setattr(apps_module.sys, "platform", "win32")
+    monkeypatch.setattr(apps_module.subprocess, "run", lambda argv, **options: seen.append((argv, options)))
+    monkeypatch.setattr(apps_module.subprocess, "Popen", lambda argv, **options: seen.append((argv, options)))
+    apps_module.Processes().stop(("Discord.exe",), force=True)
+    apps_module.Processes().stop(("Notepad.exe",), force=False)
+    apps_module._launch(["C:/Programmes/app.exe", "--flag"])
+    (force, force_opts), (soft, _), (launch, launch_opts) = seen
+    assert Path(force[0]).name.lower() == "taskkill.exe" and Path(force[0]).parent.name.lower() == "system32"
+    assert force[1:] == ["/IM", "Discord.exe", "/F", "/T"] and soft[1:] == ["/IM", "Notepad.exe"]
+    assert force_opts["shell"] is False and launch_opts["shell"] is False
+    assert launch == ["C:/Programmes/app.exe", "--flag"]
+
+
+def test_timeout_and_unexpected_errors_are_structured():
+    registry = ToolRegistry()
+    registry.register(echo_tool(name="slow", run=lambda **kw: time.sleep(1) or {}))
+    registry.register(echo_tool(name="broken", run=lambda **kw: 1 / 0))
+    core = ToolCore(registry, timeout=0.1)
+    assert core.submit(call("slow", text="x")).result.error == "timeout"
+    result = core.submit(call("broken", text="x")).result
+    assert result.error == "execution_failed" and "ZeroDivision" not in result.message and "Traceback" not in result.message
+
+
+def test_tool_results_have_the_expected_shape():
+    result = make_core().submit(call("open_application", application="discord")).result.as_dict()
+    assert result == {"type": "tool_result", "tool": "open_application", "success": True,
+                      "result": {"application": "discord", "label": "Discord", "status": "ouverte"}}
+    failure = make_core().submit(call("nope")).result.as_dict()
+    assert failure["success"] is False and failure["error"] == "tool_not_found" and "result" not in failure
+
+
+def test_every_execution_is_logged_without_secrets(caplog):
+    caplog.set_level(logging.INFO, logger="jarvis.tools")
+    core = make_core()
+    core.submit(call("set_volume", volume=40))
+    core.submit(call("open_url", url="https://example.com/reset?token=SECRET123#frag"))
+    core.submit(call("lock_pc"))
+    core.answer("non")
+    records = [json.loads(r.getMessage().split(" ", 1)[1]) for r in caplog.records if r.name == "jarvis.tools"]
+    assert records[0]["tool"] == "set_volume" and records[0]["parameters"] == {"volume": 40}
+    assert records[0]["decision"] == "allow" and records[0]["success"] is True and records[0]["user"] == "owner"
+    assert records[1]["tool"] == "open_url" and records[1]["success"] is True
+    assert records[2]["decision"] == "requires_confirmation" and records[2]["confirmation"] == "asked"
+    assert records[3]["confirmation"] == "refused" and records[3]["duration_ms"] >= 0
+    assert "SECRET123" not in caplog.text and "frag" not in caplog.text
+
+
+# --- Planificateur (LLM -> demande structurée) ---------------------------------------------------
+
+class PlannerLLM:
+    def __init__(self, *plans, reply="C'est fait."):
+        self.plans = list(plans)
+        self.reply = reply
+        self.planned, self.calls = [], []
+
+    def chat_json(self, messages, schema):
+        self.planned.append((messages, schema))
+        plan_ = self.plans.pop(0) if self.plans else {"type": "none"}
+        if isinstance(plan_, Exception):
+            raise plan_
+        return plan_
+
+    def chat(self, messages):
+        self.calls.append(messages)
+        return self.reply
+
+
+def test_planner_schema_describes_each_registered_tool_exactly():
+    registry = make_core({"open_url": {"enabled": False}, "lock_pc": {"enabled": False}}).registry
+    options = plan_schema(registry)["anyOf"]
+    assert options[0]["properties"]["type"] == {"const": "none"}
+    tools = {o["properties"]["tool"]["const"]: o["properties"]["parameters"] for o in options[1:]}
+    assert "open_url" not in tools and "lock_pc" not in tools and "set_volume" in tools
+    assert tools["set_volume"]["properties"] == {"volume": {"type": "integer"}}
+    assert tools["set_volume"]["required"] == ["volume"] and tools["set_volume"]["additionalProperties"] is False
+    assert tools["mute_volume"]["properties"] == {}
+    prompt = planner_prompt(registry)
+    assert "open_url" not in prompt and "lock_pc" not in prompt and "set_volume" in prompt
+
+
+def test_planner_results():
+    registry = make_core().registry
+    llm = PlannerLLM({"type": "tool_call", "tool": "open_application", "parameters": {"application": "discord"}})
+    assert plan(llm, "Tu peux ouvrir Discord ?", registry)["tool"] == "open_application"
+    assert llm.planned[0][0][1].content == "Tu peux ouvrir Discord ?"
+    assert plan(PlannerLLM({"type": "none"}), "Éteins l'ordinateur", registry) is None
+    assert plan(PlannerLLM(RuntimeError("Ollama")), "Ouvre Discord", registry) is None
+    assert plan(object(), "Ouvre Discord", registry) is None
+
+
+def test_planner_never_invents_a_number():
+    registry = make_core().registry
+    guess = {"type": "tool_call", "tool": "set_volume", "parameters": {"volume": 50}}
+    assert plan(PlannerLLM(guess), "Monte un peu le son", registry) is None
+    assert plan(PlannerLLM(guess), "Mets le son à 40 %", registry) is None
+    assert plan(PlannerLLM(guess), "Mets le son à 50 %", registry) == guess
+    assert plan(PlannerLLM(guess), "Jarvis, monte-moi le son à 50.", registry) == guess
+
+
+# --- Intégration dans l'agent --------------------------------------------------------------------
+
+def run_agent(texts, llm, core=None, tools=True, corrector=None):
+    class Stt:
+        def __init__(self):
+            self.replies = iter(texts)
+
+        def transcribe(self, audio, rate):
+            return next(self.replies)
+
+    class Tts:
+        spoken = []
+
+        def synthesize(self, text):
+            Tts.spoken.append(text)
+            return np.zeros(10, np.int16), 16000
+
+    class Wake:
+        def process(self, frame):
+            return 1.0 if np.abs(frame).max() > 20000 else 0.0
+
+        def reset(self):
+            pass
+
+    sr = 16000
+    speech = lambda s: (3000 * np.sin(np.arange(int(s * sr)) / sr * 1400)).astype(np.int16)  # noqa: E731
+    silence = lambda s: np.zeros(int(s * sr), np.int16)  # noqa: E731
+    parts = [silence(1), np.full(3200, 30000, np.int16), silence(0.5)]
+    for _ in texts:
+        parts += [speech(1), silence(1.5)]
+    source, events = ArraySource(np.concatenate(parts + [silence(3)]), sr, 1280), []
+    core = core or make_core()
+    capabilities = CapabilityRegistry()
+    capabilities.register(ToolsCapability(core.registry))
+    names = tuple(t.name for t in core.registry.list()) if tools else ()
+    router = IntentRouter(PERSONALITY, capabilities, tools=names)
+    Tts.spoken = []
+    settings = AgentSettings("JARVIS", "Jarvis", 0.5, ("Oui, monsieur ?",), 3.0, 2.0, 6)
+    Agent(settings, source, RecordingSink(), Wake(), UtteranceRecorder(source, EndpointerSettings()), Stt(), llm,
+          Tts(), router, lambda kind, text: events.append((kind, text)), tools=core if tools else None,
+          corrector=corrector).run()
+    return Tts.spoken[1:], events
+
+
+def result_sent_to_llm(llm, index=-1):
+    user = llm.calls[index][-1].content
+    return json.loads(user.split("<<<RESULTAT_OUTIL>>>")[1].split("<<<FIN_RESULTAT_OUTIL>>>")[0])
+
+
+def routes(events):
+    return [t for k, t in events if k == "routing"]
+
+
+def test_request_without_tool_goes_to_the_llm_as_before():
+    llm = PlannerLLM(reply="Voici une blague.")
+    spoken, events = run_agent(["Raconte-moi une blague"], llm)
+    assert routes(events) == ["llm"] and llm.planned == [] and "RESULTAT_OUTIL" not in llm.calls[0][-1].content
+
+
+def test_time_request_is_answered_from_the_tool_by_the_llm():
+    llm = PlannerLLM(reply="Il est 13 heures 42, monsieur.")
+    spoken, events = run_agent(["Jarvis, quelle heure est-il ?"], llm)
+    assert routes(events) == ["tool:time"] and llm.planned == []
+    assert result_sent_to_llm(llm)["result"] == {"time": "13:42", "spoken": "13 heures 42"}
+    assert spoken == ["Il est 13 heures 42, monsieur."]
+
+
+def test_open_discord_by_voice_without_confirmation():
+    processes = FakeProcesses()
+    launcher = Launcher(processes, ("Discord.exe",))
+    llm = PlannerLLM({"type": "tool_call", "tool": "open_application", "parameters": {"application": "discord"}},
+                     reply="Discord est ouvert, monsieur.")
+    spoken, events = run_agent(["Jarvis, ouvre Discord."], llm, make_core(launcher=launcher, processes=processes))
+    assert spoken == ["Discord est ouvert, monsieur."] and launcher.calls == [["C:/Apps/discord.exe"]]
+    assert result_sent_to_llm(llm) == {"type": "tool_result", "tool": "open_application", "success": True,
+                                       "result": {"application": "discord", "label": "Discord", "status": "ouverte"}}
+
+
+def test_volume_by_voice():
+    volume = FakeVolume(level=20)
+    llm = PlannerLLM({"type": "tool_call", "tool": "set_volume", "parameters": {"volume": 40}},
+                     {"type": "tool_call", "tool": "mute_volume", "parameters": {}}, reply="C'est fait, monsieur.")
+    spoken, events = run_agent(["Jarvis, mets le son à 40 %.", "Coupe le son."], llm, make_core(volume=volume))
+    assert volume.level == 40 and volume.is_muted
+    assert result_sent_to_llm(llm, 0)["result"] == {"volume": 40, "muted": False}
+    assert result_sent_to_llm(llm, 1)["result"] == {"muted": True, "volume": 40}
+
+
+def test_unmute_by_voice_goes_straight_to_the_tool():
+    volume = FakeVolume(muted=True)
+    llm = PlannerLLM(reply="Le son est revenu.")
+    spoken, events = run_agent(["Jarvis, remets le son."], llm, make_core(volume=volume))
+    assert routes(events) == ["tool:unmute"] and llm.planned == [] and not volume.is_muted
+
+
+def test_close_discord_asks_then_closes():
+    processes = FakeProcesses({"Discord.exe"})
+    llm = PlannerLLM({"type": "tool_call", "tool": "close_application", "parameters": {"application": "discord"}},
+                     reply="Discord est fermé, monsieur.")
+    spoken, events = run_agent(["Jarvis, ferme Discord.", "Oui."], llm, make_core(processes=processes))
+    assert spoken == ["Voulez-vous que je ferme Discord ?", "Discord est fermé, monsieur."]
+    assert processes.stopped == [(("Discord.exe",), True)] and result_sent_to_llm(llm)["success"] is True
+
+
+def test_lock_pc_asks_and_respects_the_answer():
+    locker = Locker()
+    llm = PlannerLLM({"type": "tool_call", "tool": "lock_pc", "parameters": {}},
+                     {"type": "tool_call", "tool": "lock_pc", "parameters": {}}, reply="Session verrouillée.")
+    spoken, events = run_agent(["Jarvis, verrouille le PC.", "Non.", "Verrouille le PC", "Oui"], llm,
+                               make_core(locker=locker))
+    assert spoken[0] == spoken[2] == "Voulez-vous que je verrouille l'ordinateur ?"
+    assert spoken[1] in [PERSONALITY.render(t) for t in PERSONALITY.phrases["tool_cancelled"]]
+    assert locker.calls == 1 and result_sent_to_llm(llm) == {"type": "tool_result", "tool": "lock_pc", "success": True,
+                                                             "result": {"locked": True}}
+
+
+def test_failed_tool_is_never_reported_as_success(monkeypatch):
+    monkeypatch.setattr(apps_module, "find_command", lambda entry: None)
+    llm = PlannerLLM({"type": "tool_call", "tool": "open_application", "parameters": {"application": "discord"}},
+                     reply="Discord est ouvert, monsieur.")
+    spoken, events = run_agent(["Ouvre Discord"], llm)
+    assert result_sent_to_llm(llm) == {"type": "tool_result", "tool": "open_application", "success": False,
+                                       "error": "application_not_found",
+                                       "message": "Discord n'est pas installé sur cette machine."}
+    assert spoken == ["Discord n'est pas installé sur cette machine."]
+
+
+def test_llm_cannot_inject_fields_pids_or_commands():
+    processes, launcher, locker = FakeProcesses({"Discord.exe"}), Launcher(), Locker()
+    for proposal in ({"type": "tool_call", "tool": "close_application", "parameters": {"application": "discord"},
+                      "confirmed": True},
+                     {"type": "tool_call", "tool": "close_application", "parameters": {"pid": 4}},
+                     {"type": "tool_call", "tool": "open_application", "parameters": {"application": "cmd.exe /c calc"}},
+                     {"type": "tool_call", "tool": "run_shell", "parameters": {"command": "calc"}}):
+        llm = PlannerLLM(proposal)
+        spoken, events = run_agent(["Ferme Discord"], llm, make_core(processes=processes, launcher=launcher,
+                                                                     locker=locker))
+        assert "Voulez-vous" not in spoken[0] and llm.calls == []
+    assert launcher.calls == [] and processes.stopped == [] and locker.calls == 0
+
+
+def test_unsupported_action_falls_back_to_the_usual_answer():
+    llm = PlannerLLM({"type": "none"}, reply="Je ne peux pas éteindre l'ordinateur, monsieur.")
+    spoken, events = run_agent(["Ouvre le panneau de configuration et supprime mes fichiers"], llm)
+    assert routes(events) == ["tool:tool.action", "llm (aucun outil)"]
+    assert "RESULTAT_OUTIL" not in llm.calls[0][-1].content
+
+
+def test_new_request_while_waiting_for_confirmation_abandons_the_action():
+    locker = Locker()
+    llm = PlannerLLM({"type": "tool_call", "tool": "lock_pc", "parameters": {}}, reply="Il est 13 heures 42.")
+    spoken, events = run_agent(["Verrouille le PC", "Quelle heure est-il ?"], llm, make_core(locker=locker))
+    assert spoken == ["Voulez-vous que je verrouille l'ordinateur ?", "Il est 13 heures 42."] and locker.calls == 0
+
+
+def test_tools_disabled_keep_the_v1_behaviour():
+    llm = PlannerLLM()
+    spoken, events = run_agent(["Quelle heure est-il ?", "Ouvre Steam"], llm, tools=False)
+    assert routes(events) == ["predefined:time", "unavailable:unavailable_computer"]
+    assert llm.planned == [] and llm.calls == []
+
+
+def test_corrected_transcription_opens_the_right_application():
+    launcher = Launcher()
+    llm = PlannerLLM({"type": "tool_call", "tool": "open_application", "parameters": {"application": "steam"}},
+                     reply="Steam est lancé, monsieur.")
+    corrector = build_corrector(load_config(ROOT / "config.toml"), PERSONALITY)
+    spoken, events = run_agent(["Jarvis, ou vos teams."], llm, make_core(launcher=launcher), corrector=corrector)
+    assert spoken == ["Steam est lancé, monsieur."] and launcher.calls == [["C:/Apps/steam.exe"]]
+    assert ("correction", "« Jarvis, ou vos teams. » -> « ouvre steam »") in events
+
+
+def test_configuration_builds_the_core_with_the_mission_risks():
+    cfg = load_config(ROOT / "config.toml")
+    core = build_tools(cfg, PERSONALITY)
+    assert {t.name: t.risk for t in core.registry.list()} == EXPECTED_RISKS
+    assert build_tools(replace(cfg, tools=replace(cfg.tools, enabled=False)), PERSONALITY) is None
