@@ -201,8 +201,41 @@ minuteur », « Quels rappels sont prévus ? » : outils SAFE `create_timer`, `c
   (« 1 heure 30 », « une demi-heure », « trois quarts d'heure »...) et vérifie qu'elle figure dans la demande.
 - `TimerManager` (`jarvis/scheduling/`) : un seul fil pour toutes les échéances, arrêté avec JARVIS ;
   publie `timer.created / cancelled / finished` et `reminder.*` sur le bus (journal d'activité inclus).
-- À l'échéance, `NotificationManager` prépare la phrase (`timer_finished`, `reminder_finished` dans
-  `personality.toml`) et JARVIS la prononce dès qu'il est libre, en veille comme en conversation.
+- À l'échéance, une notification est créée (phrase `timer_finished` / `reminder_finished` de
+  `personality.toml`, sans LLM) et JARVIS la prononce dès qu'il est libre, en veille comme en conversation.
+
+### Météo
+
+« Quel temps fait-il ? », « Il va pleuvoir ce soir ? », « Quel temps fera-t-il à Lyon demain ? » : outil SAFE
+`get_weather(location?, day?, moment?)` (jour : today / tomorrow / day_after_tomorrow ; moment : now / morning /
+afternoon / evening / day), dates calculées sur l'horloge du système.
+
+- Fournisseur : [Open-Meteo](https://open-meteo.com) — gratuit pour un usage personnel non commercial, sans clé
+  ni compte, recherche de ville intégrée. Données météo : Open-Meteo.com, licence CC-BY 4.0.
+- `jarvis/weather/` : modèles internes (°C, km/h, mm), interface `WeatherProvider` (changer de fournisseur =
+  une nouvelle classe), `OpenMeteoProvider`, `WeatherService` (ville par défaut, périodes, cache court,
+  événements `weather.requested / received / failed`, journalisés).
+- Une ville n'est utilisée que si elle a été dite ; sinon, `[weather] default_location`.
+- Si la météo est indisponible, JARVIS le dit simplement (jamais de météo inventée) ; « cherche / recherche
+  la météo » passe par la recherche Web.
+
+```bash
+python scripts/weather_check.py Lyon     # appel réel à Open-Meteo (manuel, hors tests automatiques)
+```
+
+### Notifications
+
+```
+événement (timer.finished, reminder.finished...) -> EventNotifications -> Notification (titre, message,
+source, priorité LOW / NORMAL / HIGH) -> NotificationManager -> canaux actifs qui l'acceptent -> voix (file FIFO)
+```
+
+`jarvis/notifications/` : les fonctionnalités publient seulement leurs événements ; `EventNotifications`
+les traduit en notifications, `NotificationManager` les remet aux canaux (un canal en panne est journalisé
+sans bloquer les autres). Le canal vocal les prononce une à une avec le TTS de JARVIS. Un futur canal
+(bureau, téléphone...) hérite de `NotificationChannel` (`send`, `start`, `stop`, priorité minimale) et
+s'enregistre auprès du gestionnaire. Événements : `notification.created / sent / failed` (journal
+d'activité) et `notification.started / finished`. `[notifications] voice_enabled = false` coupe les annonces.
 - En mémoire : un redémarrage efface les échéances. Limites dans `[timers]` (durée maximale, nombre).
 
 ### Événements et journal d'activité

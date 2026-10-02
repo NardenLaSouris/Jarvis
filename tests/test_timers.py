@@ -1,11 +1,10 @@
-"""Minuteurs et rappels : durées, gestionnaire, planificateur, événements, outils, notifications, cycle de vie.
+"""Minuteurs et rappels : durées, gestionnaire, planificateur, événements, outils, cycle de vie.
 
 Les échéances sont réelles mais très courtes (dixièmes de seconde) : le temps n'est pas simulé.
 """
 
 from __future__ import annotations
 
-import random
 import sys
 import threading
 import time
@@ -19,7 +18,6 @@ sys.path.insert(0, str(ROOT))
 from jarvis.activity import ActivityLog, JsonlActivityStore  # noqa: E402
 from jarvis.config import load_config  # noqa: E402
 from jarvis.events import ALL, Event, EventBus  # noqa: E402
-from jarvis.notifications import NotificationManager, with_de  # noqa: E402
 from jarvis.personality import load_personality  # noqa: E402
 from jarvis.scheduling import DurationError, SchedulingError, Status, TimerManager, parse_duration, spoken_duration  # noqa: E402
 from jarvis.scheduling.durations import duration_in_text  # noqa: E402
@@ -391,61 +389,6 @@ def test_the_planner_never_invents_a_duration(manager):
     reminder = {"type": "tool_call", "tool": "create_reminder", "parameters": {"delay": "1 heure", "message": "four"}}
     assert plan(PlannerLLM(reminder), "Rappelle-moi dans une heure de vérifier le four", registry) == reminder
     assert plan(PlannerLLM(reminder), "Rappelle-moi de vérifier le four", registry) is None
-
-
-# --- Notifications -------------------------------------------------------------------------------
-
-def notifier(bus):
-    manager = NotificationManager(PERSONALITY, random.Random(0))
-    manager.attach(bus)
-    return manager
-
-
-def test_timer_expiry_produces_a_voice_notification(manager, bus):
-    notifications = notifier(bus)
-    manager.create_timer(0.1)
-    assert wait_until(lambda: notifications.pending() == 1)
-    notification = notifications.next()
-    assert notification.channel == "voice" and notification.event_type == "timer.finished"
-    assert notification.text in ("Monsieur, votre minuteur est terminé.", "Monsieur, le minuteur vient de se terminer.")
-    assert notifications.next() is None
-
-
-def test_notification_texts_follow_the_personality(bus):
-    notifications = notifier(bus)
-    bus.publish(Event("timer.finished", "scheduling", {"timer_id": "1", "duration_seconds": 600}))
-    bus.publish(Event("reminder.finished", "scheduling", {"reminder_id": "1", "message": "sortir le linge"}))
-    bus.publish(Event("reminder.finished", "scheduling", {"reminder_id": "2", "message": "appeler Paul"}))
-    texts = [notifications.next().text for _ in range(3)]
-    assert texts[0] in ("Monsieur, votre minuteur de 10 minutes est terminé.",
-                        "Monsieur, le minuteur de 10 minutes vient de se terminer.")
-    assert texts[1] in ("Monsieur, vous m'aviez demandé de vous rappeler de sortir le linge.",
-                        "Monsieur, je vous rappelle de sortir le linge.")
-    assert texts[2].endswith("d'appeler Paul.")
-    assert with_de("de sortir le linge") == "de sortir le linge" and with_de("éteindre le four") == "d'éteindre le four"
-
-
-def test_cancelled_items_never_notify(manager, bus):
-    notifications = notifier(bus)
-    manager.cancel_timer(manager.create_timer(0.05).id)
-    manager.cancel_reminder(manager.create_reminder(0.05, "sortir le linge").id)
-    time.sleep(0.2)
-    assert notifications.pending() == 0
-
-
-def test_agent_speaks_notifications_when_idle(manager, bus):
-    sys.path.insert(0, str(ROOT / "tests"))
-    from test_tools import PlannerLLM as AgentLLM
-    from test_tools import run_agent
-
-    notifications = notifier(bus)
-    manager.create_reminder(0.05, "sortir le linge")
-    assert wait_until(lambda: notifications.pending() == 1)
-    spoken, events = run_agent(["Raconte-moi une blague"], AgentLLM(reply="Voici une blague."),
-                               notifications=notifications)
-    notices = [text for kind, text in events if kind == "notification"]
-    assert len(notices) == 1 and "sortir le linge" in notices[0]
-    assert notifications.pending() == 0
 
 
 def test_agent_close_stops_services():

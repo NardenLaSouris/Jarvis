@@ -47,6 +47,7 @@ class Intent:
     replaces: tuple[str, ...] = ()
     tool: str = ""
     planner: bool = False
+    explicit: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -151,6 +152,7 @@ def load_personality(path: str | Path) -> Personality:
             replaces=tuple(spec.get("replaces", [])),
             tool=spec.get("tool", ""),
             planner=spec.get("planner", False),
+            explicit=tuple(canonical(x) for x in spec.get("explicit", [])),
         )
         for name, spec in raw.get("intents", {}).items()
     )

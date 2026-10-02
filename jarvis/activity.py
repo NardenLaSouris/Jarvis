@@ -16,11 +16,14 @@ from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Protocol
 
 from jarvis.events import ALL, TOOL_EXECUTED, TOOL_FAILED, Event, EventBus
+from jarvis.notifications.models import NOTIFICATION_CREATED, NOTIFICATION_FAILED, NOTIFICATION_SENT
 from jarvis.scheduling.manager import EVENT_TYPES as SCHEDULING_EVENTS
+from jarvis.weather.service import EVENT_TYPES as WEATHER_EVENTS
 
 log = logging.getLogger(__name__)
 
-DEFAULT_TYPES = (TOOL_EXECUTED, TOOL_FAILED, *SCHEDULING_EVENTS)
+DEFAULT_TYPES = (TOOL_EXECUTED, TOOL_FAILED, *SCHEDULING_EVENTS, NOTIFICATION_CREATED, NOTIFICATION_SENT,
+                 NOTIFICATION_FAILED, *WEATHER_EVENTS)
 
 
 class ActivityStore(Protocol):

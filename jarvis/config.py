@@ -103,6 +103,22 @@ class TimersConfig:
 
 
 @dataclass(frozen=True)
+class WeatherConfig:
+    enabled: bool = False
+    provider: str = "open-meteo"
+    default_location: str = "Paris"
+    country: str = "FR"
+    timeout: float = 8.0
+    current_cache_minutes: float = 5.0
+    forecast_cache_minutes: float = 15.0
+
+
+@dataclass(frozen=True)
+class NotificationsConfig:
+    voice_enabled: bool = True
+
+
+@dataclass(frozen=True)
 class ActivityConfig:
     enabled: bool = False
     path: Path = Path("data/activity.jsonl")
@@ -143,6 +159,8 @@ class Config:
     tools: ToolsConfig = ToolsConfig()
     activity: ActivityConfig = ActivityConfig()
     timers: TimersConfig = TimersConfig()
+    notifications: NotificationsConfig = NotificationsConfig()
+    weather: WeatherConfig = WeatherConfig()
 
 
 def _build(cls: type, data: dict[str, Any], base_dir: Path):
@@ -199,6 +217,8 @@ def load_config(path: str | Path = "config.toml") -> Config:
         "tools": ToolsConfig,
         "activity": ActivityConfig,
         "timers": TimersConfig,
+        "notifications": NotificationsConfig,
+        "weather": WeatherConfig,
     }
     unknown = set(raw) - set(sections)
     if unknown:

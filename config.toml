@@ -172,6 +172,22 @@ enabled = true
 max_hours = 24          # durée maximale d'un minuteur ou d'un rappel
 max_active = 20         # nombre maximal d'échéances en cours
 
+[weather]
+# Météo (outil get_weather) via Open-Meteo : gratuit pour un usage personnel, sans clé API.
+# « Quel temps fait-il ? » utilise la ville par défaut ; « ... à Lyon » utilise la ville dite.
+enabled = true
+provider = "open-meteo"
+default_location = "Nantes"   # à remplacer par votre ville
+country = "FR"                # pays préféré quand plusieurs villes portent le même nom
+timeout = 8.0
+current_cache_minutes = 5     # temps actuel : pas de nouvel appel pendant 5 minutes pour la même ville
+forecast_cache_minutes = 15
+
+[notifications]
+# Annonces de JARVIS (fin de minuteur, rappel...). false : plus d'annonce vocale ; les événements
+# et le journal d'activité continuent.
+voice_enabled = true
+
 [activity]
 # Journal d'activité (actions des outils réussies ou échouées), une ligne JSON par événement.
 # Consulter : python -m jarvis --activity

@@ -55,7 +55,9 @@ class SentenceBuffer:
         if self._text[position] != ".":
             return False
         word = re.search(r"(\w+)$", self._text[:position])
-        return bool(word) and (word.group(1).lower() in ABBREVIATIONS or word.group(1).isdigit())
+        if not word or self._text[:word.start()].endswith("°"):
+            return False
+        return word.group(1).lower() in ABBREVIATIONS or word.group(1).isdigit()
 
 
 def split_sentences(text: str) -> list[str]:

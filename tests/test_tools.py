@@ -784,10 +784,8 @@ def test_failed_tool_is_never_reported_as_success(monkeypatch):
     llm = PlannerLLM({"type": "tool_call", "tool": "open_application", "parameters": {"application": "discord"}},
                      reply="Discord est ouvert, monsieur.")
     spoken, events = run_agent(["Ouvre Discord"], llm)
-    assert result_sent_to_llm(llm) == {"type": "tool_result", "tool": "open_application", "success": False,
-                                       "error": "application_not_found",
-                                       "message": "Discord n'est pas installé sur cette machine."}
-    assert spoken == ["Discord n'est pas installé sur cette machine."]
+    assert llm.calls == [] and spoken == ["Discord n'est pas installé sur cette machine."]
+    assert any(kind == "tool" and '"error": "application_not_found"' in text for kind, text in events)
 
 
 def test_llm_cannot_inject_fields_pids_or_commands():
@@ -807,8 +805,11 @@ def test_llm_cannot_inject_fields_pids_or_commands():
 def test_unsupported_action_falls_back_to_the_usual_answer():
     llm = PlannerLLM({"type": "none"}, reply="Je ne peux pas éteindre l'ordinateur, monsieur.")
     spoken, events = run_agent(["Ouvre le panneau de configuration et supprime mes fichiers"], llm)
-    assert routes(events) == ["tool:tool.action", "llm (aucun outil)"]
-    assert "RESULTAT_OUTIL" not in llm.calls[0][-1].content
+    assert routes(events) == ["tool:tool.action", "unavailable:unavailable_computer (aucun outil)"]
+    assert llm.calls == [] and "pas encore disponible" in spoken[0] or "Cette capacité est prévue" in spoken[0]
+    llm = PlannerLLM({"type": "none"}, reply="Voici une idée de cadeau.")
+    spoken, events = run_agent(["Ouvre ton cœur et donne-moi une idée de cadeau"], llm)
+    assert routes(events) == ["tool:tool.action", "llm (aucun outil)"] and spoken == ["Voici une idée de cadeau."]
 
 
 def test_new_request_while_waiting_for_confirmation_abandons_the_action():

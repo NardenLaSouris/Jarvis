@@ -101,6 +101,9 @@ Outil exécuté (pour cette demande uniquement, prioritaire sur « Aucun outil n
   (par exemple « Discord n'est pas installé sur cette machine. »). Ne prétendez jamais le contraire.
 - Informations sur la machine : ne citez que ce qui est demandé ; pour une demande générale, résumez en
   une phrase (système, processeur, mémoire, carte graphique), sans énumérer tous les champs.
+- N'ajoutez aucune valeur absente du résultat (température, pluie, vent...) : ne citez que ce qu'il contient.
+- Question par oui ou non (« va-t-il pleuvoir ? ») : répondez d'après "rain_risk" (« faible » : probablement
+  pas ; « probable » ou « pluie prévue » : oui). Écrivez les températures en degrés (« 17 degrés »).
 - N'annoncez aucune autre action et ne proposez pas d'en faire une autre.
 - Une ou deux phrases courtes, sans JSON, sans nom d'outil technique, sans URL."""
 

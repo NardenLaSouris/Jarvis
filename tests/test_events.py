@@ -363,3 +363,12 @@ def test_tool_log_line_is_still_written(caplog):
     core_with(tool(), events=EventBus()).submit(call("echo"))
     record = json.loads(caplog.records[-1].getMessage().split(" ", 1)[1])
     assert record["tool"] == "echo" and record["success"] is True and "message" not in record
+
+
+def test_delivery_follows_subscription_order_across_specific_and_wildcard_subscribers():
+    bus, calls = EventBus(), []
+    bus.subscribe(ALL, lambda e: calls.append(f"journal:{e.type}"))
+    bus.subscribe("timer.finished", lambda e: bus.publish(Event("notification.created", "tests")))
+    bus.subscribe("timer.finished", lambda e: calls.append("specifique"))
+    bus.publish(Event("timer.finished", "tests"))
+    assert calls == ["journal:timer.finished", "journal:notification.created", "specifique"]

@@ -259,7 +259,7 @@ patterns = ["remets le son", "remet le son", "remettre le son", "remets moi le s
 [intents."tool.action"]
 planner = true
 match = "contains"
-replaces = ["unavailable_computer", "unavailable_reminders"]
+replaces = ["unavailable_computer", "unavailable_reminders", "unavailable_realtime"]
 patterns = [
     "ouvre", "ouvrir", "ouvre moi", "lance", "lancer", "lance moi", "demarre", "demarrer", "va sur", "affiche le site",
     "ferme", "fermer", "ferme moi", "quitte", "quitter", "arrete", "coupe",
@@ -271,6 +271,9 @@ patterns = [
     "mon ordinateur", "la machine", "caracteristiques",
     "minuteur", "minuteurs", "minuterie", "timer", "chrono", "compte a rebours", "rappelle moi", "rappelez moi",
     "rappel", "rappels", "previens moi", "fais moi penser",
+    "meteo", "quel temps", "temps fait il", "temps fera t il", "temps qu il fait", "temps qu il fera",
+    "il fait combien", "pleuvoir", "pleut", "pluie", "neiger", "neige", "temperature", "degres",
+    "fait il froid", "fait il chaud", "fera t il froid", "fera t il chaud", "parapluie", "orage", "du vent",
     "informations systeme", "infos systeme", "info systeme", "quel processeur", "quelle memoire", "combien de memoire",
     "memoire disponible", "memoire vive", "quel systeme d exploitation", "configuration de l ordinateur",
     "configuration du pc", "configuration de la machine", "sur quelle machine",
@@ -284,6 +287,8 @@ patterns = [
 web = true
 match = "contains"
 replaces = ["unavailable_realtime"]
+# Demande explicite de recherche : toujours la recherche Web, même si un outil (météo...) pourrait répondre.
+explicit = ["cherche", "cherche moi", "recherche", "recherche moi", "sur internet", "sur le web", "sur google"]
 patterns = [
     # demande explicite
     "cherche", "cherche moi", "recherche", "recherche moi", "trouve moi", "sur internet", "sur le web",

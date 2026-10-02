@@ -46,6 +46,13 @@ EXAMPLES = (
     ("Annule le rappel pour le linge", "cancel_reminder", {"message": "linge"}),
     ("Quels rappels sont prévus ?", "list_reminders", {}),
     ("Réveille-moi à 7 heures", None, None),
+    ("Quel temps fait-il ?", "get_weather", {}),
+    ("Il fait combien dehors ?", "get_weather", {}),
+    ("Quel temps fera-t-il demain ?", "get_weather", {"day": "tomorrow"}),
+    ("Est-ce qu'il va pleuvoir ce soir ?", "get_weather", {"moment": "evening"}),
+    ("Quel temps fera-t-il à Lyon demain ?", "get_weather", {"location": "Lyon", "day": "tomorrow"}),
+    ("Quelle température est prévue demain matin ?", "get_weather", {"day": "tomorrow", "moment": "morning"}),
+    ("Est-ce que je dois prendre un parapluie ?", "get_weather", {"moment": "day"}),
     ("Supprime le dossier Documents", None, None),
     ("Ouvre un terminal et tape une commande", None, None),
     ("Éteins l'ordinateur", None, None),
@@ -71,6 +78,10 @@ def planner_prompt(registry: ToolRegistry) -> str:
                      "dite (« 10 minutes », « une heure et demie »), sans la convertir ; pas de durée dite -> none. "
                      "Le message d'un rappel est l'action à rappeler, sans « de » (« sortir le linge »). "
                      "Une heure précise (« à 7 heures ») n'est pas une durée -> none.")
+    if registry.exists("get_weather"):
+        rules.append("- get_weather : location uniquement si une ville est dite ; day = today, tomorrow ou "
+                     "day_after_tomorrow ; moment = now (par défaut aujourd'hui), morning, afternoon, evening ou "
+                     "day (journée entière). Une demande explicite de recherche (« cherche », « recherche ») -> none.")
     if registry.exists("unmute_volume"):
         rules.append("- unmute_volume : remettre, réactiver ou rallumer le son (après une coupure).")
     if registry.exists("system_info"):
@@ -109,6 +120,13 @@ Exemples :
 JSON_TYPES = {str: "string", int: "integer", float: "number", bool: "boolean"}
 
 
+def _param_schema(param) -> dict:
+    schema = {"type": JSON_TYPES.get(param.kind, "string")}
+    if param.choices:
+        schema["enum"] = list(param.choices)
+    return schema
+
+
 def plan_schema(registry: ToolRegistry) -> dict:
     """Schéma de sortie : « none », ou un appel d'outil avec les paramètres exacts (noms et types) de cet outil."""
     options = [{"type": "object", "properties": {"type": {"const": "none"}}, "required": ["type"],
@@ -116,7 +134,7 @@ def plan_schema(registry: ToolRegistry) -> dict:
     for tool in registry.list():
         parameters = {
             "type": "object",
-            "properties": {name: {"type": JSON_TYPES.get(p.kind, "string")} for name, p in tool.parameters.items()},
+            "properties": {name: _param_schema(p) for name, p in tool.parameters.items()},
             "required": [name for name, p in tool.parameters.items() if p.required],
             "additionalProperties": False,
         }
@@ -186,6 +204,7 @@ class ToolsCapability:
             "create_timer": "lancer des minuteurs", "cancel_timer": "annuler un minuteur",
             "list_timers": "dire quels minuteurs sont en cours", "create_reminder": "programmer des rappels",
             "cancel_reminder": "annuler un rappel", "list_reminders": "dire quels rappels sont prévus",
+            "get_weather": "donner la météo",
         }
         parts = [known.get(t.name, t.name) for t in registry.list()]
         actions = ", ".join(parts[:-1]) + " et " + parts[-1] if len(parts) > 1 else "".join(parts)

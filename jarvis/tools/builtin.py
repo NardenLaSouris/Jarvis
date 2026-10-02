@@ -4,7 +4,8 @@
 - applications (``applications.py``) : open_application, close_application, list_running_applications, open_url ;
 - audio (``audio.py``) : set_volume, mute_volume, unmute_volume ;
 - minuteurs et rappels (``timers.py``, si un gestionnaire est fourni) : create_timer, cancel_timer,
-  list_timers, create_reminder, cancel_reminder, list_reminders.
+  list_timers, create_reminder, cancel_reminder, list_reminders ;
+- météo (``weather.py``, si un service météo est fourni) : get_weather.
 
 Chaque outil a un niveau de risque fixé dans son code. La configuration peut seulement le rendre
 plus strict (``confirm = true`` sur un outil SAFE), jamais l'assouplir.
@@ -26,6 +27,7 @@ from jarvis.tools.audio import VolumeControl, mute_tool, set_volume_tool
 from jarvis.tools.base import Risk, Tool
 from jarvis.tools.system import date_tool, lock_session, lock_tool, system_info_tool, time_tool
 from jarvis.tools.timers import timer_tools
+from jarvis.tools.weather import weather_tool
 
 log = logging.getLogger(__name__)
 
@@ -36,7 +38,7 @@ def builtin_tools(settings: dict | None = None, clock: Callable[[], datetime] = 
                   opener: Callable[[str], bool] | None = None, launcher: Callable[[list[str]], None] = _launch,
                   processes: Processes | None = None, volume: VolumeControl | None = None,
                   locker: Callable[[], bool] = lock_session, open_wait: float = 4.0,
-                  close_wait: float = 6.0, timers=None) -> list[Tool]:
+                  close_wait: float = 6.0, timers=None, weather=None) -> list[Tool]:
     """Outils activés selon ``settings`` ({nom: {"enabled": bool, "confirm": bool}, "applications": {...}}).
 
     Tous les outils sont activés par défaut ; les applications autorisées viennent de ``applications``.
@@ -61,6 +63,8 @@ def builtin_tools(settings: dict | None = None, clock: Callable[[], datetime] = 
     ]
     if timers is not None:
         candidates += [(tool.name, lambda tool=tool: tool) for tool in timer_tools(timers)]
+    if weather is not None:
+        candidates.append(("get_weather", lambda: weather_tool(weather)))
     tools = []
     for name, build in candidates:
         if not enabled(name):

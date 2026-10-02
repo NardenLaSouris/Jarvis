@@ -154,16 +154,15 @@ class Agent:
                 log.exception("Arrêt de %s impossible", type(service).__name__)
 
     def _deliver_notifications(self) -> bool:
-        """Prononce les notifications en attente (minuteur terminé...). Rend True s'il y en avait."""
+        """Laisse le canal vocal prononcer ses notifications en attente. Rend True s'il y en avait."""
         if self._notifications is None:
             return False
-        delivered = False
-        while (notification := self._notifications.next()) is not None:
-            self._event("notification", notification.text)
-            self._pipeline.speak([notification.text])
-            self._source.flush()
-            delivered = True
-        return delivered
+        return self._notifications.deliver(self._say_notification) > 0
+
+    def _say_notification(self, text: str) -> None:
+        self._event("notification", text)
+        self._pipeline.speak([text])
+        self._source.flush()
 
     # --- Boucle principale -------------------------------------------------
 
@@ -267,10 +266,12 @@ class Agent:
         return self._after_tool(history, text, outcome, latency)
 
     def _after_tool(self, history: list[Message], text: str, outcome, latency: dict) -> str:
-        """Question de confirmation, refus ou annulation : phrases du Core. Exécution : réponse du LLM."""
+        """Exécution réussie : réponse du LLM à partir du résultat. Échec, refus, annulation ou question de
+        confirmation : phrase du Core, sans LLM (qui pourrait inventer le résultat d'une action échouée)."""
         if outcome.status == DONE:
             self._event("tool", json.dumps(outcome.result.as_dict(), ensure_ascii=False)[:200])
-            return self._ask(history, text, latency, tool_result=outcome.result)
+            if outcome.result.success:
+                return self._ask(history, text, latency, tool_result=outcome.result)
         if outcome.status == CONFIRM:
             spoken = outcome.question
         elif outcome.status == CANCELLED:

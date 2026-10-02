@@ -140,14 +140,42 @@ def build_timers(cfg: Config, events: EventBus | None):
     return manager
 
 
-def build_tools(cfg: Config, personality, events: EventBus | None = None, timers=None):
+def build_notifications(cfg: Config, personality, events: EventBus):
+    """Gestionnaire de notifications et son canal vocal (None si désactivé), branchés sur les événements."""
+    from jarvis.notifications import EventNotifications, NotificationManager, VoiceNotificationChannel
+
+    manager = NotificationManager(events)
+    voice = None
+    if cfg.notifications.voice_enabled:
+        voice = VoiceNotificationChannel(events)
+        manager.register(voice)
+    EventNotifications(manager, personality).attach(events)
+    manager.start()
+    return manager, voice
+
+
+def build_weather(cfg: Config, events: EventBus | None):
+    """Service météo, ou None si désactivé."""
+    w = cfg.weather
+    if not w.enabled:
+        return None
+    if w.provider != "open-meteo":
+        raise ValueError(f"Fournisseur météo inconnu : {w.provider}")
+    from jarvis.weather import OpenMeteoProvider, WeatherService
+
+    provider = OpenMeteoProvider(timeout=w.timeout, country=w.country)
+    return WeatherService(provider, w.default_location, events, current_ttl=w.current_cache_minutes * 60,
+                          forecast_ttl=w.forecast_cache_minutes * 60)
+
+
+def build_tools(cfg: Config, personality, events: EventBus | None = None, timers=None, weather=None):
     """Core des outils (registre, permissions, confirmation), ou None si les outils sont désactivés."""
     if not cfg.tools.enabled:
         return None
     from jarvis.tools import ConfirmationManager, PermissionManager, ToolCore, ToolRegistry, builtin_tools
 
     registry = ToolRegistry()
-    for tool in builtin_tools(cfg.tools.settings(), timers=timers):
+    for tool in builtin_tools(cfg.tools.settings(), timers=timers, weather=weather):
         registry.register(tool)
     confirmations = ConfirmationManager(personality.confirm_yes, personality.confirm_no,
                                         ignored=(personality.assistant_name, personality.user_title))
@@ -211,13 +239,9 @@ def build_agent(
         log.info("Recherche Web : %s (%s)", cfg.web.base_url, "joignable" if available else "INJOIGNABLE pour le moment")
     events = events if events is not None else build_events(cfg)
     timers = build_timers(cfg, events) if cfg.tools.enabled else None
-    notifications = None
-    if timers is not None:
-        from jarvis.notifications import NotificationManager
-
-        notifications = NotificationManager(personality)
-        notifications.attach(events)
-    tools = build_tools(cfg, personality, events, timers)
+    notifications, voice = build_notifications(cfg, personality, events)
+    weather = build_weather(cfg, events) if cfg.tools.enabled else None
+    tools = build_tools(cfg, personality, events, timers, weather)
     if tools is not None and len(tools.registry):
         from jarvis.tools import ToolsCapability
 
@@ -243,5 +267,5 @@ def build_agent(
     )
     return Agent(settings, source, sink, wake_word, recorder, stt, llm, tts, router, on_event,
                  stream_audio=cfg.tts.stream_audio, merge_under=cfg.tts.merge_under, web=web,
-                 tools=tools, corrector=corrector, notifications=notifications,
-                 services=tuple(s for s in (timers,) if s is not None))
+                 tools=tools, corrector=corrector, notifications=voice,
+                 services=tuple(s for s in (timers, notifications) if s is not None))

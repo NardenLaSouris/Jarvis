@@ -100,14 +100,18 @@ class IntentRouter:
         self._tools = set(tools)
         web = [i for i in personality.intents if i.web] if web_enabled else []
         planners = [i for i in personality.intents if i.planner] if self._tools else []
-        replaced = {name for i in web + planners for name in i.replaces}
+        by_web = {name for i in web for name in i.replaces}
+        by_tools = by_web | {name for i in planners for name in i.replaces}
         ordered = [i for i in personality.intents if i.critical] + [
             i for i in personality.intents if not i.critical and not i.fallback and not i.web and not i.planner]
         patterns = lambda i: {personality.strip_ignored(p) for p in i.patterns} - {""}  # noqa: E731
         self._intents = [(i, patterns(i)) for i in ordered]
         self._planners = [(i, patterns(i)) for i in planners]
         self._web = [(i, patterns(i)) for i in web]
-        self._fallbacks = [(i, set()) for i in personality.intents if i.fallback and i.name not in replaced]
+        fallbacks = [i for i in personality.intents if i.fallback]
+        self._fallbacks = [(i, set()) for i in fallbacks if i.name not in by_tools]
+        self._fallbacks_without_tools = [(i, set()) for i in fallbacks if i.name not in by_web]
+        self._fallbacks_after_tools = [(i, set()) for i in fallbacks if i.name in by_tools and i.name not in by_web]
 
     def start_conversation(self) -> None:
         self._previous = None
@@ -132,12 +136,18 @@ class IntentRouter:
         handled = self.capabilities.handle(text)
         if handled:
             return Route("capability", handled[0], handled[1])
-        for intent, exact in self._fallbacks:
+        for intent, exact in self._fallbacks if tools else self._fallbacks_without_tools:
             if self._matches(intent, exact, norm, core):
                 return Route("unavailable", intent.name, self._pick(intent.name, intent.responses))
+        for intent, _ in self._web:
+            if any(f" {phrase} " in f" {norm} " for phrase in intent.explicit):
+                return Route(intent.name)
         for intent, exact in self._planners if tools else ():
             if self._matches(intent, exact, norm, core):
                 return Route("tool", intent.name)
+        for intent, exact in self._fallbacks_after_tools if tools else ():
+            if self._matches(intent, exact, norm, core):
+                return Route("unavailable", intent.name, self._pick(intent.name, intent.responses))
         for intent, exact in self._web:
             if self._matches(intent, exact, norm, core):
                 return Route(intent.name)
