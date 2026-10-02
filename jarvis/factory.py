@@ -129,14 +129,25 @@ def build_events(cfg: Config) -> EventBus:
     return bus
 
 
-def build_tools(cfg: Config, personality, events: EventBus | None = None):
+def build_timers(cfg: Config, events: EventBus | None):
+    """Gestionnaire de minuteurs et rappels démarré, ou None s'ils sont désactivés."""
+    if not cfg.timers.enabled:
+        return None
+    from jarvis.scheduling import TimerManager
+
+    manager = TimerManager(events, max_seconds=cfg.timers.max_hours * 3600, max_active=cfg.timers.max_active)
+    manager.start()
+    return manager
+
+
+def build_tools(cfg: Config, personality, events: EventBus | None = None, timers=None):
     """Core des outils (registre, permissions, confirmation), ou None si les outils sont désactivés."""
     if not cfg.tools.enabled:
         return None
     from jarvis.tools import ConfirmationManager, PermissionManager, ToolCore, ToolRegistry, builtin_tools
 
     registry = ToolRegistry()
-    for tool in builtin_tools(cfg.tools.settings()):
+    for tool in builtin_tools(cfg.tools.settings(), timers=timers):
         registry.register(tool)
     confirmations = ConfirmationManager(personality.confirm_yes, personality.confirm_no,
                                         ignored=(personality.assistant_name, personality.user_title))
@@ -198,7 +209,15 @@ def build_agent(
         capabilities.register(WebSearchCapability())
         available = getattr(web.provider, "available", lambda: True)()
         log.info("Recherche Web : %s (%s)", cfg.web.base_url, "joignable" if available else "INJOIGNABLE pour le moment")
-    tools = build_tools(cfg, personality, events if events is not None else build_events(cfg))
+    events = events if events is not None else build_events(cfg)
+    timers = build_timers(cfg, events) if cfg.tools.enabled else None
+    notifications = None
+    if timers is not None:
+        from jarvis.notifications import NotificationManager
+
+        notifications = NotificationManager(personality)
+        notifications.attach(events)
+    tools = build_tools(cfg, personality, events, timers)
     if tools is not None and len(tools.registry):
         from jarvis.tools import ToolsCapability
 
@@ -224,4 +243,5 @@ def build_agent(
     )
     return Agent(settings, source, sink, wake_word, recorder, stt, llm, tts, router, on_event,
                  stream_audio=cfg.tts.stream_audio, merge_under=cfg.tts.merge_under, web=web,
-                 tools=tools, corrector=corrector)
+                 tools=tools, corrector=corrector, notifications=notifications,
+                 services=tuple(s for s in (timers,) if s is not None))

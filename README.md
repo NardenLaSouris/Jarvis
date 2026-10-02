@@ -191,6 +191,20 @@ demande -> routeur -> LLM : appel JSON contraint par le schéma de chaque outil 
 python -m pytest tests/test_tools.py -q      # simulé : rien n'est réellement lancé, fermé, réglé ni verrouillé
 ```
 
+### Minuteurs et rappels
+
+« Mets un minuteur de 10 minutes », « Rappelle-moi dans 20 minutes de sortir le linge », « Annule mon
+minuteur », « Quels rappels sont prévus ? » : outils SAFE `create_timer`, `cancel_timer`, `list_timers`,
+`create_reminder`, `cancel_reminder`, `list_reminders`.
+
+- Le LLM transmet la durée telle qu'elle a été dite ; `jarvis/scheduling/durations.py` la convertit
+  (« 1 heure 30 », « une demi-heure », « trois quarts d'heure »...) et vérifie qu'elle figure dans la demande.
+- `TimerManager` (`jarvis/scheduling/`) : un seul fil pour toutes les échéances, arrêté avec JARVIS ;
+  publie `timer.created / cancelled / finished` et `reminder.*` sur le bus (journal d'activité inclus).
+- À l'échéance, `NotificationManager` prépare la phrase (`timer_finished`, `reminder_finished` dans
+  `personality.toml`) et JARVIS la prononce dès qu'il est libre, en veille comme en conversation.
+- En mémoire : un redémarrage efface les échéances. Limites dans `[timers]` (durée maximale, nombre).
+
 ### Événements et journal d'activité
 
 Les composants communiquent par un bus d'événements interne (`jarvis/events.py`) : `publish(Event)`,

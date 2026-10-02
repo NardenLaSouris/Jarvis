@@ -48,6 +48,11 @@ ACTION_CLAIMS = (
     re.compile(r"\bje (vais|m en vais) (allumer|eteindre|envoyer|regler|mettre|lancer|ouvrir|fermer|baisser|monter|augmenter)\b"),
     re.compile(r"\b(sera|seront|va etre|vont etre) (mise?s?|allumee?s?|eteinte?s?|reglee?s?|envoyee?s?|lancee?s?|"
                r"ouverte?s?|fermee?s?|programmee?s?)\b"),
+    re.compile(r"\bvous serez (bien )?(rappelee?s?|prevenue?s?|avertie?s?|notifiee?s?)\b"),
+    re.compile(r"\b(c est|bien) note\b"),
+    re.compile(r"\bje vous rappelle (dans|d ici)\b"),
+    re.compile(r"\b(minuteur|rappel|alarme|timer|reveil) (est |a ete )?(bien )?(lance|programme|regle|cree|enregistre|"
+               r"active|mis en place)e?\b"),
 )
 NEGATION = re.compile(r"\b(ne|n|pas|jamais|impossible|aucun|aucune|plus)\b")
 

@@ -665,7 +665,7 @@ def test_planner_never_invents_a_number():
 
 # --- Intégration dans l'agent --------------------------------------------------------------------
 
-def run_agent(texts, llm, core=None, tools=True, corrector=None):
+def run_agent(texts, llm, core=None, tools=True, corrector=None, **agent_options):
     class Stt:
         def __init__(self):
             self.replies = iter(texts)
@@ -703,7 +703,7 @@ def run_agent(texts, llm, core=None, tools=True, corrector=None):
     settings = AgentSettings("JARVIS", "Jarvis", 0.5, ("Oui, monsieur ?",), 3.0, 2.0, 6)
     Agent(settings, source, RecordingSink(), Wake(), UtteranceRecorder(source, EndpointerSettings()), Stt(), llm,
           Tts(), router, lambda kind, text: events.append((kind, text)), tools=core if tools else None,
-          corrector=corrector).run()
+          corrector=corrector, **agent_options).run()
     return Tts.spoken[1:], events
 
 

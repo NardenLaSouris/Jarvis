@@ -16,10 +16,11 @@ from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Protocol
 
 from jarvis.events import ALL, TOOL_EXECUTED, TOOL_FAILED, Event, EventBus
+from jarvis.scheduling.manager import EVENT_TYPES as SCHEDULING_EVENTS
 
 log = logging.getLogger(__name__)
 
-DEFAULT_TYPES = (TOOL_EXECUTED, TOOL_FAILED)
+DEFAULT_TYPES = (TOOL_EXECUTED, TOOL_FAILED, *SCHEDULING_EVENTS)
 
 
 class ActivityStore(Protocol):

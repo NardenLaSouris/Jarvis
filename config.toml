@@ -165,6 +165,13 @@ enabled = true
 [tools.applications.notepad]
 enabled = true
 
+[timers]
+# Minuteurs et rappels (outils create_timer, create_reminder, cancel_*, list_*), en mémoire :
+# ils disparaissent au redémarrage de JARVIS. Fin d'échéance annoncée à voix haute.
+enabled = true
+max_hours = 24          # durée maximale d'un minuteur ou d'un rappel
+max_active = 20         # nombre maximal d'échéances en cours
+
 [activity]
 # Journal d'activité (actions des outils réussies ou échouées), une ligne JSON par événement.
 # Consulter : python -m jarvis --activity

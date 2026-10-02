@@ -52,6 +52,10 @@ web_no_results = [
     "Ma recherche n'a rien donné de concluant, {title}.",
     "Je n'ai rien trouvé de pertinent à ce sujet, {title}.",
 ]
+# Fin d'un minuteur / d'un rappel, annoncée à voix haute ({of_duration} : « de 10 minutes » ;
+# {de_message} : « de sortir le linge » ; {message} : « sortir le linge »).
+timer_finished = ["{Title}, votre minuteur{of_duration} est terminé.", "{Title}, le minuteur{of_duration} vient de se terminer."]
+reminder_finished = ["{Title}, vous m'aviez demandé de vous rappeler {de_message}.", "{Title}, je vous rappelle {de_message}."]
 # Action à confirmer refusée par l'utilisateur.
 tool_cancelled = ["Très bien, {title}, je n'en fais rien.", "Entendu, j'annule.", "Bien, je laisse cela de côté."]
 # Formules d'entrée retirées d'une réponse du LLM quand elles forment toute sa première phrase
@@ -104,6 +108,9 @@ strict_words = ["tu", "toi", "te", "t", "ton", "ta", "tes", "vous", "votre", "vo
 "presenter toi" = "presente toi"
 # « Jarvis » mal transcrit par le STT : ramené à « jarvis » pour être ignoré comme le vrai nom
 # (sinon « Merci Jervis » n'est pas reconnu comme un remerciement et part au LLM).
+"rappele" = "rappelle"
+"rapelle" = "rappelle"
+"rapele" = "rappelle"
 "jervis" = "jarvis"
 "gervis" = "jarvis"
 "charvis" = "jarvis"
@@ -252,7 +259,7 @@ patterns = ["remets le son", "remet le son", "remettre le son", "remets moi le s
 [intents."tool.action"]
 planner = true
 match = "contains"
-replaces = ["unavailable_computer"]
+replaces = ["unavailable_computer", "unavailable_reminders"]
 patterns = [
     "ouvre", "ouvrir", "ouvre moi", "lance", "lancer", "lance moi", "demarre", "demarrer", "va sur", "affiche le site",
     "ferme", "fermer", "ferme moi", "quitte", "quitter", "arrete", "coupe",
@@ -262,6 +269,8 @@ patterns = [
     "rallume le son", "reactive le son",
     "espace disque", "stockage", "carte graphique", "cette machine", "ce pc", "cet ordinateur", "mon pc",
     "mon ordinateur", "la machine", "caracteristiques",
+    "minuteur", "minuteurs", "minuterie", "timer", "chrono", "compte a rebours", "rappelle moi", "rappelez moi",
+    "rappel", "rappels", "previens moi", "fais moi penser",
     "informations systeme", "infos systeme", "info systeme", "quel processeur", "quelle memoire", "combien de memoire",
     "memoire disponible", "memoire vive", "quel systeme d exploitation", "configuration de l ordinateur",
     "configuration du pc", "configuration de la machine", "sur quelle machine",

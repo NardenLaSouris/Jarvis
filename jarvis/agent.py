@@ -62,7 +62,7 @@ def without_urls(text: str) -> str:
 
 
 def polish_web_sentence(sentence: str, question: str, first: bool, assistant_name: str = "JARVIS") -> str:
-    """Phrase d'une réponse Web prête à dire : sans URL, sans « JARVIS : » en tête, et sans la
+    """Phrase d'une réponse Web ou d'outil prête à dire : sans URL, sans « JARVIS : » en tête, et sans la
     question répétée en guise de première phrase ("" si la phrase est à taire)."""
     sentence = without_urls(sentence)
     sentence = re.sub(rf"^\s*{re.escape(assistant_name)}\s*:\s*", "", sentence, flags=re.IGNORECASE)
@@ -123,6 +123,8 @@ class Agent:
         web=None,
         tools=None,
         corrector=None,
+        notifications=None,
+        services: tuple = (),
     ):
         self.settings = settings
         self._source = source
@@ -136,10 +138,32 @@ class Agent:
         self._web = web
         self._tools = tools
         self._corrector = corrector
+        self._notifications = notifications
+        self._services = services
         self.last_sources: list[dict] = []
         self._pipeline = SpeechPipeline(tts, sink, stream_audio, merge_under)
         self._on_event = on_event or (lambda kind, text: None)
         self._acks = [tts.synthesize(text) for text in settings.acknowledgements]
+
+    def close(self) -> None:
+        """Arrête les services de fond (minuteurs...) ; JARVIS peut alors quitter proprement."""
+        for service in self._services:
+            try:
+                service.stop()
+            except Exception:
+                log.exception("Arrêt de %s impossible", type(service).__name__)
+
+    def _deliver_notifications(self) -> bool:
+        """Prononce les notifications en attente (minuteur terminé...). Rend True s'il y en avait."""
+        if self._notifications is None:
+            return False
+        delivered = False
+        while (notification := self._notifications.next()) is not None:
+            self._event("notification", notification.text)
+            self._pipeline.speak([notification.text])
+            self._source.flush()
+            delivered = True
+        return delivered
 
     # --- Boucle principale -------------------------------------------------
 
@@ -153,6 +177,9 @@ class Agent:
         self._event("sleep", f"En veille — dites « {self.settings.wake_phrase} »")
         self._wake_word.reset()
         while (frame := self._source.read()) is not None:
+            if self._deliver_notifications():
+                self._wake_word.reset()
+                continue
             score = self._wake_word.process(frame)
             if score >= self.settings.wake_threshold:
                 self._event("wake", f"Wake word détecté (score {score:.2f})")
@@ -165,6 +192,7 @@ class Agent:
         history: list[Message] = []
         timeout = self.settings.listen_timeout
         while True:
+            self._deliver_notifications()
             self._event("listening", f"À l'écoute ({timeout:.0f} s)")
             audio = self._recorder.record(start_timeout=timeout)
             if audio is None:
@@ -314,7 +342,7 @@ class Agent:
                     done_reason=lambda: getattr(self._llm, "last_done_reason", ""),
                 ):
                     sentence = clean_for_speech(sentence)
-                    if searched:
+                    if searched or tool_result is not None:
                         sentence = polish_web_sentence(sentence, text, first=not spoken,
                                                        assistant_name=self.settings.assistant_name)
                     if sentence:

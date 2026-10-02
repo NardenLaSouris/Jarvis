@@ -39,6 +39,7 @@ class Param:
     """Paramètre d'entrée : type attendu, obligatoire ou non, et contrôle facultatif de la valeur.
 
     ``check`` reçoit la valeur (déjà typée) et rend la valeur normalisée, ou lève ToolError.
+    ``evidence(valeur, demande)`` vérifie que la valeur proposée par le LLM figure bien dans la demande.
     """
 
     kind: type
@@ -49,6 +50,7 @@ class Param:
     choices: tuple[str, ...] = ()
     minimum: float | None = None
     maximum: float | None = None
+    evidence: Callable[[Any, str], bool] | None = None
 
 
 @dataclass(frozen=True)

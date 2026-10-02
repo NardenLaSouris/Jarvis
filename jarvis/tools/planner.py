@@ -36,6 +36,16 @@ EXAMPLES = (
     ("Combien d'espace disque me reste-t-il ?", "system_info", {}),
     ("Réactive le son", "unmute_volume", {}),
     ("Est-ce que Discord est ouvert ?", "list_running_applications", {}),
+    ("Mets un minuteur de 10 minutes", "create_timer", {"duration": "10 minutes"}),
+    ("Lance un minuteur d'une heure et demie", "create_timer", {"duration": "une heure et demie"}),
+    ("Rappelle-moi dans 20 minutes de sortir le linge", "create_reminder",
+     {"delay": "20 minutes", "message": "sortir le linge"}),
+    ("Annule mon minuteur", "cancel_timer", {}),
+    ("Annule le minuteur de 5 minutes", "cancel_timer", {"duration": "5 minutes"}),
+    ("Quels sont mes minuteurs ?", "list_timers", {}),
+    ("Annule le rappel pour le linge", "cancel_reminder", {"message": "linge"}),
+    ("Quels rappels sont prévus ?", "list_reminders", {}),
+    ("Réveille-moi à 7 heures", None, None),
     ("Supprime le dossier Documents", None, None),
     ("Ouvre un terminal et tape une commande", None, None),
     ("Éteins l'ordinateur", None, None),
@@ -56,6 +66,11 @@ def planner_prompt(registry: ToolRegistry) -> str:
         rules.append("- close_application : même règle pour le nom de l'application à fermer.")
     if registry.exists("set_volume"):
         rules.append("- set_volume : uniquement si un niveau précis est donné (nombre entier de 0 à 100).")
+    if registry.exists("create_timer") or registry.exists("create_reminder"):
+        rules.append("- create_timer, create_reminder, cancel_timer : recopiez la durée exactement comme elle a été "
+                     "dite (« 10 minutes », « une heure et demie »), sans la convertir ; pas de durée dite -> none. "
+                     "Le message d'un rappel est l'action à rappeler, sans « de » (« sortir le linge »). "
+                     "Une heure précise (« à 7 heures ») n'est pas une durée -> none.")
     if registry.exists("unmute_volume"):
         rules.append("- unmute_volume : remettre, réactiver ou rallumer le son (après une coupure).")
     if registry.exists("system_info"):
@@ -124,14 +139,14 @@ def plan(llm, text: str, registry: ToolRegistry) -> dict | None:
         return None
     if not isinstance(data, dict) or data.get("type") != "tool_call":
         return None
-    if not _numbers_were_said(data, text, registry):
-        log.info("Appel d'outil écarté : nombre absent de la demande (%s)", data)
+    if not _supported_by_request(data, text, registry):
+        log.info("Appel d'outil écarté : valeur absente de la demande (%s)", data)
         return None
     return data
 
 
-def _numbers_were_said(data: dict, text: str, registry: ToolRegistry) -> bool:
-    """Un paramètre numérique doit figurer dans la demande : le LLM n'invente pas de volume ni de valeur."""
+def _supported_by_request(data: dict, text: str, registry: ToolRegistry) -> bool:
+    """Les nombres et les valeurs à justifier (durées...) doivent venir de la demande : le LLM n'invente rien."""
     if not registry.exists(data.get("tool")) or not isinstance(data.get("parameters"), dict):
         return True
     said = set(re.findall(r"\d+(?:[.,]\d+)?", text))
@@ -141,6 +156,8 @@ def _numbers_were_said(data: dict, text: str, registry: ToolRegistry) -> bool:
         if spec.kind in (int, float) and isinstance(value, (int, float)) and not isinstance(value, bool):
             if f"{value:g}" not in said:
                 return False
+        if spec.evidence is not None and value is not None and not spec.evidence(value, text):
+            return False
     return True
 
 
@@ -166,6 +183,9 @@ class ToolsCapability:
             "close_application": "fermer certaines applications",
             "list_running_applications": "dire quelles applications sont ouvertes", "set_volume": "régler le volume",
             "mute_volume": "couper le son", "unmute_volume": "remettre le son", "lock_pc": "verrouiller l'ordinateur",
+            "create_timer": "lancer des minuteurs", "cancel_timer": "annuler un minuteur",
+            "list_timers": "dire quels minuteurs sont en cours", "create_reminder": "programmer des rappels",
+            "cancel_reminder": "annuler un rappel", "list_reminders": "dire quels rappels sont prévus",
         }
         parts = [known.get(t.name, t.name) for t in registry.list()]
         actions = ", ".join(parts[:-1]) + " et " + parts[-1] if len(parts) > 1 else "".join(parts)

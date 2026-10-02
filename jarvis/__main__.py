@@ -100,6 +100,8 @@ def main() -> int:
         agent.run()
     except KeyboardInterrupt:
         logging.info("Arrêt demandé.")
+    finally:
+        agent.close()
     return 0
 
 

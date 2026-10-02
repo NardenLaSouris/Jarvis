@@ -96,6 +96,13 @@ class ToolsConfig:
 
 
 @dataclass(frozen=True)
+class TimersConfig:
+    enabled: bool = False
+    max_hours: float = 24.0
+    max_active: int = 20
+
+
+@dataclass(frozen=True)
 class ActivityConfig:
     enabled: bool = False
     path: Path = Path("data/activity.jsonl")
@@ -135,6 +142,7 @@ class Config:
     face: FaceConfig = FaceConfig()
     tools: ToolsConfig = ToolsConfig()
     activity: ActivityConfig = ActivityConfig()
+    timers: TimersConfig = TimersConfig()
 
 
 def _build(cls: type, data: dict[str, Any], base_dir: Path):
@@ -190,6 +198,7 @@ def load_config(path: str | Path = "config.toml") -> Config:
         "face": FaceConfig,
         "tools": ToolsConfig,
         "activity": ActivityConfig,
+        "timers": TimersConfig,
     }
     unknown = set(raw) - set(sections)
     if unknown:

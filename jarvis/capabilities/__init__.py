@@ -17,7 +17,7 @@ PLANNED_FEATURES = (
     ("le contrôle de votre ordinateur", "lancer des programmes, gérer des fichiers, exécuter des commandes"),
     ("la domotique", "lumières, chauffage, appareils connectés"),
     ("les e-mails et messages", "lire ou envoyer des e-mails et des messages WhatsApp"),
-    ("les rappels et l'agenda", "réveils, minuteurs, rappels, rendez-vous"),
+    ("l'agenda", "rendez-vous, réveils à une heure précise"),
     ("la recherche sur Internet", "informations en temps réel : météo, actualités, cours de bourse"),
 )
 

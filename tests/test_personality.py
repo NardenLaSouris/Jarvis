@@ -167,7 +167,9 @@ def test_replies_use_the_title_naturally_and_never_tutoie():
     r = router()
     rendered = [r._render(t) for intent in PERSONALITY.intents if intent.name != "who_is_user"
                 for t in intent.responses]
-    rendered += [r._render(t) for phrases in PERSONALITY.phrases.values() for t in phrases]
+    notification = {"of_duration": " de 10 minutes", "message": "sortir le linge", "de_message": "de sortir le linge"}
+    rendered += [PERSONALITY.render(t, **notification) if key in ("timer_finished", "reminder_finished") else r._render(t)
+                 for key, phrases in PERSONALITY.phrases.items() for t in phrases]
     for reply in rendered:
         assert not TUTOIEMENT.search(reply), reply
         assert "Jules" not in reply, reply

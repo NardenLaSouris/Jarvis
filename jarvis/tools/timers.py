@@ -1,0 +1,132 @@
+"""Outils minuteurs et rappels : ils valident la demande et délèguent tout au gestionnaire.
+
+Durées : le LLM transmet la durée telle qu'elle a été dite (« 10 minutes », « une heure et demie ») ;
+elle est convertie par ``parse_duration`` et doit figurer dans la demande. Annulation : par numéro,
+par durée / message, ou sans précision s'il n'y a qu'une seule échéance en cours.
+"""
+
+from __future__ import annotations
+
+import re
+from typing import Callable
+
+from jarvis.personality import normalize
+from jarvis.scheduling.durations import DurationError, duration_in_text, parse_duration, spoken_duration
+from jarvis.scheduling.manager import REMINDER_NOT_FOUND, TIMER_NOT_FOUND, SchedulingError, TimerManager
+from jarvis.scheduling.models import Reminder, Scheduled, Timer
+from jarvis.tools.base import INVALID_PARAMETERS, Param, Risk, Tool, ToolError
+
+AMBIGUOUS = "ambiguous_target"
+ID = re.compile(r"^\d{1,6}$")
+COMMON_WORDS = {"de", "d", "le", "la", "les", "l", "un", "une", "des", "du", "a", "mon", "ma", "mes"}
+
+
+def _duration(value: str) -> int:
+    try:
+        return parse_duration(value)
+    except DurationError as exc:
+        raise ToolError(INVALID_PARAMETERS, f"Je n'ai pas compris la durée « {value[:40]} ».") from exc
+
+
+def _identifier(value: str) -> str:
+    if not ID.match(value):
+        raise ToolError(INVALID_PARAMETERS, "Numéro invalide.")
+    return value
+
+
+def _call(action: Callable[[], Scheduled]) -> Scheduled:
+    try:
+        return action()
+    except SchedulingError as exc:
+        raise ToolError(exc.code, exc.message) from exc
+
+
+def _duration_param(description: str, required: bool = True) -> Param:
+    return Param(str, description, required=required, max_length=60, check=_duration, evidence=duration_in_text)
+
+
+def _words(text: str) -> set[str]:
+    return set(normalize(text).split()) - COMMON_WORDS
+
+
+def _pick(active: list, item_id: str | None, matches: Callable[[Scheduled], bool] | None, label: str,
+          missing: str, describe: Callable[[Scheduled], str]) -> str:
+    if item_id:
+        return item_id
+    candidates = [item for item in active if matches(item)] if matches else active
+    if not candidates:
+        raise ToolError(missing, f"Aucun {label} correspondant n'est en cours." if matches else f"Aucun {label} n'est en cours.")
+    if len(candidates) > 1:
+        listing = " ; ".join(describe(item) for item in candidates)
+        raise ToolError(AMBIGUOUS, f"Plusieurs {label}s sont en cours ({listing}). Lequel dois-je annuler ?")
+    return candidates[0].id
+
+
+def _timer_view(timer: Timer, manager: TimerManager) -> dict:
+    return {"timer_id": timer.id, "duration": spoken_duration(timer.seconds),
+            "remaining": spoken_duration(timer.remaining(manager.now())), "ends_at": f"{timer.expires_at:%H:%M}"}
+
+
+def _reminder_view(reminder: Reminder, manager: TimerManager) -> dict:
+    return {"reminder_id": reminder.id, "message": reminder.message,
+            "remaining": spoken_duration(reminder.remaining(manager.now())), "at": f"{reminder.expires_at:%H:%M}"}
+
+
+def timer_tools(manager: TimerManager) -> list[Tool]:
+    limit = spoken_duration(manager.max_seconds)
+
+    def create_timer(duration: int) -> dict:
+        return _timer_view(_call(lambda: manager.create_timer(duration)), manager)
+
+    def cancel_timer(timer_id: str | None = None, duration: int | None = None) -> dict:
+        matches = (lambda t: abs(t.seconds - duration) < 1) if duration else None
+        chosen = _pick(manager.timers(), timer_id, matches, "minuteur", TIMER_NOT_FOUND,
+                       lambda t: f"n° {t.id} de {spoken_duration(t.seconds)}")
+        timer = _call(lambda: manager.cancel_timer(chosen))
+        return {"timer_id": timer.id, "duration": spoken_duration(timer.seconds), "cancelled": True}
+
+    def list_timers() -> dict:
+        timers = [_timer_view(t, manager) for t in manager.timers()]
+        return {"count": len(timers), "timers": timers}
+
+    def create_reminder(delay: int, message: str) -> dict:
+        return _reminder_view(_call(lambda: manager.create_reminder(delay, message)), manager)
+
+    def cancel_reminder(reminder_id: str | None = None, message: str | None = None) -> dict:
+        wanted = _words(message) if message else set()
+        matches = (lambda r: bool(wanted) and wanted <= _words(r.message)) if message else None
+        chosen = _pick(manager.reminders(), reminder_id, matches, "rappel", REMINDER_NOT_FOUND,
+                       lambda r: f"n° {r.id} : {r.message}")
+        reminder = _call(lambda: manager.cancel_reminder(chosen))
+        return {"reminder_id": reminder.id, "message": reminder.message, "cancelled": True}
+
+    def list_reminders() -> dict:
+        reminders = [_reminder_view(r, manager) for r in manager.reminders()]
+        return {"count": len(reminders), "reminders": reminders}
+
+    return [
+        Tool("create_timer", f"Lance un minuteur (jusqu'à {limit}).",
+             {"duration": _duration_param("durée telle qu'elle a été dite, par exemple « 10 minutes »")},
+             {"timer_id": "numéro", "duration": "durée", "remaining": "temps restant", "ends_at": "HH:MM"},
+             Risk.SAFE, create_timer),
+        Tool("cancel_timer", "Annule un minuteur en cours (le seul, ou celui désigné par son numéro ou sa durée).",
+             {"timer_id": Param(str, "numéro du minuteur, s'il a été dit", required=False, max_length=6,
+                                check=_identifier),
+              "duration": _duration_param("durée du minuteur à annuler, si elle a été dite", required=False)},
+             {"timer_id": "numéro", "duration": "durée", "cancelled": "true"}, Risk.SAFE, cancel_timer),
+        Tool("list_timers", "Liste les minuteurs en cours et leur temps restant.", {},
+             {"count": "nombre", "timers": "liste de {timer_id, duration, remaining, ends_at}"}, Risk.SAFE, list_timers),
+        Tool("create_reminder", f"Programme un rappel dans un délai donné (jusqu'à {limit}).",
+             {"delay": _duration_param("délai tel qu'il a été dit, par exemple « 20 minutes »"),
+              "message": Param(str, "ce qu'il faudra rappeler, par exemple « sortir le linge »", max_length=200)},
+             {"reminder_id": "numéro", "message": "message", "remaining": "délai", "at": "HH:MM"},
+             Risk.SAFE, create_reminder),
+        Tool("cancel_reminder", "Annule un rappel prévu (le seul, ou celui désigné par son numéro ou son message).",
+             {"reminder_id": Param(str, "numéro du rappel, s'il a été dit", required=False, max_length=6,
+                                   check=_identifier),
+              "message": Param(str, "mots du rappel à annuler, s'ils ont été dits", required=False, max_length=200)},
+             {"reminder_id": "numéro", "message": "message", "cancelled": "true"}, Risk.SAFE, cancel_reminder),
+        Tool("list_reminders", "Liste les rappels prévus.", {},
+             {"count": "nombre", "reminders": "liste de {reminder_id, message, remaining, at}"}, Risk.SAFE,
+             list_reminders),
+    ]
