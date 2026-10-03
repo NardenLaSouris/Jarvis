@@ -100,6 +100,19 @@ fallback_model = ""
 enabled = false
 timeout = 3.0
 
+[routines]
+# Routines créées dans JARVIS Control (déclencheur, puis outils sans confirmation, phrases, attentes).
+enabled = true
+path = "data/routines.json"
+
+[api]
+# API d'administration pour JARVIS Control (HTTP, réseau local). Jeton : JARVIS_AGENT_TOKEN dans .env.
+# Seules les IP listées y accèdent (celle du PC qui exécute JARVIS Control).
+enabled = false
+host = "0.0.0.0"
+port = 8766
+allowed_ips = []
+
 [web]
 # Recherche Web pour les questions d'actualité (prix, versions, nouvelles...), via une instance
 # SearXNG auto-hébergée (format json activé). Si le service est injoignable, JARVIS le dit simplement.

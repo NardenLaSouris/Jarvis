@@ -99,6 +99,20 @@ class ToolsConfig:
 
 
 @dataclass(frozen=True)
+class RoutinesConfig:
+    enabled: bool = True
+    path: Path = Path("data/routines.json")
+
+
+@dataclass(frozen=True)
+class ApiConfig:
+    enabled: bool = False
+    host: str = "0.0.0.0"
+    port: int = 8766
+    allowed_ips: tuple = ()
+
+
+@dataclass(frozen=True)
 class LightsConfig:
     enabled: bool = False
     timeout: float = 3.0
@@ -178,6 +192,8 @@ class Config:
     notifications: NotificationsConfig = NotificationsConfig()
     weather: WeatherConfig = WeatherConfig()
     lights: LightsConfig = LightsConfig()
+    routines: RoutinesConfig = RoutinesConfig()
+    api: ApiConfig = ApiConfig()
 
 
 def _build(cls: type, data: dict[str, Any], base_dir: Path):
@@ -254,6 +270,8 @@ def load_config(path: str | Path = "config.toml", local: bool = True) -> Config:
         "notifications": NotificationsConfig,
         "weather": WeatherConfig,
         "lights": LightsConfig,
+        "routines": RoutinesConfig,
+        "api": ApiConfig,
     }
     unknown = set(raw) - set(sections)
     if unknown:

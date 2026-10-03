@@ -311,6 +311,27 @@ n'importe quel appareil du réseau local (`http://192.168.1.91:8765/` : PC, tabl
 plusieurs à la fois. L'interface est en lecture seule. L'agent Windows l'ouvre de lui-même sur le PC
 quand le Core se connecte (`[face] open_on_connect` de `windows_agent.toml`).
 
+## JARVIS Control (application Windows)
+
+Interface de contrôle et de configuration : tableau de bord (Core, LLM, agents, recherche, lumières, routines,
+minuteurs, dernière activité), routines (création, modification, activation, duplication, test, suppression),
+appareils (états, commandes des lumières), historique filtrable, paramètres. Icône dans la zone de
+notification, Ctrl+Shift+J pour ouvrir ou masquer, démarrage automatique en option.
+
+Elle ne fait rien elle-même : elle demande tout au Core par son API d'administration (`[api]`, port 8766,
+IP autorisées + jeton `JARVIS_AGENT_TOKEN`). Les routines n'utilisent que les outils enregistrés, sans
+confirmation requise ; aucune commande libre. Le jeton reste dans le processus Python (pont local
+127.0.0.1 protégé par une clé de session) : l'interface ne le voit jamais.
+
+```powershell
+.venv\Scripts\python -m pip install -r requirements-control.txt
+.venv\Scripts\pythonw -m jarvis.control           # ou --hidden pour démarrer dans la zone de notification
+```
+
+Côté Core (mini-PC) : `[api] enabled = true` et `allowed_ips = ["<IP du PC>"]` dans `config.local.toml`,
+puis ouvrir le port au seul PC : `sudo ufw allow from <IP du PC> to any port 8766 proto tcp`.
+Paramètres de l'application et journal : `%APPDATA%\JARVIS Control`.
+
 ## Lumières (ampoules Tuya / LSC Smart Connect, en local)
 
 « Allume la chambre à 30 % », « éteins les lumières », « mets l'entrée en vert », « remets la chambre en blanc

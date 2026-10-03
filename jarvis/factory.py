@@ -198,13 +198,56 @@ def build_devices(cfg: Config):
 
 
 def build_lights(cfg: Config):
-    """Outils des lumières ([lights]), clés locales dans .env (LIGHT_KEY_<PIÈCE>) ; [] si désactivées."""
+    """Pièces et pilote des lumières ([lights]), clés locales dans .env (LIGHT_KEY_<PIÈCE>) ; (None, None) si
+    désactivées."""
     if not (cfg.tools.enabled and cfg.lights.enabled):
-        return []
-    from jarvis.tools.lights import TuyaDriver, light_tools, load_rooms
+        return None, None
+    from jarvis.tools.lights import TuyaDriver, load_rooms
 
     rooms = load_rooms(cfg.lights.rooms, lambda key: secret(f"LIGHT_KEY_{key.upper()}", ENV_FILE))
-    return light_tools(rooms, TuyaDriver(cfg.lights.timeout)) if rooms else []
+    return (rooms, TuyaDriver(cfg.lights.timeout)) if rooms else (None, None)
+
+
+def light_tools_for(rooms, driver) -> list:
+    from jarvis.tools.lights import light_tools
+
+    return light_tools(rooms, driver) if rooms is not None else []
+
+
+def build_routines(cfg: Config, tools, notifications, events: EventBus):
+    """Moteur des routines démarré ([routines]), ou None sans outils."""
+    if tools is None or not cfg.routines.enabled:
+        return None
+    from jarvis.notifications import Notification
+    from jarvis.routines import JsonRoutineStore, RoutineEngine
+
+    def say(title: str, text: str) -> None:
+        notifications.notify(Notification(title[:80], text, "routines"))
+
+    engine = RoutineEngine(JsonRoutineStore(cfg.routines.path), tools.registry, tools.submit, say, events)
+    engine.start()
+    return engine
+
+
+def build_api(cfg: Config, tools, routines, *, web=None, devices=None, rooms=None, driver=None, timers=None):
+    """API d'administration démarrée ([api], pour JARVIS Control), ou None si désactivée."""
+    if not cfg.api.enabled:
+        return None
+    from jarvis.activity import JsonlActivityStore
+    from jarvis.api import CoreApi, CoreStatus
+
+    activity = JsonlActivityStore(cfg.activity.path) if cfg.activity.enabled else None
+    status = CoreStatus(llm_url=cfg.llm.host, llm_model=cfg.llm.model, fallback_model=cfg.llm.fallback_model,
+                        web=web, devices=devices, rooms=rooms, driver=driver, timers=timers, routines=routines,
+                        activity=activity)
+    api = CoreApi(cfg.api.host, cfg.api.port, frozenset(cfg.api.allowed_ips), secret("JARVIS_AGENT_TOKEN", ENV_FILE),
+                  tools=tools, routines=routines, status=status, activity=activity)
+    try:
+        api.start()
+    except OSError as exc:
+        log.warning("API d'administration indisponible (%s:%s) : %s", cfg.api.host, cfg.api.port, exc)
+        return None
+    return api
 
 
 def build_tools(cfg: Config, personality, events: EventBus | None = None, timers=None, weather=None, devices=None,
@@ -334,7 +377,10 @@ def build_agent(
     notifications, voice = build_notifications(cfg, personality, events)
     weather = build_weather(cfg, events) if cfg.tools.enabled else None
     devices = build_devices(cfg)
-    tools = build_tools(cfg, personality, events, timers, weather, devices, build_lights(cfg))
+    rooms, driver = build_lights(cfg)
+    tools = build_tools(cfg, personality, events, timers, weather, devices, light_tools_for(rooms, driver))
+    routines = build_routines(cfg, tools, notifications, events)
+    api = build_api(cfg, tools, routines, web=web, devices=devices, rooms=rooms, driver=driver, timers=timers)
     if tools is not None and len(tools.registry):
         from jarvis.tools import ToolsCapability
 
@@ -362,4 +408,4 @@ def build_agent(
     return Agent(settings, source, sink, wake_word, recorder, stt, llm, tts, router, on_event,
                  stream_audio=cfg.tts.stream_audio, merge_under=cfg.tts.merge_under, web=web,
                  tools=tools, corrector=corrector, notifications=voice,
-                 services=tuple(s for s in (timers, notifications) if s is not None))
+                 services=tuple(s for s in (api, routines, timers, notifications) if s is not None))

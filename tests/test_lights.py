@@ -184,11 +184,11 @@ def test_configuration_and_keys(monkeypatch):
     from dataclasses import replace
 
     cfg = load_config(ROOT / "config.toml", local=False)
-    assert cfg.lights.enabled is False and factory.build_lights(cfg) == []
+    assert cfg.lights.enabled is False and factory.build_lights(cfg) == (None, None)
     on = replace(cfg, lights=replace(cfg.lights, enabled=True, rooms=ROOMS))
     monkeypatch.setattr(factory, "secret", lambda name, env: {"LIGHT_KEY_CHAMBRE": "k" * 16, "LIGHT_KEY_ENTREE": "e" * 16}
                         .get(name, ""))
-    assert [t.name for t in factory.build_lights(on)] == ["light_on", "light_off", "light_toggle", "set_brightness",
+    assert [t.name for t in factory.light_tools_for(*factory.build_lights(on))] == ["light_on", "light_off", "light_toggle", "set_brightness",
                                                           "set_color", "set_color_temperature"]
 
 

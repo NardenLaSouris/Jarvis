@@ -1,0 +1,5 @@
+# JARVIS Control (application Windows), en plus de requirements.txt :
+#   .venv\Scripts\python -m pip install -r requirements-control.txt
+pywebview==6.2.1       # fenêtre native (WebView2)
+pystray==0.19.5        # icône dans la zone de notification
+pillow==12.3.0         # dessin de l'icône
