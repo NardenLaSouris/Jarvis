@@ -1,0 +1,20 @@
+# Service utilisateur systemd du Core JARVIS (mini-PC Linux), sans droits administrateur :
+#   mkdir -p ~/.config/systemd/user && cp deploy/jarvis.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload && systemctl --user enable --now jarvis
+#   journalctl --user -u jarvis -f                     # journal en direct
+#   sudo loginctl enable-linger $USER                  # démarrer avec la machine, sans session ouverte
+# Le dépôt est supposé dans /opt/jarvis (sinon, adapter WorkingDirectory et ExecStart).
+
+[Unit]
+Description=JARVIS, assistant vocal (Core)
+After=network-online.target
+
+[Service]
+WorkingDirectory=/opt/jarvis
+ExecStart=/opt/jarvis/.venv/bin/python -m jarvis
+Environment=PYTHONUNBUFFERED=1
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

@@ -50,6 +50,10 @@ python3 -m venv .venv
 
 Sous Windows : `python -m venv .venv`, puis `.venv\Scripts\...` à la place de `.venv/bin/...`.
 
+Sur le mini-PC, JARVIS tourne en service utilisateur systemd (démarrage automatique, relance en cas
+d'arrêt inattendu) : voir l'en-tête de `deploy/jarvis.service` pour l'installer ;
+`systemctl --user restart jarvis` après une mise à jour, `journalctl --user -u jarvis -f` pour le journal.
+
 ## Utilisation
 
 ```bash
