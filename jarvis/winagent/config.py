@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import ipaddress
-import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
-from jarvis.config import secret
+from jarvis.config import read_toml, secret
 
 TOKEN_NAME = "JARVIS_AGENT_TOKEN"
 MIN_TOKEN_LENGTH = 32
@@ -30,8 +29,7 @@ def load_agent_config(path: str | Path, env_file: str | Path) -> AgentConfig:
     Lève ValueError si la configuration n'est pas sûre : aucune IP autorisée, IP invalide, jeton absent ou court.
     """
     path = Path(path)
-    with path.open("rb") as fh:
-        data = tomllib.load(fh)
+    data = read_toml(path)
     raw, audio, face = data.get("agent", {}), data.get("audio", {}), data.get("face", {})
     unknown = (set(data) - {"agent", "audio", "face"}) | (set(raw) - {"host", "port", "allowed_ips"}) | (
         set(audio) - {"input_device", "output_device"}) | (set(face) - {"open_on_connect", "port"})

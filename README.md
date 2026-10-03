@@ -340,6 +340,14 @@ notepad .env                                  # ajouter la ligne JARVIS_AGENT_TO
 Le même jeton va dans le `.env` du Core (mini-PC). Le chemin des fichiers se change avec
 `--config` et `--env`.
 
+Démarrage automatique à l'ouverture de session, sans fenêtre (journal : `data\winagent.log`,
+aucun droit administrateur) :
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\install_winagent_startup.ps1           # installer et démarrer
+powershell -ExecutionPolicy Bypass -File scripts\install_winagent_startup.ps1 -Remove   # désinstaller
+```
+
 Ouvrir le port uniquement pour le Core (PowerShell administrateur, une seule fois) :
 
 ```powershell

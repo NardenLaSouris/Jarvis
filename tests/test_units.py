@@ -185,3 +185,12 @@ def test_local_configuration_overrides_settings_per_machine(tmp_path):
 
     with pytest.raises(ValueError, match="modl"):
         load_config(tmp_path / "config.toml")
+
+
+def test_toml_saved_with_a_bom_is_read(tmp_path):
+    from jarvis.config import load_config
+
+    (tmp_path / "config.toml").write_text('[llm]\nmodel = "qwen2.5:3b"\n', encoding="utf-8-sig")
+    (tmp_path / "config.local.toml").write_text('[face]\nhost = "0.0.0.0"\n', encoding="utf-8-sig")
+    cfg = load_config(tmp_path / "config.toml")
+    assert (cfg.llm.model, cfg.face.host) == ("qwen2.5:3b", "0.0.0.0")

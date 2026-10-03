@@ -195,6 +195,11 @@ def _build(cls: type, data: dict[str, Any], base_dir: Path):
     return instance
 
 
+def read_toml(path: Path) -> dict:
+    """Fichier TOML, qu'il ait été enregistré avec ou sans BOM (certains éditeurs Windows en ajoutent un)."""
+    return tomllib.loads(Path(path).read_text(encoding="utf-8-sig"))
+
+
 def secret(name: str, env_file: Path) -> str:
     if os.environ.get(name):
         return os.environ[name]
@@ -210,15 +215,13 @@ def load_config(path: str | Path = "config.toml", local: bool = True) -> Config:
     """Lit ``path``, puis (si ``local``) ``<nom>.local.toml`` à côté s'il existe : réglages propres à la
     machine, non versionnés, qui remplacent les réglages du même nom section par section."""
     path = Path(path).resolve()
-    with path.open("rb") as fh:
-        raw = tomllib.load(fh)
+    raw = read_toml(path)
     overrides = path.with_name(f"{path.stem}.local.toml")
     if local and overrides.exists():
-        with overrides.open("rb") as fh:
-            for section, values in tomllib.load(fh).items():
-                if not isinstance(values, dict):
-                    raise ValueError(f"{overrides.name} : [{section}] doit être une section")
-                raw.setdefault(section, {}).update(values)
+        for section, values in read_toml(overrides).items():
+            if not isinstance(values, dict):
+                raise ValueError(f"{overrides.name} : [{section}] doit être une section")
+            raw.setdefault(section, {}).update(values)
     base = path.parent
     sections = {
         "assistant": AssistantConfig,

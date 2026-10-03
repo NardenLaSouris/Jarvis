@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import re
-import tomllib
 import unicodedata
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+
+from jarvis.config import read_toml
 
 
 def normalize(text: str) -> str:
@@ -140,8 +141,7 @@ class Personality:
 
 
 def load_personality(path: str | Path) -> Personality:
-    with Path(path).open("rb") as fh:
-        raw = tomllib.load(fh)
+    raw = read_toml(path)
     p = raw.get("personality", {})
     phrases = raw.get("phrases", {})
     matching = raw.get("matching", {})

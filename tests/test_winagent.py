@@ -250,3 +250,20 @@ def test_face_settings_are_read(tmp_path):
     assert load_agent_config(*write(tmp_path, '[agent]\nallowed_ips = ["192.168.1.91"]\n')).face_port is None
     with pytest.raises(ValueError, match="inconnus"):
         load_agent_config(*write(tmp_path, '[agent]\nallowed_ips = ["192.168.1.91"]\n[face]\nurl = "http://x"\n'))
+
+
+def test_errors_go_to_the_log_file_when_started_without_window(tmp_path):
+    import logging
+
+    config, secrets = write(tmp_path, '[agent]\nallowed_ips = ["192.168.1.91"]\n', "")
+    log = tmp_path / "logs" / "winagent.log"
+    root = logging.getLogger()
+    handlers = root.handlers[:]
+    root.handlers = []
+    try:
+        assert main(["--config", str(config), "--env", str(secrets), "--log-file", str(log)]) == 2
+    finally:
+        for handler in root.handlers:
+            handler.close()
+        root.handlers = handlers
+    assert "JARVIS_AGENT_TOKEN" in log.read_text(encoding="utf-8")

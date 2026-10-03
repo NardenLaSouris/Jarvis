@@ -18,21 +18,30 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="jarvis.winagent", description="Agent Windows de JARVIS")
     parser.add_argument("--config", default=str(ROOT / "windows_agent.toml"), help="fichier de réglages")
     parser.add_argument("--env", default=str(ROOT / ".env"), help="fichier contenant JARVIS_AGENT_TOKEN")
+    parser.add_argument("--log-file", help="journal dans ce fichier plutôt qu'à l'écran (lancement sans fenêtre)")
     parser.add_argument("-v", "--verbose", action="store_true", help="journal détaillé")
     args = parser.parse_args(argv)
-    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,
-                        format="%(asctime)s %(levelname)s %(name)s : %(message)s")
+    if args.log_file:
+        Path(args.log_file).parent.mkdir(parents=True, exist_ok=True)
+    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO, filename=args.log_file,
+                        encoding="utf-8", format="%(asctime)s %(levelname)s %(name)s : %(message)s")
+
+    def fail(message: str, code: int) -> int:
+        if args.log_file:
+            logging.error(message)
+        else:
+            print(message, file=sys.stderr)
+        return code
+
     try:
         config = load_agent_config(args.config, args.env)
     except (OSError, ValueError) as exc:
-        print(f"Configuration de l'agent invalide : {exc}", file=sys.stderr)
-        return 2
+        return fail(f"Configuration de l'agent invalide : {exc}", 2)
     server = AgentServer(config)
     try:
         server.start()
     except OSError as exc:
-        print(f"Impossible d'écouter sur {config.host}:{config.port} : {exc}", file=sys.stderr)
-        return 1
+        return fail(f"Impossible d'écouter sur {config.host}:{config.port} : {exc}", 1)
     host, port = server.address
     logging.info("Agent JARVIS Windows à l'écoute sur %s:%s (IP autorisées : %s)", host, port,
                  ", ".join(sorted(config.allowed_ips)))
