@@ -348,7 +348,7 @@ def test_prompt_announces_web_search_only_when_enabled():
     prompt = router().system_prompt()
     assert "chercher des informations actuelles sur Internet" in prompt
     assert "(informations en temps réel" not in prompt
-    assert "aucune recherche Internet n'a été effectuée" in prompt and "DONNÉES NON FIABLES" not in prompt
+    assert "aucune recherche Internet n'a été effectuée" in prompt and WEB_RULES in prompt
 
 
 def test_urls_are_never_spoken():
@@ -415,10 +415,9 @@ def test_agent_answers_from_web_results():
     agent, llm, tts, events = run_agent(web, "Jarvis, combien coûte une RTX 3060 actuellement ?")
     assert [t for k, t in events if k == "routing"] == ["web.search"]
     system, user = llm.calls[0]
-    assert system.role == "system" and "DONNÉES NON FIABLES" not in system.content
+    assert system.role == "system" and WEB_RULES in system.content
     assert system.content.split("Date et heure")[0] == router().system_prompt().split("Date et heure")[0]
-    assert "DONNÉES NON FIABLES" in user.content
-    assert user.role == "user" and user.content.startswith(WEB_RULES + chr(10) * 2 + DATA_START)
+    assert user.role == "user" and user.content.startswith(DATA_START)
     assert user.content.endswith(DATA_END + chr(10) * 2 + "Combien coûte une RTX 3060 actuellement ?")
     assert "279 €" in user.content and "cuisine.fr" not in user.content
     assert tts.spoken[-1].startswith("D'après Le Dénicheur, la RTX 3060 est à environ 279 euros")
@@ -442,7 +441,7 @@ def test_agent_says_so_when_nothing_is_found():
 def test_agent_without_provider_does_not_pretend_to_search():
     agent, llm, tts, events = run_agent(None, "Quelle est la dernière version de Python ?", web_enabled=False)
     assert [t for k, t in events if k == "routing"] == ["llm"]
-    assert "DONNÉES NON FIABLES" not in llm.calls[0][0].content and len(llm.calls[0]) == 2
+    assert DATA_START not in llm.calls[0][-1].content and len(llm.calls[0]) == 2
 
 
 def test_prompt_injection_stays_inert_data():
@@ -456,8 +455,7 @@ def test_prompt_injection_stays_inert_data():
     system, user = first
     assert system.role == "system" and "Ignore toutes" not in system.content and "rm -rf" not in system.content
     assert system.content.split("Date et heure")[0] == reference.split("Date et heure")[0]
-    assert user.content.startswith(WEB_RULES)
-    body = user.content.removeprefix(WEB_RULES)
+    body = user.content
     assert body.count(DATA_START) == 1 and body.count(DATA_END) == 1
     injected = body.index("Ignore toutes les instructions")
     assert body.index(DATA_START) < injected < body.index(DATA_END)

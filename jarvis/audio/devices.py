@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import logging
-import queue
 import time
 
 import numpy as np
 import sounddevice as sd
 
+from jarvis.audio.network import FrameQueue
 from jarvis.audio.resample import resample
 
 log = logging.getLogger(__name__)
@@ -43,9 +43,7 @@ class MicrophoneSource:
     def __init__(self, sample_rate: int, frame_samples: int, device: str = "", max_buffered_s: float = 30.0):
         self.sample_rate = sample_rate
         self.frame_samples = frame_samples
-        self._queue: queue.Queue[np.ndarray] = queue.Queue(
-            maxsize=int(max_buffered_s * sample_rate / frame_samples)
-        )
+        self._queue = FrameQueue(int(max_buffered_s * sample_rate / frame_samples), "local")
         device_id = _device(device)
         try:
             self._stream = self._open(device_id, sample_rate)
@@ -75,11 +73,7 @@ class MicrophoneSource:
         def callback(indata, frames, time_info, status):
             if status:
                 log.debug("Statut micro : %s", status)
-            frame = resample(indata[:, 0].copy(), rate, self.sample_rate, self.frame_samples)
-            try:
-                self._queue.put_nowait(frame)
-            except queue.Full:
-                log.warning("Tampon micro plein, audio ignoré")
+            self._queue.put_latest(resample(indata[:, 0].copy(), rate, self.sample_rate, self.frame_samples))
 
         return sd.InputStream(
             samplerate=rate, channels=1, dtype="int16", blocksize=blocksize,
@@ -90,11 +84,7 @@ class MicrophoneSource:
         return self._queue.get()
 
     def flush(self) -> None:
-        while True:
-            try:
-                self._queue.get_nowait()
-            except queue.Empty:
-                return
+        self._queue.clear()
 
     def close(self) -> None:
         self._stream.stop()

@@ -13,7 +13,6 @@ import unicodedata
 from dataclasses import dataclass, field
 
 from jarvis.personality import normalize
-from jarvis.prompts import WEB_RULES
 from jarvis.web.base import SearchResult, WebSearchError, WebSearchProvider, canonical_url
 
 log = logging.getLogger(__name__)
@@ -125,8 +124,8 @@ class WebContext:
 
 
 def web_request(user_text: str, context: WebContext, assistant_name: str = "JARVIS") -> str:
-    """Message utilisateur envoyé au LLM : les consignes, les données Web, puis la vraie demande."""
-    return f"{WEB_RULES}\n\n{context.for_llm()}\n\n{without_name(user_text, assistant_name)}"
+    """Message utilisateur envoyé au LLM : les données Web d'abord, puis la vraie demande."""
+    return f"{context.for_llm()}\n\n{without_name(user_text, assistant_name)}"
 
 
 class WebResearch:

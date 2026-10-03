@@ -17,6 +17,39 @@ import numpy as np
 log = logging.getLogger(__name__)
 
 
+class FrameQueue(queue.Queue):
+    """Blocs audio en attente. Plein (JARVIS occupé à réfléchir ou à parler) : le bloc le plus ancien est oublié,
+    avec un seul message tant que le débordement dure."""
+
+    def __init__(self, maxsize: int, label: str):
+        super().__init__(maxsize)
+        self._label = label
+        self._overflowing = False
+
+    def put_latest(self, frame: np.ndarray) -> None:
+        if not self.full():
+            self._overflowing = False
+        elif not self._overflowing:
+            log.info("Tampon du micro %s plein : l'audio le plus ancien est ignoré", self._label)
+            self._overflowing = True
+        while True:
+            try:
+                self.put_nowait(frame)
+                return
+            except queue.Full:
+                try:
+                    self.get_nowait()
+                except queue.Empty:
+                    pass
+
+    def clear(self) -> None:
+        while True:
+            try:
+                self.get_nowait()
+            except queue.Empty:
+                return
+
+
 class _Agent:
     def __init__(self, url: str, token: str):
         token = token.strip()
@@ -53,7 +86,7 @@ class NetworkSource:
         self._agent = _Agent(url, token)
         self._retry = retry_s
         self._timeout = timeout
-        self._queue: queue.Queue[np.ndarray] = queue.Queue(maxsize=int(max_buffered_s * sample_rate / frame_samples))
+        self._queue = FrameQueue(int(max_buffered_s * sample_rate / frame_samples), "distant")
         self._stopping = threading.Event()
         self._response = None
         self._thread = threading.Thread(target=self._run, name="micro-distant", daemon=True)
@@ -73,7 +106,7 @@ class NetworkSource:
                         data = response.read(size)
                         if len(data) < size:
                             break
-                        self._put(np.frombuffer(data, dtype="<i2").astype(np.int16))
+                        self._queue.put_latest(np.frombuffer(data, dtype="<i2").astype(np.int16))
             except (OSError, ValueError) as exc:
                 if not failing and not self._stopping.is_set():
                     log.warning("Micro distant injoignable (%s) : nouvelle tentative toutes les %.0f s",
@@ -83,21 +116,11 @@ class NetworkSource:
                 self._response = None
             self._stopping.wait(self._retry)
 
-    def _put(self, frame: np.ndarray) -> None:
-        try:
-            self._queue.put_nowait(frame)
-        except queue.Full:
-            log.warning("Tampon du micro distant plein, audio ignoré")
-
     def read(self) -> np.ndarray | None:
         return self._queue.get()
 
     def flush(self) -> None:
-        while True:
-            try:
-                self._queue.get_nowait()
-            except queue.Empty:
-                return
+        self._queue.clear()
 
     def close(self) -> None:
         self._stopping.set()

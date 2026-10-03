@@ -260,3 +260,17 @@ def test_token_never_appears_in_logs(caplog):
     with pytest.raises(ValueError, match="invalides") as exc:
         NetworkSink("http://127.0.0.1:9", "abc def" + "x" * 40)
     assert "abc def" not in str(exc.value)
+
+
+def test_full_buffer_keeps_the_latest_audio_and_reports_once(caplog):
+    from jarvis.audio.network import FrameQueue
+
+    frames = FrameQueue(3, "test")
+    with caplog.at_level(logging.INFO):
+        for i in range(10):
+            frames.put_latest(np.full(4, i, np.int16))
+    assert [int(frames.get_nowait()[0]) for _ in range(3)] == [7, 8, 9]
+    assert sum("plein" in r.message for r in caplog.records) == 1
+    frames.put_latest(np.zeros(4, np.int16))
+    frames.clear()
+    assert frames.empty()

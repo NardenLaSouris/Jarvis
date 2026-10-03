@@ -727,12 +727,11 @@ def test_request_without_tool_goes_to_the_llm_as_before():
     assert routes(events) == ["llm"] and llm.planned == [] and "RESULTAT_OUTIL" not in llm.calls[0][-1].content
 
 
-def test_time_request_is_answered_from_the_tool_by_the_llm():
-    llm = PlannerLLM(reply="Il est 13 heures 42, monsieur.")
-    spoken, events = run_agent(["Jarvis, quelle heure est-il ?"], llm)
-    assert routes(events) == ["tool:time"] and llm.planned == []
-    assert result_sent_to_llm(llm)["result"] == {"time": "13:42", "spoken": "13 heures 42"}
-    assert spoken == ["Il est 13 heures 42, monsieur."]
+def test_time_and_date_are_answered_by_the_tool_without_the_llm():
+    llm = PlannerLLM()
+    spoken, events = run_agent(["Jarvis, quelle heure est-il ?", "Quel jour sommes-nous ?"], llm)
+    assert routes(events) == ["tool:time", "tool:date"] and llm.planned == [] and llm.calls == []
+    assert spoken[0] == "Il est 13 heures 42." and spoken[1].startswith("Nous sommes le ")
 
 
 def test_open_discord_by_voice_without_confirmation():

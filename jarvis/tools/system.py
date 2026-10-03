@@ -29,7 +29,7 @@ def time_tool(clock: Callable[[], datetime]) -> Tool:
         return {"time": now.strftime("%H:%M"), "spoken": spoken_time(now)}
 
     return Tool("get_time", "Donne l'heure locale.", {}, {"time": "HH:MM", "spoken": "heure en toutes lettres"},
-                Risk.SAFE, run)
+                Risk.SAFE, run, say=lambda r: f"Il est {r['spoken']}.")
 
 
 def date_tool(clock: Callable[[], datetime]) -> Tool:
@@ -40,7 +40,8 @@ def date_tool(clock: Callable[[], datetime]) -> Tool:
                 "spoken": f"{WEEKDAYS[now.weekday()]} {day} {MONTHS[now.month - 1]} {now.year}"}
 
     return Tool("get_date", "Donne la date du jour.", {},
-                {"date": "AAAA-MM-JJ", "weekday": "jour", "spoken": "date en toutes lettres"}, Risk.SAFE, run)
+                {"date": "AAAA-MM-JJ", "weekday": "jour", "spoken": "date en toutes lettres"}, Risk.SAFE, run,
+                say=lambda r: f"Nous sommes le {r['spoken']}.")
 
 
 # --- Informations machine -------------------------------------------------------------------------
