@@ -108,6 +108,13 @@ strict_words = ["tu", "toi", "te", "t", "ton", "ta", "tes", "vous", "votre", "vo
 "t appelle" = "t appelles"
 "presentes toi" = "presente toi"
 "presenter toi" = "presente toi"
+# « Luminosité » mal transcrit (sinon la demande part au LLM au lieu des lumières).
+"luminausite" = "luminosite"
+"luminausitee" = "luminosite"
+"lumineausite" = "luminosite"
+"lumineusite" = "luminosite"
+"luminocite" = "luminosite"
+"luminosites" = "luminosite"
 # « Jarvis » mal transcrit par le STT : ramené à « jarvis » pour être ignoré comme le vrai nom
 # (sinon « Merci Jervis » n'est pas reconnu comme un remerciement et part au LLM).
 "quel heure" = "quelle heure"

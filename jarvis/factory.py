@@ -92,6 +92,8 @@ def vocabulary_hint(cfg: Config, personality_name: str = "JARVIS") -> str:
     phrases.append("Raconte-moi.")
     if cfg.tools.enabled and cfg.weather.enabled:
         phrases.append(f"Quel temps fera-t-il à {cfg.weather.default_location} ?")
+    if cfg.tools.enabled and cfg.lights.enabled:
+        phrases += ["Allume la lumière.", "Luminosité 30 %."]
     return " ".join([hint, *phrases])
 
 

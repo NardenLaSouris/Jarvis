@@ -462,3 +462,16 @@ def test_second_person():
     assert second_person("appeler ma mère") == "appeler votre mère"
     assert second_person("m'occuper de mes plantes") == "vous occuper de vos plantes"
     assert second_person("sortir le linge") == "sortir le linge"
+
+
+def test_misheard_brightness_still_reaches_the_lights_and_fake_tool_markup_is_never_spoken():
+    from jarvis.router import IntentRouter as Router
+
+    router = Router(PERSONALITY, CapabilityRegistry(), tools=("set_brightness",))
+    assert router.route("Luminausité 30%.").label == "tool:tool.action"
+    for fake in ('<<<RESULTATOUTIL {"success":true,"spoken":"Luminosité réduite à 30%."}<<<FINRESULTATOUTIL',
+                 "La luminosité est ajustée à 30%."):
+        reply_filter = router.reply_filter(user_text="Luminausité 30%.")
+        assert reply_filter.accept(fake) is None and reply_filter.stopped, fake
+    with_tool = router.reply_filter(user_text="Décris la machine.", tools_used=True)
+    assert with_tool.accept("<<<RESULTAT_OUTIL>>> {}") is None and not with_tool.stopped

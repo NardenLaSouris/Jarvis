@@ -29,6 +29,9 @@ from jarvis.streaming import split_sentences
 
 log = logging.getLogger(__name__)
 
+# Balises réservées aux données d'outil ou Web : une réponse qui les reproduit les invente.
+MARKUP = re.compile(r"<<<|>>>|RESULTAT_?OUTIL|DONNEES_WEB", re.IGNORECASE)
+
 ACTION_VERBS = (
     "eteint|allume|ouvert|ferme|lance|envoye|programme|regle|active|desactive|baisse|monte|augmente|"
     "diminue|mis|joue|appele|supprime|cree|enregistre|demarre|arrete|coupe|verrouille|commande|reserve|ajoute"
@@ -39,7 +42,8 @@ ACTION_CLAIMS = (
     re.compile(r"\b(c est|voila c est|voila qui est) fait\b"),
     re.compile(r"\b(est|sont) (maintenant |desormais |bien )?(eteinte?s?|allumee?s?|ouverte?s?|fermee?s?|"
                r"lancee?s?|envoyee?s?|activee?s?|desactivee?s?|programmee?s?|reglee?s?|coupee?s?|montee?s?|baissee?s?|"
-               r"augmentee?s?|diminuee?s?|verrouillee?s?|remise?s?|annulee?s?|mise?s?)\b"),
+               r"augmentee?s?|diminuee?s?|verrouillee?s?|remise?s?|annulee?s?|mise?s?|ajustee?s?|reduite?s?|"
+               r"modifiee?s?|changee?s?|passee?s?|tamisee?s?|configuree?s?|definie?s?)\b"),
     re.compile(r"\b(message|mail|e mail|sms|musique|lumiere) (est )?(bien )?(envoye|lancee?|allumee|eteinte)\b"),
     re.compile(r"\bje m en occupe\b"),
     re.compile(r"\bj ai (bien )?(pris note|note|pris en compte|transmis)\b"),
@@ -289,6 +293,10 @@ class ReplyFilter:
 
     def accept(self, sentence: str) -> str | None:
         if self.stopped:
+            return None
+        if MARKUP.search(sentence):
+            log.warning("Réponse du LLM écartée (balises d'outil reproduites) : %s", sentence)
+            self.stopped = not self._tools_used
             return None
         if not self._tools_used and claims_action(sentence):
             log.warning("Réponse du LLM interrompue (action prétendue sans outil) : %s", sentence)
