@@ -60,6 +60,8 @@ class LLMConfig:
     max_tokens: int = 200
     keep_alive: str = "30m"
     timeout: float = 120.0
+    fallback_host: str = ""
+    fallback_model: str = ""
 
 
 @dataclass(frozen=True)

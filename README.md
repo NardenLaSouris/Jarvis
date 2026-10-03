@@ -529,6 +529,11 @@ host = "0.0.0.0"
 open_browser = false
 ```
 
+**LLM sur une autre machine.** `[llm] host` peut viser un worker GPU du réseau (Ollama écoutant sur le LAN),
+avec `fallback_host` / `fallback_model` pour un LLM de secours (par exemple Ollama en local) : avant chaque
+appel, JARVIS vérifie en moins d'une seconde que le worker répond, sinon il bascule aussitôt sur le secours
+et retente le worker 30 s plus tard. Les deux sont préchargés au lancement.
+
 - `[llm] model` : modèle Ollama ; sur CPU seul, préférer un 3-4B.
 - `[stt] model` : `small` (précis, ~2 s par phrase sur Ryzen 7) ou `base` (~0,7 s, moins fiable).
 - `[wake_word] threshold` : 0,96 d'après l'évaluation (voir « Wake word ») ; à ajuster avec `--wake-test`.

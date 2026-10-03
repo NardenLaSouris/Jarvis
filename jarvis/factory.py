@@ -32,7 +32,14 @@ def build_llm(cfg: Config) -> LanguageModel:
         from jarvis.llm.ollama import OllamaLLM
 
         c = cfg.llm
-        return OllamaLLM(c.host, c.model, c.temperature, c.max_tokens, c.keep_alive, c.timeout)
+        llm = OllamaLLM(c.host, c.model, c.temperature, c.max_tokens, c.keep_alive, c.timeout)
+        if not c.fallback_host:
+            return llm
+        from jarvis.llm.failover import FailoverLLM
+
+        fallback = OllamaLLM(c.fallback_host, c.fallback_model or c.model, c.temperature, c.max_tokens, c.keep_alive,
+                             c.timeout)
+        return FailoverLLM(llm, fallback, c.host)
     raise ValueError(f"Backend LLM inconnu : {cfg.llm.backend}")
 
 

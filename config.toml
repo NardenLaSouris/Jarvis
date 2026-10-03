@@ -84,6 +84,9 @@ temperature = 0.3
 max_tokens = 200
 keep_alive = "30m"
 timeout = 120.0
+# LLM de secours quand celui de « host » est injoignable (par exemple un worker GPU éteint) ; vide = aucun.
+fallback_host = ""
+fallback_model = ""
 
 [web]
 # Recherche Web pour les questions d'actualité (prix, versions, nouvelles...), via une instance
