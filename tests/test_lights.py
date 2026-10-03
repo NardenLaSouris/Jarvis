@@ -82,7 +82,7 @@ def test_room_is_found_in_the_request_or_asked():
     for text, key in (("Allume la chambre.", "chambre"), ("Éteins ma chambre", "chambre"),
                       ("Mets l'entrée en vert", "entree"), ("Allume le couloir à 30 %", "entree"),
                       ("Éteins toutes les lumières", "all"), ("Éteins les lumières", "all"),
-                      ("Allume la lumière", None)):
+                      ("Allume la lumière", "all"), ("Mets la lumière en bleu", "all")):
         assert rooms.resolve(text) == key, text
     single = rooms_from({"chambre": ROOMS["chambre"]})
     assert single.resolve("Allume la lumière") == "chambre"
@@ -143,10 +143,12 @@ def test_brightness_without_a_number_never_reaches_the_lights():
     assert driver.calls == []
 
 
-def test_without_room_jarvis_asks_which_one():
+def test_without_room_all_lights_are_used():
     driver = FakeDriver()
-    spoken, _, _ = converse(["Allume la lumière."], [("light_on", {})], driver)
-    assert spoken == ["Dans quelle pièce ?"] and driver.calls == []
+    spoken, _, _ = converse(["Allume la lumière.", "Mets la lumière en bleu."],
+                            [("light_on", {}), ("set_color", {"color": "bleu"})], driver)
+    assert spoken == ["Toutes les lumières sont allumées.", "Toutes les lumières sont en bleu."]
+    assert all(light["on"] and light["hue"] == 240 for light in driver.lights.values())
 
 
 def test_unreachable_light_is_reported():

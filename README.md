@@ -316,8 +316,8 @@ quand le Core se connecte (`[face] open_on_connect` de `windows_agent.toml`).
 « Allume la chambre à 30 % », « éteins les lumières », « mets l'entrée en vert », « remets la chambre en blanc
 chaud », « la chambre à 4000 kelvins » : outils `light_on`, `light_off`, `light_toggle`, `set_brightness`,
 `set_color`, `set_color_temperature`, exécutés par le Core en local (TinyTuya, sans cloud). La pièce vient des
-mots de la demande (alias ; « les lumières » = toutes), jamais du LLM ; sans pièce reconnue, JARVIS demande
-laquelle. Réponses sans LLM : « La lumière de la chambre est allumée à 30 %. »
+mots de la demande (alias), jamais du LLM ; sans pièce nommée (« allume la lumière »), toutes les lumières
+sont visées. Réponses sans LLM : « La lumière de la chambre est allumée à 30 %. »
 
 Réglages dans `[lights]` (voir `config.toml`) : une pièce par ampoule dans `config.local.toml` (nom, device_id,
 ip, version, alias), clé locale de chaque ampoule dans `.env` (`LIGHT_KEY_<PIÈCE>`), jamais dans Git. Les clés

@@ -1,6 +1,7 @@
 """Lumières connectées (ampoules Tuya, par exemple LSC Smart Connect), pilotées en local par le Core.
 
-La pièce visée vient des mots de la demande (alias), jamais du LLM ; « les lumières » désigne toutes les pièces.
+La pièce visée vient des mots de la demande (alias), jamais du LLM ; sans pièce nommée (« allume la lumière »),
+toutes les lumières sont visées.
 Le LLM ne parle jamais aux ampoules : seul le pilote, appelé par ces outils, le fait (TinyTuya, réseau local).
 """
 
@@ -116,11 +117,11 @@ class Rooms:
     def keys(self) -> tuple[str, ...]:
         return (*self._rooms, ALL)
 
-    def resolve(self, text: str) -> str | None:
-        """Pièce nommée dans la demande, « all » pour toutes ; la seule pièce s'il n'y en a qu'une."""
+    def resolve(self, text: str) -> str:
+        """Pièce nommée dans la demande ; sinon toutes (« all »), ou la seule pièce s'il n'y en a qu'une."""
         found = self._aliases.find(text)
-        if found is None and len(self._rooms) == 1:
-            return next(iter(self._rooms))
+        if found is None:
+            return next(iter(self._rooms)) if len(self._rooms) == 1 else ALL
         return found
 
     def targets(self, key: str | None) -> list[Room]:
