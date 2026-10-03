@@ -95,6 +95,7 @@ class SpeakerSink:
     def __init__(self, device: str = ""):
         self._device = _device(device)
         self._stream: sd.OutputStream | None = None
+        self._aborted = False
         self._rate = 0
         self._stream_rate = 0
 
@@ -108,7 +109,15 @@ class SpeakerSink:
         stream = self._open(sample_rate)
         if self._stream_rate != sample_rate:
             audio = resample(audio, sample_rate, self._stream_rate)
-        stream.write(np.ascontiguousarray(audio.astype(np.int16).reshape(-1, 1)))
+        data = np.ascontiguousarray(audio.astype(np.int16).reshape(-1, 1))
+        block = max(1, self._stream_rate // 10)
+        self._aborted = False
+        for start in range(0, len(data), block):
+            if self._aborted:
+                stream.abort()
+                self.close()
+                return
+            stream.write(data[start:start + block])
 
     def drain(self) -> None:
         if self._stream is not None:
@@ -120,11 +129,9 @@ class SpeakerSink:
             self._stream = None
 
     def stop(self) -> None:
-        """Coupe immédiatement la lecture en cours (interruption par le wake word)."""
-        stream, self._stream = self._stream, None
-        if stream is not None:
-            stream.abort()
-            stream.close()
+        """Coupe la lecture en cours (interruption par le wake word), en moins de 0,1 s. Seul le fil de lecture
+        touche au flux (appeler PortAudio depuis deux fils à la fois peut le faire planter)."""
+        self._aborted = True
 
     def _open(self, sample_rate: int) -> sd.OutputStream:
         if self._stream is not None and self._rate == sample_rate:
