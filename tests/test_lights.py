@@ -160,7 +160,7 @@ def test_unreachable_light_is_reported():
 def test_the_room_is_never_chosen_by_the_llm():
     registry = core_with(FakeDriver()).registry
     assert "room" not in planner_prompt(registry)
-    options = {o["properties"]["tool"]["const"]: o["properties"]["parameters"] for o in plan_schema(registry)["anyOf"][1:]}
+    options = {o["properties"]["tool"]["const"]: o["properties"]["parameters"] for o in plan_schema(registry)["anyOf"][1:-1]}
     assert set(options["set_color"]["properties"]) == {"color"} and "vert" in options["set_color"]["properties"]["color"]["enum"]
 
 
@@ -211,7 +211,20 @@ def test_tuya_driver_converts_scales():
     assert driver.state(room) == {"on": True, "brightness": 30, "mode": "white"}
     driver.white(room, 6500)
     driver.colour(room, 120)
-    assert bulb.calls == [("set_white_percentage", (30, 100)), ("set_hsv", (120 / 360, 1.0, 1.0))]
+    assert bulb.calls == [("set_white_percentage", (30, 100)), ("set_hsv", (120 / 360, 1.0, 0.3))]
+
+
+def test_tuya_driver_reads_colour_brightness():
+    from jarvis.tools.lights import Room
+
+    class Bulb:
+        def status(self):
+            return {"dps": {"20": True, "21": "colour", "22": 1000, "24": "00f003e801f4"}}
+
+    driver = TuyaDriver()
+    room = Room("chambre", "la chambre", "id", "1.2.3.4", 3.5, "k")
+    driver._bulbs["chambre"] = Bulb()
+    assert driver.state(room) == {"on": True, "brightness": 50, "mode": "colour"}
 
 
 def test_invented_brightness_is_dropped_and_the_light_still_turns_on():
@@ -227,3 +240,48 @@ def test_brightness_alone_sets_every_light():
     assert spoken == ["Toutes les lumières sont à 30 %.", "Toutes les lumières sont à 100 %."]
     assert routes(events) == ["tool:tool.action"] * 2
     assert all(light["on"] and light["brightness"] == 100 for light in driver.lights.values())
+
+
+# --- Demandes à plusieurs actions -----------------------------------------------------------------
+
+def several(*calls):
+    return {"type": "tool_calls", "calls": [{"tool": tool, "parameters": params, "segment": segment}
+                                            for tool, params, segment in calls]}
+
+
+def test_compound_request_runs_every_action_in_order_on_the_same_room():
+    driver = FakeDriver()
+    llm = PlannerLLM(several(("light_on", {"brightness": 30}, "allume la chambre à 30 %"),
+                             ("set_color", {"color": "bleu"}, "en bleu")))
+    spoken, events = run_agent(["Jarvis, allume la chambre à 30 %, en bleu."], llm, core_with(driver))
+    assert driver.calls[:2] == [("chambre", "power", True), ("chambre", "brightness", 30)]
+    assert driver.calls[-1] == ("chambre", "colour", 240) and {c[0] for c in driver.calls} == {"chambre"}
+    assert driver.lights["entree"]["on"] is False and llm.calls == []
+    assert spoken == ["La lumière de la chambre est allumée à 30 %.", "La lumière de la chambre est en bleu."]
+
+
+def test_each_action_targets_the_room_of_its_own_words():
+    driver = FakeDriver()
+    driver.lights["entree"]["on"] = True
+    llm = PlannerLLM(several(("light_on", {}, "allume la chambre"), ("light_off", {}, "éteins l'entrée")))
+    run_agent(["Allume la chambre et éteins l'entrée."], llm, core_with(driver))
+    assert driver.calls == [("chambre", "power", True), ("entree", "power", False)]
+
+
+def test_compound_request_stops_at_the_first_failure():
+    driver = FakeDriver(unreachable={"chambre"})
+    llm = PlannerLLM(several(("light_on", {}, "allume la chambre"), ("light_off", {}, "éteins l'entrée")))
+    spoken, _ = run_agent(["Allume la chambre et éteins l'entrée."], llm, core_with(driver))
+    assert spoken == ["La lumière de la chambre ne répond pas."] and driver.calls == []
+
+
+def test_compound_plan_with_an_invented_segment_falls_back_to_the_whole_request():
+    from jarvis.tools.planner import plan
+
+    registry = core_with(FakeDriver()).registry
+    data = plan(PlannerLLM(several(("light_on", {}, "allume le garage"), ("set_color", {"color": "rouge"}, "en rouge"))),
+                "Allume l'entrée en rouge", registry)
+    assert [c["segment"] for c in data["calls"]] == ["Allume l'entrée en rouge", "en rouge"]
+    single = plan(PlannerLLM(several(("light_on", {}, "allume"), ("set_brightness", {"brightness": 80}, "à 80 %"))),
+                  "Allume la chambre", registry)
+    assert single["tool"] == "light_on"

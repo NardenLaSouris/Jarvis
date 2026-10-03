@@ -26,6 +26,18 @@ TYPES = {str: "texte", int: "entier", float: "nombre", bool: "booléen"}
 NUMBER_WORDS = ((("maximum", "max", "a fond", "au plus fort"), {"100"}), (("minimum", "min"), {"0", "1"}),
                 (("moitie", "a la moitie", "a mi"), {"50"}))
 
+MAX_CALLS = 4
+
+# Demandes à plusieurs actions : une entrée par action, dans l'ordre, avec la partie de la phrase qui la concerne.
+MULTI_EXAMPLES = (
+    ("Allume la chambre à 30 %, en bleu", [("light_on", {"brightness": 30}, "allume la chambre à 30 %"),
+                                          ("set_color", {"color": "bleu"}, "en bleu")]),
+    ("Allume la chambre et éteins l'entrée", [("light_on", {}, "allume la chambre"),
+                                             ("light_off", {}, "éteins l'entrée")]),
+    ("Ouvre Discord et mets le son à 30 %", [("open_application", {"application": "discord"}, "ouvre Discord"),
+                                            ("set_volume", {"volume": 30}, "mets le son à 30 %")]),
+)
+
 EXAMPLES = (
     ("Tu peux ouvrir Discord ?", "open_application", {"application": "discord"}),
     ("Ferme Chrome", "close_application", {"application": "chrome"}),
@@ -127,6 +139,11 @@ def planner_prompt(registry: ToolRegistry) -> str:
         f"« {text} » -> " + json.dumps({"type": "none"} if tool is None else
                                       {"type": "tool_call", "tool": tool, "parameters": params}, ensure_ascii=False)
         for text, tool, params in samples)
+    multi = [(text, calls) for text, calls in MULTI_EXAMPLES if all(registry.exists(c[0]) for c in calls)]
+    examples += "".join(
+        f"\n« {text} » -> " + json.dumps({"type": "tool_calls", "calls": [
+            {"tool": tool, "parameters": params, "segment": segment} for tool, params, segment in calls]},
+            ensure_ascii=False) for text, calls in multi)
     return f"""Vous êtes le module de décision d'action de l'assistant vocal JARVIS. Vous ne répondez pas à
 l'utilisateur : vous indiquez seulement si sa demande correspond à l'un de ces outils.
 
@@ -135,6 +152,9 @@ Outils disponibles :
 
 Répondez uniquement en JSON :
 - {{"type": "tool_call", "tool": "<nom>", "parameters": {{...}}}} si un outil correspond exactement à la demande ;
+- {{"type": "tool_calls", "calls": [{{"tool": "<nom>", "parameters": {{...}}, "segment": "<partie de la demande>"}}, ...]}}
+  si la demande enchaîne plusieurs actions (« et », virgule ; {MAX_CALLS} au plus) : une entrée par action, dans
+  l'ordre, avec la partie de la demande qui la concerne recopiée telle quelle ;
 - {{"type": "none"}} sinon : conversation, question de culture générale, ou action pour laquelle aucun outil
   n'existe (supprimer un fichier, éteindre l'ordinateur, taper une commande, domotique, messages...).
 
@@ -159,6 +179,7 @@ def plan_schema(registry: ToolRegistry) -> dict:
     """Schéma de sortie : « none », ou un appel d'outil avec les paramètres exacts (noms et types) de cet outil."""
     options = [{"type": "object", "properties": {"type": {"const": "none"}}, "required": ["type"],
                 "additionalProperties": False}]
+    calls = []
     for tool in registry.list():
         parameters = {
             "type": "object",
@@ -170,6 +191,15 @@ def plan_schema(registry: ToolRegistry) -> dict:
                         "properties": {"type": {"const": "tool_call"}, "tool": {"const": tool.name},
                                        "parameters": parameters},
                         "required": ["type", "tool", "parameters"], "additionalProperties": False})
+        calls.append({"type": "object",
+                      "properties": {"tool": {"const": tool.name}, "parameters": parameters, "segment": {"type": "string"}},
+                      "required": ["tool", "parameters", "segment"], "additionalProperties": False})
+    if calls:
+        options.append({"type": "object",
+                        "properties": {"type": {"const": "tool_calls"},
+                                       "calls": {"type": "array", "minItems": 2, "maxItems": MAX_CALLS,
+                                                 "items": {"anyOf": calls}}},
+                        "required": ["type", "calls"], "additionalProperties": False})
     return {"anyOf": options}
 
 
@@ -183,12 +213,33 @@ def plan(llm, text: str, registry: ToolRegistry) -> dict | None:
     except Exception as exc:
         log.warning("Choix d'outil impossible : %s", exc)
         return None
+    if isinstance(data, dict) and data.get("type") == "tool_calls" and isinstance(data.get("calls"), list):
+        return _several(data["calls"][:MAX_CALLS], text, registry)
     if not isinstance(data, dict) or data.get("type") != "tool_call":
         return None
     grounded = _grounded(data, text, registry)
     if grounded is None:
         log.info("Appel d'outil écarté : valeur absente de la demande (%s)", data)
     return grounded
+
+
+def _several(calls: list, text: str, registry: ToolRegistry) -> dict | None:
+    """Plusieurs actions : chacune vérifiée comme un appel seul ; ``segment`` gardé s'il vient bien de la demande."""
+    kept, said = [], normalize(text)
+    for call in calls:
+        if not isinstance(call, dict):
+            continue
+        grounded = _grounded({"type": "tool_call", "tool": call.get("tool"), "parameters": call.get("parameters")},
+                             text, registry)
+        if grounded is None:
+            log.info("Action écartée : valeur absente de la demande (%s)", call)
+            continue
+        segment = str(call.get("segment") or "")
+        grounded["segment"] = segment if normalize(segment) and normalize(segment) in said else text
+        kept.append(grounded)
+    if not kept:
+        return None
+    return kept[0] if len(kept) == 1 else {"type": "tool_calls", "calls": kept}
 
 
 def _grounded(data: dict, text: str, registry: ToolRegistry) -> dict | None:

@@ -354,6 +354,8 @@ class Agent:
                 latency["route"] = fallback.label
                 self._event("routing", f"{fallback.label} (aucun outil)")
                 return self._answer(history, text, fallback, latency)
+            if data.get("type") == "tool_calls":
+                return self._use_tools(history, text, data["calls"], latency)
         data = self._with_hidden(self._with_place(data), text)
         self._event("tool", json.dumps(data, ensure_ascii=False)[:200])
         started = time.perf_counter()
@@ -366,15 +368,47 @@ class Agent:
             self._place = place if data.get("tool") == WEATHER_TOOL and place else self._place
         return reply
 
-    def _with_hidden(self, data: dict, text: str) -> dict:
-        """Paramètres masqués au LLM (appareil, pièce...), déduits des mots de la demande."""
+    def _with_hidden(self, data: dict, text: str, segment: str | None = None, previous: dict | None = None) -> dict:
+        """Paramètres masqués au LLM (appareil, pièce...), déduits des mots de la demande. Dans une demande à
+        plusieurs actions, chacune prend ceux de sa partie de phrase (``segment``) ; si elle n'en nomme aucun,
+        ceux de l'action précédente (« allume la chambre à 30 %, en bleu » : le bleu vise aussi la chambre)."""
         name, parameters = data.get("tool"), data.get("parameters")
         if not isinstance(parameters, dict) or not self._tools.registry.exists(name):
             return data
-        resolved = {key: param.resolve(text) for key, param in self._tools.registry.get(name).parameters.items()
-                    if param.hidden and param.resolve is not None}
-        resolved = {key: value for key, value in resolved.items() if value is not None}
+        resolved = {}
+        for key, param in self._tools.registry.get(name).parameters.items():
+            if not param.hidden or param.resolve is None:
+                continue
+            value = param.resolve(text)
+            if segment is not None:
+                own = param.resolve(segment)
+                value = own if own != param.resolve("") else (previous or {}).get(key, value)
+            if value is not None:
+                resolved[key] = value
         return {**data, "parameters": {**parameters, **resolved}} if resolved else data
+
+    def _use_tools(self, history: list[Message], text: str, calls: list[dict], latency: dict) -> str:
+        """Plusieurs actions dans l'ordre ; arrêt à la première qui échoue ou demande une confirmation."""
+        spoken, previous = [], {}
+        started = time.perf_counter()
+        for call in calls:
+            data = self._with_hidden({"type": "tool_call", "tool": call["tool"], "parameters": call["parameters"]},
+                                     text, call.get("segment", text), previous)
+            previous = data["parameters"]
+            self._event("tool", json.dumps(data, ensure_ascii=False)[:200])
+            outcome = self._tools.submit(data)
+            if outcome.status == CONFIRM:
+                spoken.append(outcome.question)
+                break
+            if outcome.result is not None and outcome.result.message:
+                spoken.append(outcome.result.message)
+            if outcome.status != DONE or not outcome.result.success:
+                break
+        latency["tool"] = time.perf_counter() - started
+        reply = self._speak(spoken or [self._router.phrase("action_unavailable")], latency)
+        self._remember(history, Message("user", text))
+        self._remember(history, Message("assistant", reply))
+        return reply
 
     def _with_place(self, data: dict) -> dict:
         """Météo sans ville dite : la dernière ville de la conversation, sinon la ville par défaut de l'outil."""

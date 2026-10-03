@@ -640,7 +640,9 @@ def test_planner_schema_describes_each_registered_tool_exactly():
     registry = make_core({"open_url": {"enabled": False}, "lock_pc": {"enabled": False}}).registry
     options = plan_schema(registry)["anyOf"]
     assert options[0]["properties"]["type"] == {"const": "none"}
-    tools = {o["properties"]["tool"]["const"]: o["properties"]["parameters"] for o in options[1:]}
+    assert options[-1]["properties"]["type"] == {"const": "tool_calls"}
+    assert options[-1]["properties"]["calls"]["maxItems"] == 4
+    tools = {o["properties"]["tool"]["const"]: o["properties"]["parameters"] for o in options[1:-1]}
     assert "open_url" not in tools and "lock_pc" not in tools and "set_volume" in tools
     assert tools["set_volume"]["properties"] == {"volume": {"type": "integer"}}
     assert tools["set_volume"]["required"] == ["volume"] and tools["set_volume"]["additionalProperties"] is False

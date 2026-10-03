@@ -55,6 +55,14 @@ class LightDriver(Protocol):
     def white(self, room: Room, kelvin: int) -> None: ...
 
 
+def _colour_value(colour: str | None) -> int | None:
+    """Luminosité (0 à 1000) d'une couleur Tuya « hhhhssssvvvv » (hexadécimal)."""
+    try:
+        return int(str(colour)[8:12], 16)
+    except (TypeError, ValueError):
+        return None
+
+
 class TuyaDriver:
     """Ampoules Tuya en local (protocole 3.3 à 3.5) : clé locale, IP et identifiant de chaque ampoule."""
 
@@ -85,8 +93,9 @@ class TuyaDriver:
 
     def state(self, room: Room) -> dict:
         dps = self._call(room, lambda b: b.status()).get("dps", {})
-        return {"on": bool(dps.get("20")), "brightness": round(int(dps.get("22", 1000)) / 10),
-                "mode": dps.get("21", "white")}
+        mode = dps.get("21", "white")
+        level = _colour_value(dps.get("24")) if mode == "colour" else int(dps.get("22", 1000))
+        return {"on": bool(dps.get("20")), "brightness": round((level or 1000) / 10), "mode": mode}
 
     def power(self, room: Room, on: bool) -> None:
         self._call(room, lambda b: b.turn_on() if on else b.turn_off())
@@ -95,7 +104,9 @@ class TuyaDriver:
         self._call(room, lambda b: b.set_brightness_percentage(percent))
 
     def colour(self, room: Room, hue: int) -> None:
-        self._call(room, lambda b: b.set_hsv(hue / 360, 1.0, 1.0))
+        """Change la teinte en gardant la luminosité en cours (« 30 % puis bleu » reste à 30 %)."""
+        percent = self.state(room)["brightness"]
+        self._call(room, lambda b: b.set_hsv(hue / 360, 1.0, max(percent, 1) / 100))
 
     def white(self, room: Room, kelvin: int) -> None:
         percent = self.state(room)["brightness"]

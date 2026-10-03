@@ -117,7 +117,7 @@ def test_no_devices_means_the_core_acts_on_its_own_machine():
 def test_the_device_is_never_chosen_by_the_llm():
     registry = core_for(devices_for("http://a:1", "http://b:2")).registry
     assert "device" not in planner_prompt(registry)
-    options = {o["properties"]["tool"]["const"]: o["properties"]["parameters"] for o in plan_schema(registry)["anyOf"][1:]}
+    options = {o["properties"]["tool"]["const"]: o["properties"]["parameters"] for o in plan_schema(registry)["anyOf"][1:-1]}
     assert "device" not in options["open_application"]["properties"]
 
 
