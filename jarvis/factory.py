@@ -89,7 +89,7 @@ def vocabulary_hint(cfg: Config, personality_name: str = "JARVIS") -> str:
         phrases += ["Mets un minuteur.", "Rappelle-moi."]
     if cfg.web.enabled:
         phrases.append("Recherche-moi.")
-    phrases.append("Raconte-moi.")
+    phrases += ["Raconte-moi.", "Arrête. Tais-toi."]
     if cfg.tools.enabled and cfg.weather.enabled:
         phrases.append(f"Quel temps fera-t-il à {cfg.weather.default_location} ?")
     if cfg.tools.enabled and cfg.lights.enabled:
@@ -404,6 +404,8 @@ def build_agent(
         listen_timeout=a.listen_timeout,
         conversation_timeout=cfg.assistant.conversation_timeout,
         max_history_turns=cfg.assistant.max_history_turns,
+        barge_in=cfg.assistant.barge_in,
+        min_confidence=cfg.stt.min_confidence,
     )
     return Agent(settings, source, sink, wake_word, recorder, stt, llm, tts, router, on_event,
                  stream_audio=cfg.tts.stream_audio, merge_under=cfg.tts.merge_under, web=web,

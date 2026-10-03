@@ -10,6 +10,7 @@ import json
 import logging
 import random
 import re
+import threading
 import time
 from dataclasses import dataclass
 from typing import Callable
@@ -42,6 +43,37 @@ class AgentSettings:
     listen_timeout: float
     conversation_timeout: float
     max_history_turns: int
+    barge_in: bool = False
+    min_confidence: float | None = None
+
+
+class WakeWatcher:
+    """Pendant que JARVIS réfléchit ou parle : écoute le micro et appelle ``on_wake`` si le wake word est dit."""
+
+    def __init__(self, source: AudioSource, detector: WakeWordDetector, threshold: float,
+                 on_wake: Callable[[float], None]):
+        self._source, self._detector, self._threshold, self._on_wake = source, detector, threshold, on_wake
+        self._stopping = threading.Event()
+        self._thread = threading.Thread(target=self._run, name="interruption", daemon=True)
+
+    def start(self) -> "WakeWatcher":
+        self._detector.reset()
+        self._thread.start()
+        return self
+
+    def _run(self) -> None:
+        while not self._stopping.is_set():
+            frame = self._source.read()
+            if frame is None:
+                return
+            score = self._detector.process(frame)
+            if score >= self._threshold and not self._stopping.is_set():
+                self._on_wake(score)
+                return
+
+    def stop(self) -> None:
+        self._stopping.set()
+        self._thread.join(timeout=1.0)
 
 
 def clean_for_speech(text: str) -> str:
@@ -143,6 +175,7 @@ class Agent:
         self._router = router
         self._web = web
         self._tools = tools
+        self._interrupted = False
         self._last_tool_request = ""
         self._place: str | None = None
         self._corrector = corrector
@@ -221,7 +254,8 @@ class Agent:
                     self._event("correction", f"« {text} » -> « {corrected} »")
                     text = corrected
             self._event("user", text)
-            self._event("timing", f"STT {latency['stt']:.1f} s")
+            confidence = getattr(self._stt, "last_confidence", None)
+            self._event("timing", f"STT {latency['stt']:.1f} s" + (f" (confiance {confidence:.2f})" if confidence is not None else ""))
             self._place = mentioned_city(text) or self._place
 
             outcome = self._tools.answer(text) if self._tools is not None else None
@@ -233,11 +267,17 @@ class Agent:
                 follow_up = self._tool_follow_up(text)
                 self._last_tool_request = ""
                 route = Route("tool", "tool.follow_up") if follow_up else self._router.route(text)
+                if route.source == "llm" and self._unsure():
+                    route = Route("unsure", reply=self._router.phrase("not_understood"))
                 latency["route"] = route.label
                 self._event("routing", route.label)
                 reply, end = self._answer(history, follow_up or text, route, latency), route.end_conversation
             self._event("assistant", reply)
             self._event("latency", format_latency(latency, speech_ended_at))
+            if self._interrupted:
+                self._interrupted = False
+                timeout = self.settings.listen_timeout
+                continue
             if end:
                 break
         if self._tools is not None:
@@ -408,7 +448,13 @@ class Agent:
         return reply
 
     def _speak(self, sentences, latency: dict, marks: dict | None = None) -> str:
-        stats = self._pipeline.speak(sentences)
+        watcher = (WakeWatcher(self._source, self._wake_word, self.settings.wake_threshold, self._interrupt).start()
+                   if self.settings.barge_in else None)
+        try:
+            stats = self._pipeline.speak(sentences)
+        finally:
+            if watcher is not None:
+                watcher.stop()
         self._source.flush()
         latency.update(marks or {})
         latency["tts_first"] = stats.tts_first or 0.0
@@ -424,6 +470,24 @@ class Agent:
             if key in latency and key != "total_response":
                 self._event("timing", f"{label} {latency[key]:.2f} s")
         return " ".join(stats.sentences)
+
+    def _interrupt(self, score: float) -> None:
+        """Wake word dit pendant la réponse : elle est abandonnée et le son coupé ; JARVIS écoute la suite."""
+        self._interrupted = True
+        self._event("wake", f"Interruption (score {score:.2f})")
+        self._pipeline.cancel()
+        stop = getattr(self._sink, "stop", None)
+        if stop is not None:
+            try:
+                stop()
+            except Exception:
+                log.exception("Arrêt de la lecture impossible")
+
+    def _unsure(self) -> bool:
+        """Transcription trop peu sûre pour être confiée au LLM (« ta gueule » entendu « regarde-moi le gul »)."""
+        confidence = getattr(self._stt, "last_confidence", None)
+        return self.settings.min_confidence is not None and confidence is not None \
+            and confidence < self.settings.min_confidence
 
     def _play(self, audio: np.ndarray, rate: int) -> None:
         self._sink.play(audio, rate)

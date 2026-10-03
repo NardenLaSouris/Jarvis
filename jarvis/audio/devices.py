@@ -119,6 +119,13 @@ class SpeakerSink:
             self._stream.close()
             self._stream = None
 
+    def stop(self) -> None:
+        """Coupe immédiatement la lecture en cours (interruption par le wake word)."""
+        stream, self._stream = self._stream, None
+        if stream is not None:
+            stream.abort()
+            stream.close()
+
     def _open(self, sample_rate: int) -> sd.OutputStream:
         if self._stream is not None and self._rate == sample_rate:
             return self._stream

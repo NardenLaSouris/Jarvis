@@ -69,6 +69,7 @@ class FasterWhisperSTT:
     ):
         self.model_name = model
         self.hotwords = hotwords
+        self.last_confidence: float | None = None
         self._language = language
         self._beam_size = beam_size
         self._download_root = str(download_root) if download_root else None
@@ -121,5 +122,6 @@ class FasterWhisperSTT:
             hotwords=self.hotwords or None,
         )
         # Whisper « invente » parfois du texte sur du bruit : on écarte ces segments.
-        kept = [s.text.strip() for s in segments if s.no_speech_prob < NO_SPEECH_THRESHOLD]
-        return " ".join(kept).strip()
+        kept = [s for s in segments if s.no_speech_prob < NO_SPEECH_THRESHOLD]
+        self.last_confidence = sum(s.avg_logprob for s in kept) / len(kept) if kept else None
+        return " ".join(s.text.strip() for s in kept).strip()

@@ -137,13 +137,20 @@ class NetworkSink:
         self._agent = _Agent(url, token)
         self._timeout = timeout
         self._failing = False
+        self._stopped = False
 
     def play(self, audio: np.ndarray, sample_rate: int) -> None:
+        self._stopped = False
         if audio.size:
             self._post(f"/audio/output?rate={int(sample_rate)}", audio.astype("<i2").tobytes())
 
     def drain(self) -> None:
         self._post("/audio/drain", b"")
+
+    def stop(self) -> None:
+        """Coupe la lecture en cours sur le PC (interruption par le wake word)."""
+        self._stopped = True
+        self._post("/audio/stop", b"")
 
     def close(self) -> None:
         pass
@@ -156,6 +163,8 @@ class NetworkSink:
                 log.info("Sortie audio distante rétablie (%s)", self._agent.url)
             self._failing = False
         except OSError as exc:
+            if self._stopped:
+                return
             if not self._failing:
                 log.warning("Sortie audio distante injoignable (%s) : audio ignoré", _reason(exc))
             self._failing = True

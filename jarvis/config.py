@@ -15,6 +15,7 @@ class AssistantConfig:
     personality: Path = Path("personality.toml")
     conversation_timeout: float = 8.0
     max_history_turns: int = 6
+    barge_in: bool = True
 
 
 @dataclass(frozen=True)
@@ -36,6 +37,7 @@ class STTConfig:
     fallback_device: str = "cpu"
     fallback_compute_type: str = "int8"
     vocabulary_hint: bool = True
+    min_confidence: float = -1.0
 
 
 @dataclass(frozen=True)

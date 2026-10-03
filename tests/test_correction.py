@@ -75,12 +75,12 @@ def test_no_corrector_without_application_tools():
 def test_whisper_gets_the_vocabulary_hint():
     assert vocabulary_hint(CFG) == ("Jarvis, ouvre Discord, ferme Steam, lance Google Chrome, quitte Spotify, "
                                    "ouvre Visual Studio Code, ferme le Bloc-notes. Mets un minuteur. Rappelle-moi. "
-                                   f"Recherche-moi. Raconte-moi. Quel temps fera-t-il à {CFG.weather.default_location} ?")
+                                   f"Recherche-moi. Raconte-moi. Arrête. Tais-toi. Quel temps fera-t-il à {CFG.weather.default_location} ?")
     from dataclasses import replace
 
     quiet = replace(CFG, web=replace(CFG.web, enabled=False), timers=replace(CFG.timers, enabled=False),
                     weather=replace(CFG.weather, enabled=False))
-    assert vocabulary_hint(quiet).endswith("ferme le Bloc-notes. Raconte-moi.")
+    assert vocabulary_hint(quiet).endswith("ferme le Bloc-notes. Raconte-moi. Arrête. Tais-toi.")
 
     class Model:
         def transcribe(self, samples, **options):

@@ -24,6 +24,7 @@ class AudioRelay:
         self._open_microphone = open_microphone or (lambda rate, frame: _microphone(rate, frame, input_device))
         self._open_speaker = open_speaker or (lambda: _speaker(output_device))
         self._speaker = None
+        self._stopped = False
         self._capture = threading.Lock()
         self._playback = threading.Lock()
 
@@ -43,9 +44,21 @@ class AudioRelay:
 
     def play(self, pcm: bytes, sample_rate: int) -> None:
         with self._playback:
+            self._stopped = False
             if self._speaker is None:
                 self._speaker = self._open_speaker()
-            self._speaker.play(np.frombuffer(pcm, dtype="<i2").astype(np.int16), sample_rate)
+            try:
+                self._speaker.play(np.frombuffer(pcm, dtype="<i2").astype(np.int16), sample_rate)
+            except Exception:
+                if not self._stopped:
+                    raise
+
+    def stop(self) -> None:
+        """Coupe la lecture en cours, sans attendre qu'elle se termine."""
+        self._stopped = True
+        speaker = self._speaker
+        if speaker is not None and hasattr(speaker, "stop"):
+            speaker.stop()
 
     def drain(self) -> None:
         with self._playback:

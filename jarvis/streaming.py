@@ -205,12 +205,17 @@ class SpeechPipeline:
             sentence, audio, rate = item
             if stats.first_audio is None:
                 stats.first_audio = time.perf_counter()
-            self._sink.play(audio, rate)
+            try:
+                self._sink.play(audio, rate)
+            except Exception:
+                if self._cancel.is_set():
+                    continue
+                raise
             stats.audio_seconds += len(audio) / rate
             if sentence is not None:
                 stats.sentences.append(sentence)
         drain = getattr(self._sink, "drain", None)
-        if drain:
+        if drain and not self._cancel.is_set():
             drain()
         for worker in workers:
             worker.join()

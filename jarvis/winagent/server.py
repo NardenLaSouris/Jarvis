@@ -8,7 +8,8 @@ et y relaie l'audio du PC.
     la même validation stricte que les outils du Core ;
   - ``GET /audio/input?rate=16000&frame=1280`` : flux continu du micro (PCM int16 mono, blocs de ``frame``) ;
   - ``POST /audio/output?rate=22050`` et du PCM int16 mono : joue l'audio sur le PC ;
-  - ``POST /audio/drain`` : attend la fin de la lecture en cours.
+  - ``POST /audio/drain`` : attend la fin de la lecture en cours ;
+  - ``POST /audio/stop`` : coupe la lecture en cours (interruption).
 
 Il n'existe aucun autre point d'entrée : pas de commande libre, pas de shell.
 """
@@ -142,7 +143,7 @@ class AgentServer:
                 path, query = self._route()
                 if path is None:
                     return
-                if not (path.startswith("/actions/") or path in ("/audio/output", "/audio/drain")):
+                if not (path.startswith("/actions/") or path in ("/audio/output", "/audio/drain", "/audio/stop")):
                     return self._error(404, "not_found")
                 if not self._authenticated():
                     return
@@ -153,6 +154,9 @@ class AgentServer:
                     return self._play(query, body)
                 if path == "/audio/drain":
                     agent.audio.drain()
+                    return self._json(200, {"status": "ok"})
+                if path == "/audio/stop":
+                    agent.audio.stop()
                     return self._json(200, {"status": "ok"})
                 self._json(*agent._run(path.removeprefix("/actions/"), body))
 

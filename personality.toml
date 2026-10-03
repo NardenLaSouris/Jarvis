@@ -28,6 +28,8 @@ style_examples = [
 ]
 
 [phrases]
+# Transcription trop incertaine pour répondre (au lieu d'inventer un sens à une phrase mal entendue).
+not_understood = ["Pardon, je n'ai pas bien compris. Pouvez-vous répéter ?", "Je n'ai pas saisi, {title}. Vous pouvez répéter ?"]
 # Réponse au wake word.
 wake = ["Oui, {title} ?", "{Title} ?", "Je vous écoute, {title}.", "À votre service, {title}."]
 # Le LLM local ne répond pas.
@@ -144,7 +146,10 @@ strict_words = ["tu", "toi", "te", "t", "ton", "ta", "tes", "vous", "votre", "vo
 critical = true
 match = "exact"
 end_conversation = true
-patterns = ["stop", "tais toi", "silence", "annule", "laisse tomber", "arrete", "c est bon", "rien"]
+patterns = ["stop", "tais toi", "silence", "annule", "laisse tomber", "arrete", "c est bon", "rien",
+            "arrete toi", "arrete de parler", "arretes", "arrete ca", "stop stop", "chut", "ta gueule", "la ferme",
+            "ferme la", "ferme ta gueule", "tais toi maintenant", "ca suffit", "assez", "c est bon arrete",
+            "tu peux arreter", "j ai pas besoin", "laisse moi", "va dormir", "en veille", "mets toi en veille"]
 responses = ["Très bien.", "Entendu.", "Bien, {title}."]
 
 [intents.creator]

@@ -670,10 +670,12 @@ def test_planner_never_invents_a_number():
 
 # --- Intégration dans l'agent --------------------------------------------------------------------
 
-def run_agent(texts, llm, core=None, tools=True, corrector=None, **agent_options):
+def run_agent(texts, llm, core=None, tools=True, corrector=None, confidence=None, min_confidence=None,
+              **agent_options):
     class Stt:
         def __init__(self):
             self.replies = iter(texts)
+            self.last_confidence = confidence
 
         def transcribe(self, audio, rate):
             return next(self.replies)
@@ -705,7 +707,7 @@ def run_agent(texts, llm, core=None, tools=True, corrector=None, **agent_options
     names = tuple(t.name for t in core.registry.list()) if tools else ()
     router = IntentRouter(PERSONALITY, capabilities, tools=names)
     Tts.spoken = []
-    settings = AgentSettings("JARVIS", "Jarvis", 0.5, ("Oui, monsieur ?",), 3.0, 2.0, 6)
+    settings = AgentSettings("JARVIS", "Jarvis", 0.5, ("Oui, monsieur ?",), 3.0, 2.0, 6, min_confidence=min_confidence)
     Agent(settings, source, RecordingSink(), Wake(), UtteranceRecorder(source, EndpointerSettings()), Stt(), llm,
           Tts(), router, lambda kind, text: events.append((kind, text)), tools=core if tools else None,
           corrector=corrector, **agent_options).run()
@@ -921,3 +923,51 @@ def test_number_words_count_as_said():
     call_ = {"type": "tool_call", "tool": "set_volume", "parameters": {"volume": 100}}
     assert _grounded(call_, "Mets le son à fond", registry) == call_
     assert _grounded(call_, "Mets le son plus fort", registry) is None
+
+
+# --- Interruption, arrêt et transcriptions douteuses ------------------------------------------------
+
+def test_unsure_transcription_is_not_sent_to_the_llm():
+    llm = PlannerLLM(reply="Le gul est un poisson marin.")
+    spoken, events = run_agent(["Regarde-moi le gul."], llm, confidence=-1.4, min_confidence=-1.0)
+    assert routes(events) == ["unsure"] and llm.calls == []
+    assert spoken[0] in [PERSONALITY.render(t) for t in PERSONALITY.phrases["not_understood"]]
+    llm = PlannerLLM(reply="Canberra.")
+    spoken, events = run_agent(["Quelle est la capitale de l'Australie ?"], llm, confidence=-0.3, min_confidence=-1.0)
+    assert routes(events) == ["llm"] and spoken == ["Canberra."]
+
+
+def test_stop_phrases_end_the_conversation():
+    router = IntentRouter(PERSONALITY, CapabilityRegistry())
+    for text in ("Ta gueule.", "Arrête.", "Tais-toi !", "Chut.", "La ferme.", "Ça suffit.", "Jarvis, arrête-toi."):
+        route = router.route(text)
+        assert route.name == "stop" and route.end_conversation, text
+    assert router.route("Arrête le minuteur.").name != "stop"
+
+
+def test_wake_word_during_speech_interrupts_playback():
+    import threading
+
+    from jarvis.agent import WakeWatcher
+
+    class Source:
+        def __init__(self, frames):
+            self.frames = iter(frames)
+
+        def read(self):
+            return next(self.frames, None)
+
+    class Detector:
+        def process(self, frame):
+            return float(frame[0])
+
+        def reset(self):
+            pass
+
+    heard = threading.Event()
+    scores = []
+    watcher = WakeWatcher(Source([np.zeros(4), np.zeros(4), np.full(4, 0.95)]), Detector(), 0.9,
+                          lambda score: (scores.append(score), heard.set()))
+    watcher.start()
+    assert heard.wait(2) and scores == [pytest.approx(0.95)]
+    watcher.stop()

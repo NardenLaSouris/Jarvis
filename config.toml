@@ -10,6 +10,8 @@ personality = "personality.toml"
 conversation_timeout = 8.0
 # Nombre maximal d'échanges conservés dans le contexte d'une conversation.
 max_history_turns = 6
+# Dire le wake word pendant que JARVIS réfléchit ou parle l'interrompt (son coupé), puis il écoute la suite.
+barge_in = true
 
 [wake_word]
 # Mot affiché/utilisé dans les messages ; le modèle ci-dessous fait la détection.
@@ -23,7 +25,7 @@ embedding_model = "models/openwakeword/embedding_model.onnx"
 # 0.96 = seuil recommandé par l'évaluation (models/openwakeword/jarvis_fr.json) : le plus bas
 # qui garde < 0,5 fausse alerte/h et < 3 % de mots pièges déclencheurs sur des voix de test.
 # À ajuster avec `python -m jarvis --wake-test` : plus bas = détecte mieux de loin, se trompe plus.
-threshold = 0.80
+threshold = 0.90
 
 [stt]
 # Modèle faster-whisper : tiny, base, small, medium... ("small" = bon compromis FR).
@@ -41,6 +43,10 @@ fallback_compute_type = "int8"
 # « ouvre Steam » est moins souvent entendu « ouvre-ste-iem ». Les commandes encore mal transcrites
 # (« ou vos teams ») sont ensuite corrigées si elles ressemblent nettement à une commande connue.
 vocabulary_hint = true
+# Confiance minimale de la transcription (moyenne des log-probabilités de Whisper, la confiance de chaque
+# phrase est dans le journal) pour une question confiée au LLM ; en dessous, JARVIS demande de répéter au lieu
+# de répondre à une phrase probablement mal entendue. -99 : jamais.
+min_confidence = -1.0
 
 [tts]
 # Moteur de synthèse, 100 % local : "piper" (rapide, défaut) ou "neutts" (NeuTTS Nano French,
