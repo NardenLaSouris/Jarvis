@@ -13,6 +13,7 @@ import logging
 import re
 
 from jarvis.interfaces import Message
+from jarvis.prompts import TOOL_RULES
 from jarvis.tools.base import ToolResult
 from jarvis.tools.registry import ToolRegistry
 
@@ -181,9 +182,9 @@ def _supported_by_request(data: dict, text: str, registry: ToolRegistry) -> bool
 
 
 def tool_request(user_text: str, result: ToolResult) -> str:
-    """Message utilisateur envoyé au LLM après exécution : le résultat structuré, puis la demande."""
+    """Message utilisateur envoyé au LLM après exécution : les consignes, le résultat structuré, puis la demande."""
     payload = json.dumps(result.as_dict(), ensure_ascii=False)
-    return f"{RESULT_START}\n{payload}\n{RESULT_END}\n\n{user_text}"
+    return f"{TOOL_RULES}\n\n{RESULT_START}\n{payload}\n{RESULT_END}\n\n{user_text}"
 
 
 class ToolsCapability:

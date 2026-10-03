@@ -336,8 +336,7 @@ class Agent:
         history.append(Message("user", text))
         del history[: max(0, len(history) - 2 * self.settings.max_history_turns + 1)]
         searched = web_context is not None
-        system = Message("system", self._router.system_prompt(ongoing=len(history) > 1, searched=searched,
-                                                              tool_result=tool_result is not None))
+        system = Message("system", self._router.system_prompt(ongoing=len(history) > 1))
         messages = [system, *history]
         if searched:
             messages[-1] = Message("user", web_request(text, web_context))

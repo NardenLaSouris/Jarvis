@@ -187,8 +187,8 @@ class IntentRouter:
     def wake_phrases(self) -> tuple[str, ...]:
         return tuple(self._render(t) for t in self.personality.phrases.get("wake", ()))
 
-    def system_prompt(self, ongoing: bool = False, searched: bool = False, tool_result: bool = False) -> str:
-        return build_system_prompt(self.personality, self.capabilities, self._clock(), ongoing, searched, tool_result)
+    def system_prompt(self, ongoing: bool = False) -> str:
+        return build_system_prompt(self.personality, self.capabilities, self._clock(), ongoing)
 
     def reply_filter(self, user_text: str = "", tools_used: bool = False, fallback: str | None = None) -> "ReplyFilter":
         return ReplyFilter(self, user_text, tools_used, fallback)

@@ -714,7 +714,7 @@ def run_agent(texts, llm, core=None, tools=True, corrector=None, **agent_options
 
 def result_sent_to_llm(llm, index=-1):
     user = llm.calls[index][-1].content
-    return json.loads(user.split("<<<RESULTAT_OUTIL>>>")[1].split("<<<FIN_RESULTAT_OUTIL>>>")[0])
+    return json.loads(user.split("<<<RESULTAT_OUTIL>>>\n")[-1].split("<<<FIN_RESULTAT_OUTIL>>>")[0])
 
 
 def routes(events):

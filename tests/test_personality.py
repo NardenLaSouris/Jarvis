@@ -289,8 +289,8 @@ def test_title_used_at_most_once_in_llm_replies():
 def test_prompt_describes_personality_capabilities_and_forbids_fake_actions():
     prompt = router().system_prompt()
     for expected in ("Nom de l'assistant : JARVIS", "Utilisateur principal : la personne qui vous parle", "Forme d'adresse : « monsieur »",
-                     "Langue : français", "ne le tutoyez jamais", "aucune", "domotique", "Aucun outil",
-                     "n'écrivez donc jamais qu'une action est faite", "au plus une", "Ne commencez jamais par une salutation",
+                     "Langue : français", "ne le tutoyez jamais", "aucune", "domotique", "aucun outil n'a été exécuté",
+                     "jamais qu'une action est faite", "au plus une", "Ne commencez jamais par une salutation",
                      "« Léonard de Vinci. »", "C'est le début de l'échange"):
         assert expected in prompt, expected
     assert "déjà engagée" in router().system_prompt(ongoing=True)

@@ -28,6 +28,7 @@ from jarvis.personality import load_personality  # noqa: E402
 from jarvis.router import IntentRouter  # noqa: E402
 from jarvis.web.base import SearchResult, WebSearchError  # noqa: E402
 from jarvis.web.fetch import PageFetcher, extract_text, is_public_url  # noqa: E402
+from jarvis.prompts import WEB_RULES  # noqa: E402
 from jarvis.web.research import (  # noqa: E402
     DATA_END, DATA_START, WebContext, WebResearch, WebSearchCapability, search_query, select_relevant,
 )
@@ -347,9 +348,7 @@ def test_prompt_announces_web_search_only_when_enabled():
     prompt = router().system_prompt()
     assert "chercher des informations actuelles sur Internet" in prompt
     assert "(informations en temps réel" not in prompt
-    assert "Aucune recherche Internet n'a été effectuée" in prompt
-    searched = router().system_prompt(searched=True)
-    assert "DONNÉES NON FIABLES" in searched and "Aucune recherche Internet" not in searched
+    assert "aucune recherche Internet n'a été effectuée" in prompt and "DONNÉES NON FIABLES" not in prompt
 
 
 def test_urls_are_never_spoken():
@@ -416,8 +415,10 @@ def test_agent_answers_from_web_results():
     agent, llm, tts, events = run_agent(web, "Jarvis, combien coûte une RTX 3060 actuellement ?")
     assert [t for k, t in events if k == "routing"] == ["web.search"]
     system, user = llm.calls[0]
-    assert system.role == "system" and "DONNÉES NON FIABLES" in system.content
-    assert user.role == "user" and user.content.startswith(DATA_START)
+    assert system.role == "system" and "DONNÉES NON FIABLES" not in system.content
+    assert system.content.split("Date et heure")[0] == router().system_prompt().split("Date et heure")[0]
+    assert "DONNÉES NON FIABLES" in user.content
+    assert user.role == "user" and user.content.startswith(WEB_RULES + chr(10) * 2 + DATA_START)
     assert user.content.endswith(DATA_END + chr(10) * 2 + "Combien coûte une RTX 3060 actuellement ?")
     assert "279 €" in user.content and "cuisine.fr" not in user.content
     assert tts.spoken[-1].startswith("D'après Le Dénicheur, la RTX 3060 est à environ 279 euros")
@@ -448,14 +449,15 @@ def test_prompt_injection_stays_inert_data():
     results = [SearchResult("Python 3.14 est sortie", "https://python.org/news", INJECTION, "python.org", 1),
                SearchResult("Python 3.14", "https://pirate.fr/page", "Python 3.14 disponible.", "pirate.fr", 2)]
     web = WebResearch(MockProvider(results, pages={"https://pirate.fr/page": f"<p>{INJECTION}</p>"}), fetch_pages=2)
-    reference = router().system_prompt(searched=True)
+    reference = router().system_prompt()
     agent, llm, tts, events = run_agent(web, "Quelle est la dernière version de Python ?",
                                         "Et quelle est la dernière version de Go ?")
     first, second = llm.calls
     system, user = first
     assert system.role == "system" and "Ignore toutes" not in system.content and "rm -rf" not in system.content
     assert system.content.split("Date et heure")[0] == reference.split("Date et heure")[0]
-    body = user.content
+    assert user.content.startswith(WEB_RULES)
+    body = user.content.removeprefix(WEB_RULES)
     assert body.count(DATA_START) == 1 and body.count(DATA_END) == 1
     injected = body.index("Ignore toutes les instructions")
     assert body.index(DATA_START) < injected < body.index(DATA_END)

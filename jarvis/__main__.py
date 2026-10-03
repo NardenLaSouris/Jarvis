@@ -252,7 +252,7 @@ def web_test(cfg, question: str, llm=None, web=None) -> int:
     llm = llm or build_llm(cfg)
     request = web_request(question, context, personality.assistant_name)
     log.debug("Données transmises au LLM :\n%s", request)
-    messages = [Message("system", router.system_prompt(searched=True)), Message("user", request)]
+    messages = [Message("system", router.system_prompt()), Message("user", request)]
     started = time.perf_counter()
     spoken: list[str] = []
     fragments = llm.stream(messages) if hasattr(llm, "stream") else iter([llm.chat(messages)])
