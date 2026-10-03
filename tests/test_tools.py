@@ -971,3 +971,17 @@ def test_wake_word_during_speech_interrupts_playback():
     watcher.start()
     assert heard.wait(2) and scores == [pytest.approx(0.95)]
     watcher.stop()
+
+
+def test_wake_word_needs_consecutive_frames_and_logs_rejected_peaks(caplog):
+    import logging
+
+    from jarvis.agent import WakeTrigger
+
+    trigger = WakeTrigger(0.7, patience=2)
+    with caplog.at_level(logging.INFO):
+        assert [trigger.update(s) for s in (0.1, 0.95, 0.2, 0.1)] == [False] * 4
+        assert [trigger.update(s) for s in (0.75, 0.9)] == [False, True]
+    assert "score 0.95, 1 image(s)" in caplog.text and trigger.detail.startswith("score 0.90, 2 image")
+    single = WakeTrigger(0.7)
+    assert single.update(0.71) is True

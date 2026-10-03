@@ -25,7 +25,11 @@ embedding_model = "models/openwakeword/embedding_model.onnx"
 # 0.96 = seuil recommandé par l'évaluation (models/openwakeword/jarvis_fr.json) : le plus bas
 # qui garde < 0,5 fausse alerte/h et < 3 % de mots pièges déclencheurs sur des voix de test.
 # À ajuster avec `python -m jarvis --wake-test` : plus bas = détecte mieux de loin, se trompe plus.
-threshold = 0.90
+threshold = 0.70
+# Nombre d'images consécutives (80 ms chacune) au-dessus du seuil : un vrai « Jarvis » dure 4 à 9 images,
+# un faux pic (bruit, voix d'un jeu) une ou deux. 2 : moitié moins de faux déclenchements, presque sans perte
+# (essai sur 960 enregistrements, octobre 2026). Le journal note les pics non retenus pour affiner.
+patience = 2
 
 [stt]
 # Modèle faster-whisper : tiny, base, small, medium... ("small" = bon compromis FR).

@@ -427,6 +427,7 @@ def build_agent(
         assistant_name=personality.assistant_name,
         wake_phrase=ww.phrase,
         wake_threshold=ww.threshold,
+        wake_patience=ww.patience,
         acknowledgements=router.wake_phrases(),
         listen_timeout=a.listen_timeout,
         conversation_timeout=cfg.assistant.conversation_timeout,

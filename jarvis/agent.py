@@ -45,14 +45,42 @@ class AgentSettings:
     max_history_turns: int
     barge_in: bool = False
     min_confidence: float | None = None
+    wake_patience: int = 1
+
+
+class WakeTrigger:
+    """Wake word retenu quand le score reste au-dessus du seuil pendant ``patience`` images d'affilée ; les pics
+    non retenus sont journalisés (pic, durée) pour régler seuil et patience sur la vraie voix."""
+
+    def __init__(self, threshold: float, patience: int = 1, notice: float = 0.5):
+        self.threshold, self.patience, self._notice = threshold, max(1, patience), notice
+        self.reset()
+
+    def reset(self) -> None:
+        self._run, self._peak, self._frames = 0, 0.0, 0
+
+    def update(self, score: float) -> bool:
+        self._run = self._run + 1 if score >= self.threshold else 0
+        if score >= self._notice:
+            self._peak, self._frames = max(self._peak, score), self._frames + 1
+        elif self._frames:
+            log.info("Pic du wake word non retenu : score %.2f, %d image(s) ≥ %.2f", self._peak, self._frames,
+                     self._notice)
+            self._peak, self._frames = 0.0, 0
+        return self._run >= self.patience
+
+    @property
+    def detail(self) -> str:
+        return f"score {self._peak:.2f}, {self._run} image(s)"
 
 
 class WakeWatcher:
     """Pendant que JARVIS réfléchit ou parle : écoute le micro et appelle ``on_wake`` si le wake word est dit."""
 
     def __init__(self, source: AudioSource, detector: WakeWordDetector, threshold: float,
-                 on_wake: Callable[[float], None]):
-        self._source, self._detector, self._threshold, self._on_wake = source, detector, threshold, on_wake
+                 on_wake: Callable[[float], None], patience: int = 1):
+        self._source, self._detector, self._on_wake = source, detector, on_wake
+        self._trigger = WakeTrigger(threshold, patience)
         self._stopping = threading.Event()
         self._thread = threading.Thread(target=self._run, name="interruption", daemon=True)
 
@@ -67,7 +95,7 @@ class WakeWatcher:
             if frame is None:
                 return
             score = self._detector.process(frame)
-            if score >= self._threshold and not self._stopping.is_set():
+            if self._trigger.update(score) and not self._stopping.is_set():
                 self._on_wake(score)
                 return
 
@@ -218,13 +246,14 @@ class Agent:
     def _wait_for_wake_word(self) -> bool:
         self._event("sleep", f"En veille — dites « {self.settings.wake_phrase} »")
         self._wake_word.reset()
+        trigger = WakeTrigger(self.settings.wake_threshold, self.settings.wake_patience)
         while (frame := self._source.read()) is not None:
             if self._deliver_notifications():
                 self._wake_word.reset()
+                trigger.reset()
                 continue
-            score = self._wake_word.process(frame)
-            if score >= self.settings.wake_threshold:
-                self._event("wake", f"Wake word détecté (score {score:.2f})")
+            if trigger.update(self._wake_word.process(frame)):
+                self._event("wake", f"Wake word détecté ({trigger.detail})")
                 self._stop_alarm()
                 return True
         return False
@@ -453,8 +482,8 @@ class Agent:
         return reply
 
     def _speak(self, sentences, latency: dict, marks: dict | None = None) -> str:
-        watcher = (WakeWatcher(self._source, self._wake_word, self.settings.wake_threshold, self._interrupt).start()
-                   if self.settings.barge_in else None)
+        watcher = (WakeWatcher(self._source, self._wake_word, self.settings.wake_threshold, self._interrupt,
+                               self.settings.wake_patience).start() if self.settings.barge_in else None)
         try:
             stats = self._pipeline.speak(sentences)
         finally:

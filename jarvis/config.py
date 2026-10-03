@@ -25,6 +25,7 @@ class WakeWordConfig:
     melspectrogram_model: Path = Path("models/openwakeword/melspectrogram.onnx")
     embedding_model: Path = Path("models/openwakeword/embedding_model.onnx")
     threshold: float = 0.5
+    patience: int = 1
 
 
 @dataclass(frozen=True)
