@@ -40,7 +40,8 @@ class Param:
 
     ``check`` reçoit la valeur (déjà typée) et rend la valeur normalisée, ou lève ToolError.
     ``evidence(valeur, demande)`` vérifie que la valeur proposée par le LLM figure bien dans la demande.
-    ``hidden`` : renseigné par JARVIS lui-même (par exemple l'appareil visé), jamais proposé au LLM.
+    ``hidden`` : jamais proposé au LLM ; ``resolve(demande)`` le déduit alors des mots de la demande (appareil,
+    pièce...), ou rend None.
     """
 
     kind: type
@@ -53,6 +54,7 @@ class Param:
     maximum: float | None = None
     evidence: Callable[[Any, str], bool] | None = None
     hidden: bool = False
+    resolve: Callable[[str], Any] | None = None
 
 
 @dataclass(frozen=True)

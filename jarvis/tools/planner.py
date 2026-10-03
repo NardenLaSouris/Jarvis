@@ -80,6 +80,10 @@ def planner_prompt(registry: ToolRegistry) -> str:
                      "dite (« 10 minutes », « une heure et demie »), sans la convertir ; pas de durée dite -> none. "
                      "Le message d'un rappel est l'action à rappeler, sans « de » (« sortir le linge »). "
                      "Une heure précise (« à 7 heures ») n'est pas une durée -> none.")
+    if registry.exists("light_on"):
+        rules.append("- Lumières : la pièce n'est jamais un paramètre. « allume », « éteins » -> light_on, light_off ; "
+                     "brightness seulement si un pourcentage est dit ; une couleur dite (« en vert », « en blanc "
+                     "chaud ») -> set_color ; des kelvins dits -> set_color_temperature.")
     if registry.exists("get_weather"):
         rules.append("- get_weather : location uniquement si une ville est dite ; day = today, tomorrow ou "
                      "day_after_tomorrow ; moment = now (par défaut aujourd'hui), morning, afternoon, evening ou "
@@ -194,7 +198,6 @@ class ToolsCapability:
     """
 
     name = "outils"
-    replaces = "le contrôle de votre ordinateur"
 
     GROUPS = (
         (("get_time", "get_date"), "donner l'heure et la date"),
@@ -204,9 +207,11 @@ class ToolsCapability:
         (("set_volume", "mute_volume", "unmute_volume"), "régler le son"),
         (("system_info", "list_running_applications"), "décrire la machine"),
         (("lock_pc",), "verrouiller l'ordinateur"),
+        (("light_on", "light_off", "set_color"), "piloter vos lumières"),
     )
 
     def __init__(self, registry: ToolRegistry):
+        self.replaces = ("le contrôle de votre ordinateur", *(("la domotique",) if registry.exists("light_on") else ()))
         parts = [label for names, label in self.GROUPS if any(registry.exists(n) for n in names)]
         self.description = ", ".join(parts[:-1]) + " et " + parts[-1] if len(parts) > 1 else "".join(parts)
 

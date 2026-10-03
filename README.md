@@ -311,6 +311,19 @@ n'importe quel appareil du réseau local (`http://192.168.1.91:8765/` : PC, tabl
 plusieurs à la fois. L'interface est en lecture seule. L'agent Windows l'ouvre de lui-même sur le PC
 quand le Core se connecte (`[face] open_on_connect` de `windows_agent.toml`).
 
+## Lumières (ampoules Tuya / LSC Smart Connect, en local)
+
+« Allume la chambre à 30 % », « éteins les lumières », « mets l'entrée en vert », « remets la chambre en blanc
+chaud », « la chambre à 4000 kelvins » : outils `light_on`, `light_off`, `light_toggle`, `set_brightness`,
+`set_color`, `set_color_temperature`, exécutés par le Core en local (TinyTuya, sans cloud). La pièce vient des
+mots de la demande (alias ; « les lumières » = toutes), jamais du LLM ; sans pièce reconnue, JARVIS demande
+laquelle. Réponses sans LLM : « La lumière de la chambre est allumée à 30 %. »
+
+Réglages dans `[lights]` (voir `config.toml`) : une pièce par ampoule dans `config.local.toml` (nom, device_id,
+ip, version, alias), clé locale de chaque ampoule dans `.env` (`LIGHT_KEY_<PIÈCE>`), jamais dans Git. Les clés
+s'obtiennent une fois depuis un compte Smart Life ; une IP fixe par ampoule (bail réservé dans la box) est
+conseillée.
+
 ## Agent Windows (contrôle et audio du PC à distance)
 
 Quand le Core JARVIS tourne sur le mini-PC, le PC Windows peut exécuter des actions à sa demande via

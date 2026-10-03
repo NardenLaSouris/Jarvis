@@ -88,6 +88,18 @@ timeout = 120.0
 fallback_host = ""
 fallback_model = ""
 
+[lights]
+# Lumières Tuya (par exemple LSC Smart Connect), pilotées en local par le Core. Une pièce par ampoule, dans
+# config.local.toml ; la clé locale de chaque ampoule va dans .env : LIGHT_KEY_<PIÈCE> (ex. LIGHT_KEY_CHAMBRE).
+#   [lights.rooms.chambre]
+#   name = "la chambre"          # dit à voix haute : « La lumière de la chambre est allumée. »
+#   device_id = "bf..."
+#   ip = "192.168.1.174"         # IP fixe conseillée (bail DHCP réservé dans la box)
+#   version = 3.5
+#   aliases = ["chambre", "ma chambre"]
+enabled = false
+timeout = 3.0
+
 [web]
 # Recherche Web pour les questions d'actualité (prix, versions, nouvelles...), via une instance
 # SearXNG auto-hébergée (format json activé). Si le service est injoignable, JARVIS le dit simplement.

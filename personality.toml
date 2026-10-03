@@ -272,8 +272,11 @@ responses = ["Volontiers, {title}. À quel niveau, par exemple « mets le son à
 [intents."tool.action"]
 planner = true
 match = "contains"
-replaces = ["unavailable_computer", "unavailable_reminders", "unavailable_realtime"]
+replaces = ["unavailable_computer", "unavailable_reminders", "unavailable_realtime", "unavailable_home"]
 patterns = [
+    "allume", "allumer", "eteins", "eteindre", "lumiere", "lumieres", "lampe", "lampes", "ampoule", "ampoules",
+    "luminosite", "eclairage", "en rouge", "en orange", "en jaune", "en vert", "en cyan", "en bleu", "en violet",
+    "en magenta", "en rose", "en blanc", "blanc chaud", "blanc froid", "blanc neutre", "kelvin", "kelvins",
     "ouvre", "ouvrir", "ouvre moi", "lance", "lancer", "lance moi", "demarre", "demarrer", "va sur", "affiche le site",
     "ferme", "fermer", "ferme moi", "quitte", "quitter", "arrete", "coupe le", "coupe la", "coupe les", "coupe moi",
     "volume", "le son", "du son", "remets le son", "verrouille", "verrouiller", "verrouillage",

@@ -99,6 +99,13 @@ class ToolsConfig:
 
 
 @dataclass(frozen=True)
+class LightsConfig:
+    enabled: bool = False
+    timeout: float = 3.0
+    rooms: dict = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class TimersConfig:
     enabled: bool = False
     max_hours: float = 24.0
@@ -170,6 +177,7 @@ class Config:
     timers: TimersConfig = TimersConfig()
     notifications: NotificationsConfig = NotificationsConfig()
     weather: WeatherConfig = WeatherConfig()
+    lights: LightsConfig = LightsConfig()
 
 
 def _build(cls: type, data: dict[str, Any], base_dir: Path):
@@ -245,6 +253,7 @@ def load_config(path: str | Path = "config.toml", local: bool = True) -> Config:
         "timers": TimersConfig,
         "notifications": NotificationsConfig,
         "weather": WeatherConfig,
+        "lights": LightsConfig,
     }
     unknown = set(raw) - set(sections)
     if unknown:

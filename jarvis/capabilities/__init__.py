@@ -49,7 +49,10 @@ class CapabilityRegistry:
 
     def planned(self) -> tuple[tuple[str, str], ...]:
         """Fonctionnalités prévues, moins celles qu'une capacité enregistrée rend disponibles."""
-        done = {getattr(c, "replaces", None) for c in self}
+        done = set()
+        for capability in self:
+            replaces = getattr(capability, "replaces", None) or ()
+            done |= {replaces} if isinstance(replaces, str) else set(replaces)
         if "le contrôle de votre ordinateur" not in done:
             done.add("la gestion de vos fichiers")
         return tuple(f for f in PLANNED_FEATURES if f[0] not in done)

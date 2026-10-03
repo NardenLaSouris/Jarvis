@@ -75,7 +75,7 @@ def devices_for(pc_url, laptop_url):
 
 
 def converse(texts, llm, devices, timeout=5.0):
-    return run_agent(texts, llm, core_for(devices, timeout), devices=devices)
+    return run_agent(texts, llm, core_for(devices, timeout))
 
 
 def core_for(devices, timeout=5.0):

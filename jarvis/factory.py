@@ -195,7 +195,18 @@ def build_devices(cfg: Config):
     return load_devices(cfg.tools.devices) if cfg.tools.enabled else None
 
 
-def build_tools(cfg: Config, personality, events: EventBus | None = None, timers=None, weather=None, devices=None):
+def build_lights(cfg: Config):
+    """Outils des lumières ([lights]), clés locales dans .env (LIGHT_KEY_<PIÈCE>) ; [] si désactivées."""
+    if not (cfg.tools.enabled and cfg.lights.enabled):
+        return []
+    from jarvis.tools.lights import TuyaDriver, light_tools, load_rooms
+
+    rooms = load_rooms(cfg.lights.rooms, lambda key: secret(f"LIGHT_KEY_{key.upper()}", ENV_FILE))
+    return light_tools(rooms, TuyaDriver(cfg.lights.timeout)) if rooms else []
+
+
+def build_tools(cfg: Config, personality, events: EventBus | None = None, timers=None, weather=None, devices=None,
+                lights=()):
     """Core des outils (registre, permissions, confirmation), ou None si les outils sont désactivés.
 
     Avec des appareils, les outils qui agissent sur un PC sont confiés à leurs agents : le Core n'agit jamais sur
@@ -212,6 +223,7 @@ def build_tools(cfg: Config, personality, events: EventBus | None = None, timers
         client = AgentClient(secret("JARVIS_AGENT_TOKEN", ENV_FILE), timeout=max(1.0, cfg.tools.timeout - 2))
         tools = [remote_tool(tool, devices, client) if tool.name in PC_TOOLS else tool for tool in tools]
     registry = ToolRegistry()
+    tools = [*tools, *lights]
     for tool in tools:
         registry.register(tool)
     confirmations = ConfirmationManager(personality.confirm_yes, personality.confirm_no,
@@ -320,7 +332,7 @@ def build_agent(
     notifications, voice = build_notifications(cfg, personality, events)
     weather = build_weather(cfg, events) if cfg.tools.enabled else None
     devices = build_devices(cfg)
-    tools = build_tools(cfg, personality, events, timers, weather, devices)
+    tools = build_tools(cfg, personality, events, timers, weather, devices, build_lights(cfg))
     if tools is not None and len(tools.registry):
         from jarvis.tools import ToolsCapability
 
@@ -347,5 +359,5 @@ def build_agent(
     )
     return Agent(settings, source, sink, wake_word, recorder, stt, llm, tts, router, on_event,
                  stream_audio=cfg.tts.stream_audio, merge_under=cfg.tts.merge_under, web=web,
-                 tools=tools, corrector=corrector, notifications=voice, devices=devices,
+                 tools=tools, corrector=corrector, notifications=voice,
                  services=tuple(s for s in (timers, notifications) if s is not None))

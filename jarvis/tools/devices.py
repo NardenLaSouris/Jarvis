@@ -37,6 +37,19 @@ class Device:
         return self.name[:1].upper() + self.name[1:]
 
 
+class AliasIndex:
+    """Mots désignant une chose (appareil, pièce...) ; dans une phrase, l'alias le plus long l'emporte
+    (« mon pc portable » avant « mon pc »)."""
+
+    def __init__(self, pairs):
+        self._pairs = sorted(((normalize(alias), value) for alias, value in pairs if normalize(alias)),
+                             key=lambda item: -len(item[0]))
+
+    def find(self, text: str):
+        norm = f" {normalize(text)} "
+        return next((value for alias, value in self._pairs if f" {alias} " in norm), None)
+
+
 class Devices:
     def __init__(self, devices: list[Device]):
         defaults = [d for d in devices if d.default]
@@ -44,8 +57,7 @@ class Devices:
             raise ValueError("[tools.devices] : un et un seul appareil par défaut, avec une adresse (url).")
         self._devices = {d.key: d for d in devices}
         self.default = defaults[0]
-        self._aliases = sorted(((normalize(a), d) for d in devices for a in (d.name, *d.aliases) if normalize(a)),
-                               key=lambda item: -len(item[0]))
+        self._aliases = AliasIndex((a, d) for d in devices for a in (d.name, *d.aliases))
 
     def __getitem__(self, key: str) -> Device:
         return self._devices[key]
@@ -54,9 +66,7 @@ class Devices:
         return tuple(self._devices)
 
     def find(self, text: str) -> Device | None:
-        """Appareil nommé dans la phrase ; l'alias le plus long l'emporte (« mon pc portable » avant « mon pc »)."""
-        norm = f" {normalize(text)} "
-        return next((device for alias, device in self._aliases if f" {alias} " in norm), None)
+        return self._aliases.find(text)
 
 
 def load_devices(table: dict) -> Devices | None:
@@ -130,5 +140,6 @@ def remote_tool(tool: Tool, devices: Devices, client: AgentClient) -> Tool:
         return tool.say(result).rstrip(".") + f"{elsewhere(result.get('device'))}."
 
     parameters = {**tool.parameters, "device": Param(str, "appareil visé", required=False, max_length=32,
-                                                     choices=devices.keys(), check=allowed, hidden=True)}
+                                                     choices=devices.keys(), check=allowed, hidden=True,
+                                                     resolve=lambda text: (devices.find(text) or devices.default).key)}
     return replace(tool, parameters=parameters, run=run, question=question, say=say if tool.say else None)
