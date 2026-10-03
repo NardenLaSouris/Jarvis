@@ -3,6 +3,7 @@
 #   systemctl --user daemon-reload && systemctl --user enable --now jarvis
 #   journalctl --user -u jarvis -f                     # journal en direct
 #   sudo loginctl enable-linger $USER                  # démarrer avec la machine, sans session ouverte
+#   sudo timedatectl set-timezone Europe/Paris         # fuseau local : heure dite, thème nuit, météo
 # Le dépôt est supposé dans /opt/jarvis (sinon, adapter WorkingDirectory et ExecStart).
 
 [Unit]
