@@ -218,3 +218,12 @@ def test_invented_brightness_is_dropped_and_the_light_still_turns_on():
     driver = FakeDriver()
     spoken, _, _ = converse(["Allume l'entrée."], [("light_on", {"brightness": 100})], driver)
     assert spoken == ["La lumière de l'entrée est allumée."] and driver.calls == [("entree", "power", True)]
+
+
+def test_brightness_alone_sets_every_light():
+    driver = FakeDriver()
+    spoken, events, _ = converse(["Luminosité 30 %.", "Mets la luminosité au maximum."],
+                                 [("set_brightness", {"brightness": 30}), ("set_brightness", {"brightness": 100})], driver)
+    assert spoken == ["Toutes les lumières sont à 30 %.", "Toutes les lumières sont à 100 %."]
+    assert routes(events) == ["tool:tool.action"] * 2
+    assert all(light["on"] and light["brightness"] == 100 for light in driver.lights.values())

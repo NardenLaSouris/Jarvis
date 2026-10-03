@@ -13,6 +13,7 @@ import logging
 import re
 
 from jarvis.interfaces import Message
+from jarvis.personality import normalize
 from jarvis.tools.base import ToolResult
 from jarvis.tools.registry import ToolRegistry
 
@@ -21,6 +22,10 @@ log = logging.getLogger(__name__)
 RESULT_START = "<<<RESULTAT_OUTIL>>>"
 RESULT_END = "<<<FIN_RESULTAT_OUTIL>>>"
 TYPES = {str: "texte", int: "entier", float: "nombre", bool: "booléen"}
+# Mots valant un nombre dit (« mets le son à fond », « luminosité au maximum »).
+NUMBER_WORDS = ((("maximum", "max", "a fond", "au plus fort"), {"100"}), (("minimum", "min"), {"0", "1"}),
+                (("moitie", "a la moitie", "a mi"), {"50"}))
+
 EXAMPLES = (
     ("Tu peux ouvrir Discord ?", "open_application", {"application": "discord"}),
     ("Ferme Chrome", "close_application", {"application": "chrome"}),
@@ -58,6 +63,8 @@ EXAMPLES = (
     ("Allume le salon à 30 %", "light_on", {"brightness": 30}),
     ("Éteins toutes les lumières", "light_off", {}),
     ("Mets la lumière de l'entrée à 50 %", "set_brightness", {"brightness": 50}),
+    ("Luminosité 30 %", "set_brightness", {"brightness": 30}),
+    ("Mets la luminosité au maximum", "set_brightness", {"brightness": 100}),
     ("Mets l'entrée en vert", "set_color", {"color": "vert"}),
     ("Remets la chambre en blanc chaud", "set_color", {"color": "blanc chaud"}),
     ("Mets le salon à 4000 kelvins", "set_color_temperature", {"temperature": 4000}),
@@ -186,6 +193,10 @@ def _grounded(data: dict, text: str, registry: ToolRegistry) -> dict | None:
         return data
     said = set(re.findall(r"\d+(?:[.,]\d+)?", text))
     said |= {n.replace(",", ".") for n in said}
+    norm = f" {normalize(text)} "
+    for words, values in NUMBER_WORDS:
+        if any(f" {w} " in norm for w in words):
+            said |= values
     parameters = dict(data["parameters"])
     for name, spec in registry.get(data["tool"]).parameters.items():
         value = parameters.get(name)

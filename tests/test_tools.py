@@ -912,3 +912,12 @@ def test_invented_optional_numbers_are_dropped_but_required_ones_reject_the_call
                      registry) is None
     assert _grounded({"type": "tool_call", "tool": "set_volume", "parameters": {"volume": 50}}, "Mets le son à 50",
                      registry)["parameters"] == {"volume": 50}
+
+
+def test_number_words_count_as_said():
+    from jarvis.tools.planner import _grounded
+
+    registry = make_core().registry
+    call_ = {"type": "tool_call", "tool": "set_volume", "parameters": {"volume": 100}}
+    assert _grounded(call_, "Mets le son à fond", registry) == call_
+    assert _grounded(call_, "Mets le son plus fort", registry) is None
