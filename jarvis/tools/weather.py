@@ -97,7 +97,29 @@ def weather_tool(service: WeatherService) -> Tool:
         {"type": "current ou forecast", "location": "ville", "period": "période", "condition_text": "temps",
          "temperature": "°C", "precipitation_probability": "% de risque de pluie",
          "rain_risk": "faible, possible, probable, pluie prévue ou en cours", "wind_speed": "km/h"},
-        Risk.SAFE, run)
+        Risk.SAFE, run, say=weather_said)
+
+
+RAIN_SAID = {"faible": "peu de risque de pluie", "possible": "pluie possible", "probable": "pluie probable",
+             "pluie prévue": "pluie prévue", "pluie en cours": "il pleut"}
+
+
+def weather_said(r: dict) -> str:
+    """« Demain à Lyon : ciel couvert, de 12 à 21 degrés, pluie possible. » (sans LLM, rien d'inventé)."""
+    unit = " degrés Fahrenheit" if r["units"]["temperature"] == "°F" else " degrés"
+    if r["type"] == "current":
+        parts = [r["condition_text"], f"{r['temperature']}{unit}"]
+        if r["feels_like"] is not None and abs(r["feels_like"] - r["temperature"]) >= 3:
+            parts.append(f"ressenti {r['feels_like']}")
+        if r["precipitation"]:
+            parts.append("il pleut")
+        return f"À {r['location']}, {', '.join(parts)}."
+    low, high = r["temperature_min"], r["temperature_max"]
+    parts = [r["condition_text"], f"{low}{unit}" if low == high else f"de {low} à {high}{unit}"]
+    if r["rain_risk"] in RAIN_SAID:
+        parts.append(RAIN_SAID[r["rain_risk"]])
+    period = r["period"]
+    return f"{period[:1].upper()}{period[1:]} à {r['location']} : {', '.join(parts)}."
 
 
 def _rounded(value: float | None) -> int | None:

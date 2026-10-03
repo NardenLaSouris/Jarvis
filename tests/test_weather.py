@@ -452,14 +452,11 @@ def test_without_tools_weather_questions_keep_the_previous_route():
 
 def test_agent_answers_from_the_weather_tool():
     from test_tools import PlannerLLM as AgentLLM
-    from test_tools import result_sent_to_llm, run_agent
+    from test_tools import run_agent
 
-    llm = AgentLLM({"type": "tool_call", "tool": "get_weather", "parameters": {"day": "tomorrow"}},
-                   reply="Demain à Nantes, comptez environ 14 degrés avec de la pluie faible.")
+    llm = AgentLLM({"type": "tool_call", "tool": "get_weather", "parameters": {"day": "tomorrow"}})
     spoken, events = run_agent(["Jarvis, quel temps fera-t-il demain ?"], llm, make_core())
-    assert spoken == ["Demain à Nantes, comptez environ 14 degrés avec de la pluie faible."]
-    sent = result_sent_to_llm(llm)
-    assert sent["success"] is True and sent["result"]["period"] == "demain" and sent["result"]["location"] == "Nantes"
+    assert spoken == ["Demain à Nantes : pluie faible, de 12 à 35 degrés, pluie prévue."] and llm.calls == []
 
 
 def test_configuration():
@@ -609,3 +606,19 @@ def test_city_fallback_keeps_network_errors():
     with pytest.raises(WeatherError) as err:
         service(Down()).current("Allion")
     assert err.value.code == "weather_unavailable"
+
+
+def test_weather_is_spoken_without_the_llm():
+    from jarvis.tools.weather import weather_said
+
+    units = {"temperature": "°C"}
+    assert weather_said({"type": "current", "location": "Nantes", "condition_text": "ciel couvert", "temperature": 17,
+                         "feels_like": 13, "precipitation": 0.4, "units": units}) == (
+        "À Nantes, ciel couvert, 17 degrés, ressenti 13, il pleut.")
+    assert weather_said({"type": "current", "location": "Nantes", "condition_text": "ciel dégagé", "temperature": 17,
+                         "feels_like": 16, "precipitation": 0, "units": units}) == "À Nantes, ciel dégagé, 17 degrés."
+    forecast = {"type": "forecast", "location": "Lyon", "period": "demain matin", "condition_text": "averses",
+                "temperature_min": 12, "temperature_max": 21, "rain_risk": "probable", "units": units}
+    assert weather_said(forecast) == "Demain matin à Lyon : averses, de 12 à 21 degrés, pluie probable."
+    assert weather_said({**forecast, "temperature_max": 12, "rain_risk": None, "units": {"temperature": "°F"}}) == (
+        "Demain matin à Lyon : averses, 12 degrés Fahrenheit.")
