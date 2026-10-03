@@ -63,7 +63,8 @@ EXAMPLES = (
 def planner_prompt(registry: ToolRegistry) -> str:
     lines = []
     for tool in registry.list():
-        params = "; ".join(f"{name} ({TYPES.get(p.kind, 'texte')}) : {p.description}" for name, p in tool.parameters.items())
+        params = "; ".join(f"{name} ({TYPES.get(p.kind, 'texte')}) : {p.description}"
+                           for name, p in tool.parameters.items() if not p.hidden)
         lines.append(f"- {tool.name} : {tool.description} Paramètres : {params or 'aucun'}.")
     tools = "\n".join(lines)
     rules = ["- N'inventez jamais d'outil ni de paramètre."]
@@ -135,8 +136,8 @@ def plan_schema(registry: ToolRegistry) -> dict:
     for tool in registry.list():
         parameters = {
             "type": "object",
-            "properties": {name: _param_schema(p) for name, p in tool.parameters.items()},
-            "required": [name for name, p in tool.parameters.items() if p.required],
+            "properties": {name: _param_schema(p) for name, p in tool.parameters.items() if not p.hidden},
+            "required": [name for name, p in tool.parameters.items() if p.required and not p.hidden],
             "additionalProperties": False,
         }
         options.append({"type": "object",

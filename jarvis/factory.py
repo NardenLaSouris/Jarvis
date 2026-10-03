@@ -188,14 +188,31 @@ def build_weather(cfg: Config, events: EventBus | None):
                           forecast_ttl=w.forecast_cache_minutes * 60, default_coordinates=coordinates)
 
 
-def build_tools(cfg: Config, personality, events: EventBus | None = None, timers=None, weather=None):
-    """Core des outils (registre, permissions, confirmation), ou None si les outils sont désactivés."""
+def build_devices(cfg: Config):
+    """Appareils du réseau ([tools.devices]), ou None : le Core agit alors sur sa propre machine."""
+    from jarvis.tools.devices import load_devices
+
+    return load_devices(cfg.tools.devices) if cfg.tools.enabled else None
+
+
+def build_tools(cfg: Config, personality, events: EventBus | None = None, timers=None, weather=None, devices=None):
+    """Core des outils (registre, permissions, confirmation), ou None si les outils sont désactivés.
+
+    Avec des appareils, les outils qui agissent sur un PC sont confiés à leurs agents : le Core n'agit jamais sur
+    sa propre machine."""
     if not cfg.tools.enabled:
         return None
     from jarvis.tools import ConfirmationManager, PermissionManager, ToolCore, ToolRegistry, builtin_tools
 
+    tools = builtin_tools(cfg.tools.settings(), timers=timers, weather=weather)
+    if devices is not None:
+        from jarvis.tools.builtin import PC_TOOLS
+        from jarvis.tools.devices import AgentClient, remote_tool
+
+        client = AgentClient(secret("JARVIS_AGENT_TOKEN", ENV_FILE), timeout=max(1.0, cfg.tools.timeout - 2))
+        tools = [remote_tool(tool, devices, client) if tool.name in PC_TOOLS else tool for tool in tools]
     registry = ToolRegistry()
-    for tool in builtin_tools(cfg.tools.settings(), timers=timers, weather=weather):
+    for tool in tools:
         registry.register(tool)
     confirmations = ConfirmationManager(personality.confirm_yes, personality.confirm_no,
                                         ignored=(personality.assistant_name, personality.user_title))
@@ -302,7 +319,8 @@ def build_agent(
     timers = build_timers(cfg, events) if cfg.tools.enabled else None
     notifications, voice = build_notifications(cfg, personality, events)
     weather = build_weather(cfg, events) if cfg.tools.enabled else None
-    tools = build_tools(cfg, personality, events, timers, weather)
+    devices = build_devices(cfg)
+    tools = build_tools(cfg, personality, events, timers, weather, devices)
     if tools is not None and len(tools.registry):
         from jarvis.tools import ToolsCapability
 
@@ -329,5 +347,5 @@ def build_agent(
     )
     return Agent(settings, source, sink, wake_word, recorder, stt, llm, tts, router, on_event,
                  stream_audio=cfg.tts.stream_audio, merge_under=cfg.tts.merge_under, web=web,
-                 tools=tools, corrector=corrector, notifications=voice,
+                 tools=tools, corrector=corrector, notifications=voice, devices=devices,
                  services=tuple(s for s in (timers, notifications) if s is not None))

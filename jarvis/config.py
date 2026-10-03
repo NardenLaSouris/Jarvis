@@ -92,6 +92,7 @@ class ToolsConfig:
     unmute_volume: dict = field(default_factory=dict)
     lock_pc: dict = field(default_factory=dict)
     applications: dict = field(default_factory=dict)
+    devices: dict = field(default_factory=dict)
 
     def settings(self) -> dict[str, dict]:
         return {f.name: getattr(self, f.name) for f in fields(self) if isinstance(getattr(self, f.name), dict)}
@@ -213,10 +214,9 @@ def secret(name: str, env_file: Path) -> str:
     return ""
 
 
-def load_config(path: str | Path = "config.toml", local: bool = True) -> Config:
+def read_with_local(path: Path, local: bool = True) -> dict:
     """Lit ``path``, puis (si ``local``) ``<nom>.local.toml`` à côté s'il existe : réglages propres à la
     machine, non versionnés, qui remplacent les réglages du même nom section par section."""
-    path = Path(path).resolve()
     raw = read_toml(path)
     overrides = path.with_name(f"{path.stem}.local.toml")
     if local and overrides.exists():
@@ -224,6 +224,12 @@ def load_config(path: str | Path = "config.toml", local: bool = True) -> Config:
             if not isinstance(values, dict):
                 raise ValueError(f"{overrides.name} : [{section}] doit être une section")
             raw.setdefault(section, {}).update(values)
+    return raw
+
+
+def load_config(path: str | Path = "config.toml", local: bool = True) -> Config:
+    path = Path(path).resolve()
+    raw = read_with_local(path, local)
     base = path.parent
     sections = {
         "assistant": AssistantConfig,

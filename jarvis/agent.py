@@ -131,6 +131,7 @@ class Agent:
         corrector=None,
         notifications=None,
         services: tuple = (),
+        devices=None,
     ):
         self.settings = settings
         self._source = source
@@ -143,6 +144,7 @@ class Agent:
         self._router = router
         self._web = web
         self._tools = tools
+        self._devices = devices
         self._last_tool_request = ""
         self._place: str | None = None
         self._corrector = corrector
@@ -280,7 +282,7 @@ class Agent:
                 latency["route"] = fallback.label
                 self._event("routing", f"{fallback.label} (aucun outil)")
                 return self._answer(history, text, fallback, latency)
-        data = self._with_place(data)
+        data = self._with_device(self._with_place(data), text)
         self._event("tool", json.dumps(data, ensure_ascii=False)[:200])
         started = time.perf_counter()
         outcome = self._tools.submit(data)
@@ -291,6 +293,14 @@ class Agent:
             place = outcome.result.result.get("location") if isinstance(outcome.result.result, dict) else None
             self._place = place if data.get("tool") == WEATHER_TOOL and place else self._place
         return reply
+
+    def _with_device(self, data: dict, text: str) -> dict:
+        """Appareil visé, d'après les mots de la demande (« mon pc portable »), sinon l'appareil par défaut."""
+        name, parameters = data.get("tool"), data.get("parameters")
+        if self._devices is None or not isinstance(parameters, dict) or not self._tools.registry.exists(name)                 or "device" not in self._tools.registry.get(name).parameters:
+            return data
+        device = self._devices.find(text) or self._devices.default
+        return {**data, "parameters": {**parameters, "device": device.key}}
 
     def _with_place(self, data: dict) -> dict:
         """Météo sans ville dite : la dernière ville de la conversation, sinon la ville par défaut de l'outil."""

@@ -18,5 +18,5 @@ models/neutts/*
 
 # SearXNG local : clé secrète propre à chaque machine
 searxng/.env
-# Réglages propres à une machine (surchargent config.toml)
-config.local.toml
+# Réglages propres à une machine (surchargent config.toml, windows_agent.toml)
+*.local.toml

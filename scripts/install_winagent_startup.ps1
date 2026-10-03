@@ -1,8 +1,9 @@
 ﻿# Lance l'agent Windows de JARVIS à chaque ouverture de session, sans fenêtre (journal : data\winagent.log).
 #   powershell -ExecutionPolicy Bypass -File scripts\install_winagent_startup.ps1            # installer et démarrer
 #   powershell -ExecutionPolicy Bypass -File scripts\install_winagent_startup.ps1 -Remove    # désinstaller
+#   ... -NoStart : raccourci seulement (depuis SSH : l'agent doit tourner dans la session de l'utilisateur)
 # Aucun droit administrateur : un raccourci dans le dossier Démarrage de l'utilisateur.
-param([switch]$Remove)
+param([switch]$Remove, [switch]$NoStart)
 $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $PSScriptRoot
@@ -24,6 +25,7 @@ $link.WorkingDirectory = $root
 $link.Description = "Agent Windows de JARVIS"
 $link.Save()
 Write-Output "Démarrage automatique installé : $shortcut"
+if ($NoStart) { exit 0 }
 
 $running = Get-CimInstance Win32_Process -Filter "Name = 'pythonw.exe' OR Name = 'python.exe'" |
     Where-Object { $_.CommandLine -like "*jarvis.winagent*" }

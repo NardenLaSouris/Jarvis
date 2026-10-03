@@ -109,6 +109,19 @@ max_page_bytes = 1000000
 enabled = true
 timeout = 15.0          # délai maximal d'exécution d'un outil (s)
 
+# Appareils du réseau : JARVIS agit sur un PC via l'agent qui y tourne (python -m jarvis.winagent), jamais sur
+# la machine du Core. L'appareil visé vient des mots de la demande (alias, le plus long l'emporte), sinon
+# celui marqué default. Sans url : appareil interdit (toute action y est refusée). Vide : le Core agit sur sa
+# propre machine. Exemple (à mettre dans config.local.toml) :
+#   [tools.devices.pc]
+#   name = "votre PC"
+#   url = "http://192.168.1.128:8765"
+#   default = true
+#   aliases = ["mon pc", "mon ordinateur"]
+#   [tools.devices.mini]
+#   name = "le mini-PC"
+#   aliases = ["mini pc", "le serveur"]
+
 [tools.get_time]
 enabled = true
 

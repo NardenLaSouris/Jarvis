@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import ipaddress
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
-from jarvis.config import read_toml, secret
+from jarvis.config import read_with_local, secret
 
 TOKEN_NAME = "JARVIS_AGENT_TOKEN"
 MIN_TOKEN_LENGTH = 32
@@ -21,17 +21,18 @@ class AgentConfig:
     input_device: str = ""
     output_device: str = ""
     face_port: int | None = None
+    tools: dict = field(default_factory=dict)
 
 
 def load_agent_config(path: str | Path, env_file: str | Path) -> AgentConfig:
-    """Lit ``path`` ([agent], [audio]) et le jeton ``JARVIS_AGENT_TOKEN`` (environnement, sinon ``env_file``).
+    """Lit ``path`` ([agent], [audio], [face], [tools]) et ``<nom>.local.toml`` à côté, puis le jeton ``JARVIS_AGENT_TOKEN`` (environnement, sinon ``env_file``).
 
     Lève ValueError si la configuration n'est pas sûre : aucune IP autorisée, IP invalide, jeton absent ou court.
     """
     path = Path(path)
-    data = read_toml(path)
+    data = read_with_local(path)
     raw, audio, face = data.get("agent", {}), data.get("audio", {}), data.get("face", {})
-    unknown = (set(data) - {"agent", "audio", "face"}) | (set(raw) - {"host", "port", "allowed_ips"}) | (
+    unknown = (set(data) - {"agent", "audio", "face", "tools"}) | (set(raw) - {"host", "port", "allowed_ips"}) | (
         set(audio) - {"input_device", "output_device"}) | (set(face) - {"open_on_connect", "port"})
     if unknown:
         raise ValueError(f"Réglages inconnus dans {path.name} : {sorted(unknown)}")
@@ -49,7 +50,8 @@ def load_agent_config(path: str | Path, env_file: str | Path) -> AgentConfig:
         raise ValueError(f"{TOKEN_NAME} absent ou trop court ({MIN_TOKEN_LENGTH} caractères minimum) : "
                          f"définissez-le dans l'environnement ou dans {Path(env_file).name}.")
     return AgentConfig(str(raw.get("host", "0.0.0.0")), port, allowed, token,
-                       str(audio.get("input_device", "")), str(audio.get("output_device", "")), face_port)
+                       str(audio.get("input_device", "")), str(audio.get("output_device", "")), face_port,
+                       data.get("tools", {}))
 
 
 def _port(value) -> int:

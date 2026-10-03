@@ -34,6 +34,12 @@ log = logging.getLogger(__name__)
 __all__ = ["CATALOG", "Application", "Processes", "builtin_tools", "load_applications", "validate_url"]
 
 
+# Outils qui agissent sur un PC : avec des appareils configurés ([tools.devices]), le Core ne les exécute
+# jamais lui-même, il les confie à l'agent de l'appareil visé.
+PC_TOOLS = ("system_info", "open_url", "open_application", "close_application", "list_running_applications",
+            "set_volume", "mute_volume", "unmute_volume", "lock_pc")
+
+
 def builtin_tools(settings: dict | None = None, clock: Callable[[], datetime] = datetime.now,
                   opener: Callable[[str], bool] | None = None, launcher: Callable[[list[str]], None] = _launch,
                   processes: Processes | None = None, volume: VolumeControl | None = None,

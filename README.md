@@ -529,6 +529,13 @@ host = "0.0.0.0"
 open_browser = false
 ```
 
+**Agir sur les PC du réseau.** Avec `[tools.devices]` (voir l'exemple dans `config.toml`), les outils qui
+agissent sur un PC (applications, pages Web, volume, verrouillage, description de la machine) sont confiés
+à l'agent Windows de l'appareil visé ; le Core n'agit jamais sur sa propre machine. L'appareil vient des mots
+de la demande (« ouvre Discord sur mon PC portable » ; l'alias le plus long l'emporte), sinon l'appareil
+par défaut ; un appareil sans `url` (le mini-PC) est refusé avant toute confirmation. Le LLM ne choisit jamais
+l'appareil. Chaque agent a ses réglages propres dans `windows_agent.local.toml` (non versionné).
+
 **LLM sur une autre machine.** `[llm] host` peut viser un worker GPU du réseau (Ollama écoutant sur le LAN),
 avec `fallback_host` / `fallback_model` pour un LLM de secours (par exemple Ollama en local) : avant chaque
 appel, JARVIS vérifie en moins d'une seconde que le worker répond, sinon il bascule aussitôt sur le secours
