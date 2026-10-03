@@ -311,6 +311,18 @@ n'importe quel appareil du réseau local (`http://192.168.1.91:8765/` : PC, tabl
 plusieurs à la fois. L'interface est en lecture seule. L'agent Windows l'ouvre de lui-même sur le PC
 quand le Core se connecte (`[face] open_on_connect` de `windows_agent.toml`).
 
+## Réveils
+
+« Réveille-moi à 7 h 30 », « mets un réveil demain à 6 heures », « quels réveils ? », « annule mon réveil » :
+la sonnerie joue `[alarms] sound` (votre fichier MP3, WAV ou FLAC, à copier dans `data/` du Core ; une sonnerie
+de secours sinon) jusqu'à ce que vous disiez « Jarvis » ou « arrête », puis JARVIS annonce la journée (date,
+météo, rappels, réveils et routines du jour). Un réveil par la voix sonne une fois ; les réveils récurrents se
+créent dans JARVIS Control (routine avec l'action « Réveil »). Les routines peuvent aussi « Annoncer » l'heure,
+la date, la météo ou la journée.
+
+Dire « Jarvis » pendant que JARVIS parle l'interrompt (`[assistant] barge_in`) ; « arrête », « tais-toi »,
+« ta gueule »... le renvoient en veille.
+
 ## JARVIS Control (application Windows)
 
 Interface de contrôle et de configuration : tableau de bord (Core, LLM, agents, recherche, lumières, routines,

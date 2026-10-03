@@ -107,6 +107,15 @@ class RoutinesConfig:
 
 
 @dataclass(frozen=True)
+class AlarmsConfig:
+    enabled: bool = True
+    sound: Path = Path("data/alarm.mp3")
+    max_minutes: float = 5.0
+    volume: int = 0
+    briefing: bool = True
+
+
+@dataclass(frozen=True)
 class ApiConfig:
     enabled: bool = False
     host: str = "0.0.0.0"
@@ -195,6 +204,7 @@ class Config:
     weather: WeatherConfig = WeatherConfig()
     lights: LightsConfig = LightsConfig()
     routines: RoutinesConfig = RoutinesConfig()
+    alarms: AlarmsConfig = AlarmsConfig()
     api: ApiConfig = ApiConfig()
 
 
@@ -273,6 +283,7 @@ def load_config(path: str | Path = "config.toml", local: bool = True) -> Config:
         "weather": WeatherConfig,
         "lights": LightsConfig,
         "routines": RoutinesConfig,
+        "alarms": AlarmsConfig,
         "api": ApiConfig,
     }
     unknown = set(raw) - set(sections)

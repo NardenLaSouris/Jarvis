@@ -18,7 +18,7 @@ PLANNED_FEATURES = (
     ("la gestion de vos fichiers", "créer, déplacer ou supprimer des fichiers, exécuter des commandes"),
     ("la domotique", "lumières, chauffage, appareils connectés"),
     ("les e-mails et messages", "lire ou envoyer des e-mails et des messages WhatsApp"),
-    ("l'agenda", "rendez-vous, réveils à une heure précise"),
+    ("l'agenda", "rendez-vous et événements du calendrier"),
     ("la recherche sur Internet", "informations en temps réel : météo, actualités, cours de bourse"),
 )
 

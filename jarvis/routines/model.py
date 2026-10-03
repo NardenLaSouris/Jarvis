@@ -1,8 +1,9 @@
 """Routine : déclencheur et suite d'actions, validés strictement avant tout enregistrement.
 
 Une action est soit un outil du registre de JARVIS (validé comme une demande du LLM, et sans confirmation
-requise : une routine s'exécute sans personne pour répondre « oui »), soit une phrase dite par JARVIS, soit
-une attente. Aucune autre forme n'existe : pas de commande libre.
+requise : une routine s'exécute sans personne pour répondre « oui »), soit une phrase dite par JARVIS, une
+annonce (heure, date, météo, journée), la sonnerie du réveil, ou une attente. Aucune autre forme n'existe :
+pas de commande libre. ``once`` : la routine s'efface après s'être déclenchée (réveil ponctuel).
 """
 
 from __future__ import annotations
@@ -20,6 +21,9 @@ TIME = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 
 
+ANNOUNCEMENTS = ("time", "date", "weather", "day")
+
+
 class RoutineError(ValueError):
     pass
 
@@ -32,10 +36,15 @@ class Routine:
     enabled: bool
     trigger: dict
     actions: tuple[dict, ...]
+    once: bool = False
+
+    @property
+    def is_alarm(self) -> bool:
+        return any(a["type"] == "alarm" for a in self.actions)
 
     def as_dict(self) -> dict:
         return {"id": self.id, "name": self.name, "description": self.description, "enabled": self.enabled,
-                "trigger": dict(self.trigger), "actions": [dict(a) for a in self.actions]}
+                "once": self.once, "trigger": dict(self.trigger), "actions": [dict(a) for a in self.actions]}
 
 
 def _text(data: dict, key: str, limit: int, required: bool, label: str) -> str:
@@ -87,6 +96,14 @@ def parse_action(data, registry: ToolRegistry) -> dict:
     if kind == "say":
         _only(data, {"type", "text"}, "Action « dire »")
         return {"type": "say", "text": _text(data, "text", 200, True, "Phrase")}
+    if kind == "alarm":
+        _only(data, {"type"}, "Action « réveil »")
+        return {"type": "alarm"}
+    if kind == "announce":
+        _only(data, {"type", "what"}, "Action « annoncer »")
+        if data.get("what") not in ANNOUNCEMENTS:
+            raise RoutineError("Annonce : « time », « date », « weather » ou « day » attendu.")
+        return {"type": "announce", "what": data["what"]}
     if kind == "wait":
         _only(data, {"type", "seconds"}, "Action « attendre »")
         return {"type": "wait", "seconds": _integer(data, "seconds", 1, MAX_WAIT, "Attente (secondes)")}
@@ -102,18 +119,18 @@ def parse_action(data, registry: ToolRegistry) -> dict:
         except ToolError as exc:
             raise RoutineError(f"Action « {name} » : {exc.message}") from exc
         return {"type": "tool", "tool": request.tool, "parameters": dict(request.parameters)}
-    raise RoutineError("Action : type « tool », « say » ou « wait » attendu.")
+    raise RoutineError("Action : type « tool », « say », « announce », « alarm » ou « wait » attendu.")
 
 
 def parse_routine(data, registry: ToolRegistry, routine_id: str | None = None) -> Routine:
     """Routine validée (RoutineError sinon) ; ``routine_id`` conservé lors d'une modification."""
-    _only(data, {"id", "name", "description", "enabled", "trigger", "actions"}, "Routine")
-    enabled = data.get("enabled", True)
-    if not isinstance(enabled, bool):
-        raise RoutineError("Routine : « enabled » doit valoir true ou false.")
+    _only(data, {"id", "name", "description", "enabled", "once", "trigger", "actions"}, "Routine")
+    enabled, once = data.get("enabled", True), data.get("once", False)
+    if not isinstance(enabled, bool) or not isinstance(once, bool):
+        raise RoutineError("Routine : « enabled » et « once » valent true ou false.")
     actions = data.get("actions")
     if not isinstance(actions, list) or not 1 <= len(actions) <= MAX_ACTIONS:
         raise RoutineError(f"Routine : de 1 à {MAX_ACTIONS} actions.")
     return Routine(routine_id or uuid.uuid4().hex[:8], _text(data, "name", 60, True, "Nom"),
                    _text(data, "description", 200, False, "Description"), enabled,
-                   parse_trigger(data.get("trigger")), tuple(parse_action(a, registry) for a in actions))
+                   parse_trigger(data.get("trigger")), tuple(parse_action(a, registry) for a in actions), once)

@@ -19,7 +19,10 @@
     cancel_reminder: "Annuler un rappel", lock_pc: "Verrouiller le PC",
   };
   const INFO_TOOLS = new Set(["get_time", "get_date", "get_weather", "system_info", "list_running_applications",
-    "list_timers", "list_reminders"]);
+    "list_timers", "list_reminders", "create_alarm", "list_alarms", "cancel_alarm"]);
+  const ANNOUNCE = { time: "L'heure", date: "La date", weather: "La météo", day: "La journée (date, météo, programme)" };
+  const ACTION_TYPES = [["tool", "Action"], ["say", "JARVIS dit"], ["announce", "Annoncer"], ["alarm", "Réveil (sonnerie)"],
+    ["wait", "Attendre"]];
   const PARAM_LABELS = {
     room: "Pièce", device: "Appareil", brightness: "Luminosité (%)", color: "Couleur", temperature: "Kelvins",
     application: "Application", url: "Adresse", volume: "Volume (%)", duration: "Durée (« 10 minutes »)",
@@ -107,6 +110,8 @@
   function actionText(action) {
     if (action.type === "say") return `JARVIS dit « ${action.text} »`;
     if (action.type === "wait") return `Attendre ${action.seconds} s`;
+    if (action.type === "alarm") return "Sonnerie du réveil";
+    if (action.type === "announce") return `Annoncer : ${ANNOUNCE[action.what].toLowerCase()}`;
     const params = Object.entries(action.parameters || {}).map(([k, v]) => `${PARAM_LABELS[k] || k} : ${CHOICE_LABELS[v] || v}`);
     return `${TOOL_LABELS[action.tool] || action.tool}${params.length ? " (" + params.join(", ") + ")" : ""}`;
   }
@@ -159,7 +164,8 @@
           show("routines");
         } }), el("span")),
       el("div", { class: "grow" },
-        el("div", {}, el("strong", {}, r.name), r.running ? el("span", { class: "chip" }, "en cours") : null),
+        el("div", {}, el("strong", {}, r.name), r.actions.some((a) => a.type === "alarm") ? el("span", { class: "chip" }, "⏰ réveil") : null,
+          r.once ? el("span", { class: "chip" }, "une fois") : null, r.running ? el("span", { class: "chip" }, "en cours") : null),
         el("div", { class: "muted small" }, triggerText(r.trigger), " · ", `${r.actions.length} action${r.actions.length > 1 ? "s" : ""}`,
           r.next_run ? ` · prochaine : ${when(r.next_run)}` : "",
           r.last_run ? ` · dernière : ${when(r.last_run)} ${r.last_status === "success" ? "✓" : "✗"}` : "")),
@@ -199,8 +205,8 @@
   async function editor(routine) {
     const catalog = (await tools()).filter((t) => t.safe && !INFO_TOOLS.has(t.name));
     const names = Object.fromEntries((await api("GET", "/devices")).map((d) => [d.id, cap(d.name)]));
-    const draft = routine ? JSON.parse(JSON.stringify({ name: routine.name, description: routine.description, enabled: routine.enabled, trigger: routine.trigger, actions: routine.actions }))
-      : { name: "", description: "", enabled: true, trigger: { type: "time", time: "21:00", days: [] }, actions: [] };
+    const draft = routine ? JSON.parse(JSON.stringify({ name: routine.name, description: routine.description, enabled: routine.enabled, once: routine.once, trigger: routine.trigger, actions: routine.actions }))
+      : { name: "", description: "", enabled: true, once: false, trigger: { type: "time", time: "21:00", days: [] }, actions: [] };
 
     const render = () => {
       const trigger = draft.trigger;
@@ -217,7 +223,7 @@
         const move = (delta) => { const [a] = draft.actions.splice(index, 1); draft.actions.splice(index + delta, 0, a); render(); };
         const controls = el("div", { class: "row" },
           el("select", { onchange: (e) => { draft.actions[index] = newAction(e.target.value, catalog); render(); } },
-            [["tool", "Action"], ["say", "JARVIS dit"], ["wait", "Attendre"]].map(([v, t]) => el("option", { value: v, selected: action.type === v }, t))),
+            ACTION_TYPES.map(([v, t]) => el("option", { value: v, selected: action.type === v }, t))),
           el("div", { class: "grow" }),
           el("button", { class: "btn icon", disabled: index === 0, onclick: () => move(-1), title: "Monter" }, "↑"),
           el("button", { class: "btn icon", disabled: index === draft.actions.length - 1, onclick: () => move(1), title: "Descendre" }, "↓"),
@@ -225,6 +231,11 @@
         let body;
         if (action.type === "say") {
           body = el("label", { class: "field" }, "Phrase", el("input", { type: "text", maxlength: 200, value: action.text, oninput: (e) => { action.text = e.target.value; } }));
+        } else if (action.type === "alarm") {
+          body = el("div", { class: "muted small" }, "Joue la sonnerie jusqu'à « Jarvis » ou « arrête » (durée maximale réglée dans le Core).");
+        } else if (action.type === "announce") {
+          body = el("label", { class: "field" }, "JARVIS annonce", el("select", { onchange: (e) => { action.what = e.target.value; } },
+            Object.entries(ANNOUNCE).map(([v, t]) => el("option", { value: v, selected: action.what === v }, t))));
         } else if (action.type === "wait") {
           body = el("label", { class: "field" }, "Secondes", el("input", { type: "number", min: 1, max: 600, value: action.seconds, oninput: (e) => { action.seconds = Number(e.target.value); } }));
         } else {
@@ -238,7 +249,7 @@
               if (v === undefined) delete action.parameters[name]; else action.parameters[name] = v;
             }, names)));
         }
-        return [el("div", { class: "arrow" }, "↓"), el("div", { class: `block ${action.type === "tool" ? "action" : action.type}` }, controls, body)];
+        return [el("div", { class: "arrow" }, "↓"), el("div", { class: `block ${{ tool: "action", announce: "say", alarm: "alarm" }[action.type] || action.type}` }, controls, body)];
       });
 
       view.replaceChildren(
@@ -249,7 +260,9 @@
           el("div", { class: "block" }, el("div", { class: "fields" },
             el("label", { class: "field" }, "Nom *", el("input", { type: "text", maxlength: 60, value: draft.name, oninput: (e) => { draft.name = e.target.value; } })),
             el("label", { class: "field" }, "Description", el("input", { type: "text", maxlength: 200, value: draft.description, oninput: (e) => { draft.description = e.target.value; } }))),
-            el("label", { class: "row", style: "margin-top:10px" }, el("input", { type: "checkbox", checked: draft.enabled, onchange: (e) => { draft.enabled = e.target.checked; } }), "Activée")),
+            el("div", { class: "row", style: "margin-top:10px" },
+              el("label", { class: "row" }, el("input", { type: "checkbox", checked: draft.enabled, onchange: (e) => { draft.enabled = e.target.checked; } }), "Activée"),
+              el("label", { class: "row" }, el("input", { type: "checkbox", checked: draft.once, onchange: (e) => { draft.once = e.target.checked; } }), "Une seule fois (s'efface après)"))),
           el("div", { class: "arrow" }, "↓"),
           el("div", { class: "block trigger" }, el("h3", {}, "Déclencheur"),
             el("div", { class: "fields" }, el("label", { class: "field" }, "Type", el("select", { onchange: (e) => { draft.trigger = newTrigger(e.target.value); render(); } },
@@ -260,7 +273,9 @@
           el("div", { class: "row" },
             el("button", { class: "btn", onclick: () => { draft.actions.push(newAction("tool", catalog)); render(); } }, "+ Action"),
             el("button", { class: "btn", onclick: () => { draft.actions.push(newAction("wait")); render(); } }, "+ Attente"),
-            el("button", { class: "btn", onclick: () => { draft.actions.push(newAction("say")); render(); } }, "+ JARVIS dit"))));
+            el("button", { class: "btn", onclick: () => { draft.actions.push(newAction("say")); render(); } }, "+ JARVIS dit"),
+            el("button", { class: "btn", onclick: () => { draft.actions.push(newAction("announce")); render(); } }, "+ Annonce"),
+            el("button", { class: "btn", onclick: () => { draft.actions.push(newAction("alarm")); render(); } }, "+ Réveil"))));
     };
 
     async function save() {
@@ -285,6 +300,8 @@
   function newAction(type, catalog = []) {
     if (type === "say") return { type, text: "" };
     if (type === "wait") return { type, seconds: 2 };
+    if (type === "alarm") return { type };
+    if (type === "announce") return { type, what: "day" };
     return { type: "tool", tool: (catalog[0] || {}).name, parameters: {} };
   }
 

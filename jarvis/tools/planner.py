@@ -51,7 +51,11 @@ EXAMPLES = (
     ("Combien de temps reste-t-il ?", "list_timers", {}),
     ("Annule le rappel pour le linge", "cancel_reminder", {"message": "linge"}),
     ("Quels rappels sont prévus ?", "list_reminders", {}),
-    ("Réveille-moi à 7 heures", None, None),
+    ("Réveille-moi à 7 heures", "create_alarm", {"time": "7 heures"}),
+    ("Mets un réveil demain à 6 h 30", "create_alarm", {"time": "6 h 30"}),
+    ("Quels réveils sont programmés ?", "list_alarms", {}),
+    ("Annule mon réveil", "cancel_alarm", {}),
+    ("Annule le réveil de 7 heures", "cancel_alarm", {"time": "7 heures"}),
     ("Quel temps fait-il ?", "get_weather", {}),
     ("Il fait combien dehors ?", "get_weather", {}),
     ("Quel temps fera-t-il demain ?", "get_weather", {"day": "tomorrow"}),
@@ -95,6 +99,9 @@ def planner_prompt(registry: ToolRegistry) -> str:
                      "dite (« 10 minutes », « une heure et demie »), sans la convertir ; pas de durée dite -> none. "
                      "Le message d'un rappel est l'action à rappeler, sans « de » (« sortir le linge »). "
                      "Une heure précise (« à 7 heures ») n'est pas une durée -> none.")
+    if registry.exists("create_alarm"):
+        rules.append("- create_alarm, cancel_alarm : recopiez l'heure exactement comme elle a été dite (« 7 heures "
+                     "30 », « sept heures et demie ») ; une durée (« dans 10 minutes ») est un minuteur ou un rappel.")
     if registry.exists("light_on"):
         rules.append("- Lumières : la pièce n'est jamais un paramètre. « allume », « éteins » -> light_on, light_off ; "
                      "brightness seulement si un pourcentage est dit ; une couleur dite (« en vert », « en blanc "
@@ -229,6 +236,7 @@ class ToolsCapability:
         (("get_time", "get_date"), "donner l'heure et la date"),
         (("get_weather",), "donner la météo"),
         (("create_timer", "create_reminder"), "gérer vos minuteurs et rappels"),
+        (("create_alarm",), "programmer vos réveils"),
         (("open_application", "close_application", "open_url"), "ouvrir ou fermer vos applications et pages Web"),
         (("set_volume", "mute_volume", "unmute_volume"), "régler le son"),
         (("system_info", "list_running_applications"), "décrire la machine"),

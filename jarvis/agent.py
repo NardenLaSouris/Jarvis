@@ -163,6 +163,7 @@ class Agent:
         corrector=None,
         notifications=None,
         services: tuple = (),
+        alarm=None,
     ):
         self.settings = settings
         self._source = source
@@ -175,6 +176,7 @@ class Agent:
         self._router = router
         self._web = web
         self._tools = tools
+        self._alarm = alarm
         self._interrupted = False
         self._last_tool_request = ""
         self._place: str | None = None
@@ -223,6 +225,7 @@ class Agent:
             score = self._wake_word.process(frame)
             if score >= self.settings.wake_threshold:
                 self._event("wake", f"Wake word détecté (score {score:.2f})")
+                self._stop_alarm()
                 return True
         return False
 
@@ -267,6 +270,8 @@ class Agent:
                 follow_up = self._tool_follow_up(text)
                 self._last_tool_request = ""
                 route = Route("tool", "tool.follow_up") if follow_up else self._router.route(text)
+                if route.name == "stop":
+                    self._stop_alarm()
                 if route.source == "llm" and self._unsure():
                     route = Route("unsure", reply=self._router.phrase("not_understood"))
                 latency["route"] = route.label
@@ -470,6 +475,10 @@ class Agent:
             if key in latency and key != "total_response":
                 self._event("timing", f"{label} {latency[key]:.2f} s")
         return " ".join(stats.sentences)
+
+    def _stop_alarm(self) -> None:
+        if self._alarm is not None and self._alarm.stop():
+            self._event("alarm", "Réveil arrêté")
 
     def _interrupt(self, score: float) -> None:
         """Wake word dit pendant la réponse : elle est abandonnée et le son coupé ; JARVIS écoute la suite."""

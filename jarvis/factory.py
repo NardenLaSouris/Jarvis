@@ -214,17 +214,44 @@ def light_tools_for(rooms, driver) -> list:
     return light_tools(rooms, driver) if rooms is not None else []
 
 
-def build_routines(cfg: Config, tools, notifications, events: EventBus):
-    """Moteur des routines démarré ([routines]), ou None sans outils."""
+def build_routines(cfg: Config, tools, notifications, events: EventBus, sink=None, timers=None):
+    """Moteur des routines démarré ([routines]), avec sonnerie des réveils et annonces ; outils de réveil ajoutés au
+    registre ([alarms]). None sans outils."""
     if tools is None or not cfg.routines.enabled:
         return None
     from jarvis.notifications import Notification
     from jarvis.routines import JsonRoutineStore, RoutineEngine
+    from jarvis.routines.alarm import AlarmPlayer
+    from jarvis.routines.announce import Announcer
+    from jarvis.scheduling.clock import spoken_clock
 
     def say(title: str, text: str) -> None:
         notifications.notify(Notification(title[:80], text, "routines"))
 
-    engine = RoutineEngine(JsonRoutineStore(cfg.routines.path), tools.registry, tools.submit, say, events)
+    def before_ringing() -> None:
+        if cfg.alarms.volume:
+            for tool, parameters in (("unmute_volume", {}), ("set_volume", {"volume": cfg.alarms.volume})):
+                if tools.registry.exists(tool):
+                    tools.submit({"type": "tool_call", "tool": tool, "parameters": parameters})
+
+    def today_events() -> list[str]:
+        events_today = engine.today()
+        if timers is not None:
+            now = timers.now()
+            events_today += [f"rappel « {r.message} » à {spoken_clock(r.expires_at.hour, r.expires_at.minute)}"
+                             for r in timers.reminders() if r.expires_at.date() == now.date()]
+        return events_today
+
+    alarm = AlarmPlayer(sink, cfg.alarms.sound, cfg.alarms.max_minutes, before_ringing) \
+        if sink is not None and cfg.alarms.enabled else None
+    announcer = Announcer(tools.submit, today_events)
+    engine = RoutineEngine(JsonRoutineStore(cfg.routines.path), tools.registry, tools.submit, say, events,
+                           alarm=alarm, announce=announcer.text)
+    if alarm is not None:
+        from jarvis.tools.alarms import alarm_tools
+
+        for tool in alarm_tools(engine, cfg.alarms.briefing):
+            tools.registry.register(tool)
     engine.start()
     return engine
 
@@ -379,7 +406,7 @@ def build_agent(
     devices = build_devices(cfg)
     rooms, driver = build_lights(cfg)
     tools = build_tools(cfg, personality, events, timers, weather, devices, light_tools_for(rooms, driver))
-    routines = build_routines(cfg, tools, notifications, events)
+    routines = build_routines(cfg, tools, notifications, events, sink, timers)
     api = build_api(cfg, tools, routines, web=web, devices=devices, rooms=rooms, driver=driver, timers=timers)
     if tools is not None and len(tools.registry):
         from jarvis.tools import ToolsCapability
@@ -409,5 +436,5 @@ def build_agent(
     )
     return Agent(settings, source, sink, wake_word, recorder, stt, llm, tts, router, on_event,
                  stream_audio=cfg.tts.stream_audio, merge_under=cfg.tts.merge_under, web=web,
-                 tools=tools, corrector=corrector, notifications=voice,
+                 tools=tools, corrector=corrector, notifications=voice, alarm=routines.alarm if routines else None,
                  services=tuple(s for s in (api, routines, timers, notifications) if s is not None))

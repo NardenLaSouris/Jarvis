@@ -16,11 +16,13 @@ from typing import Callable
 from jarvis.events import Event, EventBus
 from jarvis.routines.events import ROUTINE_FINISHED, ROUTINE_STARTED, ROUTINE_STEP
 from jarvis.routines.model import Routine, RoutineError, parse_routine
+from jarvis.scheduling.clock import spoken_clock
 from jarvis.tools import DONE, ToolRegistry
 
 log = logging.getLogger(__name__)
 
 WEEKDAYS = ("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche")
+ANNOUNCE_LABELS = {"time": "l'heure", "date": "la date", "weather": "la météo", "day": "la journée"}
 
 
 def describe(action: dict) -> str:
@@ -29,6 +31,10 @@ def describe(action: dict) -> str:
         return f"dire : {action['text']}"
     if action["type"] == "wait":
         return f"attendre {action['seconds']} s"
+    if action["type"] == "alarm":
+        return "sonnerie du réveil"
+    if action["type"] == "announce":
+        return f"annoncer {ANNOUNCE_LABELS[action['what']]}"
     params = ", ".join(f"{k}={v}" for k, v in action["parameters"].items())
     return f"{action['tool']} ({params})" if params else action["tool"]
 
@@ -49,7 +55,8 @@ class RoutineEngine:
     def __init__(self, store, registry: ToolRegistry, run_tool: Callable[[dict], object],
                  say: Callable[[str, str], None], events: EventBus | None = None,
                  clock: Callable[[], datetime] = datetime.now, tick: float = 1.0,
-                 sleep: Callable[[float], None] | None = None):
+                 sleep: Callable[[float], None] | None = None, alarm=None,
+                 announce: Callable[[str], str] | None = None):
         self._store = store
         self._registry = registry
         self._run_tool = run_tool
@@ -57,6 +64,8 @@ class RoutineEngine:
         self._events = events
         self._clock = clock
         self._tick = tick
+        self.alarm = alarm
+        self._announce = announce
         self._lock = threading.RLock()
         self._stopping = threading.Event()
         self._sleep = sleep or (lambda seconds: self._stopping.wait(seconds))
@@ -132,6 +141,24 @@ class RoutineEngine:
             self._state.pop(routine_id, None)
             self._save()
 
+    def clock(self) -> datetime:
+        return self._clock()
+
+    def routines(self) -> list[Routine]:
+        with self._lock:
+            return list(self._routines.values())
+
+    def today(self, now: datetime | None = None) -> list[str]:
+        """Réveils et routines encore prévus aujourd'hui : « réveil à 7 h 30 », « routine « Soir » à 21 heures »."""
+        now = now or self._clock()
+        items = []
+        for routine in self.routines():
+            upcoming = next_time(routine.trigger, now) if routine.enabled else None
+            if upcoming is not None and upcoming.date() == now.date():
+                label = "réveil" if routine.is_alarm else f"routine « {routine.name} »"
+                items.append((upcoming, f"{label} à {spoken_clock(upcoming.hour, upcoming.minute)}"))
+        return [text for _, text in sorted(items)]
+
     def _find(self, routine_id: str) -> Routine:
         routine = self._routines.get(routine_id)
         if routine is None:
@@ -169,6 +196,9 @@ class RoutineEngine:
         with self._lock:
             self._state[routine.id] = {"running": False, "last_run": self._clock().isoformat(timespec="seconds"),
                                        "last_status": "success" if success else "error"}
+            if routine.once and source != "manual" and routine.id in self._routines:
+                del self._routines[routine.id]
+                self._save()
         self._publish(ROUTINE_FINISHED, {**base, "success": success, "error": error,
                                          "subject": f"routine « {routine.name} » {'réussie' if success else 'en échec'}"})
 
@@ -180,6 +210,17 @@ class RoutineEngine:
             if action["type"] == "say":
                 self._say(routine.name, action["text"])
                 return True, ""
+            if action["type"] == "alarm":
+                if self.alarm is None:
+                    return False, "Sonnerie indisponible."
+                return True, "arrêtée" if self.alarm.ring() else "arrêtée au bout de la durée maximale"
+            if action["type"] == "announce":
+                if self._announce is None:
+                    return False, "Annonce indisponible."
+                text = self._announce(action["what"])
+                if text:
+                    self._say(routine.name, text)
+                return bool(text), text or "Rien à annoncer."
             outcome = self._run_tool({"type": "tool_call", "tool": action["tool"], "parameters": action["parameters"]})
             result = getattr(outcome, "result", None)
             if getattr(outcome, "status", None) == DONE and result is not None and result.success:

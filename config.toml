@@ -111,6 +111,17 @@ timeout = 3.0
 enabled = true
 path = "data/routines.json"
 
+[alarms]
+# Réveils (« réveille-moi à 7 h 30 », ou une routine avec l'action « Réveil ») : la sonnerie joue ce fichier
+# (MP3, WAV, FLAC..., le vôtre : non versionné) en boucle jusqu'à « Jarvis » ou « arrête », au plus max_minutes ;
+# sonnerie de secours si le fichier manque. volume : niveau (%) imposé avant de sonner (0 : inchangé).
+# briefing : après un réveil par la voix, JARVIS annonce la journée (date, météo, rappels, réveils, routines).
+enabled = true
+sound = "data/alarm.mp3"
+max_minutes = 5.0
+volume = 0
+briefing = true
+
 [api]
 # API d'administration pour JARVIS Control (HTTP, réseau local). Jeton : JARVIS_AGENT_TOKEN dans .env.
 # Seules les IP listées y accèdent (celle du PC qui exécute JARVIS Control).
