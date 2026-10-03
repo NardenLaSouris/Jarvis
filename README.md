@@ -385,6 +385,9 @@ STT -> routeur (web.search) -> SearXNG -> résultats structurés -> sélection d
 Configuration dans `[web]` de `config.toml`. L'instance SearXNG doit autoriser le format JSON
 (`search: formats: [html, json]` dans son `settings.yml`).
 
+Sur le mini-PC (Ubuntu), une seule commande installe Docker, crée la clé et démarre SearXNG
+(relançable sans risque) : `sudo bash scripts/install_docker.sh`.
+
 SearXNG local (Docker, même procédure sur le PC et sur le mini-PC), accessible seulement depuis la
 machine (`127.0.0.1:8080`). Réglages dans `searxng/config/settings.yml` ; la clé secrète, propre à
 chaque machine, va dans `searxng/.env` (non versionné) :
