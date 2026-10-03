@@ -25,6 +25,7 @@ from jarvis.streaming import SpeechPipeline, sentences_from_llm
 from jarvis.personality import normalize
 from jarvis.tools.core import CANCELLED, CONFIRM, DONE
 from jarvis.tools.planner import plan, tool_request
+from jarvis.weather.cities import mentioned_city
 from jarvis.web.research import web_request, without_name
 
 log = logging.getLogger(__name__)
@@ -73,6 +74,8 @@ def polish_web_sentence(sentence: str, question: str, first: bool, assistant_nam
         return ""
     return YOURS.sub(lambda m: ("Votre" if m.group(1)[0].isupper() else "votre") + " " + m.group(2), sentence)
 
+
+WEATHER_TOOL = "get_weather"
 
 LATENCY_LABELS = (
     ("stt", "STT"),
@@ -141,6 +144,7 @@ class Agent:
         self._web = web
         self._tools = tools
         self._last_tool_request = ""
+        self._place: str | None = None
         self._corrector = corrector
         self._notifications = notifications
         self._services = services
@@ -193,6 +197,7 @@ class Agent:
         self._router.start_conversation()
         self._play(*random.choice(self._acks))
         history: list[Message] = []
+        self._place = None
         timeout = self.settings.listen_timeout
         while True:
             self._deliver_notifications()
@@ -217,6 +222,7 @@ class Agent:
                     text = corrected
             self._event("user", text)
             self._event("timing", f"STT {latency['stt']:.1f} s")
+            self._place = mentioned_city(text) or self._place
 
             outcome = self._tools.answer(text) if self._tools is not None else None
             if outcome is not None:
@@ -274,14 +280,25 @@ class Agent:
                 latency["route"] = fallback.label
                 self._event("routing", f"{fallback.label} (aucun outil)")
                 return self._answer(history, text, fallback, latency)
+        data = self._with_place(data)
         self._event("tool", json.dumps(data, ensure_ascii=False)[:200])
         started = time.perf_counter()
         outcome = self._tools.submit(data)
         latency["tool"] = time.perf_counter() - started
         reply = self._after_tool(history, text, outcome, latency)
-        if not route.tool and outcome.status == DONE and outcome.result.success:
-            self._last_tool_request = text
+        if outcome.status == DONE and outcome.result.success:
+            self._last_tool_request = "" if route.tool else text
+            place = outcome.result.result.get("location") if isinstance(outcome.result.result, dict) else None
+            self._place = place if data.get("tool") == WEATHER_TOOL and place else self._place
         return reply
+
+    def _with_place(self, data: dict) -> dict:
+        """Météo sans ville dite : la dernière ville de la conversation, sinon la ville par défaut de l'outil."""
+        parameters = data.get("parameters")
+        if data.get("tool") != WEATHER_TOOL or not self._place or not isinstance(parameters, dict) \
+                or parameters.get("location"):
+            return data
+        return {**data, "parameters": {**parameters, "location": self._place}}
 
     def _after_tool(self, history: list[Message], text: str, outcome, latency: dict) -> str:
         """Exécution réussie : phrase de l'outil, ou à défaut réponse du LLM à partir du résultat. Échec, refus,

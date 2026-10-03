@@ -622,3 +622,36 @@ def test_weather_is_spoken_without_the_llm():
     assert weather_said(forecast) == "Demain matin à Lyon : averses, de 12 à 21 degrés, pluie probable."
     assert weather_said({**forecast, "temperature_max": 12, "rain_risk": None, "units": {"temperature": "°F"}}) == (
         "Demain matin à Lyon : averses, 12 degrés Fahrenheit.")
+
+
+@pytest.mark.parametrize("text, city", [
+    ("Je pars à Lyon demain.", "Lyon"), ("Je vais au Havre puis à Brest.", "Brest"),
+    ("J'habite près de Rennes.", "Rennes"), ("La météo de Saint-Étienne", "Saint-Étienne"),
+    ("Les paris sportifs", None), ("C'est nice", None), ("Trois tours de piste", None), ("Quel temps fait-il ?", None),
+])
+def test_city_mentioned_as_a_place(text, city):
+    from jarvis.weather.cities import mentioned_city
+
+    assert mentioned_city(text) == city
+
+
+def test_weather_follows_the_city_of_the_conversation():
+    from test_tools import PlannerLLM as AgentLLM
+    from test_tools import run_agent
+
+    tomorrow = {"type": "tool_call", "tool": "get_weather", "parameters": {"day": "tomorrow"}}
+    llm = AgentLLM(tomorrow, {"type": "tool_call", "tool": "get_weather", "parameters": {"location": "Brest"}},
+                   tomorrow, reply="Bon voyage, monsieur.")
+    spoken, _ = run_agent(["Je pars à Lyon demain.", "Quel temps fera-t-il demain ?", "Quel temps fait-il à Brest ?",
+                           "Combien font deux plus deux ?", "Quel temps fera-t-il demain ?"], llm, make_core())
+    places = [s.split(" : ")[0].split(", ")[0] for s in spoken if "degrés" in s]
+    assert places == ["Demain à Lyon", "À Brest", "Demain à Brest"]
+
+
+def test_weather_falls_back_to_the_default_city_in_a_new_conversation():
+    from test_tools import PlannerLLM as AgentLLM
+    from test_tools import run_agent
+
+    llm = AgentLLM({"type": "tool_call", "tool": "get_weather", "parameters": {"day": "tomorrow"}})
+    spoken, _ = run_agent(["Quel temps fera-t-il demain ?"], llm, make_core())
+    assert spoken[0].startswith("Demain à Nantes")
