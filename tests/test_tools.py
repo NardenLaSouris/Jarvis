@@ -831,14 +831,14 @@ def test_corrected_transcription_opens_the_right_application():
     launcher = Launcher()
     llm = PlannerLLM({"type": "tool_call", "tool": "open_application", "parameters": {"application": "steam"}},
                      reply="Steam est lancé, monsieur.")
-    corrector = build_corrector(load_config(ROOT / "config.toml"), PERSONALITY)
+    corrector = build_corrector(load_config(ROOT / "config.toml", local=False), PERSONALITY)
     spoken, events = run_agent(["Jarvis, ou vos teams."], llm, make_core(launcher=launcher), corrector=corrector)
     assert spoken == ["Steam est en cours de lancement."] and launcher.calls == [["C:/Apps/steam.exe"]]
     assert ("correction", "« Jarvis, ou vos teams. » -> « ouvre steam »") in events
 
 
 def test_configuration_builds_the_core_with_the_mission_risks():
-    cfg = load_config(ROOT / "config.toml")
+    cfg = load_config(ROOT / "config.toml", local=False)
     core = build_tools(cfg, PERSONALITY)
     assert {t.name: t.risk for t in core.registry.list()} == EXPECTED_RISKS
     assert build_tools(replace(cfg, tools=replace(cfg.tools, enabled=False)), PERSONALITY) is None

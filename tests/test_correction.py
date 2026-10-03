@@ -17,7 +17,7 @@ from jarvis.personality import load_personality  # noqa: E402
 from jarvis.stt.correction import sound_key  # noqa: E402
 from jarvis.stt.faster_whisper import FasterWhisperSTT  # noqa: E402
 
-CFG = load_config(ROOT / "config.toml")
+CFG = load_config(ROOT / "config.toml", local=False)
 CORRECTOR = build_corrector(CFG, load_personality(ROOT / "personality.toml"))
 
 MISHEARD = {

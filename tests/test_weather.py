@@ -463,7 +463,7 @@ def test_agent_answers_from_the_weather_tool():
 
 
 def test_configuration():
-    cfg = load_config(ROOT / "config.toml")
+    cfg = load_config(ROOT / "config.toml", local=False)
     assert cfg.weather.enabled and cfg.weather.provider == "open-meteo" and cfg.weather.default_location
     weather = build_weather(cfg, None)
     assert isinstance(weather.provider, OpenMeteoProvider) and weather.default_location == cfg.weather.default_location
@@ -552,7 +552,7 @@ def test_cache_can_be_cleared_and_drops_stale_entries():
 
 
 def test_coordinates_and_unit_come_from_configuration():
-    cfg = load_config(ROOT / "config.toml")
+    cfg = load_config(ROOT / "config.toml", local=False)
     assert cfg.weather.temperature_unit == "celsius" and cfg.weather.latitude is None
     with_coordinates = replace(cfg, weather=replace(cfg.weather, latitude=47.2, longitude=-1.55,
                                                     temperature_unit="fahrenheit"))

@@ -206,18 +206,18 @@ def secret(name: str, env_file: Path) -> str:
     return ""
 
 
-def load_config(path: str | Path = "config.toml") -> Config:
-    """Lit ``path``, puis ``<nom>.local.toml`` à côté s'il existe (réglages propres à la machine, non
-    versionnés), qui remplace les réglages du même nom section par section."""
+def load_config(path: str | Path = "config.toml", local: bool = True) -> Config:
+    """Lit ``path``, puis (si ``local``) ``<nom>.local.toml`` à côté s'il existe : réglages propres à la
+    machine, non versionnés, qui remplacent les réglages du même nom section par section."""
     path = Path(path).resolve()
     with path.open("rb") as fh:
         raw = tomllib.load(fh)
-    local = path.with_name(f"{path.stem}.local.toml")
-    if local.exists():
-        with local.open("rb") as fh:
+    overrides = path.with_name(f"{path.stem}.local.toml")
+    if local and overrides.exists():
+        with overrides.open("rb") as fh:
             for section, values in tomllib.load(fh).items():
                 if not isinstance(values, dict):
-                    raise ValueError(f"{local.name} : [{section}] doit être une section")
+                    raise ValueError(f"{overrides.name} : [{section}] doit être une section")
                 raw.setdefault(section, {}).update(values)
     base = path.parent
     sections = {

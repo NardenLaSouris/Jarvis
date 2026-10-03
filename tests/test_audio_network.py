@@ -234,7 +234,7 @@ def test_wrong_token_is_reported(caplog):
 
 
 def test_configuration_selects_remote_audio(monkeypatch):
-    cfg = load_config(ROOT / "config.toml")
+    cfg = load_config(ROOT / "config.toml", local=False)
     remote = replace(cfg, audio=replace(cfg.audio, remote="http://127.0.0.1:9"))
     monkeypatch.setattr(factory, "secret", lambda name, env_file: TOKEN if name == "JARVIS_AGENT_TOKEN" else "")
     assert isinstance(factory.build_sink(remote), NetworkSink)

@@ -381,7 +381,7 @@ def test_agent_speaks_queued_notifications_with_its_tts():
 
 
 def test_configuration_builds_the_notification_system():
-    cfg = load_config(ROOT / "config.toml")
+    cfg = load_config(ROOT / "config.toml", local=False)
     assert cfg.notifications.voice_enabled
     bus = EventBus()
     manager, voice = build_notifications(cfg, PERSONALITY, bus)

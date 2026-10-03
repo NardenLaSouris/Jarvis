@@ -21,7 +21,7 @@ from jarvis.factory import build_wake_word  # noqa: E402
 from jarvis.wakeword.openwakeword import FRAME_SAMPLES, FeatureExtractor  # noqa: E402
 
 FIXTURES = ROOT / "tests" / "fixtures" / "wakeword"
-CFG = load_config(ROOT / "config.toml")
+CFG = load_config(ROOT / "config.toml", local=False)
 LEAD = 2 * 16000  # silence avant chaque clip : le détecteur tourne en continu en usage réel
 
 

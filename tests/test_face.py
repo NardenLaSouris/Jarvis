@@ -238,7 +238,7 @@ def test_face_can_be_disabled_or_unavailable():
 
     from jarvis.__main__ import start_face
 
-    cfg = load_config(ROOT / "config.toml")
+    cfg = load_config(ROOT / "config.toml", local=False)
     assert cfg.face.enabled and cfg.face.host == "127.0.0.1"
     assert start_face(replace(cfg, face=replace(cfg.face, enabled=False))) is None
     blocker = FaceServer(VisualState(), "127.0.0.1", 0)
@@ -368,5 +368,5 @@ def test_page_knows_both_themes():
 
 
 def test_configuration_enables_night_from_22_to_7():
-    cfg = load_config(ROOT / "config.toml")
+    cfg = load_config(ROOT / "config.toml", local=False)
     assert (cfg.face.night_start, cfg.face.night_end) == ("22:00", "07:00")

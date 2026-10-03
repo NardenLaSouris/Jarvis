@@ -425,7 +425,7 @@ def test_agent_close_stops_services():
 
 
 def test_configuration():
-    cfg = load_config(ROOT / "config.toml")
+    cfg = load_config(ROOT / "config.toml", local=False)
     assert cfg.timers.enabled and cfg.timers.max_hours == 24 and cfg.timers.max_active == 20
 
 

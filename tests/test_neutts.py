@@ -129,7 +129,7 @@ def test_pipeline_without_streaming_plays_whole_sentences():
 
 def test_tts_test_command_plays_on_the_sink():
     install_fake_neutts()
-    base = load_config(ROOT / "config.toml")
+    base = load_config(ROOT / "config.toml", local=False)
     tmp = tempfile.TemporaryDirectory()
     voice = make_voice(Path(tmp.name))
     cfg = replace(base, tts=replace(base.tts, engine="neutts", stream_audio=True, neutts={"voice": str(voice)}))
@@ -175,6 +175,6 @@ def test_repeated_sentences_are_synthesized_once():
 def test_default_engine_is_piper_with_jarvis_pronounced_with_s():
     from jarvis.factory import build_tts
 
-    tts = build_tts(load_config(ROOT / "config.toml"))
+    tts = build_tts(load_config(ROOT / "config.toml", local=False))
     assert type(tts).__name__ == "PiperTTS"
     assert "ʒaʁvˈis" in tts.phonemes("Je suis Jarvis.")

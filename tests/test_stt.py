@@ -18,7 +18,7 @@ import jarvis.stt.faster_whisper as fw  # noqa: E402
 from jarvis.config import load_config  # noqa: E402
 from jarvis.factory import build_stt  # noqa: E402
 
-CFG = load_config(ROOT / "config.toml")
+CFG = load_config(ROOT / "config.toml", local=False)
 
 
 def test_falls_back_to_cpu_when_no_cuda_device():

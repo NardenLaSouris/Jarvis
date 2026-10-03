@@ -185,7 +185,7 @@ def test_storage_errors_do_not_break_publishing(tmp_path):
 def test_events_are_built_from_configuration(tmp_path):
     from dataclasses import replace
 
-    cfg = load_config(ROOT / "config.toml")
+    cfg = load_config(ROOT / "config.toml", local=False)
     assert cfg.activity.enabled and cfg.activity.path.name == "activity.jsonl"
     cfg = replace(cfg, activity=replace(cfg.activity, path=tmp_path / "a.jsonl"))
     build_events(cfg).publish(Event(TOOL_EXECUTED, "tools", {"tool": "get_time"}))
@@ -349,7 +349,7 @@ def test_pc_tool_policy_is_unchanged():
     from jarvis.factory import build_tools
     from jarvis.personality import load_personality
 
-    core = build_tools(load_config(ROOT / "config.toml"), load_personality(ROOT / "personality.toml"))
+    core = build_tools(load_config(ROOT / "config.toml", local=False), load_personality(ROOT / "personality.toml"))
     risks = {t.name: t.risk for t in core.registry.list()}
     safe = {"get_time", "get_date", "system_info", "open_application", "open_url", "set_volume", "mute_volume",
             "unmute_volume", "list_running_applications"}

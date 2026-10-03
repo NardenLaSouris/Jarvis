@@ -285,7 +285,7 @@ def test_llm_block_has_sites_and_snippets_but_no_urls():
 
 
 def test_no_provider_and_disabled_web_in_configuration():
-    cfg = load_config(ROOT / "config.toml")
+    cfg = load_config(ROOT / "config.toml", local=False)
     assert cfg.web.enabled and cfg.web.provider == "searxng" and cfg.web.base_url == "http://127.0.0.1:8080"
     assert isinstance(build_web(cfg), WebResearch)
     assert build_web(replace(cfg, web=replace(cfg.web, enabled=False))) is None
@@ -499,7 +499,7 @@ def test_web_answers_are_polished_before_being_spoken():
 def test_web_test_command(capsys):
     from jarvis.__main__ import web_test
 
-    cfg = load_config(ROOT / "config.toml")
+    cfg = load_config(ROOT / "config.toml", local=False)
     results = rtx_results()
     llm = RecordingLLM("JARVIS : Combien coûte une RTX 3060 actuellement ? Environ 279 euros, d'après Le Dénicheur.")
     assert web_test(cfg, "Combien coûte une RTX 3060 actuellement ?", llm=llm, web=WebResearch(MockProvider(results))) == 0
