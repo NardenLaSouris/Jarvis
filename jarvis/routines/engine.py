@@ -1,0 +1,236 @@
+"""Moteur des routines : déclenchement (heure, intervalle, à la demande) et exécution pas à pas.
+
+Les outils passent par le ToolCore (registre, validation, permissions) ; une phrase passe par les
+notifications vocales (JARVIS la dit dès qu'il est libre). Chaque étape publie un événement : l'historique
+est le journal d'activité. Une étape en échec arrête la routine.
+"""
+
+from __future__ import annotations
+
+import logging
+import threading
+import time
+from datetime import datetime, timedelta
+from typing import Callable
+
+from jarvis.events import Event, EventBus
+from jarvis.routines.events import ROUTINE_FINISHED, ROUTINE_STARTED, ROUTINE_STEP
+from jarvis.routines.model import Routine, RoutineError, parse_routine
+from jarvis.tools import DONE, ToolRegistry
+
+log = logging.getLogger(__name__)
+
+WEEKDAYS = ("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche")
+
+
+def describe(action: dict) -> str:
+    """Étape lisible dans l'historique : « light_on (room=chambre, brightness=30) », « dire : ... »."""
+    if action["type"] == "say":
+        return f"dire : {action['text']}"
+    if action["type"] == "wait":
+        return f"attendre {action['seconds']} s"
+    params = ", ".join(f"{k}={v}" for k, v in action["parameters"].items())
+    return f"{action['tool']} ({params})" if params else action["tool"]
+
+
+def next_time(trigger: dict, now: datetime) -> datetime | None:
+    if trigger["type"] != "time":
+        return None
+    hour, minute = map(int, trigger["time"].split(":"))
+    for offset in range(8):
+        day = now + timedelta(days=offset)
+        candidate = day.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if candidate > now and (not trigger["days"] or candidate.weekday() in trigger["days"]):
+            return candidate
+    return None
+
+
+class RoutineEngine:
+    def __init__(self, store, registry: ToolRegistry, run_tool: Callable[[dict], object],
+                 say: Callable[[str, str], None], events: EventBus | None = None,
+                 clock: Callable[[], datetime] = datetime.now, tick: float = 1.0,
+                 sleep: Callable[[float], None] | None = None):
+        self._store = store
+        self._registry = registry
+        self._run_tool = run_tool
+        self._say = say
+        self._events = events
+        self._clock = clock
+        self._tick = tick
+        self._lock = threading.RLock()
+        self._stopping = threading.Event()
+        self._sleep = sleep or (lambda seconds: self._stopping.wait(seconds))
+        self._routines: dict[str, Routine] = {}
+        self._invalid: list[dict] = []
+        self._state: dict[str, dict] = {}
+        self._fired: set[tuple[str, str]] = set()
+        self._interval_from: dict[str, float] = {}
+        self._thread: threading.Thread | None = None
+        self._load()
+
+    def _load(self) -> None:
+        for raw in self._store.load():
+            try:
+                routine = parse_routine(raw, self._registry, str(raw.get("id") or "") or None)
+            except RoutineError as exc:
+                log.warning("Routine « %s » ignorée : %s", raw.get("name"), exc)
+                self._invalid.append(raw)
+                continue
+            self._routines[routine.id] = routine
+            self._interval_from[routine.id] = time.monotonic()
+
+    def _save(self) -> None:
+        self._store.save([r.as_dict() for r in self._routines.values()] + self._invalid)
+
+    # --- Gestion -------------------------------------------------------------------------------------
+
+    def view(self, routine: Routine) -> dict:
+        state = self._state.get(routine.id, {})
+        upcoming = next_time(routine.trigger, self._clock()) if routine.enabled else None
+        return {**routine.as_dict(), "running": bool(state.get("running")), "last_run": state.get("last_run"),
+                "last_status": state.get("last_status"), "next_run": upcoming.isoformat() if upcoming else None}
+
+    def list(self) -> list[dict]:
+        with self._lock:
+            return [self.view(r) for r in self._routines.values()]
+
+    def get(self, routine_id: str) -> dict:
+        with self._lock:
+            return self.view(self._find(routine_id))
+
+    def create(self, data: dict) -> dict:
+        routine = parse_routine({k: v for k, v in data.items() if k != "id"}, self._registry)
+        with self._lock:
+            self._routines[routine.id] = routine
+            self._interval_from[routine.id] = time.monotonic()
+            self._save()
+            return self.view(routine)
+
+    def update(self, routine_id: str, data: dict) -> dict:
+        with self._lock:
+            self._find(routine_id)
+            routine = parse_routine({k: v for k, v in data.items() if k != "id"}, self._registry, routine_id)
+            self._routines[routine_id] = routine
+            self._interval_from[routine_id] = time.monotonic()
+            self._save()
+            return self.view(routine)
+
+    def set_enabled(self, routine_id: str, enabled: bool) -> dict:
+        with self._lock:
+            routine = self._find(routine_id)
+            return self.update(routine_id, {**routine.as_dict(), "enabled": enabled})
+
+    def duplicate(self, routine_id: str) -> dict:
+        with self._lock:
+            source = self._find(routine_id).as_dict()
+            return self.create({**source, "name": f"{source['name'][:52]} (copie)", "enabled": False})
+
+    def delete(self, routine_id: str) -> None:
+        with self._lock:
+            self._find(routine_id)
+            del self._routines[routine_id]
+            self._state.pop(routine_id, None)
+            self._save()
+
+    def _find(self, routine_id: str) -> Routine:
+        routine = self._routines.get(routine_id)
+        if routine is None:
+            raise KeyError(routine_id)
+        return routine
+
+    # --- Exécution -----------------------------------------------------------------------------------
+
+    def run(self, routine_id: str, source: str = "manual", wait: bool = False) -> bool:
+        """Lance la routine en arrière-plan ; False si elle est déjà en cours."""
+        with self._lock:
+            routine = self._find(routine_id)
+            state = self._state.setdefault(routine_id, {})
+            if state.get("running"):
+                return False
+            state["running"] = True
+        thread = threading.Thread(target=self._execute, args=(routine, source), name=f"routine-{routine_id}",
+                                  daemon=True)
+        thread.start()
+        if wait:
+            thread.join()
+        return True
+
+    def _execute(self, routine: Routine, source: str) -> None:
+        base = {"routine_id": routine.id, "name": routine.name, "source": source}
+        self._publish(ROUTINE_STARTED, {**base, "subject": f"routine « {routine.name} »"})
+        success, error = True, None
+        for index, action in enumerate(routine.actions, 1):
+            ok, message = self._step(routine, action)
+            self._publish(ROUTINE_STEP, {**base, "step": index, "action": describe(action), "success": ok,
+                                         "message": message, "subject": f"{routine.name} : {describe(action)}"})
+            if not ok:
+                success, error = False, message
+                break
+        with self._lock:
+            self._state[routine.id] = {"running": False, "last_run": self._clock().isoformat(timespec="seconds"),
+                                       "last_status": "success" if success else "error"}
+        self._publish(ROUTINE_FINISHED, {**base, "success": success, "error": error,
+                                         "subject": f"routine « {routine.name} » {'réussie' if success else 'en échec'}"})
+
+    def _step(self, routine: Routine, action: dict) -> tuple[bool, str]:
+        try:
+            if action["type"] == "wait":
+                self._sleep(action["seconds"])
+                return True, ""
+            if action["type"] == "say":
+                self._say(routine.name, action["text"])
+                return True, ""
+            outcome = self._run_tool({"type": "tool_call", "tool": action["tool"], "parameters": action["parameters"]})
+            result = getattr(outcome, "result", None)
+            if getattr(outcome, "status", None) == DONE and result is not None and result.success:
+                return True, result.message
+            return False, (result.message if result is not None else "") or "L'action a échoué."
+        except Exception:
+            log.exception("Routine « %s » : étape en erreur", routine.name)
+            return False, "L'action a échoué."
+
+    def _publish(self, event_type: str, payload: dict) -> None:
+        if self._events is not None:
+            self._events.publish(Event(event_type, "routines", payload))
+
+    # --- Déclenchement -------------------------------------------------------------------------------
+
+    def due(self, now: datetime, monotonic: float) -> list[tuple[str, str]]:
+        """(routine, déclencheur) à lancer maintenant ; chaque minute horaire ne déclenche qu'une fois."""
+        due = []
+        with self._lock:
+            for routine in self._routines.values():
+                trigger = routine.trigger
+                if not routine.enabled:
+                    continue
+                if trigger["type"] == "time":
+                    key = (routine.id, now.strftime("%Y-%m-%d %H:%M"))
+                    if (now.strftime("%H:%M") == trigger["time"] and key not in self._fired
+                            and (not trigger["days"] or now.weekday() in trigger["days"])):
+                        self._fired.add(key)
+                        due.append((routine.id, "time"))
+                elif trigger["type"] == "interval":
+                    started = self._interval_from.setdefault(routine.id, monotonic)
+                    if monotonic - started >= trigger["minutes"] * 60:
+                        self._interval_from[routine.id] = monotonic
+                        due.append((routine.id, "interval"))
+            self._fired = {key for key in self._fired if key[1] >= now.strftime("%Y-%m-%d")}
+        return due
+
+    def start(self) -> None:
+        if self._thread is None:
+            self._stopping.clear()
+            self._thread = threading.Thread(target=self._loop, name="routines", daemon=True)
+            self._thread.start()
+
+    def stop(self) -> None:
+        self._stopping.set()
+        if self._thread is not None:
+            self._thread.join(timeout=2)
+            self._thread = None
+
+    def _loop(self) -> None:
+        while not self._stopping.wait(self._tick):
+            for routine_id, source in self.due(self._clock(), time.monotonic()):
+                if not self.run(routine_id, source):
+                    log.info("Routine %s déjà en cours : déclenchement %s ignoré", routine_id, source)

@@ -15,17 +15,15 @@ Il n'existe aucun autre point d'entrée : pas de commande libre, pas de shell.
 
 from __future__ import annotations
 
-import hmac
-import ipaddress
 import json
 import logging
 import threading
 import time
-from http.server import BaseHTTPRequestHandler
 from typing import Callable
 from urllib.parse import parse_qs, urlsplit
 
 from jarvis.face.server import ExclusiveServer
+from jarvis.net import JsonHandler, bearer_ok, client_ip
 from jarvis.tools import ToolError, ToolRegistry, parse_request
 from jarvis.tools.base import EXECUTION_FAILED, INVALID_PARAMETERS, TOOL_NOT_FOUND
 from jarvis.winagent.audio import AudioBusy, AudioRelay
@@ -40,12 +38,6 @@ RATES = range(8000, 48001)
 FRAMES = range(160, 16001)
 STATUS = {TOOL_NOT_FOUND: 404, INVALID_PARAMETERS: 400}
 FACE_REOPEN_AFTER = 300.0
-
-
-def _client_ip(address: str) -> str:
-    ip = ipaddress.ip_address(address.split("%", 1)[0])
-    mapped = getattr(ip, "ipv4_mapped", None)
-    return str(mapped or ip)
 
 
 def _number(query: dict, name: str, allowed: range) -> int | None:
@@ -64,24 +56,8 @@ def _open_in_browser(url: str) -> None:
         log.warning("Agent : impossible d'ouvrir le visage %s", url)
 
 
-class _BaseHandler(BaseHTTPRequestHandler):
+class _BaseHandler(JsonHandler):
     server_version = AGENT_NAME
-    sys_version = ""
-
-    def _json(self, status: int, payload: dict) -> None:
-        body = json.dumps(payload, ensure_ascii=False).encode()
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
-        self.end_headers()
-        self.wfile.write(body)
-
-    def _error(self, status: int, error: str) -> None:
-        self._json(status, {"status": "error", "error": error})
-
-    def log_message(self, fmt, *args):
-        log.debug("Agent : " + fmt, *args)
 
 
 class AgentServer:
@@ -128,8 +104,7 @@ class AgentServer:
         self._core_left = self._clock()
 
     def _authorized(self, header: str) -> bool:
-        scheme, _, token = header.partition(" ")
-        return scheme == "Bearer" and hmac.compare_digest(token.encode(), self.config.token.encode())
+        return bearer_ok(header, self.config.token)
 
     def _run(self, name: str, body: bytes) -> tuple[int, dict]:
         try:
@@ -182,7 +157,7 @@ class AgentServer:
                 self._json(*agent._run(path.removeprefix("/actions/"), body))
 
             def _route(self) -> tuple[str | None, dict]:
-                ip = _client_ip(self.client_address[0])
+                ip = client_ip(self.client_address[0])
                 if ip not in agent.config.allowed_ips:
                     log.warning("Agent : requête refusée depuis %s", ip)
                     self._error(403, "forbidden")
@@ -196,17 +171,6 @@ class AgentServer:
                 log.warning("Agent : jeton refusé pour %s", self.client_address[0])
                 self._error(401, "unauthorized")
                 return False
-
-            def _body(self, limit: int) -> bytes | None:
-                try:
-                    length = int(self.headers.get("Content-Length", "0"))
-                except ValueError:
-                    self._error(400, "bad_request")
-                    return None
-                if not 0 <= length <= limit:
-                    self._error(413, "body_too_large")
-                    return None
-                return self.rfile.read(length)
 
             def _play(self, query: dict, body: bytes) -> None:
                 rate = _number(query, "rate", RATES)
@@ -234,7 +198,7 @@ class AgentServer:
                         self.send_header("X-Frame-Samples", str(frame))
                         self.end_headers()
                         log.info("Agent : micro diffusé vers %s", self.client_address[0])
-                        agent.core_connected(_client_ip(self.client_address[0]))
+                        agent.core_connected(client_ip(self.client_address[0]))
                         try:
                             while not agent._stopping.is_set():
                                 block = mic.read()
