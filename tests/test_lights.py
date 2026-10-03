@@ -210,3 +210,9 @@ def test_tuya_driver_converts_scales():
     driver.white(room, 6500)
     driver.colour(room, 120)
     assert bulb.calls == [("set_white_percentage", (30, 100)), ("set_hsv", (120 / 360, 1.0, 1.0))]
+
+
+def test_invented_brightness_is_dropped_and_the_light_still_turns_on():
+    driver = FakeDriver()
+    spoken, _, _ = converse(["Allume l'entrée."], [("light_on", {"brightness": 100})], driver)
+    assert spoken == ["La lumière de l'entrée est allumée."] and driver.calls == [("entree", "power", True)]

@@ -902,3 +902,13 @@ def test_conversation_moment_is_at_the_end_of_the_system_prompt():
     first, ongoing = router.system_prompt(), router.system_prompt(ongoing=True)
     common = next(i for i, (a, b) in enumerate(zip(first, ongoing)) if a != b)
     assert common > 0.9 * len(first)
+
+
+def test_invented_optional_numbers_are_dropped_but_required_ones_reject_the_call():
+    from jarvis.tools.planner import _grounded
+
+    registry = make_core().registry
+    assert _grounded({"type": "tool_call", "tool": "set_volume", "parameters": {"volume": 50}}, "Monte le son",
+                     registry) is None
+    assert _grounded({"type": "tool_call", "tool": "set_volume", "parameters": {"volume": 50}}, "Mets le son à 50",
+                     registry)["parameters"] == {"volume": 50}

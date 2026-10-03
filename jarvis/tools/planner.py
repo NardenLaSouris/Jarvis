@@ -54,6 +54,14 @@ EXAMPLES = (
     ("Quel temps fera-t-il à Lyon demain ?", "get_weather", {"location": "Lyon", "day": "tomorrow"}),
     ("Quelle température est prévue demain matin ?", "get_weather", {"day": "tomorrow", "moment": "morning"}),
     ("Est-ce que je dois prendre un parapluie ?", "get_weather", {"moment": "day"}),
+    ("Allume la chambre", "light_on", {}),
+    ("Allume le salon à 30 %", "light_on", {"brightness": 30}),
+    ("Éteins toutes les lumières", "light_off", {}),
+    ("Mets la lumière de l'entrée à 50 %", "set_brightness", {"brightness": 50}),
+    ("Mets l'entrée en vert", "set_color", {"color": "vert"}),
+    ("Remets la chambre en blanc chaud", "set_color", {"color": "blanc chaud"}),
+    ("Mets le salon à 4000 kelvins", "set_color_temperature", {"temperature": 4000}),
+    ("Baisse un peu la lumière", None, None),
     ("Supprime le dossier Documents", None, None),
     ("Ouvre un terminal et tape une commande", None, None),
     ("Éteins l'ordinateur", None, None),
@@ -163,26 +171,33 @@ def plan(llm, text: str, registry: ToolRegistry) -> dict | None:
         return None
     if not isinstance(data, dict) or data.get("type") != "tool_call":
         return None
-    if not _supported_by_request(data, text, registry):
+    grounded = _grounded(data, text, registry)
+    if grounded is None:
         log.info("Appel d'outil écarté : valeur absente de la demande (%s)", data)
-        return None
-    return data
+    return grounded
 
 
-def _supported_by_request(data: dict, text: str, registry: ToolRegistry) -> bool:
-    """Les nombres et les valeurs à justifier (durées...) doivent venir de la demande : le LLM n'invente rien."""
+def _grounded(data: dict, text: str, registry: ToolRegistry) -> dict | None:
+    """Les nombres et les valeurs à justifier (durées...) doivent venir de la demande : le LLM n'invente rien.
+
+    Un nombre absent de la demande dans un paramètre facultatif est retiré (« allume l'entrée » proposé avec
+    une luminosité de 100) ; dans un paramètre obligatoire, ou une autre valeur injustifiée, l'appel est écarté."""
     if not registry.exists(data.get("tool")) or not isinstance(data.get("parameters"), dict):
-        return True
+        return data
     said = set(re.findall(r"\d+(?:[.,]\d+)?", text))
     said |= {n.replace(",", ".") for n in said}
+    parameters = dict(data["parameters"])
     for name, spec in registry.get(data["tool"]).parameters.items():
-        value = data["parameters"].get(name)
+        value = parameters.get(name)
         if spec.kind in (int, float) and isinstance(value, (int, float)) and not isinstance(value, bool):
             if f"{value:g}" not in said:
-                return False
+                if spec.required:
+                    return None
+                del parameters[name]
+                continue
         if spec.evidence is not None and value is not None and not spec.evidence(value, text):
-            return False
-    return True
+            return None
+    return {**data, "parameters": parameters}
 
 
 def tool_request(user_text: str, result: ToolResult) -> str:
