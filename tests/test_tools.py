@@ -62,6 +62,8 @@ def no_real_actions(monkeypatch):
     monkeypatch.setattr(audio_module.VolumeControl, "set", forbidden)
     monkeypatch.setattr(audio_module.VolumeControl, "set_mute", forbidden)
     monkeypatch.setattr(apps_module, "find_command", lambda entry: [f"C:/Apps/{entry.key}.exe"])
+    # Les doublures de processus portent les noms Windows, quelle que soit la machine de test.
+    monkeypatch.setattr(apps_module.Application, "processes", property(lambda self: self.app.windows_processes))
 
 
 # --- Doublures ------------------------------------------------------------------------------------
@@ -453,10 +455,11 @@ def test_open_url_is_immediate():
 # --- Configuration des applications ---------------------------------------------------------------
 
 def test_applications_come_from_configuration():
+    obs = os.path.abspath("obs/obs64.exe")
     apps = load_applications({
         "discord": {"enabled": True, "executable": "D:/Discord/Discord.exe"},
         "steam": {"enabled": False},
-        "obs": {"label": "OBS Studio", "executable": "C:/Program Files/obs/obs64.exe", "process": "obs64.exe"},
+        "obs": {"label": "OBS Studio", "executable": obs, "process": "obs64.exe"},
         "sanschemin": {"process": "x.exe"},
         "relatif": {"executable": "obs64.exe", "process": "obs64.exe"},
         "bad name!": {"executable": "C:/x.exe", "process": "x.exe"},
@@ -565,6 +568,8 @@ def test_invalid_or_dangerous_urls_are_refused(url):
 def test_system_tools_are_called_without_shell(monkeypatch):
     seen = []
     monkeypatch.setattr(apps_module.sys, "platform", "win32")
+    monkeypatch.setattr(apps_module.subprocess, "DETACHED_PROCESS", 8, raising=False)
+    monkeypatch.setattr(apps_module.subprocess, "CREATE_NEW_PROCESS_GROUP", 512, raising=False)
     monkeypatch.setattr(apps_module.subprocess, "run", lambda argv, **options: seen.append((argv, options)))
     monkeypatch.setattr(apps_module.subprocess, "Popen", lambda argv, **options: seen.append((argv, options)))
     apps_module.Processes().stop(("Discord.exe",), force=True)

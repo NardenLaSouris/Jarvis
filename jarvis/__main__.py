@@ -266,13 +266,12 @@ def web_test(cfg, question: str, llm=None, web=None) -> int:
 
 def wake_test(cfg) -> int:
     """Calibration : prononcez le wake word et observez les scores obtenus."""
-    from jarvis.audio.devices import MicrophoneSource
     from jarvis.audio.endpointing import rms
-    from jarvis.factory import build_wake_word
+    from jarvis.factory import build_source, build_wake_word
 
     ww = cfg.wake_word
     detector = build_wake_word(cfg)
-    mic = MicrophoneSource(cfg.audio.sample_rate, cfg.audio.frame_samples, cfg.audio.input_device)
+    mic = build_source(cfg)
     print(f"Wake word: {ww.phrase}\nModèle: {ww.model.name}\nSeuil: {ww.threshold}\n"
           f"Prononcez « {ww.phrase} » plusieurs fois. Ctrl+C pour quitter.\n")
     peak, detections = 0.0, 0

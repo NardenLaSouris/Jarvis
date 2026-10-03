@@ -1,0 +1,14 @@
+# Agent Windows de JARVIS (python -m jarvis.winagent). Le jeton partagé n'est jamais ici :
+# JARVIS_AGENT_TOKEN dans l'environnement ou dans .env (non versionné), identique côté Core.
+
+[agent]
+host = "0.0.0.0"
+port = 8765
+# Seules ces adresses peuvent joindre l'agent (le Core JARVIS) ; toute autre reçoit 403.
+allowed_ips = ["192.168.1.91"]
+
+# Micro et sortie du PC relayés au Core (vide = périphériques par défaut de Windows ; sinon nom partiel
+# ou index, comme [audio] de config.toml ; liste : python -m jarvis --list-devices).
+[audio]
+input_device = "Microphone (Voicemod Virtual Au, MME"
+output_device = "Chat (2- TC-HELICON GoXLR), MME"

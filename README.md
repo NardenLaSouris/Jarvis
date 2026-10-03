@@ -298,6 +298,59 @@ python -m jarvis --face-demo      # défilement des états, parole avec la vraie
 Dans le navigateur : `?demo=1` (démo autonome, touches 1-4), `?debug=1` (état et FPS). API JS :
 `JarvisFace.setVisualState("thinking")`, `JarvisFace.setAudioLevel(0.4)`, `JarvisFace.standby()`.
 
+## Agent Windows (contrôle et audio du PC à distance)
+
+Quand le Core JARVIS tourne sur le mini-PC, le PC Windows peut exécuter des actions à sa demande via
+un petit agent HTTP du réseau local (`jarvis/winagent/`). Il n'expose que des actions explicitement
+enregistrées, validées comme les outils du Core : aucune commande libre, aucun shell.
+
+| Point d'entrée | Accès |
+|---|---|
+| `GET /health` → `{"status": "ok", "agent": "jarvis-windows"}` | IP autorisée |
+| `POST /actions/<nom>` avec `{"parameters": {...}}` | IP autorisée + `Authorization: Bearer <jeton>` |
+| `GET /audio/input?rate=16000&frame=1280` : flux continu du micro (PCM int16 mono) | idem |
+| `POST /audio/output?rate=22050` (PCM int16 mono) puis `POST /audio/drain` : voix jouée sur le PC | idem |
+
+Toute IP absente de `allowed_ips` reçoit 403, avant toute autre vérification. Aucune action n'est
+encore enregistrée. Le micro n'est ouvert que pendant qu'un Core est connecté, et par un seul à la fois.
+
+Réglages dans `windows_agent.toml` (adresse, port, IP autorisées, micro et sortie du PC). Le jeton partagé n'est jamais dans
+le dépôt : `JARVIS_AGENT_TOKEN` dans l'environnement ou dans `.env` (32 caractères minimum, le même
+côté Core). L'agent refuse de démarrer sans jeton ou sans IP autorisée.
+
+Lancement sous Windows (PowerShell, à la racine du projet) :
+
+```powershell
+python -m venv .venv                          # une seule fois
+.venv\Scripts\python -m pip install -r requirements.txt
+.venv\Scripts\python -c "import secrets; print(secrets.token_urlsafe(32))"   # génère un jeton
+notepad .env                                  # ajouter la ligne JARVIS_AGENT_TOKEN=<jeton généré>
+.venv\Scripts\python -m jarvis.winagent        # Ctrl+C pour arrêter ; -v pour le détail des requêtes
+```
+
+Le même jeton va dans le `.env` du Core (mini-PC). Le chemin des fichiers se change avec
+`--config` et `--env`.
+
+Ouvrir le port uniquement pour le Core (PowerShell administrateur, une seule fois) :
+
+```powershell
+New-NetFirewallRule -DisplayName "JARVIS Agent (TCP 8765)" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8765 -RemoteAddress 192.168.1.91 -Profile Private,Domain
+```
+
+La règle vaut pour les réseaux « Privé » ou « Domaine » : si la connexion Windows est en « Public »,
+passez-la en « Privé » (Paramètres > Réseau) plutôt que d'élargir la règle.
+
+Test depuis le mini-PC : `curl http://192.168.1.128:8765/health`.
+
+**Audio du PC, JARVIS sur le mini-PC.** Dans le `config.toml` du mini-PC :
+`[audio] remote = "http://192.168.1.128:8765"` (et `JARVIS_AGENT_TOKEN` dans son `.env`). JARVIS
+écoute alors le micro du PC et lui parle, à la place des périphériques locaux. Si le PC est éteint
+ou l'agent arrêté, JARVIS attend et se reconnecte seul ; la voix qui ne peut être jouée est ignorée,
+sans erreur. Le flux micro (~256 kbit/s) circule en clair sur le réseau local, réservé au Core.
+
+Le visage écoute aussi sur 8765 (en local) : sur un même PC, l'agent et un Core avec visage
+doivent utiliser des ports différents.
+
 ## Recherche Web
 
 Pour les questions qui demandent une information actuelle (prix, dernière version, actualités,
@@ -589,6 +642,7 @@ au seuil 0,5.
 python tests/test_units.py            # rapides, sans modèle ni matériel
 python tests/test_wakeword.py         # wake word : config, chargement, flux, WAV de référence
 python tests/test_pipeline_e2e.py     # pipeline complet sur tests/fixtures/scenario.wav (Ollama requis)
+python -m pytest tests/test_winagent.py   # agent Windows (serveur local 127.0.0.1, aucun accès réseau)
 ```
 
 Les fichiers de référence sont régénérables :

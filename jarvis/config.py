@@ -142,6 +142,7 @@ class AudioConfig:
     frame_samples: int = 1280
     input_device: str = ""
     output_device: str = ""
+    remote: str = ""
     listen_timeout: float = 6.0
     end_of_speech_silence: float = 0.9
     max_utterance: float = 15.0
@@ -196,7 +197,7 @@ def secret(name: str, env_file: Path) -> str:
     if os.environ.get(name):
         return os.environ[name]
     if env_file.exists():
-        for line in env_file.read_text(encoding="utf-8").splitlines():
+        for line in env_file.read_text(encoding="utf-8-sig").splitlines():
             key, sep, value = line.strip().partition("=")
             if sep and key.strip() == name:
                 return value.strip().strip('"').strip("'")

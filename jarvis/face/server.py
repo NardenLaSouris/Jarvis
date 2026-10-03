@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import socket
+import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -26,11 +27,12 @@ FILES = {
 }
 
 
-class _ExclusiveServer(ThreadingHTTPServer):
+class ExclusiveServer(ThreadingHTTPServer):
     """Port réservé en exclusivité : sous Windows, la réutilisation d'adresse laisserait deux
-    serveurs écouter le même port sans erreur."""
+    serveurs écouter le même port sans erreur ; ailleurs, elle permet seulement de rouvrir le port
+    juste après un arrêt (TIME_WAIT)."""
 
-    allow_reuse_address = False
+    allow_reuse_address = sys.platform != "win32"
     daemon_threads = True
 
     def server_bind(self):
@@ -59,7 +61,7 @@ class FaceServer:
 
     def start(self) -> str | None:
         try:
-            self._httpd = _ExclusiveServer((self._host, self._port), self._handler())
+            self._httpd = ExclusiveServer((self._host, self._port), self._handler())
         except OSError as exc:
             log.warning("Visage indisponible (%s:%s) : %s. JARVIS continue sans interface.", self._host, self._port, exc)
             return None

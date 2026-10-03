@@ -15,7 +15,7 @@ from jarvis.audio.endpointing import EndpointerSettings, UtteranceRecorder
 from jarvis.capabilities import CapabilityRegistry
 from jarvis.personality import load_personality
 from jarvis.router import IntentRouter
-from jarvis.config import Config
+from jarvis.config import Config, secret
 from jarvis.events import EventBus
 from jarvis.interfaces import (
     AudioSink, AudioSource, LanguageModel, SpeechToText, TextToSpeech, WakeWordDetector,
@@ -49,7 +49,6 @@ def build_tts(cfg: Config) -> TextToSpeech:
 
         return PiperTTS(t.voice, t.length_scale, t.volume, t.speaker, t.pronunciations)
     if t.engine == "neutts":
-        from jarvis.config import secret
         from jarvis.tts.neutts import NeuTTSEngine
 
         n = t.neutts
@@ -195,7 +194,23 @@ def build_tools(cfg: Config, personality, events: EventBus | None = None, timers
     return ToolCore(registry, PermissionManager(), confirmations, timeout=cfg.tools.timeout, events=events)
 
 
+def build_source(cfg: Config) -> AudioSource:
+    """Micro local, ou celui d'un autre PC via son agent quand [audio] remote est renseigné."""
+    a = cfg.audio
+    if a.remote:
+        from jarvis.audio.network import NetworkSource
+
+        return NetworkSource(a.remote, secret("JARVIS_AGENT_TOKEN", ENV_FILE), a.sample_rate, a.frame_samples)
+    from jarvis.audio.devices import MicrophoneSource
+
+    return MicrophoneSource(a.sample_rate, a.frame_samples, a.input_device)
+
+
 def build_sink(cfg: Config) -> AudioSink:
+    if cfg.audio.remote:
+        from jarvis.audio.network import NetworkSink
+
+        return NetworkSink(cfg.audio.remote, secret("JARVIS_AGENT_TOKEN", ENV_FILE))
     from jarvis.audio.devices import SpeakerSink
 
     return SpeakerSink(cfg.audio.output_device)
@@ -208,10 +223,7 @@ def build_agent(
     on_event: EventHandler | None = None,
     events: EventBus | None = None,
 ) -> Agent:
-    if source is None:
-        from jarvis.audio.devices import MicrophoneSource
-
-        source = MicrophoneSource(cfg.audio.sample_rate, cfg.audio.frame_samples, cfg.audio.input_device)
+    source = source if source is not None else build_source(cfg)
     sink = sink or build_sink(cfg)
     from jarvis.hardware import machine_summary
 

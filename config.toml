@@ -215,6 +215,9 @@ frame_samples = 1280
 #   python -m jarvis --choose-audio
 input_device = "Microphone (Voicemod Virtual Au, MME"       # vide = périphérique par défaut de Windows ; sinon nom partiel ou index
 output_device = "Chat (2- TC-HELICON GoXLR), MME"
+# Micro et sortie d'un autre PC via son agent JARVIS (python -m jarvis.winagent), par exemple
+# "http://192.168.1.128:8765" : remplace input_device et output_device. Jeton : JARVIS_AGENT_TOKEN dans .env.
+remote = ""
 # Délai max (s) pour commencer à parler après "Oui, monsieur ?".
 listen_timeout = 6.0
 # Silence (s) marquant la fin d'une phrase.
