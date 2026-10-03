@@ -7,6 +7,7 @@ nouveau moteur (autre STT, autre LLM...) se fait ici, sans toucher à l'agent.
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from pathlib import Path
 
@@ -194,6 +195,34 @@ def build_tools(cfg: Config, personality, events: EventBus | None = None, timers
     return ToolCore(registry, PermissionManager(), confirmations, timeout=cfg.tools.timeout, events=events)
 
 
+def prime_llm(llm: LanguageModel, router: IntentRouter, registry=None) -> threading.Thread | None:
+    """Prépare en arrière-plan les prompts de conversation et de choix d'outil : JARVIS écoute tout de suite,
+    et la première vraie demande ne paie plus leur lecture (jusqu'à 2 minutes sur un processeur sans GPU)."""
+    prime = getattr(llm, "prime", None)
+    if prime is None:
+        return None
+    from jarvis.interfaces import Message
+    from jarvis.tools.planner import planner_prompt
+
+    hello = Message("user", "Bonjour.")
+    prompts = [[Message("system", router.system_prompt()), hello]]
+    if registry is not None and len(registry):
+        prompts.append([Message("system", planner_prompt(registry)), hello])
+
+    def run() -> None:
+        started = time.perf_counter()
+        try:
+            prime(prompts)
+        except Exception as exc:
+            log.warning("Préparation des prompts du LLM impossible : %s", exc)
+            return
+        log.info("Prompts du LLM prêts (%.0f s)", time.perf_counter() - started)
+
+    thread = threading.Thread(target=run, name="llm-prime", daemon=True)
+    thread.start()
+    return thread
+
+
 def build_source(cfg: Config) -> AudioSource:
     """Micro local, ou celui d'un autre PC via son agent quand [audio] remote est renseigné."""
     a = cfg.audio
@@ -276,6 +305,7 @@ def build_agent(
     router = IntentRouter(personality, capabilities, web_enabled=web is not None, tools=tool_names)
     corrector = build_corrector(cfg, personality) if tools is not None else None
     log.info("Personnalité : %s, %d intentions prédéfinies", personality.assistant_name, len(personality.intents))
+    prime_llm(llm, router, tools.registry if tools is not None else None)
 
     a = cfg.audio
     recorder = UtteranceRecorder(

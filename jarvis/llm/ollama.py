@@ -10,6 +10,9 @@ from typing import Iterator
 from jarvis.interfaces import Message
 
 
+PRIME_TIMEOUT = 900.0
+
+
 class LLMError(RuntimeError):
     pass
 
@@ -32,14 +35,14 @@ class OllamaLLM:
         self.last_stats: dict[str, float] = {}
         self.last_done_reason = ""
 
-    def _post(self, path: str, payload: dict) -> dict:
+    def _post(self, path: str, payload: dict, timeout: float | None = None) -> dict:
         request = urllib.request.Request(
             self._url + path,
             data=json.dumps(payload).encode("utf-8"),
             headers={"Content-Type": "application/json"},
         )
         try:
-            with urllib.request.urlopen(request, timeout=self._timeout) as response:
+            with urllib.request.urlopen(request, timeout=timeout or self._timeout) as response:
                 return json.loads(response.read())
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", "replace")
@@ -107,6 +110,14 @@ class OllamaLLM:
             raise LLMError(f"Ollama a répondu {exc.code} : {detail}") from exc
         except (urllib.error.URLError, TimeoutError) as exc:
             raise LLMError(f"Ollama injoignable sur {self._url} : {exc}") from exc
+
+    def prime(self, prompts: list[list[Message]]) -> None:
+        """Fait lire ces conversations à Ollama (un seul jeton généré) pour qu'il en garde le début en cache :
+        les demandes qui commencent de la même façon ne paient plus cette lecture, très lente sur processeur."""
+        for messages in prompts:
+            payload = self._chat_payload(messages, stream=False)
+            payload["options"] = {**self._options, "num_predict": 1}
+            self._post("/api/chat", payload, timeout=PRIME_TIMEOUT)
 
     def warm_up(self) -> None:
         # Une requête sans prompt charge le modèle en mémoire sans rien générer.

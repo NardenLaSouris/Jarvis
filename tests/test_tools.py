@@ -869,3 +869,37 @@ def test_jarvis_prefix_is_removed_from_tool_replies():
     from jarvis.agent import polish_web_sentence
 
     assert polish_web_sentence("JARVIS. Votre minuteur est lancé.", "Mets un minuteur.", True) == "Votre minuteur est lancé."
+
+
+def test_llm_prompts_are_primed_in_background():
+    from jarvis.factory import prime_llm
+    from jarvis.llm.ollama import OllamaLLM
+    from jarvis.tools.planner import planner_prompt
+
+    class PrimedLLM:
+        def __init__(self):
+            self.prompts = None
+
+        def prime(self, prompts):
+            self.prompts = prompts
+
+    core = make_core()
+    router = IntentRouter(PERSONALITY, CapabilityRegistry(), tools=tuple(t.name for t in core.registry.list()))
+    llm = PrimedLLM()
+    prime_llm(llm, router, core.registry).join(5)
+    assert [m[0].content[:40] for m in llm.prompts] == [router.system_prompt()[:40], planner_prompt(core.registry)[:40]]
+    assert prime_llm(object(), router, core.registry) is None
+
+    sent = []
+    ollama = OllamaLLM("http://127.0.0.1:9", "test", max_tokens=200)
+    ollama._post = lambda path, payload, timeout=None: sent.append((path, payload, timeout)) or {}
+    ollama.prime(llm.prompts)
+    assert [(p, d["options"]["num_predict"], d["stream"]) for p, d, _ in sent] == [("/api/chat", 1, False)] * 2
+    assert all(t >= 600 for _, _, t in sent)
+
+
+def test_conversation_moment_is_at_the_end_of_the_system_prompt():
+    router = IntentRouter(PERSONALITY, CapabilityRegistry())
+    first, ongoing = router.system_prompt(), router.system_prompt(ongoing=True)
+    common = next(i for i, (a, b) in enumerate(zip(first, ongoing)) if a != b)
+    assert common > 0.9 * len(first)

@@ -61,7 +61,6 @@ Naturel avant tout (par ordre de priorité : naturel, pertinence, concision, pol
 - N'ajoutez pas de phrase inutile : ni relance, ni proposition d'aide, ni rappel de vos capacités, ni présentation.
 - Ne répétez pas la même expression dans une réponse.
 Exemples de ton : {examples}
-{moment}
 
 Vos réponses sont lues à voix haute par une synthèse vocale : jamais de listes, de markdown, d'emojis, d'URL
 ni d'abréviations difficiles à prononcer.
@@ -89,6 +88,7 @@ Règles impératives sur les actions :
   connaissances, sans évoquer vos limites.
 {WEB_RULES if searched else NO_SEARCH_RULE}{TOOL_RULES if tool_result else ""}
 
+{moment}
 Date et heure actuelles : {_now_fr(now or datetime.now())}."""
 
 
