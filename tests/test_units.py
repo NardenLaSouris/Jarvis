@@ -167,3 +167,21 @@ def test_stt_auto_device_picks_gpu_only_when_available():
         assert fw.detect_device() == ("cuda", "float16")
     finally:
         fw.cuda_device_count = original
+
+
+def test_local_configuration_overrides_settings_per_machine(tmp_path):
+    from jarvis.config import load_config
+
+    (tmp_path / "config.toml").write_text('[llm]\nmodel = "mistral:latest"\ntemperature = 0.3\n[face]\nport = 8765\n',
+                                          encoding="utf-8")
+    assert load_config(tmp_path / "config.toml").llm.model == "mistral:latest"
+    (tmp_path / "config.local.toml").write_text('[llm]\nmodel = "qwen2.5:3b"\n[audio]\nremote = "http://pc:8765"\n',
+                                                encoding="utf-8")
+    cfg = load_config(tmp_path / "config.toml")
+    assert (cfg.llm.model, cfg.llm.temperature, cfg.face.port, cfg.audio.remote) == (
+        "qwen2.5:3b", 0.3, 8765, "http://pc:8765")
+    (tmp_path / "config.local.toml").write_text('[llm]\nmodl = "x"\n', encoding="utf-8")
+    import pytest
+
+    with pytest.raises(ValueError, match="modl"):
+        load_config(tmp_path / "config.toml")

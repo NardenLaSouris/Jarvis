@@ -21,6 +21,7 @@ class AgentConfig:
     token: str
     input_device: str = ""
     output_device: str = ""
+    face_port: int | None = None
 
 
 def load_agent_config(path: str | Path, env_file: str | Path) -> AgentConfig:
@@ -31,14 +32,13 @@ def load_agent_config(path: str | Path, env_file: str | Path) -> AgentConfig:
     path = Path(path)
     with path.open("rb") as fh:
         data = tomllib.load(fh)
-    raw, audio = data.get("agent", {}), data.get("audio", {})
-    unknown = (set(data) - {"agent", "audio"}) | (set(raw) - {"host", "port", "allowed_ips"}) | (
-        set(audio) - {"input_device", "output_device"})
+    raw, audio, face = data.get("agent", {}), data.get("audio", {}), data.get("face", {})
+    unknown = (set(data) - {"agent", "audio", "face"}) | (set(raw) - {"host", "port", "allowed_ips"}) | (
+        set(audio) - {"input_device", "output_device"}) | (set(face) - {"open_on_connect", "port"})
     if unknown:
         raise ValueError(f"Réglages inconnus dans {path.name} : {sorted(unknown)}")
-    port = raw.get("port", 8765)
-    if not isinstance(port, int) or isinstance(port, bool) or not 0 <= port <= 65535:
-        raise ValueError(f"Port invalide : {port!r}")
+    port = _port(raw.get("port", 8765))
+    face_port = _port(face.get("port", 8765)) if face.get("open_on_connect", False) else None
     ips = raw.get("allowed_ips", [])
     if not isinstance(ips, list) or not ips:
         raise ValueError("allowed_ips doit lister au moins une adresse IP (celle du Core JARVIS).")
@@ -51,4 +51,10 @@ def load_agent_config(path: str | Path, env_file: str | Path) -> AgentConfig:
         raise ValueError(f"{TOKEN_NAME} absent ou trop court ({MIN_TOKEN_LENGTH} caractères minimum) : "
                          f"définissez-le dans l'environnement ou dans {Path(env_file).name}.")
     return AgentConfig(str(raw.get("host", "0.0.0.0")), port, allowed, token,
-                       str(audio.get("input_device", "")), str(audio.get("output_device", "")))
+                       str(audio.get("input_device", "")), str(audio.get("output_device", "")), face_port)
+
+
+def _port(value) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or not 0 <= value <= 65535:
+        raise ValueError(f"Port invalide : {value!r}")
+    return value

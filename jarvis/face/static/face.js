@@ -4,9 +4,11 @@
  *   JarvisFace.setVisualState("standby" | "listening" | "thinking" | "speaking")
  *   JarvisFace.setAudioLevel(0..1)
  *   JarvisFace.standby()
+ *   JarvisFace.setTheme("day" | "night")
  *
  * Connecté à JARVIS par /events (Server-Sent Events). Sans connexion : veille.
- * ?demo=1 : démonstration autonome (touches 1-4, A = cycle auto). ?debug=1 : état et FPS.
+ * Le thème (jour en couleur, nuit en noir et blanc) suit l'horaire du Core, sauf ?theme=day|night.
+ * ?demo=1 : démonstration autonome (touches 1-4, A = cycle auto, T = thème). ?debug=1 : état et FPS.
  */
 (() => {
   "use strict";
@@ -23,12 +25,19 @@
     speaking:  { speed: 0.70, glow: 0.95, focus: 0.6, complexity: 0.45, pulseRate: 0.00, pulseDepth: 0.00 },
   };
 
-  const COLOR = {
-    deep: [12, 42, 110],
-    blue: [34, 118, 255],
-    cyan: [70, 214, 255],
-    white: [214, 244, 255],
+  const THEMES = {
+    day: {
+      deep: [12, 42, 110], blue: [34, 118, 255], cyan: [70, 214, 255], white: [214, 244, 255],
+      pupil: [1, 4, 12], pupilEdge: [2, 8, 20], background: ["#061329", "#030a17", "#010308"],
+    },
+    night: {
+      deep: [40, 40, 40], blue: [125, 125, 125], cyan: [205, 205, 205], white: [255, 255, 255],
+      pupil: [0, 0, 0], pupilEdge: [3, 3, 3], background: ["#141414", "#080808", "#000000"],
+    },
   };
+  const FORCED_THEME = THEMES[params.get("theme")] ? params.get("theme") : null;
+  let theme = FORCED_THEME || "day";
+  const COLOR = { ...THEMES[theme] };
   const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${Math.max(0, Math.min(1, a)).toFixed(3)})`;
   const clamp01 = (v) => Math.max(0, Math.min(1, v));
   const now = () => performance.now() / 1000;
@@ -78,8 +87,23 @@
     setAudioLevel(0, false);
   }
 
+  function setTheme(name) {
+    if (!THEMES[name] || name === theme) return;
+    theme = name;
+    Object.assign(COLOR, THEMES[name]);
+    paintPage();
+    resize();
+    buildLayers();
+  }
+
+  function paintPage() {
+    document.documentElement.style.background = COLOR.background[2];
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", COLOR.background[2]);
+  }
+
   window.JarvisFace = {
-    setVisualState, setAudioLevel, standby, reset: standby,
+    setVisualState, setAudioLevel, standby, setTheme, reset: standby,
+    get theme() { return theme; },
     get state() { return face.state; },
     get level() { return face.level; },
   };
@@ -327,9 +351,9 @@
     CY = H / 2;
     R = Math.min(W, H) * 0.44;
     background = ctx.createRadialGradient(CX, CY, 0, CX, CY, Math.hypot(W, H) / 2);
-    background.addColorStop(0, "#061329");
-    background.addColorStop(0.45, "#030a17");
-    background.addColorStop(1, "#010308");
+    background.addColorStop(0, COLOR.background[0]);
+    background.addColorStop(0.45, COLOR.background[1]);
+    background.addColorStop(1, COLOR.background[2]);
   }
 
   let resizeTimer = 0;
@@ -409,9 +433,9 @@
 
     ctx.globalCompositeOperation = "source-over";
     const pupil = ctx.createRadialGradient(CX, CY, 0, CX, CY, rc * 0.92);
-    pupil.addColorStop(0, "rgba(1,4,12,0.92)");
-    pupil.addColorStop(0.6, "rgba(2,8,20,0.75)");
-    pupil.addColorStop(1, "rgba(2,8,20,0)");
+    pupil.addColorStop(0, rgba(COLOR.pupil, 0.92));
+    pupil.addColorStop(0.6, rgba(COLOR.pupilEdge, 0.75));
+    pupil.addColorStop(1, rgba(COLOR.pupilEdge, 0));
     ctx.fillStyle = pupil;
     ctx.beginPath();
     ctx.arc(CX, CY, rc * 0.92, 0, TAU);
@@ -604,6 +628,7 @@
       try {
         const data = JSON.parse(event.data);
         setVisualState(data.state);
+        if (!FORCED_THEME && data.theme) setTheme(data.theme);
         if (data.audio_source === "measured" || data.audio_source === "external") setAudioLevel(data.audio_level);
         face.lastMessage = now();
       } catch (err) {
@@ -628,6 +653,7 @@
       const i = "1234".indexOf(event.key);
       if (i >= 0) { auto = false; setVisualState(order[i]); }
       if (event.key === "a" || event.key === "A") auto = !auto;
+      if (event.key === "t" || event.key === "T") setTheme(theme === "day" ? "night" : "day");
     });
   }
 
@@ -645,6 +671,7 @@
     };
   }
 
+  paintPage();
   resize();
   buildLayers();
   connect();

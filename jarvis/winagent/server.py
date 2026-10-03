@@ -20,7 +20,9 @@ import ipaddress
 import json
 import logging
 import threading
+import time
 from http.server import BaseHTTPRequestHandler
+from typing import Callable
 from urllib.parse import parse_qs, urlsplit
 
 from jarvis.face.server import ExclusiveServer
@@ -37,6 +39,7 @@ MAX_AUDIO = 4 * 1024 * 1024
 RATES = range(8000, 48001)
 FRAMES = range(160, 16001)
 STATUS = {TOOL_NOT_FOUND: 404, INVALID_PARAMETERS: 400}
+FACE_REOPEN_AFTER = 300.0
 
 
 def _client_ip(address: str) -> str:
@@ -50,6 +53,15 @@ def _number(query: dict, name: str, allowed: range) -> int | None:
     if len(values) != 1 or not values[0].isdigit() or int(values[0]) not in allowed:
         return None
     return int(values[0])
+
+
+def _open_in_browser(url: str) -> None:
+    import webbrowser
+
+    try:
+        webbrowser.open(url)
+    except Exception:
+        log.warning("Agent : impossible d'ouvrir le visage %s", url)
 
 
 class _BaseHandler(BaseHTTPRequestHandler):
@@ -73,10 +85,14 @@ class _BaseHandler(BaseHTTPRequestHandler):
 
 
 class AgentServer:
-    def __init__(self, config: AgentConfig, actions: ToolRegistry | None = None, audio: AudioRelay | None = None):
+    def __init__(self, config: AgentConfig, actions: ToolRegistry | None = None, audio: AudioRelay | None = None,
+                 open_page: Callable[[str], object] | None = None, clock: Callable[[], float] = time.monotonic):
         self.config = config
         self.actions = actions if actions is not None else ToolRegistry()
         self.audio = audio if audio is not None else AudioRelay(config.input_device, config.output_device)
+        self._open_page = open_page or _open_in_browser
+        self._clock = clock
+        self._core_left: float | None = None
         self._stopping = threading.Event()
         self._httpd: ExclusiveServer | None = None
 
@@ -99,6 +115,17 @@ class AgentServer:
             self._httpd.server_close()
             self._httpd = None
         self.audio.close()
+
+    def core_connected(self, ip: str) -> None:
+        """Le Core vient de se connecter : son visage s'ouvre sur ce PC, sauf s'il était déjà là il y a peu."""
+        left, self._core_left = self._core_left, None
+        if self.config.face_port is None or (left is not None and self._clock() - left < FACE_REOPEN_AFTER):
+            return
+        host = f"[{ip}]" if ":" in ip else ip
+        self._open_page(f"http://{host}:{self.config.face_port}/")
+
+    def core_left(self) -> None:
+        self._core_left = self._clock()
 
     def _authorized(self, header: str) -> bool:
         scheme, _, token = header.partition(" ")
@@ -207,11 +234,15 @@ class AgentServer:
                         self.send_header("X-Frame-Samples", str(frame))
                         self.end_headers()
                         log.info("Agent : micro diffusé vers %s", self.client_address[0])
-                        while not agent._stopping.is_set():
-                            block = mic.read()
-                            if block is None:
-                                break
-                            self.wfile.write(block.astype("<i2").tobytes())
+                        agent.core_connected(_client_ip(self.client_address[0]))
+                        try:
+                            while not agent._stopping.is_set():
+                                block = mic.read()
+                                if block is None:
+                                    break
+                                self.wfile.write(block.astype("<i2").tobytes())
+                        finally:
+                            agent.core_left()
                 except AudioBusy:
                     self._error(409, "microphone_busy")
                 except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):

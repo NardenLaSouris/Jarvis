@@ -320,3 +320,53 @@ def test_face_follows_a_whole_conversation():
 
 def test_face_has_no_impact_on_the_voice_pipeline():
     assert run_agent(RecordingVisual()) == run_agent(None)
+
+
+# --- Thème nuit (noir et blanc) ------------------------------------------------------------------
+
+def test_night_hours_wrap_around_midnight():
+    from datetime import time
+
+    from jarvis.face.server import is_night, night_hours
+
+    hours = night_hours("22:00", "07:00")
+    assert [is_night(time(h, m), hours) for h, m in ((21, 59), (22, 0), (23, 30), (0, 0), (6, 59), (7, 0), (12, 0))] == [
+        False, True, True, True, True, False, False]
+    assert is_night(time(13, 0), night_hours("12:00", "14:00")) and not is_night(time(14, 0), night_hours("12:00", "14:00"))
+    assert night_hours("", "07:00") is None and not is_night(time(23, 0), None)
+    with pytest.raises(ValueError, match="HH:MM"):
+        night_hours("22h", "07:00")
+
+
+def test_theme_follows_the_core_clock_for_every_page():
+    from datetime import datetime
+
+    from jarvis.face.server import night_hours
+
+    clock = {"now": datetime(2026, 10, 3, 21, 59)}
+    face = FaceServer(VisualState(), "127.0.0.1", 0, night=night_hours("22:00", "07:00"), clock=lambda: clock["now"])
+    url = face.start()
+    try:
+        assert json.loads(get(url + "state")[2])["theme"] == "day"
+        clock["now"] = datetime(2026, 10, 3, 22, 0)
+        assert json.loads(get(url + "state")[2])["theme"] == "night"
+        with urllib.request.urlopen(url + "events", timeout=5) as response:
+            assert json.loads(response.readline().decode().removeprefix("data: "))["theme"] == "night"
+    finally:
+        face.stop()
+
+
+def test_page_knows_both_themes():
+    js = (ROOT / "jarvis" / "face" / "static" / "face.js").read_text(encoding="utf-8")
+    assert "setTheme" in js and "night:" in js and "data.theme" in js
+    night = js.split("night: {", 1)[1].split("}", 1)[0]
+    import re
+
+    colors = [tuple(map(int, c.split(","))) for c in re.findall(r"\[(\d+, \d+, \d+)\]", night)]
+    assert colors and all(r == g == b for r, g, b in colors)
+    assert all(h[1:3] == h[3:5] == h[5:7] for h in re.findall(r'"(#[0-9a-f]{6})"', night))
+
+
+def test_configuration_enables_night_from_22_to_7():
+    cfg = load_config(ROOT / "config.toml")
+    assert (cfg.face.night_start, cfg.face.night_end) == ("22:00", "07:00")

@@ -151,9 +151,11 @@ def start_face(cfg, force: bool = False):
         return None
     try:
         from jarvis.face import FaceServer, VisualState
+        from jarvis.face.server import night_hours
 
         visual = VisualState()
-        url = FaceServer(visual, cfg.face.host, cfg.face.port).start()
+        night = night_hours(cfg.face.night_start, cfg.face.night_end)
+        url = FaceServer(visual, cfg.face.host, cfg.face.port, night=night).start()
     except Exception:
         logging.getLogger(__name__).warning("Visage indisponible, JARVIS continue en vocal.", exc_info=True)
         return None

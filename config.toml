@@ -201,11 +201,15 @@ max_kb = 1024           # au-delà, le fichier est archivé en activity.1.jsonl
 
 [face]
 # Visage graphique animé (page Web locale). Non critique : si le port est pris ou la page fermée,
-# JARVIS continue en vocal. host = "0.0.0.0" pour l'afficher sur une tablette ou un écran du réseau local.
+# JARVIS continue en vocal. host = "0.0.0.0" pour l'afficher sur tous les appareils du réseau local
+# (http://<ip du Core>:8765/) ; l'agent Windows l'ouvre alors seul sur le PC.
 enabled = true
 host = "127.0.0.1"
 port = 8765
-open_browser = true     # ouvre la page dans le navigateur au lancement
+open_browser = true     # ouvre la page dans le navigateur au lancement (inutile sur une machine sans écran)
+# Thème nuit (même visage en noir et blanc) entre ces heures, selon l'horloge du Core ; vides = jamais.
+night_start = "22:00"
+night_end = "07:00"
 
 [audio]
 sample_rate = 16000

@@ -12,3 +12,9 @@ allowed_ips = ["192.168.1.91"]
 [audio]
 input_device = "Microphone (Voicemod Virtual Au, MME"
 output_device = "Chat (2- TC-HELICON GoXLR), MME"
+
+# Visage du Core : ouvert dans le navigateur du PC quand le Core se connecte (rouvert seulement
+# après plus de 5 min sans connexion). Le Core doit l'exposer sur le réseau ([face] host = "0.0.0.0").
+[face]
+open_on_connect = true
+port = 8765

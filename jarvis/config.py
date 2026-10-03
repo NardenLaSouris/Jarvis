@@ -134,6 +134,8 @@ class FaceConfig:
     host: str = "127.0.0.1"
     port: int = 8765
     open_browser: bool = True
+    night_start: str = "22:00"
+    night_end: str = "07:00"
 
 
 @dataclass(frozen=True)
@@ -205,9 +207,18 @@ def secret(name: str, env_file: Path) -> str:
 
 
 def load_config(path: str | Path = "config.toml") -> Config:
+    """Lit ``path``, puis ``<nom>.local.toml`` à côté s'il existe (réglages propres à la machine, non
+    versionnés), qui remplace les réglages du même nom section par section."""
     path = Path(path).resolve()
     with path.open("rb") as fh:
         raw = tomllib.load(fh)
+    local = path.with_name(f"{path.stem}.local.toml")
+    if local.exists():
+        with local.open("rb") as fh:
+            for section, values in tomllib.load(fh).items():
+                if not isinstance(values, dict):
+                    raise ValueError(f"{local.name} : [{section}] doit être une section")
+                raw.setdefault(section, {}).update(values)
     base = path.parent
     sections = {
         "assistant": AssistantConfig,

@@ -11,8 +11,10 @@ import logging
 import socket
 import sys
 import threading
+from datetime import datetime, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Callable
 
 from jarvis.face.state import VisualState
 
@@ -25,6 +27,23 @@ FILES = {
     "/face.css": ("face.css", "text/css; charset=utf-8"),
     "/face.js": ("face.js", "text/javascript; charset=utf-8"),
 }
+
+
+def night_hours(start: str, end: str) -> tuple[time, time] | None:
+    """« 22:00 », « 07:00 » -> plage du thème nuit ; None si l'un des deux est vide (jamais de nuit)."""
+    if not start or not end:
+        return None
+    try:
+        return datetime.strptime(start, "%H:%M").time(), datetime.strptime(end, "%H:%M").time()
+    except ValueError as exc:
+        raise ValueError(f"Horaire du thème nuit invalide (HH:MM attendu) : {start!r}, {end!r}") from exc
+
+
+def is_night(now: time, hours: tuple[time, time] | None) -> bool:
+    if hours is None:
+        return False
+    start, end = hours
+    return start <= now or now < end if start > end else start <= now < end
 
 
 class ExclusiveServer(ThreadingHTTPServer):
@@ -43,8 +62,11 @@ class ExclusiveServer(ThreadingHTTPServer):
 
 
 class FaceServer:
-    def __init__(self, visual: VisualState, host: str = "127.0.0.1", port: int = 8765, rate_hz: float = 30.0):
+    def __init__(self, visual: VisualState, host: str = "127.0.0.1", port: int = 8765, rate_hz: float = 30.0,
+                 night: tuple[time, time] | None = None, clock: Callable[[], datetime] = datetime.now):
         self.visual = visual
+        self._night = night
+        self._clock = clock
         self._host = host
         self._port = port
         self._period = 1.0 / rate_hz
@@ -68,6 +90,10 @@ class FaceServer:
         threading.Thread(target=self._httpd.serve_forever, name="visage", daemon=True).start()
         return self.url
 
+    def payload(self) -> dict:
+        """État visuel diffusé aux pages, avec le thème choisi par l'horloge du Core (même thème partout)."""
+        return {**self.visual.snapshot(), "theme": "night" if is_night(self._clock().time(), self._night) else "day"}
+
     def stop(self) -> None:
         self._stopping.set()
         if self._httpd is not None:
@@ -84,7 +110,7 @@ class FaceServer:
                 if path == "/events":
                     return self._events()
                 if path == "/state":
-                    return self._send(json.dumps(server.visual.snapshot()).encode(), "application/json")
+                    return self._send(json.dumps(server.payload()).encode(), "application/json")
                 if path in FILES:
                     name, kind = FILES[path]
                     return self._send((STATIC_DIR / name).read_bytes(), kind)
@@ -107,7 +133,7 @@ class FaceServer:
                 self.end_headers()
                 try:
                     while not server._stopping.is_set():
-                        data = json.dumps(server.visual.snapshot())
+                        data = json.dumps(server.payload())
                         self.wfile.write(f"data: {data}\n\n".encode())
                         self.wfile.flush()
                         server._stopping.wait(server._period)

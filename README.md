@@ -295,8 +295,17 @@ python -m jarvis --no-face        # sans visage
 python -m jarvis --face-demo      # défilement des états, parole avec la vraie voix
 ```
 
-Dans le navigateur : `?demo=1` (démo autonome, touches 1-4), `?debug=1` (état et FPS). API JS :
-`JarvisFace.setVisualState("thinking")`, `JarvisFace.setAudioLevel(0.4)`, `JarvisFace.standby()`.
+Dans le navigateur : `?demo=1` (démo autonome, touches 1-4, T = thème), `?debug=1` (état et FPS),
+`?theme=day|night` (thème imposé). API JS : `JarvisFace.setVisualState("thinking")`,
+`JarvisFace.setAudioLevel(0.4)`, `JarvisFace.standby()`, `JarvisFace.setTheme("night")`.
+
+**Thème nuit.** Entre `night_start` et `night_end` de `[face]` (22:00 et 07:00 par défaut), le même
+visage passe en noir et blanc. L'heure est celle du Core : toutes les pages changent ensemble.
+
+**Sur tous les appareils.** Avec `[face] host = "0.0.0.0"` sur le Core, le visage s'ouvre depuis
+n'importe quel appareil du réseau local (`http://192.168.1.91:8765/` : PC, tablette, téléphone),
+plusieurs à la fois. L'interface est en lecture seule. L'agent Windows l'ouvre de lui-même sur le PC
+quand le Core se connecte (`[face] open_on_connect` de `windows_agent.toml`).
 
 ## Agent Windows (contrôle et audio du PC à distance)
 
@@ -488,6 +497,22 @@ Ce lexique est appliqué à tout texte prononcé, y compris les réponses du LLM
 ponctuation qui suit le mot. On peut y ajouter d'autres mots mal prononcés.
 
 ## Réglages utiles (`config.toml`)
+
+Les réglages propres à une machine (modèle, périphériques, adresse de l'agent…) vont dans
+`config.local.toml`, à côté de `config.toml` et non versionné : chaque réglage présent y remplace
+celui de `config.toml`, ce qui laisse `git pull` sans conflit. Exemple pour le mini-PC :
+
+```toml
+[llm]
+model = "qwen2.5:3b"
+
+[audio]
+remote = "http://192.168.1.128:8765"
+
+[face]
+host = "0.0.0.0"
+open_browser = false
+```
 
 - `[llm] model` : modèle Ollama ; sur CPU seul, préférer un 3-4B.
 - `[stt] model` : `small` (précis, ~2 s par phrase sur Ryzen 7) ou `base` (~0,7 s, moins fiable).

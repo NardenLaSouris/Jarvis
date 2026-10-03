@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import sys
+from dataclasses import replace
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -223,3 +224,29 @@ def test_env_file_saved_with_a_bom_is_read(tmp_path):
     config, secrets = write(tmp_path, '[agent]\nallowed_ips = ["192.168.1.91"]\n')
     secrets.write_text(f"JARVIS_AGENT_TOKEN={TOKEN}\n", encoding="utf-8-sig")
     assert load_agent_config(config, secrets).token == TOKEN
+
+
+# --- Visage du Core ouvert sur le PC ---------------------------------------------------------------
+
+def test_core_face_opens_on_connection_but_not_on_quick_reconnections(tmp_path):
+    opened, clock = [], {"t": 0.0}
+    config = AgentConfig("127.0.0.1", 0, frozenset({"192.168.1.91"}), TOKEN, face_port=8765)
+    server = AgentServer(config, open_page=opened.append, clock=lambda: clock["t"])
+    server.core_connected("192.168.1.91")
+    server.core_left()
+    clock["t"] = 60
+    server.core_connected("192.168.1.91")
+    server.core_left()
+    clock["t"] = 60 + 301
+    server.core_connected("192.168.1.91")
+    assert opened == ["http://192.168.1.91:8765/", "http://192.168.1.91:8765/"]
+    AgentServer(replace(config, face_port=None), open_page=opened.append).core_connected("192.168.1.91")
+    assert len(opened) == 2
+
+
+def test_face_settings_are_read(tmp_path):
+    toml = '[agent]\nallowed_ips = ["192.168.1.91"]\n[face]\nopen_on_connect = true\nport = 9000\n'
+    assert load_agent_config(*write(tmp_path, toml)).face_port == 9000
+    assert load_agent_config(*write(tmp_path, '[agent]\nallowed_ips = ["192.168.1.91"]\n')).face_port is None
+    with pytest.raises(ValueError, match="inconnus"):
+        load_agent_config(*write(tmp_path, '[agent]\nallowed_ips = ["192.168.1.91"]\n[face]\nurl = "http://x"\n'))
