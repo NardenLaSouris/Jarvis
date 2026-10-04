@@ -146,7 +146,10 @@ class SpotifyClient:
         if status >= 400:
             log.warning("Spotify %s %s : %s", method, path, status)
             raise ToolError(EXECUTION_FAILED, "Spotify n'a pas pu exécuter la commande.")
-        return json.loads(data) if data else {}
+        try:
+            return json.loads(data) if data else {}
+        except ValueError:  # certaines commandes répondent par un simple identifiant de requête
+            return {}
 
     def _device(self) -> str | None:
         """Appareil actif ; à défaut, le premier disponible (la lecture y est transférée)."""

@@ -41,7 +41,7 @@ class FakeSpotify:
             return 200, json.dumps({f"{kind}s": {"items": [{"name": "Back in Black", "uri": "spotify:track:bib",
                                                             "artists": [{"name": "AC/DC"}]}]}}).encode()
         if path.startswith("/me/player"):
-            return (204 if self.premium else 403), b""
+            return (200 if self.premium else 403), (b"Q5P97CQHqwLZ3Hnzas9tnmMFEJA" if self.premium else b"")
         return 404, b""
 
 
