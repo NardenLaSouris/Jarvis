@@ -45,10 +45,11 @@ def close(a: str, b: str) -> bool:
     ka, kb = key(a), key(b)
     if ka == kb:
         return True
-    if min(len(ka), len(kb)) <= 2:
+    if min(len(ka), len(kb)) <= 2 or ka[0] != kb[0]:  # même son au début (« mein » n'est pas « rein »)
         return False
-    threshold = 0.66 if max(len(ka), len(kb)) <= 4 else 0.75
-    return SequenceMatcher(None, ka, kb).ratio() >= threshold
+    if max(len(ka), len(kb)) <= 4:  # mots courts : une lettre d'écart au plus (« sui » / « suey »)
+        return abs(len(ka) - len(kb)) <= 1 and sum(x != y for x, y in zip(ka, kb, strict=False)) <= 1
+    return SequenceMatcher(None, ka, kb).ratio() >= 0.8
 
 
 def coverage(query: str, candidate: str) -> float:

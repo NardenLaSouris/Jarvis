@@ -244,7 +244,7 @@ class SpotifyClient:
         splits = title_artist_splits(query) if kind in ("track", "album") else [(query, "")]
         if kind == "track" and self.catalog is not None:
             for title, artist in splits:
-                best = best_match(self.catalog.tracks(), title, artist, kind)
+                best = best_match(self.catalog.tracks(), title, artist, kind, strict=True)
                 if best is not None:
                     return best["uri"], _credited(best, kind)
         searches = list(dict.fromkeys([f"{t} {a}".strip() for t, a in splits]))
@@ -314,7 +314,7 @@ def _credited(item: dict, kind: str) -> str:
     return item.get("name", "") + credit
 
 
-def best_match(items: list[dict], title: str, artist: str, kind: str) -> dict | None:
+def best_match(items: list[dict], title: str, artist: str, kind: str, strict: bool = False) -> dict | None:
     """Résultat qui reprend, à l'oreille, le titre (et l'artiste s'il est dit) ; les premiers résultats de Spotify
     l'emportent à égalité. None si aucun n'est cohérent avec la demande."""
     from jarvis.phonetic import coverage
@@ -330,7 +330,9 @@ def best_match(items: list[dict], title: str, artist: str, kind: str) -> dict | 
             title_score = coverage(title, name)
             artist_score = coverage(artist, artists) if artist else 1.0
             combined = coverage(f"{title} {artist}", f"{name} {artists}")
-            ok = (title_score >= 0.66 and artist_score >= 0.5) or (not artist and combined >= 0.75 and title_score >= 0.5)
+            needed = 0.99 if strict else (0.66 if artist else 0.75)  # sans artiste dit, le titre doit presque tout couvrir
+            ok = (title_score >= needed and artist_score >= 0.5) or (not artist and not strict and combined >= 0.8
+                                                                       and title_score >= 0.5)
             score = title_score + 0.5 * artist_score + 0.5 * combined
         if ok:
             scored.append((score - rank * 0.01, item))

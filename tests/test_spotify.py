@@ -257,3 +257,11 @@ def test_quick_music_commands_for_foreign_titles(tmp_path):
     assert play("Mets du Rammstein") == {"query": "Rammstein", "kind": "artist"}
     assert play("Joue Sonne de Ramstein sur Spotify") == {"query": "Sonne de Ramstein", "kind": "track"}
     assert play("Mets Nu ma las de limba noastra d'O-Zone")["query"] == "Nu ma las de limba noastra d'O-Zone"
+
+
+def test_close_sounds_but_different_words_are_rejected():
+    from jarvis.phonetic import coverage
+
+    assert coverage("mein herz brent", "Rein raus") == 0.0
+    assert coverage("dou ast", "Mon cœur bat vite") < 0.75
+    assert coverage("dragosta dine tei", "The Dirt") < 0.5
