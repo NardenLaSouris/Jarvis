@@ -254,6 +254,8 @@ class Config:
     memory: MemoryConfig = MemoryConfig()
     calendar: CalendarConfig = CalendarConfig()
     spotify: SpotifyConfig = SpotifyConfig()
+    users: dict = field(default_factory=dict)
+    terminals: dict = field(default_factory=dict)
 
 
 def _build(cls: type, data: dict[str, Any], base_dir: Path):
@@ -337,7 +339,8 @@ def load_config(path: str | Path = "config.toml", local: bool = True) -> Config:
         "calendar": CalendarConfig,
         "spotify": SpotifyConfig,
     }
+    tables = {key: raw.pop(key, {}) for key in ("users", "terminals")}
     unknown = set(raw) - set(sections)
     if unknown:
         raise ValueError(f"Sections inconnues dans {path.name} : {sorted(unknown)}")
-    return Config(**{key: _build(cls, raw.get(key, {}), base) for key, cls in sections.items()})
+    return Config(**{key: _build(cls, raw.get(key, {}), base) for key, cls in sections.items()}, **tables)

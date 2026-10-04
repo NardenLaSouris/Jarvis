@@ -1,0 +1,122 @@
+"""Profils (propriétaire, adulte, enfant, invité) et terminaux : droits par rôle, contexte de la demande."""
+
+from __future__ import annotations
+
+import sys
+from datetime import datetime
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from jarvis.profiles import load_profiles  # noqa: E402
+from jarvis.tools import PermissionManager, ToolCore  # noqa: E402
+from jarvis.tools.files import FileAccess, file_tools  # noqa: E402
+from jarvis.tools.routines import routine_tools  # noqa: E402
+from test_quick import full_core  # noqa: E402
+from test_routines import Setup  # noqa: E402
+from test_tools import PlannerLLM, run_agent  # noqa: E402
+
+USERS = {"monsieur": {"name": "monsieur", "role": "owner"}, "lea": {"name": "Léa", "role": "adult"},
+         "tom": {"name": "Tom", "role": "child"}, "invite": {"name": "invité", "role": "guest"}}
+TERMINALS = {"bureau": {"name": "PC du bureau", "url": "http://192.168.1.128:8765", "room": "bureau",
+                        "user": "monsieur"},
+             "salon": {"name": "satellite du salon", "url": "http://192.168.1.50:8765", "room": "salon",
+                       "user": "invite", "kind": "satellite"}}
+
+
+def core_for(profiles, tmp=Path(".")):
+    import tempfile
+
+    from jarvis.agenda import Calendar, LocalCalendar, calendar_tools
+    from jarvis.memory import MemoryStore, memory_tools
+
+    folder = Path(tempfile.mkdtemp())
+    base = full_core()
+    for tool in [*file_tools(FileAccess({"documents": str(folder)}, None)),
+                 *memory_tools(MemoryStore(folder / "m.json")),
+                 *calendar_tools(Calendar([LocalCalendar(folder / "c.json")]))]:
+        base.registry.register(tool)
+    return ToolCore(base.registry, PermissionManager(profiles=profiles))
+
+
+def outcome(core, user, tool, **parameters):
+    return core.submit({"tool": tool, "parameters": parameters}, user=user)
+
+
+def test_defaults_are_one_owner_and_the_main_terminal():
+    profiles = load_profiles({}, {}, "http://192.168.1.128:8765/")
+    assert [(u.id, u.role) for u in profiles.users()] == [("owner", "owner")]
+    assert profiles.context() == profiles.context("main")
+    assert profiles.terminal("main").url == "http://192.168.1.128:8765" and profiles.context().user_id == "owner"
+
+
+@pytest.mark.parametrize("user, tool, parameters, allowed", [
+    ("invite", "light_on", {}, True),
+    ("invite", "get_weather", {}, True),
+    ("invite", "open_application", {"application": "discord"}, False),
+    ("invite", "lock_pc", {}, False),
+    ("invite", "recall", {}, False),
+    ("invite", "list_events", {}, False),
+    ("invite", "create_timer", {"duration": "10 minutes"}, False),
+    ("tom", "create_timer", {"duration": "10 minutes"}, True),
+    ("tom", "set_color", {"color": "bleu"}, True),
+    ("tom", "close_application", {"application": "chrome"}, False),
+    ("tom", "find_files", {"query": "x"}, False),
+    ("lea", "open_application", {"application": "discord"}, True),
+    ("lea", "forget", {"topic": "tout"}, False),
+    ("monsieur", "lock_pc", {}, True),
+])
+def test_roles_only_restrict(user, tool, parameters, allowed):
+    profiles = load_profiles(USERS, TERMINALS)
+    core = core_for(profiles)
+    result = outcome(core, user, tool, **parameters)
+    if allowed:
+        assert result.status in ("done", "confirm") and (result.result is None or result.result.error != "permission_denied")
+    else:
+        assert result.status == "rejected" and result.result.error == "permission_denied"
+
+
+def test_confirmation_is_still_required_for_the_owner():
+    core = core_for(load_profiles(USERS, TERMINALS))
+    assert outcome(core, "monsieur", "lock_pc").status == "confirm"
+
+
+def test_set_user_switches_identity_and_drops_a_pending_confirmation():
+    core = core_for(load_profiles(USERS, TERMINALS))
+    core.set_user("monsieur")
+    assert core.submit({"tool": "lock_pc"}).status == "confirm"
+    core.set_user("invite")
+    assert core.answer("oui") is None and core.submit({"tool": "lock_pc"}).status == "rejected"
+
+
+def test_terminal_context_carries_device_room_and_user():
+    profiles = load_profiles(USERS, TERMINALS)
+    context = profiles.context("salon")
+    assert (context.device_id, context.room_id, context.user_id) == ("salon", "salon", "invite")
+    assert profiles.terminal("salon").kind == "satellite"
+
+
+def test_invalid_profiles_are_refused():
+    with pytest.raises(ValueError):
+        load_profiles({"x": {"role": "roi"}}, {})
+    with pytest.raises(ValueError):
+        load_profiles({"tom": {"role": "child"}}, {})  # aucun propriétaire
+    with pytest.raises(ValueError):
+        load_profiles(USERS, {"t": {"user": "inconnu"}})
+
+
+def test_guest_terminal_cannot_open_apps_by_voice_nor_schedule():
+    profiles = load_profiles(USERS, TERMINALS)
+    setup = Setup(now=datetime(2026, 10, 4, 20, 15))
+    core = ToolCore(setup.core.registry, PermissionManager(profiles=profiles))
+    for tool in routine_tools(setup.engine):
+        core.registry.register(tool)
+    spoken, _ = run_agent(["Ouvre Discord.", "Allume la chambre.", "Dans 10 minutes, ouvre Discord."], PlannerLLM(), core,
+                          fast_path=True, routines=setup.engine, profiles=profiles, terminal="salon")
+    assert spoken[0] == "Je n'ai pas l'autorisation de faire cela."
+    assert spoken[1] == "La lumière de la chambre est allumée."
+    assert spoken[2] == "Je n'ai pas l'autorisation de programmer cela." and setup.engine.routines() == []

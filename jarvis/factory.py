@@ -292,8 +292,10 @@ def build_routines(cfg: Config, tools, notifications, events: EventBus, sink=Non
 
     alarm = AlarmPlayer(sink, cfg.alarms.sound, cfg.alarms.max_minutes, before_ringing) \
         if sink is not None and cfg.alarms.enabled else None
-    announcer = Announcer(tools.submit, today_events)
-    engine = RoutineEngine(JsonRoutineStore(cfg.routines.path), tools.registry, tools.submit, say, events,
+    owner = next(u.id for u in build_profiles(cfg).users() if u.role == "owner")
+    run_as_owner = lambda data: tools.submit(data, user=owner)  # noqa: E731
+    announcer = Announcer(run_as_owner, today_events)
+    engine = RoutineEngine(JsonRoutineStore(cfg.routines.path), tools.registry, run_as_owner, say, events,
                            alarm=alarm, announce=announcer.text)
     if alarm is not None:
         from jarvis.tools.alarms import alarm_tools
@@ -309,7 +311,7 @@ def build_routines(cfg: Config, tools, notifications, events: EventBus, sink=Non
 
 
 def build_api(cfg: Config, tools, routines, *, web=None, devices=None, rooms=None, driver=None, timers=None,
-              worker=None, home=None, memory=None):
+              worker=None, home=None, memory=None, profiles=None):
     """API d'administration démarrée ([api], pour JARVIS Control), ou None si désactivée."""
     if not cfg.api.enabled:
         return None
@@ -319,7 +321,7 @@ def build_api(cfg: Config, tools, routines, *, web=None, devices=None, rooms=Non
     activity = JsonlActivityStore(cfg.activity.path) if cfg.activity.enabled else None
     status = CoreStatus(llm_url=cfg.llm.host, llm_model=cfg.llm.model, fallback_model=cfg.llm.fallback_model,
                         web=web, devices=devices, rooms=rooms, driver=driver, timers=timers, routines=routines,
-                        activity=activity, worker=worker, home=home)
+                        activity=activity, worker=worker, home=home, profiles=profiles)
     api = CoreApi(cfg.api.host, cfg.api.port, frozenset(cfg.api.allowed_ips), secret("JARVIS_AGENT_TOKEN", ENV_FILE),
                   tools=tools, routines=routines, status=status, activity=activity, memory=memory)
     try:
@@ -353,7 +355,17 @@ def build_tools(cfg: Config, personality, events: EventBus | None = None, timers
         registry.register(tool)
     confirmations = ConfirmationManager(personality.confirm_yes, personality.confirm_no,
                                         ignored=(personality.assistant_name, personality.user_title))
-    return ToolCore(registry, PermissionManager(), confirmations, timeout=cfg.tools.timeout, events=events)
+    profiles = build_profiles(cfg)
+    owner = next(u.id for u in profiles.users() if u.role == "owner")
+    return ToolCore(registry, PermissionManager(profiles=profiles), confirmations, timeout=cfg.tools.timeout,
+                    user=profiles.context().user_id or owner, events=events)
+
+
+def build_profiles(cfg: Config):
+    """Profils ([users]) et terminaux ([terminals]) ; par défaut un propriétaire et le terminal « main »."""
+    from jarvis.profiles import load_profiles
+
+    return load_profiles(cfg.users, cfg.terminals, cfg.audio.remote)
 
 
 def prime_llm(llm: LanguageModel, router: IntentRouter, registry=None) -> threading.Thread | None:
@@ -463,10 +475,12 @@ def build_agent(
     home = HomeState()
     memory = build_memory(cfg)
     extra = []
+    speaker = {"core": None}  # utilisateur en cours (profil du terminal), connu une fois le Core des outils créé
+    current_user = lambda: speaker["core"].user if speaker["core"] is not None else "owner"  # noqa: E731
     if memory is not None:
         from jarvis.memory import memory_tools
 
-        extra += memory_tools(memory)
+        extra += memory_tools(memory, current_user)
     spotify = build_spotify(cfg)
     if spotify is not None:
         from jarvis.spotify import spotify_tools
@@ -479,9 +493,11 @@ def build_agent(
         extra += calendar_tools(calendar)
     tools = build_tools(cfg, personality, events, timers, weather, devices,
                         light_tools_for(rooms, driver, cfg.lights.scenes, home), extra)
+    speaker["core"] = tools
     routines = build_routines(cfg, tools, notifications, events, sink, timers, calendar)
     api = build_api(cfg, tools, routines, web=web, devices=devices, rooms=rooms, driver=driver, timers=timers,
-                    worker=llm if hasattr(llm, "probe") else None, home=home, memory=memory)
+                    worker=llm if hasattr(llm, "probe") else None, home=home, memory=memory,
+                    profiles=build_profiles(cfg))
     if tools is not None and len(tools.registry):
         from jarvis.tools import ToolsCapability
 
@@ -492,7 +508,12 @@ def build_agent(
     if memory is not None:
         from jarvis.memory import memory_prompt
 
-        memory_text = lambda: memory_prompt(memory, cfg.memory.prompt_facts)  # noqa: E731
+        def memory_text() -> str:
+            """Faits du seul utilisateur en cours, et seulement pour un adulte (jamais lus à un invité)."""
+            profile = build_profiles(cfg).user(current_user())
+            if profile is None or profile.role not in ("owner", "adult"):
+                return ""
+            return memory_prompt(memory, cfg.memory.prompt_facts, current_user())
     router = IntentRouter(personality, capabilities, web_enabled=web is not None, tools=tool_names, memory=memory_text)
     if hasattr(llm, "compact_system"):
         llm.compact_system = router.compact_prompt
@@ -523,4 +544,4 @@ def build_agent(
                  stream_audio=cfg.tts.stream_audio, merge_under=cfg.tts.merge_under, web=web,
                  tools=tools, corrector=corrector, notifications=voice, alarm=routines.alarm if routines else None,
                  services=tuple(s for s in (api, routines, timers, notifications, worker) if s is not None),
-                 fast_path=cfg.tools.fast_path, routines=routines)
+                 fast_path=cfg.tools.fast_path, routines=routines, profiles=build_profiles(cfg))

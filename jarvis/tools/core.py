@@ -79,8 +79,26 @@ class ToolCore:
         self._events = events
         self._pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="outil")
 
-    def submit(self, data: Any) -> Outcome:
-        """Demande venant du LLM ou du routeur : jamais exécutée sans validation ni permission."""
+    @property
+    def user(self) -> str:
+        return self._user
+
+    def set_user(self, user: str) -> None:
+        """Utilisateur des prochaines demandes (profil du terminal qui parle) ; une confirmation en attente est
+        abandonnée si l'utilisateur change."""
+        if user != self._user:
+            self.confirmations.clear()
+        self._user = user
+
+    def submit(self, data: Any, user: str | None = None) -> Outcome:
+        """Demande venant du LLM ou du routeur : jamais exécutée sans validation ni permission. ``user`` : pour
+        une demande qui n'est pas celle de l'utilisateur en cours (routine du propriétaire)."""
+        if user is not None and user != self._user:
+            previous, self._user = self._user, user
+            try:
+                return self.submit(data)
+            finally:
+                self._user = previous
         started = time.perf_counter()
         name = data.get("tool") if isinstance(data, dict) and isinstance(data.get("tool"), str) else "?"
         try:

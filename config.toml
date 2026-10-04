@@ -289,6 +289,21 @@ day_end = "20:00"
 enabled = true
 token_path = "data/spotify_token.json"
 
+# Profils et terminaux (facultatif ; par défaut : un propriétaire et le terminal « main » de [audio] remote).
+# Rôles : owner (tout), adult (tout sauf effacer toute la mémoire), child (infos, lumières, musique, minuteurs,
+# rappels, réveils ; aucune action à confirmer), guest (infos, lumières, musique). L'identité vient du terminal.
+# [users.monsieur]
+# name = "monsieur"
+# role = "owner"
+# [users.invite]
+# name = "invité"
+# role = "guest"
+# [terminals.main_pc]
+# name = "PC du bureau"
+# url = "http://192.168.1.128:8765"
+# room = "bureau"
+# user = "monsieur"
+
 [notifications]
 # Annonces de JARVIS (fin de minuteur, rappel...). false : plus d'annonce vocale ; les événements
 # et le journal d'activité continuent.

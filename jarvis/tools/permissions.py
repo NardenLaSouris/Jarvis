@@ -29,11 +29,16 @@ class PermissionManager:
     gestionnaire de confirmation ; il ne vient jamais de la demande du LLM.
     """
 
-    def __init__(self, users: tuple[str, ...] = (OWNER,)):
+    def __init__(self, users: tuple[str, ...] = (OWNER,), profiles=None):
         self._users = set(users)
+        self._profiles = profiles  # jarvis.profiles.Profiles : droits selon le rôle (propriétaire, enfant, invité...)
 
     def decide(self, user: str, tool: Tool, parameters: dict, confirmed: bool = False) -> PermissionDecision:
-        if user not in self._users:
+        if self._profiles is not None:
+            allowed, reason = self._profiles.allows(user, tool, parameters)
+            if not allowed:
+                return PermissionDecision(Decision.DENY, reason)
+        elif user not in self._users:
             return PermissionDecision(Decision.DENY, "utilisateur inconnu")
         if tool.risk is Risk.RESTRICTED:
             return PermissionDecision(Decision.DENY, "outil à risque restreint")

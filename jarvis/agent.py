@@ -197,6 +197,8 @@ class Agent:
         alarm=None,
         fast_path: bool = False,
         routines=None,
+        profiles=None,
+        terminal: str = "main",
     ):
         self.settings = settings
         self._source = source
@@ -212,6 +214,8 @@ class Agent:
         self._alarm = alarm
         self._fast_path = fast_path
         self._routines = routines
+        self._profiles = profiles
+        self.request_context = profiles.context(terminal) if profiles is not None else None
         self._context = ConversationContext(tools.registry, settings.assistant_name) if tools is not None else None
         self._interrupted = False
         self._last_outcome = None
@@ -272,6 +276,8 @@ class Agent:
         self._play(*random.choice(self._acks))
         history: list[Message] = []
         self._place = None
+        if self.request_context is not None and self._tools is not None and hasattr(self._tools, "set_user"):
+            self._tools.set_user(self.request_context.user_id)
         if self._context is not None:
             self._context.clear()
         timeout = self.settings.listen_timeout
@@ -426,6 +432,11 @@ class Agent:
                                           "parameters": dict(call.get("parameters") or {})},
                                          schedule.command, call.get("segment", schedule.command), previous)
             previous = resolved["parameters"]
+            if self._tools.registry.exists(resolved["tool"]):
+                decision = self._tools.permissions.decide(self._tools.user, self._tools.registry.get(resolved["tool"]),
+                                                          resolved["parameters"])
+                if decision.decision.value == "deny":
+                    return self._say_text(history, text, "Je n'ai pas l'autorisation de programmer cela.", latency)
             actions.append({"type": "tool", "tool": resolved["tool"], "parameters": resolved["parameters"]})
         from jarvis.routines.model import RoutineError
 

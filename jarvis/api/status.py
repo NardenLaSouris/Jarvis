@@ -32,13 +32,14 @@ def _safely(check: Callable[[], dict]) -> dict:
 
 class CoreStatus:
     def __init__(self, *, llm_url: str = "", llm_model: str = "", fallback_model: str = "", web=None, devices=None,
-                 rooms=None, driver=None, timers=None, routines=None, activity=None, worker=None, home=None,
+                 rooms=None, driver=None, timers=None, routines=None, activity=None, worker=None, home=None, profiles=None,
                  fetch: Callable[[str], dict] = http_json, clock: Callable[[], datetime] = datetime.now):
         self._llm_url, self._llm_model, self._fallback_model = llm_url.rstrip("/"), llm_model, fallback_model
         self._web, self._devices, self._rooms, self._driver = web, devices, rooms, driver
         self._timers, self._routines, self._activity = timers, routines, activity
         self._worker = worker
         self._home = home
+        self._profiles = profiles
         self._fetch, self._clock = fetch, clock
         self._started = time.time()
 
@@ -73,6 +74,9 @@ class CoreStatus:
 
     def _checks(self) -> dict[str, Callable[[], dict]]:
         checks = {"llm": self._llm, "search": self._search}
+        for terminal in self._profiles.terminals() if self._profiles is not None else []:
+            if terminal.url:
+                checks[f"terminal:{terminal.id}"] = lambda terminal=terminal: self._agent(terminal)
         if self._devices is not None:
             for key in self._devices.keys():
                 device = self._devices[key]
@@ -147,6 +151,11 @@ class CoreStatus:
                 timespec="seconds")},
             "llm": results.get("llm", {"online": False}),
             **({"home": self._home.snapshot()} if self._home is not None else {}),
+            **({"terminals": [{"id": t.id, "name": t.name, "room": t.room or None, "user": t.user,
+                               "online": results.get(f"terminal:{t.id}", {}).get("online") if t.url else None}
+                              for t in self._profiles.terminals()],
+                "users": [{"id": u.id, "name": u.name, "role": u.role} for u in self._profiles.users()]}
+               if self._profiles is not None else {}),
             "search": results.get("search", {"online": False}),
             "agents": [{"id": d["id"], "name": d["name"], "online": d["online"]} for d in agents],
             "lights": {"online": sum(bool(d["online"]) for d in lights), "total": len(lights),
