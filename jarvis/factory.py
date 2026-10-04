@@ -218,6 +218,15 @@ def light_tools_for(rooms, driver, scenes: dict | None = None, home=None) -> lis
     return light_tools(rooms, driver, load_scenes(scenes), home) if rooms is not None else []
 
 
+def build_memory(cfg: Config):
+    """Mémoire explicite ([memory]) : faits que l'utilisateur demande de retenir ; None si désactivée."""
+    if not (cfg.tools.enabled and cfg.memory.enabled):
+        return None
+    from jarvis.memory import MemoryStore
+
+    return MemoryStore(cfg.memory.path, cfg.memory.max_facts)
+
+
 def build_routines(cfg: Config, tools, notifications, events: EventBus, sink=None, timers=None):
     """Moteur des routines démarré ([routines]), avec sonnerie des réveils et annonces ; outils de réveil ajoutés au
     registre ([alarms]). None sans outils."""
@@ -261,7 +270,7 @@ def build_routines(cfg: Config, tools, notifications, events: EventBus, sink=Non
 
 
 def build_api(cfg: Config, tools, routines, *, web=None, devices=None, rooms=None, driver=None, timers=None,
-              worker=None, home=None):
+              worker=None, home=None, memory=None):
     """API d'administration démarrée ([api], pour JARVIS Control), ou None si désactivée."""
     if not cfg.api.enabled:
         return None
@@ -273,7 +282,7 @@ def build_api(cfg: Config, tools, routines, *, web=None, devices=None, rooms=Non
                         web=web, devices=devices, rooms=rooms, driver=driver, timers=timers, routines=routines,
                         activity=activity, worker=worker, home=home)
     api = CoreApi(cfg.api.host, cfg.api.port, frozenset(cfg.api.allowed_ips), secret("JARVIS_AGENT_TOKEN", ENV_FILE),
-                  tools=tools, routines=routines, status=status, activity=activity)
+                  tools=tools, routines=routines, status=status, activity=activity, memory=memory)
     try:
         api.start()
     except OSError as exc:
@@ -283,7 +292,7 @@ def build_api(cfg: Config, tools, routines, *, web=None, devices=None, rooms=Non
 
 
 def build_tools(cfg: Config, personality, events: EventBus | None = None, timers=None, weather=None, devices=None,
-                lights=()):
+                lights=(), extra=()):
     """Core des outils (registre, permissions, confirmation), ou None si les outils sont désactivés.
 
     Avec des appareils, les outils qui agissent sur un PC sont confiés à leurs agents : le Core n'agit jamais sur
@@ -300,7 +309,7 @@ def build_tools(cfg: Config, personality, events: EventBus | None = None, timers
         client = AgentClient(secret("JARVIS_AGENT_TOKEN", ENV_FILE), timeout=max(1.0, cfg.tools.timeout - 2))
         tools = [remote_tool(tool, devices, client) if tool.name in PC_TOOLS else tool for tool in tools]
     registry = ToolRegistry()
-    tools = [*tools, *lights]
+    tools = [*tools, *lights, *extra]
     for tool in tools:
         registry.register(tool)
     confirmations = ConfirmationManager(personality.confirm_yes, personality.confirm_no,
@@ -413,18 +422,29 @@ def build_agent(
     from jarvis.home import HomeState
 
     home = HomeState()
+    memory = build_memory(cfg)
+    extra = []
+    if memory is not None:
+        from jarvis.memory import memory_tools
+
+        extra += memory_tools(memory)
     tools = build_tools(cfg, personality, events, timers, weather, devices,
-                        light_tools_for(rooms, driver, cfg.lights.scenes, home))
+                        light_tools_for(rooms, driver, cfg.lights.scenes, home), extra)
     routines = build_routines(cfg, tools, notifications, events, sink, timers)
     api = build_api(cfg, tools, routines, web=web, devices=devices, rooms=rooms, driver=driver, timers=timers,
-                    worker=llm if hasattr(llm, "probe") else None, home=home)
+                    worker=llm if hasattr(llm, "probe") else None, home=home, memory=memory)
     if tools is not None and len(tools.registry):
         from jarvis.tools import ToolsCapability
 
         capabilities.register(ToolsCapability(tools.registry))
         log.info("Outils : %s", ", ".join(t.name for t in tools.registry.list()))
     tool_names = tuple(t.name for t in tools.registry.list()) if tools is not None else ()
-    router = IntentRouter(personality, capabilities, web_enabled=web is not None, tools=tool_names)
+    memory_text = None
+    if memory is not None:
+        from jarvis.memory import memory_prompt
+
+        memory_text = lambda: memory_prompt(memory, cfg.memory.prompt_facts)  # noqa: E731
+    router = IntentRouter(personality, capabilities, web_enabled=web is not None, tools=tool_names, memory=memory_text)
     if hasattr(llm, "compact_system"):
         llm.compact_system = router.compact_prompt
     corrector = build_corrector(cfg, personality) if tools is not None else None

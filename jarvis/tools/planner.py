@@ -89,6 +89,11 @@ EXAMPLES = (
     ("Ambiance détente dans la chambre", "set_scene", {"scene": "detente"}),
     ("Est-ce que la lumière de la chambre est allumée ?", "light_status", {}),
     ("La lumière de l'entrée est à combien ?", "light_status", {}),
+    ("Retiens que je préfère la lumière à 40 %", "remember", {"fact": "je préfère la lumière à 40 %"}),
+    ("Souviens-toi que ma sœur s'appelle Léa", "remember", {"fact": "ma sœur s'appelle Léa"}),
+    ("Qu'est-ce que tu sais sur moi ?", "recall", {}),
+    ("Tu te souviens de ma couleur préférée ?", "recall", {"topic": "couleur préférée"}),
+    ("Oublie que je préfère le bleu", "forget", {"topic": "je préfère le bleu"}),
     ("Baisse un peu la lumière", None, None),
     ("Supprime le dossier Documents", None, None),
     ("Ouvre un terminal et tape une commande", None, None),
@@ -129,6 +134,10 @@ def planner_prompt(registry: ToolRegistry) -> str:
         rules.append("- get_weather : location uniquement si une ville est dite ; day = today, tomorrow ou "
                      "day_after_tomorrow ; moment = now (par défaut aujourd'hui), morning, afternoon, evening ou "
                      "day (journée entière). Une demande explicite de recherche (« cherche », « recherche ») -> none.")
+    if registry.exists("remember"):
+        rules.append("- remember : seulement si l'utilisateur demande explicitement de retenir ou de se souvenir de "
+                     "quelque chose ; fact reprend ses mots, sans « retiens que ». recall : ce que JARVIS sait de lui. "
+                     "forget : oublier (topic = ses mots, ou « tout »).")
     if registry.exists("unmute_volume"):
         rules.append("- unmute_volume : remettre, réactiver ou rallumer le son (après une coupure).")
     if registry.exists("system_info"):
@@ -299,6 +308,7 @@ class ToolsCapability:
         (("set_volume", "mute_volume", "unmute_volume"), "régler le son"),
         (("system_info", "list_running_applications"), "décrire la machine"),
         (("lock_pc",), "verrouiller l'ordinateur"),
+        (("remember",), "retenir ce que vous me demandez de retenir"),
         (("light_on", "light_off", "set_color"), "piloter vos lumières et leurs ambiances"),
     )
 

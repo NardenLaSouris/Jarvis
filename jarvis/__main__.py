@@ -29,6 +29,8 @@ def main() -> int:
                              "et de transcription (WAV facultatif, sinon extrait de tests/fixtures/scenario.wav)")
     parser.add_argument("--activity", metavar="N", nargs="?", type=int, const=20,
                         help="affiche les N dernières entrées du journal d'activité (20 par défaut) et quitte")
+    parser.add_argument("--memory", action="store_true",
+                        help="affiche ce que JARVIS a retenu (mémoire explicite, data/memory.json) et quitte")
     parser.add_argument("--web-test", metavar="QUESTION",
                         help="recherche Web sans micro ni voix : route, sources, temps et réponse de JARVIS "
                              "(-v affiche aussi les données transmises au LLM)")
@@ -69,6 +71,8 @@ def main() -> int:
         return web_test(cfg, args.web_test)
     if args.activity is not None:
         return show_activity(cfg, args.activity)
+    if args.memory:
+        return show_memory(cfg)
     if args.face_demo:
         return face_demo(cfg)
 
@@ -142,6 +146,17 @@ def show_activity(cfg, limit: int) -> int:
         print(f"Journal d'activité vide ({cfg.activity.path}).")
     for entry in entries:
         print(entry.line())
+    return 0
+
+
+def show_memory(cfg) -> int:
+    from jarvis.memory import MemoryStore
+
+    facts = MemoryStore(cfg.memory.path).all()
+    if not facts:
+        print(f"Mémoire vide ({cfg.memory.path}).")
+    for fact in facts:
+        print(f"{fact['id']}  {fact['created']}  {fact['text']}")
     return 0
 
 

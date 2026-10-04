@@ -43,6 +43,11 @@ ALARM_WORDS = ("reveille moi", "reveillez moi", "mets un reveil", "mets moi un r
 WEATHER_WORDS = ("meteo", "quel temps", "temps fait il", "temps fera t il", "il fait combien", "pleuvoir", "pleut",
                  "va t il neiger", "parapluie")
 LOCK_WORDS = ("verrouille", "verrouiller", "verrouillage")
+REMEMBER = re.compile(r"^(?:jarvis\s+)?(?:retiens|retenez|souviens toi|souvenez vous|rappelle toi|note|memorise|"
+                      r"n oublie pas|n oubliez pas)(?: bien)? (?:que|qu)\s+(.+)$")
+RECALL = ("que sais tu de moi", "que sais tu sur moi", "qu est ce que tu sais de moi", "qu est ce que tu sais sur moi",
+          "tu sais quoi sur moi", "qu as tu retenu", "qu est ce que tu as retenu", "que t ai je demande de retenir")
+FORGET = re.compile(r"^(?:jarvis\s+)?(?:oublie|oubliez|efface)\s+(?:que |qu |ce que )?(.+)$")
 STATUS_WORDS = ("est allumee", "est eteinte", "sont allumees", "sont eteintes", "est elle allumee",
                 "est elle eteinte", "est a combien", "etat de la lumiere", "etat des lumieres")
 SCENE_LEADS = ("mode", "ambiance", "scene", "en mode", "en ambiance")
@@ -167,13 +172,29 @@ class QuickPlanner:
         """Une commande simple, ou None. ``previous`` : action précédente d'une demande enchaînée (« ..., en bleu »
         hérite des lumières)."""
         norm = normalize(text)
-        if not norm or DISQUALIFIERS.search(norm):
+        memory = self._memory(norm, text) if norm else None
+        if memory is None and (not norm or DISQUALIFIERS.search(norm)):
             return None
+        if memory is not None:
+            return {"type": "tool_call", "tool": memory[0], "parameters": memory[1]}
         for parse in (self._sound, self._lights, self._apps, self._timer, self._reminder, self._alarm,
                       self._weather, self._lock):
             call = parse(norm, text, previous)
             if call is not None:
                 return {"type": "tool_call", "tool": call[0], "parameters": call[1]}
+        return None
+
+    def _memory(self, norm, text):
+        """« Retiens que ... », « Que sais-tu de moi ? », « Oublie que ... » (avant les règles qui excluent « ne »)."""
+        if not self._exists("remember"):
+            return None
+        if _has(norm, RECALL):
+            return "recall", {}
+        for pattern, tool, key in ((REMEMBER, "remember", "fact"), (FORGET, "forget", "topic")):
+            match = pattern.match(norm)
+            if match and self._exists(tool):
+                value = _original_tail(text, tokens(match.group(1)))
+                return (tool, {key: value}) if value else None
         return None
 
     def _sound(self, norm, text, previous):

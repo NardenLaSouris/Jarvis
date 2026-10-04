@@ -40,12 +40,13 @@ def tool_info(tool) -> dict:
 
 class CoreApi:
     def __init__(self, host: str, port: int, allowed_ips: frozenset[str], token: str, *, tools: ToolCore | None,
-                 routines: RoutineEngine | None, status: CoreStatus, activity=None):
+                 routines: RoutineEngine | None, status: CoreStatus, activity=None, memory=None):
         if not token:
             raise ValueError("JARVIS_AGENT_TOKEN est requis pour l'API d'administration ([api]).")
         self._address = (host, port)
         self._allowed, self._token = allowed_ips, token
         self.tools, self.routines, self.status, self._activity = tools, routines, status, activity
+        self.memory = memory
         self._httpd: ExclusiveServer | None = None
 
     @property
@@ -182,6 +183,14 @@ class CoreApi:
                     return api.call_tool(route[1], parameters)
                 if method == "GET" and route == ["history"]:
                     return 200, api.history(query)
+                if route[:1] == ["memory"]:
+                    if api.memory is None:
+                        return 404, {"status": "error", "error": "memory_disabled"}
+                    if method == "GET" and len(route) == 1:
+                        return 200, api.memory.all()
+                    if method == "DELETE" and len(route) == 2:
+                        removed = api.memory.remove([route[1]])
+                        return (200, {"status": "ok"}) if removed else (404, {"status": "error", "error": "not_found"})
                 if route[:1] == ["routines"] and len(route) <= 3:
                     edits = (method == "POST" and len(route) == 1) or (method == "PUT" and len(route) == 2)
                     if edits and not isinstance(data, dict):

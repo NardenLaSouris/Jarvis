@@ -124,6 +124,14 @@ class AlarmsConfig:
 
 
 @dataclass(frozen=True)
+class MemoryConfig:
+    enabled: bool = True
+    path: Path = Path("data/memory.json")
+    max_facts: int = 200
+    prompt_facts: int = 20
+
+
+@dataclass(frozen=True)
 class ApiConfig:
     enabled: bool = False
     host: str = "0.0.0.0"
@@ -216,6 +224,7 @@ class Config:
     routines: RoutinesConfig = RoutinesConfig()
     alarms: AlarmsConfig = AlarmsConfig()
     api: ApiConfig = ApiConfig()
+    memory: MemoryConfig = MemoryConfig()
 
 
 def _build(cls: type, data: dict[str, Any], base_dir: Path):
@@ -295,6 +304,7 @@ def load_config(path: str | Path = "config.toml", local: bool = True) -> Config:
         "routines": RoutinesConfig,
         "alarms": AlarmsConfig,
         "api": ApiConfig,
+        "memory": MemoryConfig,
     }
     unknown = set(raw) - set(sections)
     if unknown:

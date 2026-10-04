@@ -95,6 +95,7 @@ class IntentRouter:
         clock: Callable[[], datetime] = datetime.now,
         web_enabled: bool = False,
         tools: tuple[str, ...] = (),
+        memory: Callable[[], str] | None = None,
     ):
         self.personality = personality
         self.capabilities = capabilities
@@ -103,6 +104,7 @@ class IntentRouter:
         self._last: dict[str, str] = {}
         self._previous: str | None = None
         self._tools = set(tools)
+        self.memory = memory
         web = [i for i in personality.intents if i.web] if web_enabled else []
         planners = [i for i in personality.intents if i.planner] if self._tools else []
         by_web = {name for i in web for name in i.replaces}
@@ -192,7 +194,8 @@ class IntentRouter:
         return tuple(self._render(t) for t in self.personality.phrases.get("wake", ()))
 
     def system_prompt(self, ongoing: bool = False) -> str:
-        return build_system_prompt(self.personality, self.capabilities, self._clock(), ongoing)
+        return build_system_prompt(self.personality, self.capabilities, self._clock(), ongoing,
+                                   self.memory() if self.memory else "")
 
     def compact_prompt(self) -> str:
         """Prompt court du LLM de secours (mode dégradé)."""

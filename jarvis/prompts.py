@@ -14,7 +14,7 @@ def _now_fr(now: datetime) -> str:
 
 
 def build_system_prompt(personality: Personality, capabilities: CapabilityRegistry, now: datetime | None = None,
-                        ongoing: bool = False) -> str:
+                        ongoing: bool = False, memory: str = "") -> str:
     """Prompt système, identique quelle que soit la demande (seules la fin de l'échange et l'heure changent, en
     dernier) : Ollama garde ainsi en cache sa lecture, très lente sur processeur. Les consignes pour un résultat
     d'outil ou une recherche Web y figurent toujours, sous condition ; seules les données vont dans le dernier
@@ -96,7 +96,7 @@ Règles impératives sur les actions :
 {TOOL_RULES}
 
 {WEB_RULES}
-
+{chr(10) + memory + chr(10) if memory else ""}
 {moment}
 Date et heure actuelles : {_now_fr(now or datetime.now())}."""
 
