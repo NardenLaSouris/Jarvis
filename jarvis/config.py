@@ -65,6 +65,12 @@ class LLMConfig:
     timeout: float = 120.0
     fallback_host: str = ""
     fallback_model: str = ""
+    # Worker distant (fallback_host renseigné) : connexion de vérification, délai du secours, sonde, lenteur.
+    connect_timeout: float = 1.0
+    fallback_timeout: float = 30.0
+    probe_interval: float = 10.0
+    slow_after: float = 8.0
+    retry_after: float = 30.0
 
 
 @dataclass(frozen=True)
@@ -83,6 +89,7 @@ class WebConfig:
 class ToolsConfig:
     enabled: bool = False
     timeout: float = 10.0
+    fast_path: bool = True
     get_time: dict = field(default_factory=dict)
     get_date: dict = field(default_factory=dict)
     system_info: dict = field(default_factory=dict)

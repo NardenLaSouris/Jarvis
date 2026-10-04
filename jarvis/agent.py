@@ -26,6 +26,7 @@ from jarvis.streaming import SpeechPipeline, sentences_from_llm
 from jarvis.personality import normalize
 from jarvis.tools.core import CANCELLED, CONFIRM, DONE
 from jarvis.tools.planner import plan, tool_request
+from jarvis.tools.quick import quick_plan
 from jarvis.weather.cities import mentioned_city
 from jarvis.web.research import web_request, without_name
 
@@ -192,6 +193,7 @@ class Agent:
         notifications=None,
         services: tuple = (),
         alarm=None,
+        fast_path: bool = False,
     ):
         self.settings = settings
         self._source = source
@@ -205,6 +207,7 @@ class Agent:
         self._web = web
         self._tools = tools
         self._alarm = alarm
+        self._fast_path = fast_path
         self._interrupted = False
         self._last_tool_request = ""
         self._place: str | None = None
@@ -322,6 +325,8 @@ class Agent:
         if route.source == "tool" and self._tools is not None:
             return self._use_tool(history, text, route, latency)
         if route.source == "web.search":
+            if self._degraded():
+                return self._say_phrase(history, text, "degraded_web", latency)
             return self._search_and_answer(history, text, latency)
         if route.reply is not None:
             reply = self._speak([route.reply], latency)
@@ -347,7 +352,13 @@ class Agent:
             data = {"type": "tool_call", "tool": route.tool, "parameters": {}}
         else:
             started = time.perf_counter()
-            data = plan(self._llm, text, self._tools.registry)
+            data = self._quick(text, latency) if self._fast_path or self._degraded() else None
+            if data is None and self._degraded():
+                return self._say_phrase(history, text, "degraded_unknown", latency)
+            if data is None:
+                data = plan(self._llm, text, self._tools.registry)
+                if data is None and self._degraded():  # le worker vient de tomber pendant le choix d'outil
+                    data = self._quick(text, latency)
             latency["tool_plan"] = time.perf_counter() - started
             if data is None:
                 fallback = self._router.route(text, tools=False)
@@ -366,6 +377,23 @@ class Agent:
             self._last_tool_request = "" if route.tool else text
             place = outcome.result.result.get("location") if isinstance(outcome.result.result, dict) else None
             self._place = place if data.get("tool") == WEATHER_TOOL and place else self._place
+        return reply
+
+    def _degraded(self) -> bool:
+        """Worker LLM hors ligne ou défaillant : seules les commandes simples (sans LLM) sont tentées."""
+        return bool(getattr(self._llm, "degraded", False))
+
+    def _quick(self, text: str, latency: dict) -> dict | None:
+        data = quick_plan(text, self._tools.registry, ignored=(self.settings.assistant_name, self.settings.wake_phrase))
+        if data is not None:
+            latency["route"] = "tool:quick" + (" (mode dégradé)" if self._degraded() else "")
+            self._event("routing", latency["route"])
+        return data
+
+    def _say_phrase(self, history: list[Message], text: str, key: str, latency: dict) -> str:
+        reply = self._speak([self._router.phrase(key)], latency)
+        self._remember(history, Message("user", text))
+        self._remember(history, Message("assistant", reply))
         return reply
 
     def _with_hidden(self, data: dict, text: str, segment: str | None = None, previous: dict | None = None) -> dict:

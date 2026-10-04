@@ -32,22 +32,31 @@ def _safely(check: Callable[[], dict]) -> dict:
 
 class CoreStatus:
     def __init__(self, *, llm_url: str = "", llm_model: str = "", fallback_model: str = "", web=None, devices=None,
-                 rooms=None, driver=None, timers=None, routines=None, activity=None,
+                 rooms=None, driver=None, timers=None, routines=None, activity=None, worker=None,
                  fetch: Callable[[str], dict] = http_json, clock: Callable[[], datetime] = datetime.now):
         self._llm_url, self._llm_model, self._fallback_model = llm_url.rstrip("/"), llm_model, fallback_model
         self._web, self._devices, self._rooms, self._driver = web, devices, rooms, driver
         self._timers, self._routines, self._activity = timers, routines, activity
+        self._worker = worker
         self._fetch, self._clock = fetch, clock
         self._started = time.time()
 
     # --- Vérifications -------------------------------------------------------------------------------
 
     def _llm(self) -> dict:
+        worker = self._worker.status() if self._worker is not None else {}
         if not self._llm_url:
-            return {"online": False, "model": self._llm_model}
-        loaded = [m.get("name") for m in self._fetch(f"{self._llm_url}/api/ps").get("models", [])]
+            return {"online": False, "model": self._llm_model, **({"worker": worker} if worker else {})}
+        try:
+            loaded = [m.get("name") for m in self._fetch(f"{self._llm_url}/api/ps").get("models", [])]
+        except Exception as exc:
+            if not worker:
+                raise
+            return {"online": False, "model": self._llm_model, "url": self._llm_url, "error": type(exc).__name__,
+                    "fallback_model": self._fallback_model or None, "state": worker.get("state"), "worker": worker}
         return {"online": True, "model": self._llm_model, "loaded": loaded, "url": self._llm_url,
-                "fallback_model": self._fallback_model or None}
+                "fallback_model": self._fallback_model or None,
+                **({"state": worker.get("state"), "worker": worker} if worker else {})}
 
     def _search(self) -> dict:
         if self._web is None:

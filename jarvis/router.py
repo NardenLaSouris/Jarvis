@@ -24,7 +24,7 @@ from typing import Callable
 
 from jarvis.capabilities import CapabilityRegistry
 from jarvis.personality import Intent, Personality, normalize
-from jarvis.prompts import build_system_prompt
+from jarvis.prompts import build_compact_prompt, build_system_prompt
 from jarvis.streaming import split_sentences
 
 log = logging.getLogger(__name__)
@@ -193,6 +193,10 @@ class IntentRouter:
 
     def system_prompt(self, ongoing: bool = False) -> str:
         return build_system_prompt(self.personality, self.capabilities, self._clock(), ongoing)
+
+    def compact_prompt(self) -> str:
+        """Prompt court du LLM de secours (mode dégradé)."""
+        return build_compact_prompt(self.personality, self._clock())
 
     def reply_filter(self, user_text: str = "", tools_used: bool = False, fallback: str | None = None) -> "ReplyFilter":
         return ReplyFilter(self, user_text, tools_used, fallback)

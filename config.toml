@@ -97,6 +97,13 @@ timeout = 120.0
 # LLM de secours quand celui de « host » est injoignable (par exemple un worker GPU éteint) ; vide = aucun.
 fallback_host = ""
 fallback_model = ""
+# Avec un secours (worker distant) : état du worker ONLINE / DEGRADED / OFFLINE (journal, API, --health).
+# timeout ci-dessus = attente maximale entre deux morceaux de réponse ; avec un worker GPU, 20 s suffisent.
+connect_timeout = 1.0   # vérification TCP avant chaque appel (s) : un worker éteint est détecté aussitôt
+fallback_timeout = 30.0 # délai du LLM de secours (prompt court, mode dégradé)
+probe_interval = 10.0   # sonde de fond (s) : reconnexion automatique quand le worker revient
+slow_after = 8.0        # réponse plus lente que cela (s) : worker marqué DEGRADED
+retry_after = 30.0      # après un échec, délai avant de resolliciter le worker sans attendre la sonde
 
 [lights]
 # Lumières Tuya (par exemple LSC Smart Connect), pilotées en local par le Core. Une pièce par ampoule, dans
@@ -154,6 +161,9 @@ max_page_bytes = 1000000
 # qui l'exige (fermer une application, verrouiller le PC).
 enabled = true
 timeout = 15.0          # délai maximal d'exécution d'un outil (s)
+# Commandes simples et sans ambiguïté (« allume la chambre à 30 % », « mets le son à 40 % ») reconnues sans
+# le LLM : réponse plus rapide. Elles le sont toujours en mode dégradé (worker LLM hors ligne).
+fast_path = true
 
 # Appareils du réseau : JARVIS agit sur un PC via l'agent qui y tourne (python -m jarvis.winagent), jamais sur
 # la machine du Core. L'appareil visé vient des mots de la demande (alias, le plus long l'emporte), sinon

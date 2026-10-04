@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import socket
 import urllib.error
 import urllib.request
 from typing import Iterator
@@ -14,7 +15,26 @@ PRIME_TIMEOUT = 900.0
 
 
 class LLMError(RuntimeError):
-    pass
+    """Échec d'un appel au LLM. ``kind`` : « unreachable » (machine ou service injoignable), « timeout » (pas de
+    réponse dans le délai) ou « error » (réponse d'erreur d'Ollama : modèle absent, requête refusée...)."""
+
+    kind = "error"
+
+
+class LLMUnreachable(LLMError):
+    kind = "unreachable"
+
+
+class LLMTimeout(LLMError):
+    kind = "timeout"
+
+
+def _network_error(url: str, exc: BaseException) -> LLMError:
+    """URLError, délai dépassé ou connexion coupée -> erreur typée (injoignable ou délai dépassé)."""
+    reason = getattr(exc, "reason", exc)
+    if isinstance(reason, (TimeoutError, socket.timeout)) or isinstance(exc, (TimeoutError, socket.timeout)):
+        return LLMTimeout(f"Ollama ne répond pas à temps sur {url}")
+    return LLMUnreachable(f"Ollama injoignable sur {url} : {reason}")
 
 
 class OllamaLLM:
@@ -46,9 +66,11 @@ class OllamaLLM:
                 return json.loads(response.read())
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", "replace")
-            raise LLMError(f"Ollama a répondu {exc.code} : {detail}") from exc
-        except (urllib.error.URLError, TimeoutError) as exc:
-            raise LLMError(f"Ollama injoignable sur {self._url} : {exc}") from exc
+            raise LLMError(f"Ollama a répondu {exc.code} : {detail[:200]}") from exc
+        except (urllib.error.URLError, OSError) as exc:
+            raise _network_error(self._url, exc) from exc
+        except ValueError as exc:
+            raise LLMError("Réponse d'Ollama illisible") from exc
 
     def _chat_payload(self, messages: list[Message], stream: bool) -> dict:
         return {
@@ -107,9 +129,9 @@ class OllamaLLM:
                         return
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", "replace")
-            raise LLMError(f"Ollama a répondu {exc.code} : {detail}") from exc
-        except (urllib.error.URLError, TimeoutError) as exc:
-            raise LLMError(f"Ollama injoignable sur {self._url} : {exc}") from exc
+            raise LLMError(f"Ollama a répondu {exc.code} : {detail[:200]}") from exc
+        except (urllib.error.URLError, OSError) as exc:
+            raise _network_error(self._url, exc) from exc
 
     def prime(self, prompts: list[list[Message]]) -> None:
         """Fait lire ces conversations à Ollama (un seul jeton généré) pour qu'il en garde le début en cache :

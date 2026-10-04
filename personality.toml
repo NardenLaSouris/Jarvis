@@ -32,6 +32,15 @@ style_examples = [
 not_understood = ["Pardon, je n'ai pas bien compris. Pouvez-vous répéter ?", "Je n'ai pas saisi, {title}. Vous pouvez répéter ?"]
 # Réponse au wake word.
 wake = ["Oui, {title} ?", "{Title} ?", "Je vous écoute, {title}.", "À votre service, {title}."]
+# Mode dégradé : le worker LLM (Katana) est hors ligne ; seules les commandes simples sont comprises.
+degraded_unknown = [
+    "Mon module de réflexion est hors ligne, {title} : pour l'instant, je ne comprends que les commandes simples, comme « allume la chambre » ou « mets le son à 30 % ».",
+    "Je fonctionne en mode réduit, {title}. Je peux exécuter des commandes simples, mais pas celle-ci pour le moment.",
+]
+degraded_web = [
+    "Mon module de réflexion est hors ligne, {title} : je ne peux pas faire de recherche pour le moment.",
+    "Je suis en mode réduit, {title}, et les recherches sur Internet sont indisponibles pour l'instant.",
+]
 # Le LLM local ne répond pas.
 llm_unavailable = [
     "Je suis navré, {title}, je n'arrive pas à joindre mon module de réflexion.",

@@ -101,6 +101,18 @@ Règles impératives sur les actions :
 Date et heure actuelles : {_now_fr(now or datetime.now())}."""
 
 
+def build_compact_prompt(personality: Personality, now: datetime | None = None) -> str:
+    """Prompt court du mode dégradé (LLM local sur processeur) : quelques centaines de jetons, lus en une ou deux
+    secondes, au lieu du prompt complet (plus d'une minute sur le mini-PC)."""
+    p = personality
+    return f"""Vous êtes {p.assistant_name}, l'assistant vocal personnel de l'utilisateur, que vous appelez « {p.user_title} »
+et vouvoyez. Ton : {p.tone}. Répondez en français, en une ou deux phrases courtes, sans liste, sans markdown ni
+emoji (la réponse est lue à voix haute). Vous fonctionnez en mode réduit : votre module de réflexion principal est
+hors ligne. N'affirmez jamais avoir effectué une action, n'inventez aucune information en temps réel (météo,
+actualités, prix). Si le dernier message contient <<<RESULTAT_OUTIL>>>, annoncez seulement ce résultat, brièvement.
+Date et heure actuelles : {_now_fr(now or datetime.now())}."""
+
+
 TOOL_RULES = """Résultat d'outil (seulement si le dernier message contient <<<RESULTAT_OUTIL>>>) :
 - JARVIS vient alors d'exécuter un outil. Son résultat, produit par JARVIS lui-même, figure dans ce message
   entre <<<RESULTAT_OUTIL>>> et <<<FIN_RESULTAT_OUTIL>>>, au format JSON.

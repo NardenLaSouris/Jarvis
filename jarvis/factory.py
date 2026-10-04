@@ -37,9 +37,13 @@ def build_llm(cfg: Config) -> LanguageModel:
             return llm
         from jarvis.llm.failover import FailoverLLM
 
+        from jarvis.llm.failover import tcp_reachable
+
         fallback = OllamaLLM(c.fallback_host, c.fallback_model or c.model, c.temperature, c.max_tokens, c.keep_alive,
-                             c.timeout)
-        return FailoverLLM(llm, fallback, c.host)
+                             c.fallback_timeout)
+        return FailoverLLM(llm, fallback, c.host, retry_after=c.retry_after,
+                           reachable=lambda url: tcp_reachable(url, c.connect_timeout), slow_after=c.slow_after,
+                           probe_interval=c.probe_interval)
     raise ValueError(f"Backend LLM inconnu : {cfg.llm.backend}")
 
 
@@ -256,7 +260,8 @@ def build_routines(cfg: Config, tools, notifications, events: EventBus, sink=Non
     return engine
 
 
-def build_api(cfg: Config, tools, routines, *, web=None, devices=None, rooms=None, driver=None, timers=None):
+def build_api(cfg: Config, tools, routines, *, web=None, devices=None, rooms=None, driver=None, timers=None,
+              worker=None):
     """API d'administration démarrée ([api], pour JARVIS Control), ou None si désactivée."""
     if not cfg.api.enabled:
         return None
@@ -266,7 +271,7 @@ def build_api(cfg: Config, tools, routines, *, web=None, devices=None, rooms=Non
     activity = JsonlActivityStore(cfg.activity.path) if cfg.activity.enabled else None
     status = CoreStatus(llm_url=cfg.llm.host, llm_model=cfg.llm.model, fallback_model=cfg.llm.fallback_model,
                         web=web, devices=devices, rooms=rooms, driver=driver, timers=timers, routines=routines,
-                        activity=activity)
+                        activity=activity, worker=worker)
     api = CoreApi(cfg.api.host, cfg.api.port, frozenset(cfg.api.allowed_ips), secret("JARVIS_AGENT_TOKEN", ENV_FILE),
                   tools=tools, routines=routines, status=status, activity=activity)
     try:
@@ -407,7 +412,8 @@ def build_agent(
     rooms, driver = build_lights(cfg)
     tools = build_tools(cfg, personality, events, timers, weather, devices, light_tools_for(rooms, driver))
     routines = build_routines(cfg, tools, notifications, events, sink, timers)
-    api = build_api(cfg, tools, routines, web=web, devices=devices, rooms=rooms, driver=driver, timers=timers)
+    api = build_api(cfg, tools, routines, web=web, devices=devices, rooms=rooms, driver=driver, timers=timers,
+                    worker=llm if hasattr(llm, "probe") else None)
     if tools is not None and len(tools.registry):
         from jarvis.tools import ToolsCapability
 
@@ -415,9 +421,14 @@ def build_agent(
         log.info("Outils : %s", ", ".join(t.name for t in tools.registry.list()))
     tool_names = tuple(t.name for t in tools.registry.list()) if tools is not None else ()
     router = IntentRouter(personality, capabilities, web_enabled=web is not None, tools=tool_names)
+    if hasattr(llm, "compact_system"):
+        llm.compact_system = router.compact_prompt
     corrector = build_corrector(cfg, personality) if tools is not None else None
     log.info("Personnalité : %s, %d intentions prédéfinies", personality.assistant_name, len(personality.intents))
     prime_llm(llm, router, tools.registry if tools is not None else None)
+    worker = llm if hasattr(llm, "probe") else None
+    if worker is not None:
+        worker.start()
 
     a = cfg.audio
     recorder = UtteranceRecorder(
@@ -438,4 +449,5 @@ def build_agent(
     return Agent(settings, source, sink, wake_word, recorder, stt, llm, tts, router, on_event,
                  stream_audio=cfg.tts.stream_audio, merge_under=cfg.tts.merge_under, web=web,
                  tools=tools, corrector=corrector, notifications=voice, alarm=routines.alarm if routines else None,
-                 services=tuple(s for s in (api, routines, timers, notifications) if s is not None))
+                 services=tuple(s for s in (api, routines, timers, notifications, worker) if s is not None),
+                 fast_path=cfg.tools.fast_path)
