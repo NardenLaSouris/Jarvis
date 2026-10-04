@@ -93,6 +93,12 @@ EXAMPLES = (
     ("Lance la routine soir", "run_routine", {"name": "soir"}),
     ("Supprime la routine réveil", "delete_routine", {"name": "réveil"}),
     ("Rappelle-moi à 18 h d'appeler Paul", "create_reminder", {"time": "18 h", "message": "appeler Paul"}),
+    ("Qu'est-ce que j'ai de prévu aujourd'hui ?", "list_events", {}),
+    ("J'ai quoi demain dans mon agenda ?", "list_events", {}),
+    ("Quels sont mes prochains rendez-vous ?", "next_events", {}),
+    ("Quand est mon rendez-vous chez le dentiste ?", "search_events", {"query": "dentiste"}),
+    ("Est-ce que je suis libre demain après-midi ?", "free_slots", {}),
+    ("Ajoute un rendez-vous chez le coiffeur demain à 15 h", "add_event", {"title": "coiffeur", "time": "15 h"}),
     ("Retiens que je préfère la lumière à 40 %", "remember", {"fact": "je préfère la lumière à 40 %"}),
     ("Souviens-toi que ma sœur s'appelle Léa", "remember", {"fact": "ma sœur s'appelle Léa"}),
     ("Qu'est-ce que tu sais sur moi ?", "recall", {}),
@@ -150,6 +156,9 @@ def planner_prompt(registry: ToolRegistry) -> str:
         rules.append("- Fichiers : jamais de chemin ; un nom de fichier tel qu'il a été dit et, s'il est dit, un dossier "
                      "autorisé (documents, bureau, téléchargements, jarvis). Supprimer un dossier, exécuter un fichier "
                      "ou toucher au système -> none.")
+    if registry.exists("list_events"):
+        rules.append("- Calendrier : le jour n'est jamais un paramètre (déduit de la demande). add_event : heure recopiée "
+                     "telle qu'elle a été dite ; un rappel (« rappelle-moi ») reste create_reminder.")
     if registry.exists("remember"):
         rules.append("- remember : seulement si l'utilisateur demande explicitement de retenir ou de se souvenir de "
                      "quelque chose ; fact reprend ses mots, sans « retiens que ». recall : ce que JARVIS sait de lui. "
@@ -325,6 +334,7 @@ class ToolsCapability:
         (("system_info", "list_running_applications"), "décrire la machine"),
         (("lock_pc",), "verrouiller l'ordinateur"),
         (("find_files",), "chercher, lire et ranger vos fichiers"),
+        (("list_events",), "consulter et compléter votre agenda"),
         (("remember",), "retenir ce que vous me demandez de retenir"),
         (("list_routines",), "gérer vos routines et programmer des actions"),
         (("light_on", "light_off", "set_color"), "piloter vos lumières et leurs ambiances"),
@@ -332,7 +342,8 @@ class ToolsCapability:
 
     def __init__(self, registry: ToolRegistry):
         self.replaces = ("le contrôle de votre ordinateur", *(("la domotique",) if registry.exists("light_on") else ()),
-                         *(("la gestion de vos fichiers",) if registry.exists("find_files") else ()))
+                         *(("la gestion de vos fichiers",) if registry.exists("find_files") else ()),
+                         *(("l'agenda",) if registry.exists("list_events") else ()))
         parts = [label for names, label in self.GROUPS if any(registry.exists(n) for n in names)]
         self.description = ", ".join(parts[:-1]) + " et " + parts[-1] if len(parts) > 1 else "".join(parts)
 

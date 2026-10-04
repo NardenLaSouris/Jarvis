@@ -178,7 +178,7 @@ class QuickPlanner:
             return None
         if memory is not None:
             return {"type": "tool_call", "tool": memory[0], "parameters": memory[1]}
-        for parse in (self._routine, self._sound, self._lights, self._apps, self._timer, self._reminder, self._alarm,
+        for parse in (self._calendar, self._routine, self._sound, self._lights, self._apps, self._timer, self._reminder, self._alarm,
                       self._weather, self._lock):
             call = parse(norm, text, previous)
             if call is not None:
@@ -196,6 +196,19 @@ class QuickPlanner:
             if match and self._exists(tool):
                 value = _original_tail(text, tokens(match.group(1)))
                 return (tool, {key: value}) if value else None
+        return None
+
+    def _calendar(self, norm, text, previous):
+        """« Qu'est-ce que j'ai de prévu demain ? », « Mes prochains rendez-vous », « Suis-je libre demain ? »."""
+        if not self._exists("list_events"):
+            return None
+        if _has(norm, ("suis je libre", "je suis libre", "creneau libre", "creneaux libres", "des creneaux")):
+            return "free_slots", {}
+        if _has(norm, ("prochains rendez vous", "prochain rendez vous", "prochains evenements", "prochain evenement")):
+            return "next_events", {}
+        if _has(norm, ("de prevu", "mon agenda", "mon calendrier", "mon planning", "dans l agenda", "j ai quoi",
+                       "mes rendez vous")) and not _has(norm, ("ajoute", "ajouter", "note", "supprime", "annule")):
+            return "list_events", {}
         return None
 
     def _routine(self, norm, text, previous):

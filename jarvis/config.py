@@ -139,6 +139,15 @@ class MemoryConfig:
 
 
 @dataclass(frozen=True)
+class CalendarConfig:
+    enabled: bool = True
+    path: Path = Path("data/calendar.json")
+    ics: str = ""
+    day_start: str = "08:00"
+    day_end: str = "20:00"
+
+
+@dataclass(frozen=True)
 class ApiConfig:
     enabled: bool = False
     host: str = "0.0.0.0"
@@ -234,6 +243,7 @@ class Config:
     alarms: AlarmsConfig = AlarmsConfig()
     api: ApiConfig = ApiConfig()
     memory: MemoryConfig = MemoryConfig()
+    calendar: CalendarConfig = CalendarConfig()
 
 
 def _build(cls: type, data: dict[str, Any], base_dir: Path):
@@ -314,6 +324,7 @@ def load_config(path: str | Path = "config.toml", local: bool = True) -> Config:
         "alarms": AlarmsConfig,
         "api": ApiConfig,
         "memory": MemoryConfig,
+        "calendar": CalendarConfig,
     }
     unknown = set(raw) - set(sections)
     if unknown:

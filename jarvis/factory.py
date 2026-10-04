@@ -230,7 +230,21 @@ def build_memory(cfg: Config):
     return MemoryStore(cfg.memory.path, cfg.memory.max_facts)
 
 
-def build_routines(cfg: Config, tools, notifications, events: EventBus, sink=None, timers=None):
+def build_calendar(cfg: Config):
+    """Calendrier ([calendar]) : local (data/calendar.json) et, si renseigné, un fichier ou une adresse iCal en lecture
+    seule ; None si désactivé."""
+    if not (cfg.tools.enabled and cfg.calendar.enabled):
+        return None
+    from jarvis.agenda import Calendar, IcsCalendar, LocalCalendar
+
+    providers = [LocalCalendar(cfg.calendar.path)]
+    ics = cfg.calendar.ics or secret("JARVIS_CALENDAR_ICS", ENV_FILE)
+    if ics:
+        providers.append(IcsCalendar(ics))
+    return Calendar(providers, day_start=cfg.calendar.day_start, day_end=cfg.calendar.day_end)
+
+
+def build_routines(cfg: Config, tools, notifications, events: EventBus, sink=None, timers=None, calendar=None):
     """Moteur des routines démarré ([routines]), avec sonnerie des réveils et annonces ; outils de réveil ajoutés au
     registre ([alarms]). None sans outils."""
     if tools is None or not cfg.routines.enabled:
@@ -252,6 +266,11 @@ def build_routines(cfg: Config, tools, notifications, events: EventBus, sink=Non
 
     def today_events() -> list[str]:
         events_today = engine.today()
+        if calendar is not None:
+            try:
+                events_today = [f"rendez-vous {line}" for line in calendar.today_lines()] + events_today
+            except Exception as exc:
+                log.warning("Calendrier indisponible pour l'annonce de la journée : %s", exc)
         if timers is not None:
             now = timers.now()
             events_today += [f"rappel « {r.message} » à {spoken_clock(r.expires_at.hour, r.expires_at.minute)}"
@@ -435,9 +454,14 @@ def build_agent(
         from jarvis.memory import memory_tools
 
         extra += memory_tools(memory)
+    calendar = build_calendar(cfg)
+    if calendar is not None:
+        from jarvis.agenda import calendar_tools
+
+        extra += calendar_tools(calendar)
     tools = build_tools(cfg, personality, events, timers, weather, devices,
                         light_tools_for(rooms, driver, cfg.lights.scenes, home), extra)
-    routines = build_routines(cfg, tools, notifications, events, sink, timers)
+    routines = build_routines(cfg, tools, notifications, events, sink, timers, calendar)
     api = build_api(cfg, tools, routines, web=web, devices=devices, rooms=rooms, driver=driver, timers=timers,
                     worker=llm if hasattr(llm, "probe") else None, home=home, memory=memory)
     if tools is not None and len(tools.registry):
