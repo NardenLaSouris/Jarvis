@@ -301,6 +301,22 @@ def _several(calls: list, text: str, registry: ToolRegistry) -> dict | None:
     return kept[0] if len(kept) == 1 else {"type": "tool_calls", "calls": kept}
 
 
+# Actions sur le PC qui exigent d'être nommées dans la demande : le LLM ne les ajoute jamais par interprétation
+# (« éteins tout » proposait aussi de couper le son du PC).
+DOMAIN_WORDS = {
+    "mute_volume": ("son", "volume", "sourdine", "muet", "silence", "audio", "mute"),
+    "unmute_volume": ("son", "volume", "sourdine", "muet", "audio", "unmute"),
+    "set_volume": ("son", "volume", "audio", "fort", "bas"),
+    "lock_pc": ("verrouille", "verrouiller", "verrouillage", "verrouilles", "bloque", "lock"),
+    "close_application": ("ferme", "fermer", "quitte", "quitter", "arrete", "coupe"),
+}
+
+
+def _named(tool: str, text: str) -> bool:
+    words = DOMAIN_WORDS.get(tool)
+    return words is None or any(f" {w} " in f" {normalize(text)} " for w in words)
+
+
 def _grounded(data: dict, text: str, registry: ToolRegistry) -> dict | None:
     """Les nombres et les valeurs à justifier (durées...) doivent venir de la demande : le LLM n'invente rien.
 
@@ -308,6 +324,9 @@ def _grounded(data: dict, text: str, registry: ToolRegistry) -> dict | None:
     une luminosité de 100) ; dans un paramètre obligatoire, ou une autre valeur injustifiée, l'appel est écarté."""
     if not registry.exists(data.get("tool")) or not isinstance(data.get("parameters"), dict):
         return data
+    if not _named(data["tool"], text):
+        log.info("Action écartée : « %s » n'est pas demandée (%s)", data["tool"], text[:80])
+        return None
     said = set(re.findall(r"\d+(?:[.,]\d+)?", text))
     said |= {n.replace(",", ".") for n in said}
     norm = f" {normalize(text)} "

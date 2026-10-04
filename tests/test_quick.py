@@ -171,3 +171,27 @@ def test_media_keys_without_spotify_and_guard():
         if tool.name.startswith("media_"):
             real.registry.register(tool)
     assert not real.submit(call("media_next")).result.success  # garde-fou des tests : aucune vraie touche
+
+
+# --- Régressions de la session red team ------------------------------------------------------------
+
+def test_everything_off_means_the_lights_never_the_pc_sound():
+    from jarvis.tools.planner import plan
+
+    assert quick_plan("Éteins tout.", REGISTRY) == call("light_off")
+    assert quick_plan("Allume tout", REGISTRY) == call("light_on")
+
+    class Overeager:
+        def chat_json(self, messages, schema):
+            return {"type": "tool_calls", "calls": [
+                {"tool": "light_off", "parameters": {}, "segment": "Éteins tout"},
+                {"tool": "mute_volume", "parameters": {}, "segment": "Éteins tout"}]}
+
+    assert plan(Overeager(), "Éteins tout.", REGISTRY) == {**call("light_off"), "segment": "Éteins tout"}
+    assert plan(PlannerLLM(call("lock_pc")), "Mets-toi en veille", REGISTRY) is None
+    assert plan(PlannerLLM(call("mute_volume")), "Coupe le son", REGISTRY) == call("mute_volume")
+
+
+def test_a_colour_said_at_the_end_applies_to_every_room():
+    data = quick_plan("Allume l'entrée et la chambre en vert", REGISTRY)
+    assert [(c["tool"], c["parameters"]) for c in data["calls"]] == [("set_color", {"color": "vert"})] * 2

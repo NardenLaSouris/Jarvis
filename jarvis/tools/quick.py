@@ -164,8 +164,9 @@ class QuickPlanner:
         return bool(room and room.resolve and room.resolve(text) != room.resolve(""))
 
     def _about_lights(self, norm: str, text: str) -> bool:
+        everything = re.match(r"^(?:eteins|eteint|eteindre|allume|allumer|rallume|coupe) (?:moi )?tout$", norm)
         return self._exists("light_on") and (_has(norm, LIGHT_WORDS) or self._names_room(text)
-                                             or self._scene(norm) is not None)
+                                             or self._scene(norm) is not None or bool(everything))
 
     # --- Une commande --------------------------------------------------------------------------------
 
@@ -435,10 +436,24 @@ class QuickPlanner:
             calls.append({**call, "segment": segment.strip()})
             previous = call
         if len(calls) == len(segments):
-            return {"type": "tool_calls", "calls": calls}
+            return {"type": "tool_calls", "calls": _spread_colour(calls)}
         if calls and calls[0]["tool"] == "create_reminder":
             return self.one(text)
         return None
+
+
+def _spread_colour(calls: list[dict]) -> list[dict]:
+    """« Allume l'entrée et la chambre en vert » : la couleur (ou l'ambiance) dite à la fin vaut aussi pour les pièces
+    seulement allumées avant elle."""
+    last = calls[-1]
+    if last["tool"] not in ("set_color", "set_scene", "set_color_temperature"):
+        return calls
+    spread = []
+    for call in calls[:-1]:
+        if call["tool"] == "light_on" and not call["parameters"]:
+            call = {**call, "tool": last["tool"], "parameters": dict(last["parameters"])}
+        spread.append(call)
+    return [*spread, last]
 
 
 def _original_tail(text: str, wanted: list[str]) -> str:
