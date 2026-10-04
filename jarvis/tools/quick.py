@@ -208,7 +208,9 @@ class QuickPlanner:
                     "coupe la musique", "pause musique") or _has(norm, ("musique en pause", "spotify en pause")):
             return ("spotify_pause", {}) if spotify else ("media_play_pause", {})
         if _has(norm, ("reprends la musique", "reprend la musique", "remets la musique", "relance la musique",
-                       "reprends la lecture", "reprend la lecture")) or norm in ("reprends", "lecture", "play"):
+                       "reprends la lecture", "reprend la lecture")) or norm in (
+                    "reprends", "lecture", "play", "joue spotify", "mets spotify", "joue la musique", "mets la musique",
+                    "mets de la musique", "joue de la musique", "remets spotify", "relance spotify"):
             return ("spotify_play", {}) if self._exists("spotify_play") else ("media_play_pause", {})
         if _has(norm, ("morceau suivant", "chanson suivante", "titre suivant", "piste suivante", "musique suivante",
                        "passe au suivant", "chanson d apres", "morceau d apres")):
@@ -281,6 +283,8 @@ class QuickPlanner:
                 return None
             level = _percent_raw(text)
             if level is not None:
+                if self._exists("spotify_volume") and _has(norm, ("spotify", "musique", "de la musique", "du morceau")):
+                    return "spotify_volume", {"volume": level}  # « le volume de Spotify » : pas celui du PC
                 return "set_volume", {"volume": level}
         return None
 

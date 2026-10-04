@@ -164,8 +164,9 @@ def planner_prompt(registry: ToolRegistry) -> str:
                      "day (journée entière). Une demande explicite de recherche (« cherche », « recherche ») -> none.")
     if registry.exists("spotify_play"):
         rules.append("- Musique : spotify_play, spotify_pause, spotify_next, spotify_previous, spotify_volume quand ils "
-                     "existent ; sinon les touches media_play_pause, media_next, media_previous. « Lance Spotify » "
-                     "(l'application) -> open_application.")
+                     "existent ; sinon les touches media_play_pause, media_next, media_previous. « Joue Spotify », "
+                     "« mets de la musique » -> spotify_play sans paramètre (reprise) ; « ouvre Spotify » (l'application) "
+                     "-> open_application ; « le volume de Spotify » -> spotify_volume, « le volume » seul -> set_volume.")
     elif registry.exists("media_play_pause"):
         rules.append("- Musique ou vidéo en cours : pause, reprise -> media_play_pause ; suivant -> media_next ; "
                      "précédent -> media_previous. Jouer un titre précis n'est pas possible sans Spotify relié -> none. "

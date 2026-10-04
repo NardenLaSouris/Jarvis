@@ -265,3 +265,16 @@ def test_close_sounds_but_different_words_are_rejected():
     assert coverage("mein herz brent", "Rein raus") == 0.0
     assert coverage("dou ast", "Mon cœur bat vite") < 0.75
     assert coverage("dragosta dine tei", "The Dirt") < 0.75  # sous le seuil sans artiste
+
+
+def test_spotify_volume_and_play_spotify_are_not_confused_with_the_pc(tmp_path):
+    from jarvis.tools.quick import quick_plan
+    from test_tools import make_core
+
+    core = make_core()
+    for tool in spotify_tools(client(tmp_path, FakeSpotify())):
+        core.registry.register(tool)
+    assert quick_plan("Mets le volume de Spotify à 30 %.", core.registry)["tool"] == "spotify_volume"
+    assert quick_plan("Mets le volume à 30 %.", core.registry)["tool"] == "set_volume"
+    assert quick_plan("Joue Spotify.", core.registry) == {"type": "tool_call", "tool": "spotify_play", "parameters": {}}
+    assert quick_plan("Ouvre Spotify", core.registry)["tool"] == "open_application"
