@@ -11,7 +11,7 @@ allowed_ips = ["192.168.1.91"]
 # ou index, comme [audio] de config.toml ; liste : python -m jarvis --list-devices).
 [audio]
 input_device = "Microphone (Voicemod Virtual Au, MME"
-output_device = "Chat (2- TC-HELICON GoXLR), MME"
+output_device = "Music (2- TC-HELICON GoXLR), MME"
 
 # Fichiers accessibles à JARVIS sur ce PC (outils find_files, read_text_file, create_text_file, copy_file, move_file,
 # delete_file) : seulement ces dossiers ; créations dans sandbox ; « supprimer » = corbeille de JARVIS (récupérable).
