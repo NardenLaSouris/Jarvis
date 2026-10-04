@@ -1,41 +1,82 @@
-# JARVIS V1 — assistant vocal local
+# JARVIS V2 — assistant vocal local
 
-« Jarvis » → « Oui, monsieur ? » → question → transcription → LLM local → réponse vocale
+« Jarvis » → « Oui, monsieur ? » → demande → transcription → outil ou LLM → réponse vocale
 → quelques secondes d'écoute pour une relance → retour en veille.
 
-Tout tourne localement : openWakeWord (wake word), faster-whisper (STT), Ollama (LLM),
-Piper (TTS). La V1 ne fait que converser : aucune action sur le système.
+Tout tourne en local, sur trois machines du réseau :
+
+| Machine | Rôle |
+|---|---|
+| Mini-PC (Core, Linux, sans GPU) | `python -m jarvis` (service systemd utilisateur) : wake word, STT (faster-whisper sur processeur), routage, outils, Piper, routines, mémoire, API d'administration (8766), visage (8765), LLM de secours (Ollama local), SearXNG (Docker, 127.0.0.1:8080) |
+| Katana (RTX 4070) | worker LLM : Ollama `qwen2.5:7b` sur GPU (11434, pare-feu : Core seulement) ; agent Windows |
+| PC principal | terminal audio (micro et voix relayés par l'agent Windows, 8765) ; actions sur le PC ; JARVIS Control |
+
+Le LLM ne fait que proposer : tout passe par le Core des outils (validation, permissions par profil,
+confirmation, exécution, journal). Aucun shell, aucune commande libre.
+
+## Nouveautés de la V2 (octobre 2026)
+
+- **Worker LLM robuste** : état ONLINE / DEGRADED / OFFLINE, erreurs typées (injoignable, délai dépassé, erreur
+  du modèle), sonde de reconnexion toutes les 10 s, métriques de latence (API, `--health`). Katana hors ligne :
+  **mode dégradé** — commandes simples exécutées sans LLM, conversation par le LLM local avec un prompt court
+  (1 à 2 s au lieu de 70 s), phrase claire sinon. Réglages `[llm] connect_timeout`, `fallback_timeout`,
+  `probe_interval`, `slow_after`, `retry_after`.
+- **Commandes simples sans LLM** (`jarvis/tools/quick.py`, `[tools] fast_path`) : lumières, son, applications,
+  minuteurs, rappels, réveils, météo, musique, agenda, mémoire, routines, verrouillage, et leurs enchaînements
+  (« allume la chambre à 30 %, en bleu »). 0,2 ms au lieu de 0,5 à 1,4 s de choix d'outil.
+- **Contexte conversationnel** (`jarvis/context.py`) : « Allume la chambre. » → « À 30 %. » → « Non, l'entrée. »
+  → « En bleu. » ; « Quelle heure est-il ? » → « Et demain ? ». Oublié au retour en veille.
+- **Lumières** : ambiances (`set_scene` : cinéma, lecture, détente, nuit, travail, réveil ; `[lights.scenes]`),
+  groupes (`[lights.groups]`), état lu sur l'ampoule (`light_status`), pièce inconnue signalée (« je n'ai pas de
+  lumière configurée pour le bureau »), ampoules commandées en parallèle, une ampoule muette n'arrête pas les
+  autres, état centralisé de la maison (`jarvis/home.py`, valeurs lues ou seulement commandées).
+- **Mémoire explicite** (`jarvis/memory.py`) : `remember`, `recall`, `forget` (avec confirmation) ; rien n'est
+  retenu automatiquement ; `data/memory.json`, `python -m jarvis --memory`, `GET/DELETE /api/memory`.
+- **Actions programmées** : « Dans 10 minutes, allume la chambre », « Tous les jours à 21 h, mets la lumière à
+  30 % », « Éteins tout à 23 h » → routine exécutée par le même Core ; actions à confirmer refusées. Rappels à
+  heure précise ; minuteurs et rappels conservés au redémarrage (`[timers] persist`) ; `list_routines`,
+  `run_routine`, `delete_routine`.
+- **Calendrier** (`jarvis/agenda.py`) : aujourd'hui, demain, prochains, recherche, créneaux libres, ajout,
+  suppression ; calendrier local + lecture d'un .ics ou d'une adresse iCal secrète (Google, Outlook).
+- **Fichiers** (sur le PC, par l'agent) : recherche, lecture de texte, création dans un dossier de travail,
+  copie ; déplacement et suppression avec confirmation, suppression récupérable (corbeille de JARVIS).
+- **Musique** : touches multimédia du PC ; Spotify par son API Web (après `--spotify-login`).
+- **Profils et terminaux** (`jarvis/profiles.py`) : rôles owner, adult, child, guest ; terminal → pièce et
+  utilisateur ; par défaut un propriétaire, comportement inchangé.
+- **Réseau** : `network_status` ; sources des recherches Web journalisées et citées sur demande.
+- **Diagnostics** : `python -m jarvis --health`, `--diagnostics`, `--benchmark` (non destructifs).
+- **Tests silencieux** : garde-fous contre tout son, navigateur, ampoule ou touche réels (`tests/conftest.py`).
 
 ## Architecture
 
 ```
 jarvis/
-  __main__.py          point d'entrée (CLI)
-  config.py            configuration centrale (lit config.toml)
+  __main__.py          point d'entrée (CLI : --health, --diagnostics, --benchmark, --memory, --spotify-login...)
+  config.py            configuration centrale (config.toml + config.local.toml non versionné)
   interfaces.py        contrats : AudioSource, AudioSink, WakeWordDetector, SpeechToText, LanguageModel, TextToSpeech
-  agent.py             cœur : machine à états veille → écoute → réflexion → réponse → relance → veille
-  factory.py           assemble les moteurs concrets à partir de la config (seul endroit qui les connaît)
-  prompts.py           prompt système (persona, capacités disponibles / prévues)
-  capabilities/        point d'extension pour les futurs outils (vide en V1)
-  audio/
-    devices.py         micro et haut-parleur (sounddevice)
-    files.py           source/sortie WAV pour tests et diagnostic
-    endpointing.py     détection début/fin de phrase (énergie, seuil adaptatif)
-    resample.py
-  wakeword/openwakeword.py   inférence openWakeWord en ONNX (sans scipy/scikit-learn)
-  stt/faster_whisper.py
-  llm/ollama.py        client HTTP Ollama (bibliothèque standard)
-  tts/piper.py
-wakeword_training/            entraînement d'un wake word personnalisé (hors exécution)
-  specs/jarvis_fr.toml        description du wake word « Jarvis » français
-scripts/download_models.py    télécharge les modèles définis dans config.toml
-tests/                        tests unitaires, wake word, et bout en bout sur scenario.wav
+  agent.py             boucle veille -> écoute -> réflexion -> réponse ; outils, mode dégradé, programmation
+  factory.py           assemble les composants à partir de la config (seul endroit qui les connaît)
+  router.py, prompts.py, personality.py   routage des intentions, prompts (complet et court), personnalité
+  context.py           contexte conversationnel temporaire (compléments courts)
+  memory.py            mémoire explicite (remember / recall / forget)
+  profiles.py          profils (rôles) et terminaux (pièce, utilisateur)
+  agenda.py            calendrier (local, iCal en lecture)
+  spotify.py           API Web Spotify (PKCE)
+  home.py              état centralisé de la maison
+  diagnostics.py       --health, --diagnostics, --benchmark
+  llm/                 ollama.py (client, erreurs typées), failover.py (worker distant, états, secours)
+  tools/               core (validation, permissions, confirmation), registre, planificateur LLM, quick (sans LLM),
+                       système, applications, audio, fichiers, médias, lumières, minuteurs, réveils, routines, réseau
+  routines/            moteur des routines (heure, date précise, intervalle), sonnerie, annonces
+  scheduling/          minuteurs et rappels (persistants), heures et durées dites, actions programmées
+  audio/ stt/ tts/ wakeword/ web/ weather/ notifications/ face/ api/ control/ winagent/
+wakeword_training/     entraînement d'un wake word personnalisé
+tests/                 tests silencieux (garde-fous dans conftest.py)
 ```
 
-L'agent ne dépend que de `interfaces.py`. Pour changer de moteur, ajouter un module et
-le brancher dans `factory.py`. Pour ajouter une capacité, créer un module dans
-`capabilities/` et l'enregistrer dans le `CapabilityRegistry` : le prompt système la
-présentera automatiquement au LLM.
+L'agent ne dépend que de `interfaces.py`. Pour changer de moteur, ajouter un module et le brancher dans
+`factory.py`. Pour ajouter un outil : une fonction qui rend des `Tool` (paramètres typés, niveau de risque, phrase
+de réponse), enregistrée dans la fabrique ; le planificateur et le prompt la présentent automatiquement au LLM.
 
 ## Installation (mini-PC Linux, Debian/Ubuntu)
 
@@ -84,10 +125,9 @@ Ollama (stream) -> SentenceBuffer -> file de phrases -> thread TTS -> file audio
   jouée une seule fois, sans superposition.
 - **Réponses courtes et prédéfinies** : même chemin, avec une seule phrase, sans attente superflue.
 - **Interruption** : `SpeechPipeline.cancel()` arrête la génération (le flux Ollama est fermé), vide
-  les files et n'en joue plus rien. C'est prêt pour un futur « Jarvis, stop ».
+  les files et n'en joue plus rien. Dire « Jarvis » pendant une réponse l'interrompt (`[assistant] barge_in`).
 - **Voix Piper** : chargée et préchauffée au démarrage, jamais rechargée entre deux phrases. Le TTS
-  reste interchangeable : ElevenLabs fonctionne aussi avec ce pipeline (`[tts] engine`), avec une
-  requête par phrase.
+  reste interchangeable (`[tts] engine` : piper ou neutts).
 
 Métriques affichées à chaque réponse : `STT`, `LLM first token`, `LLM first sentence`,
 `TTS first sentence`, `Audio first chunk`, `LLM total`, `TTS total` et `Total response`.
@@ -105,7 +145,7 @@ Chaque demande transcrite passe par le routeur (`jarvis/router.py`), dans cet or
 1. **commandes critiques** : « stop », « tais-toi »…, et retour en veille ;
 2. **intentions prédéfinies** : salutations, remerciements, identité, nom, créateur, capacités,
    au revoir. Réponse immédiate, sans LLM ;
-3. **capacités** (outils) enregistrées dans `jarvis/capabilities` : aucune en V1 ;
+3. **capacités** enregistrées (outils, recherche Web) : elles remplacent les replis correspondants ;
 4. **intentions de repli** : demande d'action vers une fonction pas encore disponible
    (« éteins la lumière », « envoie un message »…). Elles passent après les capacités, pour qu'une
    capacité ajoutée plus tard soit prioritaire ;
@@ -357,6 +397,13 @@ ip, version, alias), clé locale de chaque ampoule dans `.env` (`LIGHT_KEY_<PIÈ
 s'obtiennent une fois depuis un compte Smart Life ; une IP fixe par ampoule (bail réservé dans la box) est
 conseillée.
 
+Ambiances : « mets les lumières en mode cinéma », « ambiance détente dans la chambre » (`set_scene` : cinéma,
+lecture, détente, nuit, travail, réveil ; `[lights.scenes.<nom>]` pour en modifier ou en ajouter, avec brightness,
+temperature ou color). Groupes : `[lights.groups.<nom>]` (name, rooms, aliases). « Est-ce que la lumière de la
+chambre est allumée ? » : `light_status`, lu sur l'ampoule. Une pièce nommée sans lumière configurée est signalée
+au lieu d'allumer toute la maison. Plusieurs ampoules sont commandées en parallèle ; si l'une ne répond pas, les
+autres sont réglées et JARVIS le dit.
+
 ## Agent Windows (contrôle et audio du PC à distance)
 
 Quand le Core JARVIS tourne sur le mini-PC, le PC Windows peut exécuter des actions à sa demande via
@@ -479,27 +526,6 @@ Sans GPU NVIDIA, ou si CUDA échoue, le STT bascule automatiquement sur
 `fallback_device` / `fallback_compute_type` (CPU / int8) et l'indique dans les logs.
 Au démarrage, JARVIS affiche `STT device`, `STT compute type` et `STT model`.
 
-## Voix ElevenLabs (cloud)
-
-Par défaut, JARVIS parle avec une voix ElevenLabs : `[tts] engine = "elevenlabs"`, voix réglée
-dans `[tts.elevenlabs] voice_id`. Chaque phrase prononcée est envoyée à l'API ElevenLabs, ce
-qui demande une connexion Internet et une clé API ; le service est payant au-delà du quota
-gratuit.
-
-La clé ne doit jamais être écrite dans `config.toml` ni dans `.env.example` :
-
-```bash
-copy .env.example .env      # puis mettez la clé dans .env (fichier ignoré par git)
-```
-
-Si ElevenLabs est indisponible (pas de clé, pas de réseau, quota épuisé, erreur de l'API),
-JARVIS bascule automatiquement sur la voix locale Piper (`fallback_to_piper = true`). Pour
-revenir au tout-local : `engine = "piper"`.
-
-```bash
-python -m jarvis --tts-test "Bonjour monsieur. Je suis Jarvis."   # teste la voix configurée
-```
-
 ## Choisir la voix Piper
 
 Pour comparer plusieurs voix Piper à l'oreille, avec exactement le même chemin TTS → sortie audio
@@ -589,7 +615,7 @@ et retente le worker 30 s plus tard. Les deux sont préchargés au lancement.
 
 - `[llm] model` : modèle Ollama ; sur CPU seul, préférer un 3-4B.
 - `[stt] model` : `small` (précis, ~2 s par phrase sur Ryzen 7) ou `base` (~0,7 s, moins fiable).
-- `[wake_word] threshold` : 0,96 d'après l'évaluation (voir « Wake word ») ; à ajuster avec `--wake-test`.
+- `[wake_word] threshold` et `patience` : 0,70 tenu 2 images (80 ms chacune) d'affilée, réglage retenu après un essai sur 960 enregistrements (l'évaluation d'origine donnait 0,96 pour une seule image) ; à ajuster avec `--wake-test`.
 - `[assistant] conversation_timeout` : durée d'écoute sans wake word après une réponse.
 - `[audio] min_rms`, `speech_to_noise_ratio`, `end_of_speech_silence` : détection de parole.
 
@@ -734,16 +760,39 @@ au seuil 0,5.
 - Un mot très proche, comme « Jervis », peut déclencher : c'est volontaire, pour ne pas
   rejeter les prononciations naturelles de « Jarvis ».
 
+## Diagnostics
+
+```bash
+python -m jarvis --health        # chaque composant en quelques secondes (code 1 si un indispensable échoue)
+python -m jarvis --diagnostics   # + configuration, outils et risques, derniers échecs
+python -m jarvis --benchmark     # wake word, STT, LLM, choix d'outil, outils, voix (rien n'est joué)
+python -m jarvis --memory        # ce que JARVIS a retenu
+python -m jarvis --spotify-login # relier Spotify (une fois)
+```
+
+Mesures sur le mini-PC (octobre 2026) : wake word 2,4 ms par image, STT 2,9 s pour 4 s de parole (whisper small
+sur processeur, principal délai restant), premier mot du LLM 0,08 s (Katana), choix d'outil 0,56 s par le LLM ou
+0,2 ms sans LLM, lecture des deux ampoules 0,57 s, synthèse Piper 0,46 s pour 4 s de voix.
+
 ## Tests
 
 ```bash
-python tests/test_units.py            # rapides, sans modèle ni matériel
-python tests/test_wakeword.py         # wake word : config, chargement, flux, WAV de référence
-python tests/test_pipeline_e2e.py     # pipeline complet sur tests/fixtures/scenario.wav (Ollama requis)
-python -m pytest tests/test_winagent.py   # agent Windows (serveur local 127.0.0.1, aucun accès réseau)
+python -m pytest -q tests                       # toute la suite, silencieuse : aucun son, micro, navigateur,
+                                                # ampoule, volume, application ou touche réels
+JARVIS_E2E=1 python -m pytest tests/test_pipeline_e2e.py   # vrais moteurs sur scenario.wav (voix synthétisée, non jouée)
 ```
+
+`tests/conftest.py` fait échouer tout accès réel au son, au navigateur, aux ampoules Tuya et aux touches
+multimédia ; les tests passent par des faux (RecordingSink, FakeDriver...).
 
 Les fichiers de référence sont régénérables :
 - `tests/fixtures/wakeword/` avec `python tests/make_wakeword_fixtures.py` (locuteurs de test uniquement) ;
 - `tests/fixtures/scenario.wav` avec `python tests/make_scenario.py`.
-"# Jarvis" 
+
+## Étapes manuelles restantes
+
+- Sonnerie du réveil : copier votre fichier (ex. « Back in Black ») dans `data/alarm.mp3` sur le Core.
+- Spotify : application sur developer.spotify.com (retour `http://127.0.0.1:8888/callback`),
+  `SPOTIFY_CLIENT_ID` dans `.env`, puis `python -m jarvis --spotify-login` (compte Premium).
+- Agenda existant : adresse iCal secrète dans `.env` (`JARVIS_CALENDAR_ICS=...`).
+- Profils : `[users]` et `[terminals]` dans `config.local.toml` si plusieurs personnes utilisent JARVIS.
