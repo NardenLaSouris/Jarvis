@@ -215,7 +215,7 @@ class QuickPlanner:
         if _has(norm, ON_VERBS):
             return "light_on", {}
         if inherited and self._names_room(text) and len(norm.split()) <= 4:
-            return previous["tool"], {k: v for k, v in previous.get("parameters", {}).items()}
+            return previous["tool"], {k: v for k, v in previous.get("parameters", {}).items() if k != "room"}
         return None
 
     def _scene(self, norm: str) -> str | None:

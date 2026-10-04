@@ -12,12 +12,12 @@ import platform
 import shutil
 import subprocess
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable
 
-from jarvis.personality import MONTHS, WEEKDAYS, spoken_time
-from jarvis.tools.base import EXECUTION_FAILED, Risk, Tool, ToolError
+from jarvis.personality import MONTHS, WEEKDAYS, normalize, spoken_time
+from jarvis.tools.base import EXECUTION_FAILED, Param, Risk, Tool, ToolError
 
 GPU_CLASS = r"SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}"
 IGNORED_GPUS = ("microsoft basic", "microsoft remote", "virtual", "parsec", "meta virtual")
@@ -32,16 +32,36 @@ def time_tool(clock: Callable[[], datetime]) -> Tool:
                 Risk.SAFE, run, say=lambda r: f"Il est {r['spoken']}.")
 
 
-def date_tool(clock: Callable[[], datetime]) -> Tool:
-    def run() -> dict:
-        now = clock()
-        day = "1er" if now.day == 1 else str(now.day)
-        return {"date": now.strftime("%Y-%m-%d"), "weekday": WEEKDAYS[now.weekday()],
-                "spoken": f"{WEEKDAYS[now.weekday()]} {day} {MONTHS[now.month - 1]} {now.year}"}
+DAY_OFFSETS = {"yesterday": -1, "today": 0, "tomorrow": 1, "day_after_tomorrow": 2}
+DAY_SAID = {"yesterday": ("Hier, nous étions", "hier"), "tomorrow": ("Demain, nous serons", "demain"),
+            "day_after_tomorrow": ("Après-demain, nous serons", "apres demain")}
 
-    return Tool("get_date", "Donne la date du jour.", {},
+
+def said_day(text: str) -> str | None:
+    """Jour nommé dans la demande (« demain », « après-demain », « hier ») ; None pour aujourd'hui."""
+    norm = f" {normalize(text)} "
+    for key in ("day_after_tomorrow", "yesterday", "tomorrow"):
+        if f" {DAY_SAID[key][1]} " in norm:
+            return key
+    return None
+
+
+def date_tool(clock: Callable[[], datetime]) -> Tool:
+    def run(day: str | None = None) -> dict:
+        when = clock() + timedelta(days=DAY_OFFSETS.get(day or "today", 0))
+        number = "1er" if when.day == 1 else str(when.day)
+        result = {"date": when.strftime("%Y-%m-%d"), "weekday": WEEKDAYS[when.weekday()],
+                  "spoken": f"{WEEKDAYS[when.weekday()]} {number} {MONTHS[when.month - 1]} {when.year}"}
+        return {**result, "day": day} if day and day != "today" else result
+
+    def said(r: dict) -> str:
+        lead = DAY_SAID.get(r.get("day", ""), ("Nous sommes",))[0]
+        return f"{lead} le {r['spoken']}."
+
+    return Tool("get_date", "Donne la date du jour (ou d'hier, de demain, d'après-demain).",
+                {"day": Param(str, "jour", required=False, choices=tuple(DAY_OFFSETS), hidden=True, resolve=said_day)},
                 {"date": "AAAA-MM-JJ", "weekday": "jour", "spoken": "date en toutes lettres"}, Risk.SAFE, run,
-                say=lambda r: f"Nous sommes le {r['spoken']}.")
+                say=said)
 
 
 # --- Informations machine -------------------------------------------------------------------------

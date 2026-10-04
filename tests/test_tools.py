@@ -863,9 +863,19 @@ def test_short_follow_up_reuses_the_previous_tool_request():
     first = {"type": "tool_call", "tool": "set_volume", "parameters": {"volume": 30}}
     llm = PlannerLLM(first, {"type": "tool_call", "tool": "set_volume", "parameters": {"volume": 50}},
                      reply="Le son est à 30 %.")
-    spoken, events = run_agent(["Mets le son à 30 %.", "Et à 50 ?"], llm, make_core(volume=FakeVolume()))
-    assert routes(events) == ["tool:tool.action", "tool:tool.follow_up"]
-    assert llm.planned[1][0][1].content == "Mets le son à 30 % à 50 ?"
+    volume = FakeVolume()
+    spoken, events = run_agent(["Mets le son à 30 %.", "Et à 50 ?"], llm, make_core(volume=volume))
+    # Le complément est compris sans le LLM (contexte de la conversation, voir jarvis.context).
+    assert routes(events) == ["tool:tool.action", "tool:context"] and len(llm.planned) == 1
+    assert volume.level == 50 and spoken[1] == "Le volume est à 50 %."
+
+
+def test_follow_up_without_context_rule_still_reuses_the_previous_request():
+    first = {"type": "tool_call", "tool": "set_volume", "parameters": {"volume": 30}}
+    llm = PlannerLLM(first, {"type": "tool_call", "tool": "mute_volume", "parameters": {}})
+    spoken, events = run_agent(["Mets le son à 30 %.", "Et coupe-le ensuite ?"], llm, make_core(volume=FakeVolume()))
+    assert routes(events)[1] == "tool:tool.follow_up"
+    assert llm.planned[1][0][1].content == "Mets le son à 30 % coupe-le ensuite ?"
 
 
 def test_jarvis_prefix_is_removed_from_tool_replies():

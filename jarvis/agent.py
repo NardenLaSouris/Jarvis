@@ -18,6 +18,7 @@ from typing import Callable
 import numpy as np
 
 from jarvis.audio.endpointing import UtteranceRecorder
+from jarvis.context import ConversationContext
 from jarvis.interfaces import (
     AudioSink, AudioSource, LanguageModel, Message, SpeechToText, TextToSpeech, WakeWordDetector,
 )
@@ -208,7 +209,9 @@ class Agent:
         self._tools = tools
         self._alarm = alarm
         self._fast_path = fast_path
+        self._context = ConversationContext(tools.registry, settings.assistant_name) if tools is not None else None
         self._interrupted = False
+        self._last_outcome = None
         self._last_tool_request = ""
         self._place: str | None = None
         self._corrector = corrector
@@ -266,6 +269,8 @@ class Agent:
         self._play(*random.choice(self._acks))
         history: list[Message] = []
         self._place = None
+        if self._context is not None:
+            self._context.clear()
         timeout = self.settings.listen_timeout
         while True:
             self._deliver_notifications()
@@ -298,6 +303,10 @@ class Agent:
                 latency["route"] = "tool:confirmation"
                 self._event("routing", latency["route"])
                 reply, end = self._after_tool(history, text, outcome, latency), False
+            elif (contextual := self._context.resolve(text) if self._context is not None else None) is not None:
+                latency["route"] = "tool:context"
+                self._event("routing", latency["route"])
+                reply, end = self._run_call(history, text, contextual, latency), False
             else:
                 follow_up = self._tool_follow_up(text)
                 self._last_tool_request = ""
@@ -367,17 +376,28 @@ class Agent:
                 return self._answer(history, text, fallback, latency)
             if data.get("type") == "tool_calls":
                 return self._use_tools(history, text, data["calls"], latency)
+        reply = self._run_call(history, text, data, latency)
+        if self._last_outcome is not None and self._last_outcome.status == DONE and self._last_outcome.result.success:
+            self._last_tool_request = "" if route.tool else text
+        return reply
+
+    def _run_call(self, history: list[Message], text: str, data: dict, latency: dict) -> str:
+        """Une demande d'outil -> Core ; une action réussie devient le contexte des compléments (« À 30 %. »)."""
         data = self._with_hidden(self._with_place(data), text)
         self._event("tool", json.dumps(data, ensure_ascii=False)[:200])
         started = time.perf_counter()
-        outcome = self._tools.submit(data)
+        outcome = self._last_outcome = self._tools.submit(data)
         latency["tool"] = time.perf_counter() - started
         reply = self._after_tool(history, text, outcome, latency)
         if outcome.status == DONE and outcome.result.success:
-            self._last_tool_request = "" if route.tool else text
+            self._record(data)
             place = outcome.result.result.get("location") if isinstance(outcome.result.result, dict) else None
             self._place = place if data.get("tool") == WEATHER_TOOL and place else self._place
         return reply
+
+    def _record(self, data: dict) -> None:
+        if self._context is not None:
+            self._context.record(data["tool"], data.get("parameters") or {})
 
     def _degraded(self) -> bool:
         """Worker LLM hors ligne ou défaillant : seules les commandes simples (sans LLM) sont tentées."""
@@ -405,7 +425,7 @@ class Agent:
             return data
         resolved = {}
         for key, param in self._tools.registry.get(name).parameters.items():
-            if not param.hidden or param.resolve is None:
+            if not param.hidden or param.resolve is None or key in parameters:
                 continue
             value = param.resolve(text)
             if segment is not None:
@@ -432,6 +452,7 @@ class Agent:
                 spoken.append(outcome.result.message)
             if outcome.status != DONE or not outcome.result.success:
                 break
+            self._record(data)
         latency["tool"] = time.perf_counter() - started
         reply = self._speak(spoken or [self._router.phrase("action_unavailable")], latency)
         self._remember(history, Message("user", text))

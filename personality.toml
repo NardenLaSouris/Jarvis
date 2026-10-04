@@ -207,7 +207,9 @@ responses = [
 match = "contains"
 patterns = ["quel jour sommes nous", "quel jour on est", "on est quel jour", "quel jour est on", "quel jour est il",
             "c est quel jour", "nous sommes quel jour", "on est le combien", "quelle est la date",
-            "quelle date sommes nous", "quelle date on est", "on est quelle date", "date d aujourd hui"]
+            "quelle date sommes nous", "quelle date on est", "on est quelle date", "date d aujourd hui",
+            "quel jour serons nous", "quel jour sera t il", "on sera quel jour", "quel jour etions nous",
+            "on etait quel jour", "quelle date demain", "quelle date serons nous", "la date de demain"]
 # tool : quand les outils sont activés ([tools] dans config.toml), la réponse vient de l'outil
 # get_date via le LLM ; sinon, des réponses ci-dessous.
 tool = "get_date"
