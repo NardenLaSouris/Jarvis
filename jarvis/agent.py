@@ -325,6 +325,13 @@ class Agent:
                 follow_up = self._tool_follow_up(text)
                 self._last_tool_request = ""
                 route = Route("tool", "tool.follow_up") if follow_up else self._router.route(text)
+                promoted = self._promote(text, route)
+                if promoted is not None:
+                    reply = self._try_promoted(history, text, promoted, latency)
+                    if reply is not None:
+                        self._event("assistant", reply)
+                        self._event("latency", format_latency(latency, speech_ended_at))
+                        continue
                 if route.name == "stop":
                     self._stop_alarm()
                 if route.source == "llm" and self._unsure():
@@ -457,6 +464,26 @@ class Agent:
                                   .rstrip(".") + ".", latency)
         command = schedule.command[:1].lower() + schedule.command[1:]
         return self._say_text(history, text, f"C'est programmé {schedule.said} : {command}.", latency)
+
+    def _promote(self, text: str, route) -> dict | None:
+        """Demande partie vers la conversation mais qui est une commande simple certaine (« Mais Without Me
+        d'Eminem », « mets » mal transcrit) : la commande, sinon None."""
+        if route.source != "llm" or self._tools is None:
+            return None
+        data = quick_plan(text, self._tools.registry, ignored=(self.settings.assistant_name, self.settings.wake_phrase))
+        return data if data is not None and data.get("tool") == "spotify_play" else None
+
+    def _try_promoted(self, history: list[Message], text: str, data: dict, latency: dict) -> str | None:
+        """Exécute la commande ; si elle échoue (rien de cohérent trouvé), None : la conversation reprend la main."""
+        data = self._with_hidden(data, text)
+        outcome = self._tools.submit(data)
+        if outcome.status != DONE or not outcome.result.success:
+            self._event("routing", "llm (commande non confirmée)")
+            return None
+        latency["route"] = "tool:quick (promue)"
+        self._event("routing", latency["route"])
+        self._record(data)
+        return self._after_tool(history, text, outcome, latency)
 
     def _say_text(self, history: list[Message], text: str, reply: str, latency: dict) -> str:
         reply = self._speak([reply], latency)

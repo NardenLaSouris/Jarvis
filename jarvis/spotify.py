@@ -169,20 +169,27 @@ class SpotifyClient:
         return preferred[0]["id"]
 
     def find(self, query: str, kind: str) -> tuple[str, str]:
-        """(uri, nom) : d'abord vos playlists pour une playlist, sinon la recherche Spotify."""
+        """(uri, nom) cohérent avec la demande : d'abord vos playlists pour une playlist, sinon la recherche Spotify
+        (« titre de artiste » cherché champ par champ). Parmi les résultats, celui qui reprend le mieux les mots
+        demandés ; si aucun n'est assez proche, rien n'est joué (filtre de cohérence) plutôt qu'un autre morceau."""
         if kind == "playlist":
             wanted = keywords(query)
             mine = self.call("GET", "/me/playlists", {"limit": 50}).get("items", [])
             for playlist in mine:
                 if wanted and wanted <= keywords(playlist.get("name", "")):
                     return playlist["uri"], playlist["name"]
-        found = self.call("GET", "/search", {"q": query, "type": kind, "limit": 1})
-        items = found.get(f"{kind}s", {}).get("items", [])
-        if not items:
-            raise ToolError(NOT_FOUND, f"Je ne trouve rien sur Spotify pour « {query[:40]} ».")
-        item = items[0]
-        artist = f" de {item['artists'][0]['name']}" if kind in ("track", "album") and item.get("artists") else ""
-        return item["uri"], item["name"] + artist
+        title, artist = split_title_artist(query) if kind in ("track", "album") else (query, "")
+        searches = ([f'{"track" if kind == "track" else "album"}:{title} artist:{artist}'] if artist else []) + [query]
+        items = []
+        for search in searches:
+            found = self.call("GET", "/search", {"q": search, "type": kind, "limit": 8})
+            items += [i for i in found.get(f"{kind}s", {}).get("items", []) if i and i not in items]
+            best = best_match(items, title, artist, kind)
+            if best is not None:
+                credit = f" de {best['artists'][0]['name']}" if kind in ("track", "album") and best.get("artists") else ""
+                return best["uri"], best["name"] + credit
+        what = f"« {title} »" + (f" de {artist}" if artist else "")
+        raise ToolError(NOT_FOUND, f"Je ne trouve pas {what} sur Spotify.")
 
     def play(self, query: str | None, kind: str) -> str:
         device = self._device()
@@ -194,6 +201,51 @@ class SpotifyClient:
         body = {"uris": [uri]} if kind == "track" else {"context_uri": uri}
         self.call("PUT", "/me/player/play", params, body)
         return name
+
+
+def split_title_artist(query: str) -> tuple[str, str]:
+    """« without me de Eminem » -> (« without me », « Eminem ») ; sans « de », tout est le titre."""
+    import re
+
+    match = re.match(r"^(.+?)\s+(?:de|d'|d’|par|by)\s*(.+)$", query.strip(), re.IGNORECASE)
+    return (match.group(1).strip(), match.group(2).strip()) if match else (query.strip(), "")
+
+
+def _coverage(wanted: set[str], found: str) -> float:
+    words = keywords(found)
+    if not wanted:
+        return 1.0
+    return sum(1 for w in wanted if w in words or any(len(w) > 3 and (w in v or v in w) for v in words)) / len(wanted)
+
+
+def best_match(items: list[dict], title: str, artist: str, kind: str) -> dict | None:
+    """Résultat qui reprend le titre (et l'artiste, s'il est dit) ; None si aucun n'est cohérent avec la demande."""
+    title_words, artist_words = keywords(title), keywords(artist)
+    scored = []
+    for item in items:
+        name = item.get("name", "")
+        artists = " ".join(a.get("name", "") for a in item.get("artists", []))
+        if kind == "artist":
+            score = _coverage(title_words, name)
+            ok = score >= 0.99
+        else:
+            title_score = _coverage(title_words, name)
+            artist_score = _coverage(artist_words, artists) if artist_words else 1.0
+            score = title_score * 0.7 + artist_score * 0.3
+            ok = title_score >= 0.66 and artist_score >= 0.5
+        if ok:
+            scored.append((score, -len(keywords(name) - title_words), item))
+    return max(scored, key=lambda s: (s[0], s[1]))[2] if scored else None
+
+
+def _said_words(value: str, text: str) -> str | None:
+    """Recherche ramenée aux mots dits (« Butterfly » ajouté par le LLM est retiré) ; None s'il ne reste rien."""
+    from jarvis.personality import normalize
+
+    said = set(normalize(text).split())
+    kept = [w for w in value.split() if set(normalize(w).split()) <= said or not normalize(w)]
+    cleaned = " ".join(kept).strip()
+    return cleaned if keywords(cleaned) else None
 
 
 def spotify_tools(client: SpotifyClient, on_pause: Callable[[], None] | None = None) -> list[Tool]:
@@ -215,8 +267,8 @@ def spotify_tools(client: SpotifyClient, on_pause: Callable[[], None] | None = N
 
     return [
         Tool("spotify_play", "Lance sur Spotify un morceau, un album, un artiste ou une playlist (ou reprend la lecture).",
-             {"query": Param(str, "ce qu'il faut jouer, tel que dit (titre, artiste, nom de playlist)", required=False,
-                             max_length=100),
+             {"query": Param(str, "ce qu'il faut jouer, avec les mots de l'utilisateur (« titre de artiste », nom de "
+                             "playlist)", required=False, max_length=100, ground=_said_words),
               "kind": Param(str, "track, playlist, album ou artist", required=False, choices=KINDS)},
              {"playing": "ce qui est joué"}, Risk.SAFE, play,
              say=lambda r: "Je reprends la lecture." if r["playing"] == "la lecture" else f"Je lance {r['playing']}."),

@@ -78,7 +78,7 @@ def test_play_a_track_a_playlist_and_controls(tmp_path):
 def test_errors_are_explained(tmp_path):
     assert "ouvrez Spotify" in run(core_for(client(tmp_path, FakeSpotify(devices=()))), "spotify_play").message
     assert "Premium" in run(core_for(client(tmp_path, FakeSpotify(premium=False))), "spotify_pause").message
-    assert "Je ne trouve rien" in run(core_for(client(tmp_path, FakeSpotify())), "spotify_play",
+    assert "Je ne trouve pas" in run(core_for(client(tmp_path, FakeSpotify())), "spotify_play",
                                       query="introuvable", kind="album").message
 
 
@@ -133,3 +133,67 @@ def test_search_never_asks_for_extra_scopes(tmp_path):
     spotify = client(tmp_path, fake)
     spotify.find("Back in Black", "track")
     assert any("/search" in u for u in fake.urls) and all("market" not in u for u in fake.urls)
+
+
+# --- Filtre de cohérence ---------------------------------------------------------------------------
+
+def test_coherence_filter_picks_the_requested_track_or_nothing():
+    from jarvis.spotify import best_match, split_title_artist
+
+    items = [{"name": "Remember The Name (feat. Eminem & 50 Cent)", "artists": [{"name": "Ed Sheeran"}], "uri": "a"},
+             {"name": "Without Me", "artists": [{"name": "Eminem"}], "uri": "b"},
+             {"name": "Without Me", "artists": [{"name": "Halsey"}], "uri": "c"}]
+    assert split_title_artist("without me de Eminem") == ("without me", "Eminem")
+    assert split_title_artist("Back in Black d'AC/DC") == ("Back in Black", "AC/DC")
+    assert best_match(items, "without me", "Eminem", "track")["uri"] == "b"
+    assert best_match(items[:1], "without me", "Eminem", "track") is None  # autre morceau : refusé
+
+
+def test_words_invented_by_the_llm_are_removed_from_the_search():
+    from jarvis.spotify import _said_words
+    from jarvis.tools.planner import plan
+
+    assert _said_words("Butterfly Without Me Eminem", "Mais without me de Eminem sur Spotify") == "Without Me Eminem"
+    assert _said_words("Butterfly", "Mets without me") is None
+    import tempfile
+
+    registry = ToolRegistry()
+    for tool in spotify_tools(client(Path(tempfile.mkdtemp()), FakeSpotify())):
+        registry.register(tool)
+
+    class LLM:
+        def chat_json(self, messages, schema):
+            return {"type": "tool_call", "tool": "spotify_play",
+                    "parameters": {"query": "Butterfly Without Me Eminem", "kind": "track"}}
+
+    assert plan(LLM(), "Mets without me de Eminem sur Spotify", registry)["parameters"]["query"] == "Without Me Eminem"
+
+
+def test_nothing_coherent_means_nothing_is_played(tmp_path):
+    fake = FakeSpotify()
+    result = run(core_for(client(tmp_path, fake)), "spotify_play", query="without me de Eminem", kind="track")
+    assert not result.success and result.message == "Je ne trouve pas « without me » de Eminem sur Spotify."
+    assert not any("/me/player/play" in u for u in fake.urls)
+
+
+def test_misheard_mets_plays_the_right_track_and_questions_still_get_answers(tmp_path):
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from test_tools import PlannerLLM, routes, run_agent
+
+    class Eminem(FakeSpotify):
+        def __call__(self, method, url, headers, body, timeout):
+            if "/search" in url and "without" in urllib.parse.unquote_plus(url).lower():
+                self.calls.append((method, url.split("?")[0], body))
+                self.urls.append(url)
+                return 200, json.dumps({"tracks": {"items": [
+                    {"name": "Remember The Name", "uri": "spotify:track:faux", "artists": [{"name": "Ed Sheeran"}]},
+                    {"name": "Without Me", "uri": "spotify:track:wm", "artists": [{"name": "Eminem"}]}]}}).encode()
+            return super().__call__(method, url, headers, body, timeout)
+
+    fake = Eminem()
+    core = core_for(client(tmp_path, fake))
+    llm = PlannerLLM(reply="Le ciel est bleu à cause de la diffusion de la lumière.")
+    spoken, events = run_agent(["Mais without me de Eminem.", "Mais pourquoi le ciel est bleu de jour ?"], llm, core)
+    assert spoken[0] == "Je lance Without Me de Eminem."
+    assert json.loads([c for c in fake.calls if c[1].endswith("/me/player/play")][-1][2]) == {"uris": ["spotify:track:wm"]}
+    assert spoken[1].startswith("Le ciel est bleu") and "tool:quick (promue)" in routes(events)

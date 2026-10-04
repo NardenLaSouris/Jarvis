@@ -103,7 +103,8 @@ EXAMPLES = (
     ("Passe au morceau suivant", "media_next", {}),
     ("Remets la chanson d'avant", "media_previous", {}),
     ("Mets ma playlist chill", "spotify_play", {"query": "chill", "kind": "playlist"}),
-    ("Joue Back in Black d'AC/DC", "spotify_play", {"query": "Back in Black AC/DC", "kind": "track"}),
+    ("Joue Back in Black d'AC/DC", "spotify_play", {"query": "Back in Black d'AC/DC", "kind": "track"}),
+    ("Mets Without Me d'Eminem sur Spotify", "spotify_play", {"query": "Without Me d'Eminem", "kind": "track"}),
     ("Mets de la musique de Daft Punk", "spotify_play", {"query": "Daft Punk", "kind": "artist"}),
     ("Mets Spotify en pause", "spotify_pause", {}),
     ("Est-ce que le réseau fonctionne ?", "network_status", {}),
@@ -322,6 +323,11 @@ def _grounded(data: dict, text: str, registry: ToolRegistry) -> dict | None:
                     return None
                 del parameters[name]
                 continue
+        if spec.ground is not None and value is not None:
+            value = spec.ground(value, text)
+            if value is None:
+                return None
+            parameters[name] = value
         if spec.evidence is not None and value is not None and not spec.evidence(value, text):
             return None
     return {**data, "parameters": parameters}

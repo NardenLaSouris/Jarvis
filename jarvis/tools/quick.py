@@ -179,7 +179,7 @@ class QuickPlanner:
         if memory is not None:
             return {"type": "tool_call", "tool": memory[0], "parameters": memory[1]}
         for parse in (self._media, self._calendar, self._routine, self._sound, self._lights, self._apps, self._timer, self._reminder, self._alarm,
-                      self._weather, self._lock):
+                      self._weather, self._lock, self._spotify):
             call = parse(norm, text, previous)
             if call is not None:
                 return {"type": "tool_call", "tool": call[0], "parameters": call[1]}
@@ -216,6 +216,32 @@ class QuickPlanner:
                        "chanson d avant", "morceau d avant", "reviens en arriere")):
             return ("spotify_previous", {}) if spotify else ("media_previous", {})
         return None
+
+    def _spotify(self, norm, text, previous):
+        """« Mets Without Me d'Eminem », « Joue la playlist chill », « Mets de la musique de Daft Punk » ; « Mais » en
+        tête (« mets » mal transcrit) est accepté pour cette forme seulement (l'agent répond normalement si Spotify ne
+        trouve rien de cohérent)."""
+        if not self._exists("spotify_play"):
+            return None
+        match = re.match(r"^(?:mets|met|mettez|mais|joue|jouer|lance|passe|ecoute|fais ecouter)(?: moi| nous)? (.+)$", norm)
+        if not match:
+            return None
+        rest = re.sub(r"\b(sur spotify|s il te plait|s il vous plait|stp|svp)\b", " ", match.group(1)).strip()
+        music = _has(norm, ("sur spotify", "chanson", "morceau", "titre", "album", "playlist", "musique", "du son"))
+        if not music and not re.search(r"\b(de|d)\b", rest):
+            return None
+        kind, lead = "track", r"^(?:la |le |l )?(?:chanson |morceau |titre |son )?"
+        if re.search(r"\bplaylist\b", rest):
+            kind, lead = "playlist", r"^(?:ma |la |une )?playlist "
+        elif re.search(r"\balbum\b", rest):
+            kind, lead = "album", r"^(?:l |un )?album "
+        elif re.match(r"^(?:de la musique de|un peu de|la musique de|du son de|des chansons de|une chanson de|un morceau de|un titre de|un son de|du) ", rest):
+            kind, lead = "artist", r"^(?:de la musique de|un peu de|la musique de|du son de|des chansons de|une chanson de|un morceau de|un titre de|un son de|du) "
+        rest = re.sub(lead, "", rest).strip()
+        if not rest or len(rest.split()) > 10:
+            return None
+        query = _original_tail(text.replace("sur Spotify", "").replace("sur spotify", ""), tokens(rest)) or rest
+        return "spotify_play", {"query": query.strip(" .?!"), "kind": kind}
 
     def _calendar(self, norm, text, previous):
         """« Qu'est-ce que j'ai de prévu demain ? », « Mes prochains rendez-vous », « Suis-je libre demain ? »."""

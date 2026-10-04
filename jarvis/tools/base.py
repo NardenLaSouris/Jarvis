@@ -55,6 +55,8 @@ class Param:
     evidence: Callable[[Any, str], bool] | None = None
     hidden: bool = False
     resolve: Callable[[str], Any] | None = None
+    # ``ground(valeur, demande)`` : valeur ramenée aux mots de la demande (mots inventés par le LLM retirés), ou None.
+    ground: Callable[[Any, str], Any] | None = None
 
 
 @dataclass(frozen=True)
