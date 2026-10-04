@@ -15,7 +15,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from jarvis.scheduling import TimerManager  # noqa: E402
-from jarvis.tools import Param, Risk, Tool  # noqa: E402
+from jarvis.tools import Param, PermissionManager, Risk, Tool  # noqa: E402
 from jarvis.tools.lights import light_tools  # noqa: E402
 from jarvis.tools.quick import quick_plan  # noqa: E402
 from jarvis.tools.timers import timer_tools  # noqa: E402
@@ -151,3 +151,23 @@ def test_degraded_mode_keeps_confirmations():
     llm = DownLLM()
     spoken, _ = run_agent(["Verrouille le PC."], llm, full_core())
     assert spoken[0].endswith("?")
+
+
+def test_media_keys_without_spotify_and_guard():
+    from jarvis.tools import ToolCore, ToolRegistry, builtin_tools
+    from jarvis.tools.media import media_tools
+
+    pressed = []
+    registry = ToolRegistry()
+    for tool in media_tools(pressed.append):
+        registry.register(tool)
+    assert quick_plan("Pause", registry) == call("media_play_pause")
+    assert quick_plan("Passe au morceau suivant", registry) == call("media_next")
+    assert quick_plan("Remets la chanson précédente", registry) == call("media_previous")
+    core = ToolCore(registry, PermissionManager())
+    assert core.submit(call("media_next")).result.message == "Morceau suivant." and pressed == ["next"]
+    real = ToolCore(ToolRegistry(), PermissionManager())
+    for tool in builtin_tools():
+        if tool.name.startswith("media_"):
+            real.registry.register(tool)
+    assert not real.submit(call("media_next")).result.success  # garde-fou des tests : aucune vraie touche

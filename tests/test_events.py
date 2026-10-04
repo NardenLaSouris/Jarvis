@@ -352,7 +352,7 @@ def test_pc_tool_policy_is_unchanged():
     core = build_tools(load_config(ROOT / "config.toml", local=False), load_personality(ROOT / "personality.toml"))
     risks = {t.name: t.risk for t in core.registry.list()}
     safe = {"get_time", "get_date", "system_info", "open_application", "open_url", "set_volume", "mute_volume",
-            "unmute_volume", "list_running_applications"}
+            "unmute_volume", "list_running_applications", "media_play_pause", "media_next", "media_previous"}
     assert {n for n, r in risks.items() if r is Risk.SAFE} == safe
     assert {n for n, r in risks.items() if r is Risk.CONFIRMATION_REQUIRED} == {"close_application", "lock_pc"}
     assert not any(r is Risk.RESTRICTED for r in risks.values())

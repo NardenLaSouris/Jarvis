@@ -1,0 +1,118 @@
+"""Spotify : autorisation PKCE, renouvellement du jeton, commandes de lecture (API simulée, aucun accès réseau)."""
+
+from __future__ import annotations
+
+import json
+import sys
+import urllib.parse
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+from jarvis.spotify import TOKEN_URL, SpotifyClient, login, pkce_pair, spotify_tools  # noqa: E402
+from jarvis.tools import PermissionManager, ToolCore, ToolRegistry  # noqa: E402
+
+
+class FakeSpotify:
+    def __init__(self, devices=({"id": "pc", "is_active": True},), premium=True):
+        self.calls, self.devices, self.premium, self.tokens = [], list(devices), premium, 0
+
+    def __call__(self, method, url, headers, body, timeout):
+        self.calls.append((method, url.split("?")[0], body))
+        if url == TOKEN_URL:
+            self.tokens += 1
+            fields = urllib.parse.parse_qs(body.decode())
+            assert fields["client_id"] == ["client"]
+            return 200, json.dumps({"access_token": f"jeton{self.tokens}", "refresh_token": "r", "expires_in": 3600}).encode()
+        assert headers["Authorization"].startswith("Bearer jeton")
+        path = url.split("/v1", 1)[1].split("?")[0]
+        if path == "/me/player/devices":
+            return 200, json.dumps({"devices": self.devices}).encode()
+        if path == "/me/playlists":
+            return 200, json.dumps({"items": [{"name": "Chill du soir", "uri": "spotify:playlist:chill"}]}).encode()
+        if path == "/search":
+            query = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)
+            kind = query["type"][0]
+            if query["q"][0] == "introuvable":
+                return 200, json.dumps({f"{kind}s": {"items": []}}).encode()
+            return 200, json.dumps({f"{kind}s": {"items": [{"name": "Back in Black", "uri": "spotify:track:bib",
+                                                            "artists": [{"name": "AC/DC"}]}]}}).encode()
+        if path.startswith("/me/player"):
+            return (204 if self.premium else 403), b""
+        return 404, b""
+
+
+def client(tmp_path, fake, expired=False):
+    token = tmp_path / "token.json"
+    token.write_text(json.dumps({"access_token": "jeton0", "refresh_token": "r",
+                                 "expires_at": 0 if expired else 10 ** 12}), encoding="utf-8")
+    return SpotifyClient("client", token, http=fake, clock=lambda: 1000.0)
+
+
+def core_for(spotify):
+    registry = ToolRegistry()
+    for tool in spotify_tools(spotify):
+        registry.register(tool)
+    return ToolCore(registry, PermissionManager())
+
+
+def run(core, tool, **parameters):
+    return core.submit({"tool": tool, "parameters": parameters}).result
+
+
+def test_play_a_track_a_playlist_and_controls(tmp_path):
+    fake = FakeSpotify()
+    core = core_for(client(tmp_path, fake))
+    assert run(core, "spotify_play", query="Back in Black", kind="track").message == "Je lance Back in Black de AC/DC."
+    assert json.loads(fake.calls[-1][2]) == {"uris": ["spotify:track:bib"]}
+    assert run(core, "spotify_play", query="chill", kind="playlist").message == "Je lance Chill du soir."
+    assert json.loads(fake.calls[-1][2]) == {"context_uri": "spotify:playlist:chill"}
+    assert run(core, "spotify_pause").message == "Spotify est en pause."
+    assert run(core, "spotify_next").success and run(core, "spotify_volume", volume=30).message.endswith("30 %.")
+    assert run(core, "spotify_play").message == "Je reprends la lecture."
+
+
+def test_errors_are_explained(tmp_path):
+    assert "ouvrez Spotify" in run(core_for(client(tmp_path, FakeSpotify(devices=()))), "spotify_play").message
+    assert "Premium" in run(core_for(client(tmp_path, FakeSpotify(premium=False))), "spotify_pause").message
+    assert "Je ne trouve rien" in run(core_for(client(tmp_path, FakeSpotify())), "spotify_play",
+                                      query="introuvable", kind="album").message
+
+
+def test_expired_token_is_refreshed_and_saved(tmp_path):
+    fake = FakeSpotify()
+    spotify = client(tmp_path, fake, expired=True)
+    run(core_for(spotify), "spotify_pause")
+    saved = json.loads((tmp_path / "token.json").read_text(encoding="utf-8"))
+    assert fake.tokens == 1 and saved["access_token"] == "jeton1" and saved["refresh_token"] == "r"
+
+
+def test_login_checks_the_state_and_stores_the_token(tmp_path, monkeypatch):
+    import jarvis.spotify as module
+
+    fake = FakeSpotify()
+    shown = []
+    monkeypatch.setattr(module, "_default_http", fake)
+    monkeypatch.setattr(module.SpotifyClient.__init__, "__defaults__", (fake, 6.0, module.time.time))
+    state = {}
+
+    def ask(prompt):
+        url = shown[0].split("\n\n")[1]
+        state.update(urllib.parse.parse_qs(urllib.parse.urlsplit(url).query))
+        return f"http://127.0.0.1:8888/callback?code=abc&state={state['state'][0]}"
+
+    assert login("client", tmp_path / "t.json", ask=ask, show=shown.append) == 0
+    assert state["code_challenge_method"] == ["S256"] and json.loads((tmp_path / "t.json").read_text())["access_token"]
+    assert login("client", tmp_path / "t2.json", ask=lambda p: "http://127.0.0.1:8888/callback?code=x&state=faux",
+                 show=lambda m: None) == 1
+    assert login("", tmp_path / "t3.json", show=lambda m: None) == 2
+
+
+def test_pkce_pair_matches_the_specification():
+    import base64
+    import hashlib
+
+    verifier, challenge = pkce_pair()
+    assert 43 <= len(verifier) <= 128
+    assert challenge == base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()

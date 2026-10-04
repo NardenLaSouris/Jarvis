@@ -310,6 +310,7 @@ patterns = [
     "rallume le son", "reactive le son",
     "espace disque", "stockage", "carte graphique", "cette machine", "ce pc", "cet ordinateur", "mon pc",
     "mon ordinateur", "la machine", "caracteristiques",
+    "pause", "musique", "morceau", "chanson", "titre suivant", "piste", "playlist", "spotify", "reprends la lecture",
     "agenda", "calendrier", "rendez vous", "rdv", "de prevu", "evenement", "evenements", "creneau", "creneaux",
     "suis je libre", "je suis libre", "mon planning",
     "fichier", "fichiers", "le document", "mes documents", "telechargements", "sur le bureau",

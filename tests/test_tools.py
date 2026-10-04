@@ -48,6 +48,7 @@ EXPECTED_RISKS = {
     "open_application": Risk.SAFE, "close_application": Risk.CONFIRMATION_REQUIRED,
     "list_running_applications": Risk.SAFE, "set_volume": Risk.SAFE, "mute_volume": Risk.SAFE,
     "unmute_volume": Risk.SAFE, "lock_pc": Risk.CONFIRMATION_REQUIRED,
+    "media_play_pause": Risk.SAFE, "media_next": Risk.SAFE, "media_previous": Risk.SAFE,
 }
 
 

@@ -35,6 +35,8 @@ def main() -> int:
                         help="état complet : composants, configuration, outils et risques, derniers échecs")
     parser.add_argument("--benchmark", action="store_true",
                         help="mesure wake word, STT, LLM, outils et voix (rien n'est joué ni actionné)")
+    parser.add_argument("--spotify-login", action="store_true",
+                        help="relie Spotify (une fois) : autorisation PKCE, jeton dans data/spotify_token.json")
     parser.add_argument("--memory", action="store_true",
                         help="affiche ce que JARVIS a retenu (mémoire explicite, data/memory.json) et quitte")
     parser.add_argument("--web-test", metavar="QUESTION",
@@ -79,6 +81,12 @@ def main() -> int:
         return show_activity(cfg, args.activity)
     if args.memory:
         return show_memory(cfg)
+    if args.spotify_login:
+        from jarvis.config import secret
+        from jarvis.factory import ENV_FILE
+        from jarvis.spotify import login
+
+        return login(secret("SPOTIFY_CLIENT_ID", ENV_FILE), cfg.spotify.token_path)
     if args.health or args.diagnostics or args.benchmark:
         from jarvis import diagnostics
 

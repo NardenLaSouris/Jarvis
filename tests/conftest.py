@@ -43,4 +43,7 @@ def _silent(monkeypatch):
         for name in ("BulbDevice", "Device", "OutletDevice"):
             if hasattr(tinytuya, name):
                 monkeypatch.setattr(tinytuya, name, _forbidden(f"appareil Tuya ({name})"))
+    import jarvis.tools.media as media
+
+    monkeypatch.setattr(media, "press_media_key", _forbidden("touche multimédia"))
     yield

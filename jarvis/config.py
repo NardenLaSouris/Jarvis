@@ -101,6 +101,9 @@ class ToolsConfig:
     mute_volume: dict = field(default_factory=dict)
     unmute_volume: dict = field(default_factory=dict)
     lock_pc: dict = field(default_factory=dict)
+    media_play_pause: dict = field(default_factory=dict)
+    media_next: dict = field(default_factory=dict)
+    media_previous: dict = field(default_factory=dict)
     find_files: dict = field(default_factory=dict)
     read_text_file: dict = field(default_factory=dict)
     create_text_file: dict = field(default_factory=dict)
@@ -145,6 +148,12 @@ class CalendarConfig:
     ics: str = ""
     day_start: str = "08:00"
     day_end: str = "20:00"
+
+
+@dataclass(frozen=True)
+class SpotifyConfig:
+    enabled: bool = True
+    token_path: Path = Path("data/spotify_token.json")
 
 
 @dataclass(frozen=True)
@@ -244,6 +253,7 @@ class Config:
     api: ApiConfig = ApiConfig()
     memory: MemoryConfig = MemoryConfig()
     calendar: CalendarConfig = CalendarConfig()
+    spotify: SpotifyConfig = SpotifyConfig()
 
 
 def _build(cls: type, data: dict[str, Any], base_dir: Path):
@@ -325,6 +335,7 @@ def load_config(path: str | Path = "config.toml", local: bool = True) -> Config:
         "api": ApiConfig,
         "memory": MemoryConfig,
         "calendar": CalendarConfig,
+        "spotify": SpotifyConfig,
     }
     unknown = set(raw) - set(sections)
     if unknown:

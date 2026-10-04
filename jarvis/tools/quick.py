@@ -178,7 +178,7 @@ class QuickPlanner:
             return None
         if memory is not None:
             return {"type": "tool_call", "tool": memory[0], "parameters": memory[1]}
-        for parse in (self._calendar, self._routine, self._sound, self._lights, self._apps, self._timer, self._reminder, self._alarm,
+        for parse in (self._media, self._calendar, self._routine, self._sound, self._lights, self._apps, self._timer, self._reminder, self._alarm,
                       self._weather, self._lock):
             call = parse(norm, text, previous)
             if call is not None:
@@ -196,6 +196,25 @@ class QuickPlanner:
             if match and self._exists(tool):
                 value = _original_tail(text, tokens(match.group(1)))
                 return (tool, {key: value}) if value else None
+        return None
+
+    def _media(self, norm, text, previous):
+        """« Pause », « Reprends la musique », « Morceau suivant », « Chanson précédente »."""
+        spotify = self._exists("spotify_pause")
+        if not (spotify or self._exists("media_play_pause")):
+            return None
+        if norm in ("pause", "mets pause", "mets en pause", "pause la musique", "mets la musique en pause",
+                    "coupe la musique", "pause musique") or _has(norm, ("musique en pause", "spotify en pause")):
+            return ("spotify_pause", {}) if spotify else ("media_play_pause", {})
+        if _has(norm, ("reprends la musique", "reprend la musique", "remets la musique", "relance la musique",
+                       "reprends la lecture", "reprend la lecture")) or norm in ("reprends", "lecture", "play"):
+            return ("spotify_play", {}) if self._exists("spotify_play") else ("media_play_pause", {})
+        if _has(norm, ("morceau suivant", "chanson suivante", "titre suivant", "piste suivante", "musique suivante",
+                       "passe au suivant", "chanson d apres", "morceau d apres")):
+            return ("spotify_next", {}) if spotify else ("media_next", {})
+        if _has(norm, ("morceau precedent", "chanson precedente", "titre precedent", "piste precedente",
+                       "chanson d avant", "morceau d avant", "reviens en arriere")):
+            return ("spotify_previous", {}) if spotify else ("media_previous", {})
         return None
 
     def _calendar(self, norm, text, previous):

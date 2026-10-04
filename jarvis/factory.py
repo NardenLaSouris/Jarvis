@@ -230,6 +230,19 @@ def build_memory(cfg: Config):
     return MemoryStore(cfg.memory.path, cfg.memory.max_facts)
 
 
+def build_spotify(cfg: Config):
+    """Client Spotify si l'identifiant (SPOTIFY_CLIENT_ID dans .env) et le jeton (--spotify-login) existent."""
+    if not (cfg.tools.enabled and cfg.spotify.enabled):
+        return None
+    from jarvis.spotify import SpotifyClient
+
+    client = SpotifyClient(secret("SPOTIFY_CLIENT_ID", ENV_FILE), cfg.spotify.token_path)
+    if not client.configured:
+        log.info("Spotify non relié (SPOTIFY_CLIENT_ID et python -m jarvis --spotify-login) : touches multimédia seules")
+        return None
+    return client
+
+
 def build_calendar(cfg: Config):
     """Calendrier ([calendar]) : local (data/calendar.json) et, si renseigné, un fichier ou une adresse iCal en lecture
     seule ; None si désactivé."""
@@ -454,6 +467,11 @@ def build_agent(
         from jarvis.memory import memory_tools
 
         extra += memory_tools(memory)
+    spotify = build_spotify(cfg)
+    if spotify is not None:
+        from jarvis.spotify import spotify_tools
+
+        extra += spotify_tools(spotify)
     calendar = build_calendar(cfg)
     if calendar is not None:
         from jarvis.agenda import calendar_tools

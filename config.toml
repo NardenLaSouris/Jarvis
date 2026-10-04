@@ -282,6 +282,13 @@ ics = ""
 day_start = "08:00"     # créneaux libres cherchés entre ces heures
 day_end = "20:00"
 
+[spotify]
+# Spotify par son API Web (lecture d'un titre, d'une playlist, d'un artiste ; pause, suivant, volume). Une fois :
+# application sur developer.spotify.com (adresse de retour http://127.0.0.1:8888/callback), SPOTIFY_CLIENT_ID dans
+# .env, puis python -m jarvis --spotify-login. Compte Premium nécessaire. Sans cela : touches multimédia du PC.
+enabled = true
+token_path = "data/spotify_token.json"
+
 [notifications]
 # Annonces de JARVIS (fin de minuteur, rappel...). false : plus d'annonce vocale ; les événements
 # et le journal d'activité continuent.

@@ -26,6 +26,7 @@ from jarvis.tools.applications import (
 from jarvis.tools.audio import VolumeControl, mute_tool, set_volume_tool
 from jarvis.tools.base import Risk, Tool
 from jarvis.tools.files import FileAccess, file_tools
+from jarvis.tools.media import media_tools
 from jarvis.tools.system import date_tool, lock_session, lock_tool, system_info_tool, time_tool
 from jarvis.tools.timers import timer_tools
 from jarvis.tools.weather import weather_tool
@@ -37,16 +38,18 @@ __all__ = ["CATALOG", "Application", "Processes", "builtin_tools", "load_applica
 
 # Outils qui agissent sur un PC : avec des appareils configurés ([tools.devices]), le Core ne les exécute
 # jamais lui-même, il les confie à l'agent de l'appareil visé.
+MEDIA_TOOLS = ("media_play_pause", "media_next", "media_previous")
 FILE_TOOLS = ("find_files", "read_text_file", "create_text_file", "copy_file", "move_file", "delete_file")
 PC_TOOLS = ("system_info", "open_url", "open_application", "close_application", "list_running_applications",
-            "set_volume", "mute_volume", "unmute_volume", "lock_pc", *FILE_TOOLS)
+            "set_volume", "mute_volume", "unmute_volume", "lock_pc", *MEDIA_TOOLS, *FILE_TOOLS)
 
 
 def builtin_tools(settings: dict | None = None, clock: Callable[[], datetime] = datetime.now,
                   opener: Callable[[str], bool] | None = None, launcher: Callable[[list[str]], None] = _launch,
                   processes: Processes | None = None, volume: VolumeControl | None = None,
                   locker: Callable[[], bool] = lock_session, open_wait: float = 4.0,
-                  close_wait: float = 6.0, timers=None, weather=None) -> list[Tool]:
+                  close_wait: float = 6.0, timers=None, weather=None,
+                  media_key=None) -> list[Tool]:
     """Outils activés selon ``settings`` ({nom: {"enabled": bool, "confirm": bool}, "applications": {...}}).
 
     Tous les outils sont activés par défaut ; les applications autorisées viennent de ``applications``.
@@ -69,6 +72,7 @@ def builtin_tools(settings: dict | None = None, clock: Callable[[], datetime] = 
         ("mute_volume", lambda: mute_tool(volume, True)),
         ("unmute_volume", lambda: mute_tool(volume, False)),
         ("lock_pc", lambda: lock_tool(locker)),
+        *((tool.name, lambda tool=tool: tool) for tool in media_tools(media_key)),
     ]
     if timers is not None:
         candidates += [(tool.name, lambda tool=tool: tool) for tool in timer_tools(timers)]

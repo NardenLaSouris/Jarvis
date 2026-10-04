@@ -99,6 +99,13 @@ EXAMPLES = (
     ("Quand est mon rendez-vous chez le dentiste ?", "search_events", {"query": "dentiste"}),
     ("Est-ce que je suis libre demain après-midi ?", "free_slots", {}),
     ("Ajoute un rendez-vous chez le coiffeur demain à 15 h", "add_event", {"title": "coiffeur", "time": "15 h"}),
+    ("Pause", "media_play_pause", {}),
+    ("Passe au morceau suivant", "media_next", {}),
+    ("Remets la chanson d'avant", "media_previous", {}),
+    ("Mets ma playlist chill", "spotify_play", {"query": "chill", "kind": "playlist"}),
+    ("Joue Back in Black d'AC/DC", "spotify_play", {"query": "Back in Black AC/DC", "kind": "track"}),
+    ("Mets de la musique de Daft Punk", "spotify_play", {"query": "Daft Punk", "kind": "artist"}),
+    ("Mets Spotify en pause", "spotify_pause", {}),
     ("Retiens que je préfère la lumière à 40 %", "remember", {"fact": "je préfère la lumière à 40 %"}),
     ("Souviens-toi que ma sœur s'appelle Léa", "remember", {"fact": "ma sœur s'appelle Léa"}),
     ("Qu'est-ce que tu sais sur moi ?", "recall", {}),
@@ -152,6 +159,14 @@ def planner_prompt(registry: ToolRegistry) -> str:
         rules.append("- get_weather : location uniquement si une ville est dite ; day = today, tomorrow ou "
                      "day_after_tomorrow ; moment = now (par défaut aujourd'hui), morning, afternoon, evening ou "
                      "day (journée entière). Une demande explicite de recherche (« cherche », « recherche ») -> none.")
+    if registry.exists("spotify_play"):
+        rules.append("- Musique : spotify_play, spotify_pause, spotify_next, spotify_previous, spotify_volume quand ils "
+                     "existent ; sinon les touches media_play_pause, media_next, media_previous. « Lance Spotify » "
+                     "(l'application) -> open_application.")
+    elif registry.exists("media_play_pause"):
+        rules.append("- Musique ou vidéo en cours : pause, reprise -> media_play_pause ; suivant -> media_next ; "
+                     "précédent -> media_previous. Jouer un titre précis n'est pas possible sans Spotify relié -> none. "
+                     "« Lance Spotify » (l'application) -> open_application.")
     if registry.exists("find_files"):
         rules.append("- Fichiers : jamais de chemin ; un nom de fichier tel qu'il a été dit et, s'il est dit, un dossier "
                      "autorisé (documents, bureau, téléchargements, jarvis). Supprimer un dossier, exécuter un fichier "
@@ -331,6 +346,7 @@ class ToolsCapability:
         (("create_alarm",), "programmer vos réveils"),
         (("open_application", "close_application", "open_url"), "ouvrir ou fermer vos applications et pages Web"),
         (("set_volume", "mute_volume", "unmute_volume"), "régler le son"),
+        (("spotify_play", "media_play_pause"), "piloter la musique"),
         (("system_info", "list_running_applications"), "décrire la machine"),
         (("lock_pc",), "verrouiller l'ordinateur"),
         (("find_files",), "chercher, lire et ranger vos fichiers"),
