@@ -104,6 +104,7 @@
       return `${days} à ${trigger.time}`;
     }
     if (trigger.type === "interval") return `Toutes les ${trigger.minutes} min`;
+    if (trigger.type === "at") return `Une fois, le ${new Date(trigger.at).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}`;
     return "Manuellement";
   }
 

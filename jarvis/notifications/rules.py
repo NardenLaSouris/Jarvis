@@ -18,6 +18,7 @@ from jarvis.scheduling.manager import REMINDER_FINISHED, TIMER_FINISHED
 DEFAULT_PHRASES = {
     "timer_finished": ("{Title}, votre minuteur{of_duration} est terminé.",),
     "reminder_finished": ("{Title}, vous m'aviez demandé de vous rappeler {de_message}.",),
+    "reminder_late": ("{Title}, pendant que j'étais arrêté, j'aurais dû vous rappeler {de_message}.",),
 }
 
 
@@ -45,7 +46,8 @@ class EventNotifications:
                                 {"timer_id": payload.get("timer_id"), "duration_seconds": seconds})
         if event.type == REMINDER_FINISHED:
             message = second_person(str(payload.get("message", "")).strip())
-            text = self._render("reminder_finished", message=message, de_message=with_de(message))
+            key = "reminder_late" if payload.get("late") else "reminder_finished"
+            text = self._render(key, message=message, de_message=with_de(message))
             return Notification("Rappel", text, "reminder", Priority.NORMAL,
                                 {"reminder_id": payload.get("reminder_id"), "message": message})
         return None

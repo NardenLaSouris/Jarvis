@@ -238,9 +238,12 @@ enabled = true
 enabled = true
 
 [timers]
-# Minuteurs et rappels (outils create_timer, create_reminder, cancel_*, list_*), en mémoire :
-# ils disparaissent au redémarrage de JARVIS. Fin d'échéance annoncée à voix haute.
+# Minuteurs et rappels (outils create_timer, create_reminder, cancel_*, list_*). Fin d'échéance annoncée à voix
+# haute. persist : ils survivent à un redémarrage (fichier path) ; un rappel passé pendant l'arrêt est annoncé
+# au redémarrage, un minuteur passé est oublié.
 enabled = true
+persist = true
+path = "data/schedule.json"
 max_hours = 24          # durée maximale d'un minuteur ou d'un rappel
 max_active = 20         # nombre maximal d'échéances en cours
 

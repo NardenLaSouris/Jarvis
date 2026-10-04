@@ -5,6 +5,7 @@ Les échéances sont réelles mais très courtes (dixièmes de seconde) : le tem
 
 from __future__ import annotations
 
+import json
 import sys
 import threading
 import time
@@ -480,3 +481,35 @@ def test_timer_and_reminder_tools_speak_without_the_llm(manager):
         "Entendu, je vous rappellerai de sortir votre linge dans 20 minutes.")
     assert say("list_reminders") == "Je dois vous rappeler de sortir votre linge dans 20 minutes."
     assert say("cancel_reminder") == "Le rappel de sortir votre linge est annulé."
+
+
+# --- Persistance (fichier temporaire) --------------------------------------------------------------
+
+def test_timers_and_reminders_survive_a_restart(tmp_path):
+    from datetime import datetime, timedelta
+
+    from jarvis.events import EventBus
+    from jarvis.scheduling.manager import REMINDER_FINISHED, JsonScheduleStore, TimerManager
+
+    now = {"t": datetime(2026, 10, 4, 12, 0)}
+    path = tmp_path / "schedule.json"
+    first = TimerManager(store=JsonScheduleStore(path), clock=lambda: now["t"])
+    first.create_timer(600)
+    first.create_reminder(1200, "sortir les poubelles")
+    first.create_reminder(60, "appeler Paul")
+    cancelled = first.create_timer(30)
+    first.cancel_timer(cancelled.id)
+    assert len(json.loads(path.read_text(encoding="utf-8"))) == 3
+
+    now["t"] += timedelta(minutes=5)  # redémarrage 5 minutes plus tard : le rappel d'une minute est passé
+    events = EventBus()
+    finished = []
+    events.subscribe(REMINDER_FINISHED, finished.append)
+    second = TimerManager(events, store=JsonScheduleStore(path), clock=lambda: now["t"])
+    second.start()
+    try:
+        assert [t.id for t in second.timers()] == ["1"] and [r.message for r in second.reminders()] == ["sortir les poubelles"]
+        assert finished[0].payload["message"] == "appeler Paul" and finished[0].payload["late"] is True
+        assert second.create_timer(10).id == "2"  # la numérotation reprend après les numéros retrouvés
+    finally:
+        second.stop()

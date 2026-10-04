@@ -153,6 +153,8 @@ class TimersConfig:
     enabled: bool = False
     max_hours: float = 24.0
     max_active: int = 20
+    persist: bool = True
+    path: Path = Path("data/schedule.json")
 
 
 @dataclass(frozen=True)

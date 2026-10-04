@@ -8,10 +8,14 @@ et une expiration simultanées sont arbitrées sous verrou : un seul des deux é
 from __future__ import annotations
 
 import itertools
+import json
+import logging
+import os
 import re
 import threading
 import time
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Callable, Protocol
 
 from jarvis.events import Event, EventBus
@@ -40,14 +44,19 @@ class SchedulingError(Exception):
         self.message = message
 
 
+log = logging.getLogger(__name__)
+
+
 class ScheduleStore(Protocol):
-    """Rangement des éléments planifiés ; en mémoire aujourd'hui, persistant plus tard."""
+    """Rangement des éléments planifiés (en mémoire, ou dans un fichier JSON pour survivre aux redémarrages)."""
 
     def add(self, item: Scheduled) -> None: ...
 
     def get(self, kind: str, item_id: str) -> Scheduled | None: ...
 
     def items(self, kind: str) -> list[Scheduled]: ...
+
+    def changed(self) -> None: ...
 
 
 class MemoryScheduleStore:
@@ -56,12 +65,51 @@ class MemoryScheduleStore:
 
     def add(self, item: Scheduled) -> None:
         self._items[(item.kind, item.id)] = item
+        self.changed()
 
     def get(self, kind: str, item_id: str) -> Scheduled | None:
         return self._items.get((kind, item_id))
 
     def items(self, kind: str) -> list[Scheduled]:
         return [item for (k, _), item in self._items.items() if k == kind]
+
+    def changed(self) -> None:
+        pass
+
+
+class JsonScheduleStore(MemoryScheduleStore):
+    """Minuteurs et rappels en cours enregistrés dans un fichier JSON (écriture atomique) : ils survivent à un
+    redémarrage de JARVIS. Seules les échéances actives sont gardées."""
+
+    def __init__(self, path: Path) -> None:
+        super().__init__()
+        self._path = Path(path)
+        try:
+            raw = json.loads(self._path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            raw = []
+        except (OSError, ValueError) as exc:
+            log.warning("Échéances illisibles (%s) : %s", self._path, exc)
+            raw = []
+        for entry in raw if isinstance(raw, list) else []:
+            try:
+                cls = Reminder if entry["kind"] == Reminder.kind else Timer
+                fields = {"message": entry.get("message", "")} if cls is Reminder else {}
+                item = cls(str(entry["id"]), datetime.fromisoformat(entry["created_at"]),
+                           datetime.fromisoformat(entry["expires_at"]), float(entry["seconds"]), **fields)
+            except (KeyError, TypeError, ValueError):
+                continue
+            self._items[(item.kind, item.id)] = item
+
+    def changed(self) -> None:
+        active = [{"kind": i.kind, "id": i.id, "created_at": i.created_at.isoformat(), "expires_at": i.expires_at.isoformat(),
+                   "seconds": i.seconds, **({"message": i.message} if isinstance(i, Reminder) else {})}
+                  for i in self._items.values() if i.status is Status.ACTIVE]
+        self._items = {key: item for key, item in self._items.items() if item.status is Status.ACTIVE}
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = self._path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(active, ensure_ascii=False, indent=1), encoding="utf-8")
+        os.replace(tmp, self._path)
 
 
 def _timer_payload(timer: Timer) -> dict:
@@ -94,7 +142,33 @@ class TimerManager:
         return self._max_seconds
 
     def start(self) -> None:
+        self._restore()
         self._scheduler.start()
+
+    def _restore(self) -> None:
+        """Échéances retrouvées dans le rangement (redémarrage) : replanifiées ; celles passées pendant l'arrêt sont
+        annoncées aussitôt pour un rappel (« late »), oubliées pour un minuteur (il a sonné dans le vide)."""
+        now = self._clock()
+        with self._lock:
+            restored = [i for kind in self._numbers for i in self._store.items(kind) if i.status is Status.ACTIVE]
+            for kind, counter in list(self._numbers.items()):
+                ids = [int(i.id) for i in restored if i.kind == kind and i.id.isdigit()]
+                self._numbers[kind] = itertools.count(max(ids, default=0) + 1)
+        late = []
+        for item in restored:
+            remaining = (item.expires_at - now).total_seconds()
+            if remaining > 0:
+                self._scheduler.schedule(f"{item.kind}:{item.id}", remaining)
+            elif isinstance(item, Reminder):
+                late.append(item)
+            else:
+                item.status = Status.COMPLETED
+        for reminder in late:
+            reminder.status = Status.COMPLETED
+            self._publish(REMINDER_FINISHED, {**_reminder_payload(reminder), "late": True})
+        if restored:
+            log.info("Échéances retrouvées : %d (dont %d rappel(s) en retard)", len(restored), len(late))
+            self._store.changed()
 
     def stop(self) -> None:
         self._scheduler.stop()
@@ -161,6 +235,7 @@ class TimerManager:
                 raise SchedulingError(NOT_ACTIVE, f"Ce {label} est {state}.")
             item.status = Status.CANCELLED
             self._scheduler.cancel(f"{kind}:{item.id}")
+            self._store.changed()
         return item
 
     def _expire(self, key: str) -> None:
@@ -170,6 +245,7 @@ class TimerManager:
             if item is None or item.status is not Status.ACTIVE:
                 return
             item.status = Status.COMPLETED
+            self._store.changed()
         if isinstance(item, Reminder):
             self._publish(REMINDER_FINISHED, _reminder_payload(item))
         else:

@@ -11,6 +11,7 @@ from __future__ import annotations
 import re
 import uuid
 from dataclasses import dataclass
+from datetime import datetime
 
 from jarvis.tools import Risk, ToolError, ToolRegistry, parse_request
 
@@ -73,10 +74,16 @@ def _only(data: dict, keys: set[str], label: str) -> None:
 
 
 def parse_trigger(data) -> dict:
-    _only(data, {"type", "time", "days", "minutes"}, "Déclencheur")
+    _only(data, {"type", "time", "days", "minutes", "at"}, "Déclencheur")
     kind = data.get("type")
     if kind == "manual":
         return {"type": "manual"}
+    if kind == "at":
+        try:
+            when = datetime.fromisoformat(str(data.get("at")))
+        except ValueError as exc:
+            raise RoutineError("Déclencheur : date et heure ISO attendues (AAAA-MM-JJTHH:MM:SS).") from exc
+        return {"type": "at", "at": when.replace(microsecond=0).isoformat()}
     if kind == "time":
         time = data.get("time")
         if not isinstance(time, str) or not TIME.match(time):
@@ -88,7 +95,7 @@ def parse_trigger(data) -> dict:
         return {"type": "time", "time": time, "days": sorted(set(days))}
     if kind == "interval":
         return {"type": "interval", "minutes": _integer(data, "minutes", 1, MAX_INTERVAL, "Intervalle (minutes)")}
-    raise RoutineError("Déclencheur : type « time », « interval » ou « manual » attendu.")
+    raise RoutineError("Déclencheur : type « time », « at », « interval » ou « manual » attendu.")
 
 
 def parse_action(data, registry: ToolRegistry) -> dict:
@@ -128,6 +135,8 @@ def parse_routine(data, registry: ToolRegistry, routine_id: str | None = None) -
     enabled, once = data.get("enabled", True), data.get("once", False)
     if not isinstance(enabled, bool) or not isinstance(once, bool):
         raise RoutineError("Routine : « enabled » et « once » valent true ou false.")
+    if isinstance(data.get("trigger"), dict) and data["trigger"].get("type") == "at":
+        once = True  # une date précise ne se produit qu'une fois
     actions = data.get("actions")
     if not isinstance(actions, list) or not 1 <= len(actions) <= MAX_ACTIONS:
         raise RoutineError(f"Routine : de 1 à {MAX_ACTIONS} actions.")

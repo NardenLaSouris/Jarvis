@@ -21,6 +21,7 @@ from jarvis.tools import DONE, ToolRegistry
 
 log = logging.getLogger(__name__)
 
+MAX_LATE = 600  # une action à date précise manquée de plus de 10 minutes (JARVIS arrêté) n'est plus exécutée
 WEEKDAYS = ("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche")
 ANNOUNCE_LABELS = {"time": "l'heure", "date": "la date", "weather": "la météo", "day": "la journée"}
 
@@ -40,6 +41,9 @@ def describe(action: dict) -> str:
 
 
 def next_time(trigger: dict, now: datetime) -> datetime | None:
+    if trigger["type"] == "at":
+        when = datetime.fromisoformat(trigger["at"])
+        return when if when > now else None
     if trigger["type"] != "time":
         return None
     hour, minute = map(int, trigger["time"].split(":"))
@@ -238,13 +242,21 @@ class RoutineEngine:
 
     def due(self, now: datetime, monotonic: float) -> list[tuple[str, str]]:
         """(routine, déclencheur) à lancer maintenant ; chaque minute horaire ne déclenche qu'une fois."""
-        due = []
+        due, expired = [], []
         with self._lock:
             for routine in self._routines.values():
                 trigger = routine.trigger
                 if not routine.enabled:
                     continue
-                if trigger["type"] == "time":
+                if trigger["type"] == "at":
+                    key, when = (routine.id, trigger["at"]), datetime.fromisoformat(trigger["at"])
+                    if now >= when and key not in self._fired:
+                        self._fired.add(key)
+                        if (now - when).total_seconds() > MAX_LATE:
+                            expired.append(routine)
+                        else:
+                            due.append((routine.id, "time"))
+                elif trigger["type"] == "time":
                     key = (routine.id, now.strftime("%Y-%m-%d %H:%M"))
                     if (now.strftime("%H:%M") == trigger["time"] and key not in self._fired
                             and (not trigger["days"] or now.weekday() in trigger["days"])):
@@ -255,7 +267,13 @@ class RoutineEngine:
                     if monotonic - started >= trigger["minutes"] * 60:
                         self._interval_from[routine.id] = monotonic
                         due.append((routine.id, "interval"))
-            self._fired = {key for key in self._fired if key[1] >= now.strftime("%Y-%m-%d")}
+            self._fired = {key for key in self._fired if key[1][:10] >= now.strftime("%Y-%m-%d")}
+            for routine in expired:  # JARVIS était arrêté à l'heure prévue : action trop ancienne, abandonnée
+                log.warning("Routine « %s » prévue le %s non exécutée (trop tard) : supprimée", routine.name,
+                            routine.trigger["at"])
+                del self._routines[routine.id]
+            if expired:
+                self._save()
         return due
 
     def start(self) -> None:

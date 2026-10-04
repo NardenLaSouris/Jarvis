@@ -157,8 +157,11 @@ def build_timers(cfg: Config, events: EventBus | None):
     if not cfg.timers.enabled:
         return None
     from jarvis.scheduling import TimerManager
+    from jarvis.scheduling.manager import JsonScheduleStore
 
-    manager = TimerManager(events, max_seconds=cfg.timers.max_hours * 3600, max_active=cfg.timers.max_active)
+    store = JsonScheduleStore(cfg.timers.path) if cfg.timers.persist else None
+    manager = TimerManager(events, max_seconds=cfg.timers.max_hours * 3600, max_active=cfg.timers.max_active,
+                           store=store)
     manager.start()
     return manager
 
