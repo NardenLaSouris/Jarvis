@@ -158,6 +158,7 @@ class SpotifyConfig:
     # de la voix ([audio] remote) ; vide = la musique joue sur un appareil Spotify existant (PC, téléphone).
     device: str = ""
     pipe: Path = Path("data/music.fifo")
+    catalog_path: Path = Path("data/spotify_catalog.json")
     duck_percent: int = 15
 
 

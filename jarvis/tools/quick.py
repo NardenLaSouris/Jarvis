@@ -228,14 +228,14 @@ class QuickPlanner:
             return None
         rest = re.sub(r"\b(sur spotify|s il te plait|s il vous plait|stp|svp)\b", " ", match.group(1)).strip()
         music = _has(norm, ("sur spotify", "chanson", "morceau", "titre", "album", "playlist", "musique", "du son"))
-        if not music and not re.search(r"\b(de|d)\b", rest):
+        if not music and not re.search(r"\b(de|d)\b", rest) and not rest.startswith("du "):
             return None
         kind, lead = "track", r"^(?:la |le |l )?(?:chanson |morceau |titre |son )?"
         if re.search(r"\bplaylist\b", rest):
             kind, lead = "playlist", r"^(?:ma |la |une )?playlist "
         elif re.search(r"\balbum\b", rest):
             kind, lead = "album", r"^(?:l |un )?album "
-        elif re.match(r"^(?:de la musique de|un peu de|la musique de|du son de|des chansons de|une chanson de|un morceau de|un titre de|un son de|du) ", rest):
+        elif re.match(r"^(?:de la musique de|un peu de|la musique de|du son de|des chansons de|une chanson de|un morceau de|un titre de|un son de|du) ", rest)                 and not (rest.startswith("du ") and re.search(r"\s(?:de|d)\s", rest[3:])):  # « Du hast de Rammstein »
             kind, lead = "artist", r"^(?:de la musique de|un peu de|la musique de|du son de|des chansons de|une chanson de|un morceau de|un titre de|un son de|du) "
         rest = re.sub(lead, "", rest).strip()
         if not rest or len(rest.split()) > 10:

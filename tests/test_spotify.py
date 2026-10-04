@@ -197,3 +197,63 @@ def test_misheard_mets_plays_the_right_track_and_questions_still_get_answers(tmp
     assert spoken[0] == "Je lance Without Me de Eminem."
     assert json.loads([c for c in fake.calls if c[1].endswith("/me/player/play")][-1][2]) == {"uris": ["spotify:track:wm"]}
     assert spoken[1].startswith("Le ciel est bleu") and "tool:quick (promue)" in routes(events)
+
+
+# --- Titres étrangers (transcription phonétique) et catalogue --------------------------------------
+
+def test_foreign_titles_heard_in_french_still_match():
+    from jarvis.spotify import best_match
+
+    items = [{"name": "Astroboy", "artists": [{"name": "Indochine"}], "uri": "x"},
+             {"name": "Du hast", "artists": [{"name": "Rammstein"}], "uri": "dh"},
+             {"name": "Dragostea din tei", "artists": [{"name": "O-Zone"}], "uri": "dt"},
+             {"name": "Ich will", "artists": [{"name": "Rammstein"}], "uri": "iw"},
+             {"name": "Mein Herz brennt", "artists": [{"name": "Rammstein"}], "uri": "mh"}]
+    assert best_match(items, "dou ast", "Ramstein", "track")["uri"] == "dh"
+    assert best_match(items, "dragosta dine tei", "", "track")["uri"] == "dt"
+    assert best_match(items, "ich vil", "", "track")["uri"] == "iw"
+    assert best_match(items, "mein herz brent", "rammstein", "track")["uri"] == "mh"
+    assert best_match(items, "without me", "Eminem", "track") is None
+
+
+def test_title_containing_de_is_split_both_ways():
+    from jarvis.spotify import title_artist_splits
+
+    assert title_artist_splits("nu ma las de limba noastra de O-Zone") == [
+        ("nu ma las de limba noastra", "O-Zone"), ("nu ma las", "limba noastra de O-Zone"),
+        ("nu ma las de limba noastra de O-Zone", "")]
+
+
+def test_catalog_is_built_from_your_playlists_and_searched_first(tmp_path):
+    from jarvis.spotify import SpotifyCatalog
+
+    class WithPlaylist(FakeSpotify):
+        def __call__(self, method, url, headers, body, timeout):
+            if "/playlists/p1/items" in url:
+                self.urls.append(url)
+                return 200, json.dumps({"items": [{"item": {"name": "Sonne", "uri": "spotify:track:sonne",
+                                                            "artists": [{"name": "Rammstein"}]}}], "next": None}).encode()
+            if url.split("?")[0].endswith("/me/playlists"):
+                return 200, json.dumps({"items": [{"id": "p1", "name": "Metal", "uri": "spotify:playlist:p1"}]}).encode()
+            return super().__call__(method, url, headers, body, timeout)
+
+    fake = WithPlaylist()
+    spotify = client(tmp_path, fake)
+    spotify.catalog = SpotifyCatalog(tmp_path / "catalog.json")
+    assert spotify.catalog.stale and spotify.catalog.refresh(spotify) == 1
+    assert SpotifyCatalog(tmp_path / "catalog.json").artists() == ["Rammstein"]
+    assert spotify.find("sone de ramstein", "track") == ("spotify:track:sonne", "Sonne de Rammstein")
+    assert not any("/search" in u for u in fake.urls)  # trouvé dans vos titres, sans recherche
+
+
+def test_quick_music_commands_for_foreign_titles(tmp_path):
+    from jarvis.tools.quick import quick_plan
+
+    registry = ToolRegistry()
+    for tool in spotify_tools(client(tmp_path, FakeSpotify())):
+        registry.register(tool)
+    play = lambda text: quick_plan(text, registry)["parameters"]  # noqa: E731
+    assert play("Mets Du hast de Rammstein") == {"query": "Du hast de Rammstein", "kind": "track"}
+    assert play("Mets du Rammstein") == {"query": "Rammstein", "kind": "artist"}
+    assert play("Joue Sonne de Ramstein sur Spotify") == {"query": "Sonne de Ramstein", "kind": "track"}
+    assert play("Mets Nu ma las de limba noastra d'O-Zone")["query"] == "Nu ma las de limba noastra d'O-Zone"

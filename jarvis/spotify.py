@@ -71,11 +71,67 @@ def _default_http(method: str, url: str, headers: dict, body: bytes | None, time
         return exc.code, exc.read()
 
 
+class SpotifyCatalog:
+    """Titres de vos playlists (nom, artistes, uri), relus au plus une fois par jour et gardés dans un fichier :
+    ils sont cherchés en premier, et leurs artistes aident la transcription (vocabulaire de Whisper)."""
+
+    def __init__(self, path: Path, max_age: float = 86400.0, clock: Callable[[], float] = time.time):
+        self._path = Path(path)
+        self._max_age, self._clock = max_age, clock
+        self._tracks: list[dict] = []
+        try:
+            data = json.loads(self._path.read_text(encoding="utf-8"))
+            self._tracks, self._updated = data.get("tracks", []), float(data.get("updated", 0))
+        except (OSError, ValueError, AttributeError):
+            self._updated = 0.0
+
+    def tracks(self) -> list[dict]:
+        return self._tracks
+
+    @property
+    def stale(self) -> bool:
+        return self._clock() - self._updated > self._max_age
+
+    def artists(self, limit: int = 30) -> list[str]:
+        """Artistes les plus présents dans vos playlists."""
+        import collections
+
+        counts = collections.Counter(a["name"] for t in self._tracks for a in t.get("artists", [])[:1] if a.get("name"))
+        return [name for name, _ in counts.most_common(limit)]
+
+    def refresh(self, client: "SpotifyClient", max_tracks: int = 5000) -> int:
+        tracks, seen = [], set()
+        playlists = client.call("GET", "/me/playlists", {"limit": 50}).get("items", [])
+        for playlist in playlists:
+            if not playlist or not playlist.get("id"):
+                continue
+            offset = 0
+            while len(tracks) < max_tracks:
+                page = client.call("GET", f"/playlists/{playlist['id']}/items", {"limit": 100, "offset": offset})
+                for entry in page.get("items", []):
+                    track = (entry or {}).get("item") or (entry or {}).get("track") or {}
+                    uri = track.get("uri", "")
+                    if uri.startswith("spotify:track:") and uri not in seen:
+                        seen.add(uri)
+                        tracks.append({"name": track.get("name", ""), "uri": uri,
+                                       "artists": [{"name": a.get("name", "")} for a in track.get("artists", [])[:3]]})
+                if not page.get("next"):
+                    break
+                offset += 100
+        self._tracks, self._updated = tracks, self._clock()
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        self._path.write_text(json.dumps({"updated": self._updated, "tracks": tracks}, ensure_ascii=False),
+                              encoding="utf-8")
+        log.info("Catalogue Spotify : %d titres de vos playlists", len(tracks))
+        return len(tracks)
+
+
 class SpotifyClient:
     def __init__(self, client_id: str, token_path: Path, http: Callable = _default_http, timeout: float = 6.0,
                  clock: Callable[[], float] = time.time, device: str = ""):
         self._client_id = client_id
         self.device = device  # appareil préféré (« JARVIS » : librespot sur le Core)
+        self.catalog: SpotifyCatalog | None = None
         self._path = Path(token_path)
         self._http, self._timeout, self._clock = http, timeout, clock
 
@@ -169,25 +225,35 @@ class SpotifyClient:
         return preferred[0]["id"]
 
     def find(self, query: str, kind: str) -> tuple[str, str]:
-        """(uri, nom) cohérent avec la demande : d'abord vos playlists pour une playlist, sinon la recherche Spotify
-        (« titre de artiste » cherché champ par champ). Parmi les résultats, celui qui reprend le mieux les mots
-        demandés ; si aucun n'est assez proche, rien n'est joué (filtre de cohérence) plutôt qu'un autre morceau."""
+        """(uri, nom) cohérent avec la demande, quelle que soit la langue du titre :
+        1. vos playlists (pour une playlist) et votre catalogue (titres de vos playlists) ;
+        2. la recherche Spotify libre « titre artiste » (tolérante aux transcriptions phonétiques : « dou ast
+           rammstein » -> Du hast), puis par champ ;
+        3. parmi les résultats, celui qui reprend le mieux, à l'oreille, les mots demandés ; aucun assez proche ->
+           rien n'est joué (filtre de cohérence) plutôt qu'un autre morceau."""
         if kind == "playlist":
-            wanted = keywords(query)
             mine = self.call("GET", "/me/playlists", {"limit": 50}).get("items", [])
-            for playlist in mine:
-                if wanted and wanted <= keywords(playlist.get("name", "")):
-                    return playlist["uri"], playlist["name"]
-        title, artist = split_title_artist(query) if kind in ("track", "album") else (query, "")
-        searches = ([f'{"track" if kind == "track" else "album"}:{title} artist:{artist}'] if artist else []) + [query]
-        items = []
-        for search in searches:
-            found = self.call("GET", "/search", {"q": search, "type": kind, "limit": 8})
-            items += [i for i in found.get(f"{kind}s", {}).get("items", []) if i and i not in items]
-            best = best_match(items, title, artist, kind)
+            best = best_match([p for p in mine if p], query, "", "playlist")
             if best is not None:
-                credit = f" de {best['artists'][0]['name']}" if kind in ("track", "album") and best.get("artists") else ""
-                return best["uri"], best["name"] + credit
+                return best["uri"], best["name"]
+        splits = title_artist_splits(query) if kind in ("track", "album") else [(query, "")]
+        if kind == "track" and self.catalog is not None:
+            for title, artist in splits:
+                best = best_match(self.catalog.tracks(), title, artist, kind)
+                if best is not None:
+                    return best["uri"], _credited(best, kind)
+        searches = list(dict.fromkeys([f"{t} {a}".strip() for t, a in splits]))
+        field = "track" if kind == "track" else "album"
+        searches += [f"{field}:{t} artist:{a}" for t, a in splits if a]
+        items: list[dict] = []
+        for search in searches:
+            found = self.call("GET", "/search", {"q": search, "type": kind, "limit": 10})
+            items += [i for i in found.get(f"{kind}s", {}).get("items", []) if i and i not in items]
+            for title, artist in splits:
+                best = best_match(items, title, artist, kind)
+                if best is not None:
+                    return best["uri"], _credited(best, kind)
+        title, artist = splits[0]
         what = f"« {title} »" + (f" de {artist}" if artist else "")
         raise ToolError(NOT_FOUND, f"Je ne trouve pas {what} sur Spotify.")
 
@@ -197,7 +263,13 @@ class SpotifyClient:
         if not query:
             self.call("PUT", "/me/player/play", params)
             return ""
-        uri, name = self.find(query, kind)
+        try:
+            uri, name = self.find(query, kind)
+        except ToolError as exc:
+            if exc.code != NOT_FOUND or kind != "artist":
+                raise
+            kind = "track"  # « mets du ... » : un titre plutôt qu'un artiste (« Du hast »)
+            uri, name = self.find(query, kind)
         body = {"uris": [uri]} if kind == "track" else {"context_uri": uri}
         self.call("PUT", "/me/player/play", params, body)
         return name
@@ -213,37 +285,51 @@ def spoken_name(name: str) -> str:
 
 def split_title_artist(query: str) -> tuple[str, str]:
     """« without me de Eminem » -> (« without me », « Eminem ») ; sans « de », tout est le titre."""
+    splits = title_artist_splits(query)
+    return splits[0]
+
+
+def title_artist_splits(query: str) -> list[tuple[str, str]]:
+    """Découpages possibles (titre, artiste) : au premier « de », au dernier, puis sans artiste. « Nu ma las de limba
+    noastra de O-Zone » -> le titre peut lui-même contenir « de »."""
     import re
 
-    match = re.match(r"^(.+?)\s+(?:de|d'|d’|par|by)\s*(.+)$", query.strip(), re.IGNORECASE)
-    return (match.group(1).strip(), match.group(2).strip()) if match else (query.strip(), "")
+    query = query.strip()
+    marks = [m for m in re.finditer(r"\s+(?:de|d'|d’|par|by)\s*", query, re.IGNORECASE)]
+    splits = []
+    for mark in (marks[-1:] + marks[:1]) if marks else []:
+        title, artist = query[:mark.start()].strip(), query[mark.end():].strip()
+        if title and artist and (title, artist) not in splits:
+            splits.append((title, artist))
+    return splits + [(query, "")]
 
 
-def _coverage(wanted: set[str], found: str) -> float:
-    words = keywords(found)
-    if not wanted:
-        return 1.0
-    return sum(1 for w in wanted if w in words or any(len(w) > 3 and (w in v or v in w) for v in words)) / len(wanted)
+def _credited(item: dict, kind: str) -> str:
+    credit = f" de {item['artists'][0]['name']}" if kind in ("track", "album") and item.get("artists") else ""
+    return item.get("name", "") + credit
 
 
 def best_match(items: list[dict], title: str, artist: str, kind: str) -> dict | None:
-    """Résultat qui reprend le titre (et l'artiste, s'il est dit) ; None si aucun n'est cohérent avec la demande."""
-    title_words, artist_words = keywords(title), keywords(artist)
+    """Résultat qui reprend, à l'oreille, le titre (et l'artiste s'il est dit) ; les premiers résultats de Spotify
+    l'emportent à égalité. None si aucun n'est cohérent avec la demande."""
+    from jarvis.phonetic import coverage
+
     scored = []
-    for item in items:
+    for rank, item in enumerate(items):
         name = item.get("name", "")
-        artists = " ".join(a.get("name", "") for a in item.get("artists", []))
-        if kind == "artist":
-            score = _coverage(title_words, name)
-            ok = score >= 0.99
+        artists = " ".join(a.get("name", "") for a in item.get("artists", []) if a)
+        if kind in ("artist", "playlist"):
+            score = coverage(title, name)
+            ok = score >= (0.99 if kind == "artist" else 0.66)
         else:
-            title_score = _coverage(title_words, name)
-            artist_score = _coverage(artist_words, artists) if artist_words else 1.0
-            score = title_score * 0.7 + artist_score * 0.3
-            ok = title_score >= 0.66 and artist_score >= 0.5
+            title_score = coverage(title, name)
+            artist_score = coverage(artist, artists) if artist else 1.0
+            combined = coverage(f"{title} {artist}", f"{name} {artists}")
+            ok = (title_score >= 0.66 and artist_score >= 0.5) or (not artist and combined >= 0.75 and title_score >= 0.5)
+            score = title_score + 0.5 * artist_score + 0.5 * combined
         if ok:
-            scored.append((score, -len(keywords(name) - title_words), item))
-    return max(scored, key=lambda s: (s[0], s[1]))[2] if scored else None
+            scored.append((score - rank * 0.01, item))
+    return max(scored, key=lambda s: s[0])[1] if scored else None
 
 
 def _said_words(value: str, text: str) -> str | None:

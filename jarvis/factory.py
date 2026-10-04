@@ -98,6 +98,12 @@ def vocabulary_hint(cfg: Config, personality_name: str = "JARVIS") -> str:
         phrases.append(f"Quel temps fera-t-il à {cfg.weather.default_location} ?")
     if cfg.tools.enabled and cfg.lights.enabled:
         phrases += ["Allume la lumière.", "Luminosité 30 %."]
+    if cfg.tools.enabled and cfg.spotify.enabled and Path(cfg.spotify.catalog_path).exists():
+        from jarvis.spotify import SpotifyCatalog
+
+        artists = SpotifyCatalog(cfg.spotify.catalog_path).artists(25)
+        if artists:  # vos artistes, bien orthographiés dans la transcription (« Rammstein », « O-Zone »)
+            phrases.append("Mets " + ", ".join(artists) + ".")
     return " ".join([hint, *phrases])
 
 
@@ -257,6 +263,17 @@ def build_spotify(cfg: Config):
     if not client.configured:
         log.info("Spotify non relié (SPOTIFY_CLIENT_ID et python -m jarvis --spotify-login) : touches multimédia seules")
         return None
+    from jarvis.spotify import SpotifyCatalog
+
+    client.catalog = SpotifyCatalog(cfg.spotify.catalog_path)
+    if client.catalog.stale:
+        def refresh() -> None:
+            try:
+                client.catalog.refresh(client)
+            except Exception as exc:  # le catalogue est un plus : la recherche Spotify reste disponible
+                log.warning("Catalogue Spotify non mis à jour : %s", exc)
+
+        threading.Thread(target=refresh, name="catalogue-spotify", daemon=True).start()
     return client
 
 
