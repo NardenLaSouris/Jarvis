@@ -370,3 +370,33 @@ def test_page_knows_both_themes():
 def test_configuration_enables_night_from_22_to_7():
     cfg = load_config(ROOT / "config.toml", local=False)
     assert (cfg.face.night_start, cfg.face.night_end) == ("22:00", "07:00")
+
+
+def test_background_tools_during_standby_bring_the_face_back_to_standby():
+    from jarvis.events import TOOL_EXECUTED, TOOL_FAILED, TOOL_STARTED, Event, EventBus
+    from jarvis.face import FaceBridge, VisualState
+
+    visual, bus = VisualState(), EventBus()
+    FaceBridge(visual).attach(bus)
+    for _ in range(2):  # routine : deux outils d'affilée
+        bus.publish(Event(TOOL_STARTED, "tools", {}))
+        assert visual.snapshot()["state"] == "thinking"
+        bus.publish(Event(TOOL_EXECUTED, "tools", {}))
+    assert visual.snapshot()["state"] == "standby"
+    bus.publish(Event(TOOL_STARTED, "tools", {}))
+    bus.publish(Event(TOOL_FAILED, "tools", {}))
+    assert visual.snapshot()["state"] == "standby"
+
+
+def test_tools_inside_a_conversation_keep_the_conversation_states():
+    from jarvis.events import TOOL_EXECUTED, TOOL_STARTED, Event, EventBus
+    from jarvis.face import FaceBridge, VisualState
+
+    visual, bus = VisualState(), EventBus()
+    bridge = FaceBridge(visual)
+    bridge.attach(bus)
+    bridge.on_event("wake", "")
+    bridge.on_event("user", "Allume la chambre")
+    bus.publish(Event(TOOL_STARTED, "tools", {}))
+    bus.publish(Event(TOOL_EXECUTED, "tools", {}))
+    assert visual.snapshot()["state"] == "thinking"  # l'agent décide de la suite (parole, écoute)
