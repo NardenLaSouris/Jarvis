@@ -72,7 +72,31 @@ def test_no_corrector_without_application_tools():
                            load_personality(ROOT / "personality.toml")) is None
 
 
-def test_whisper_gets_the_vocabulary_hint():
+def test_whisper_gets_the_vocabulary_hint(tmp_path):
+    from dataclasses import replace as _replace
+
+    global CFG
+    real, CFG = CFG, _replace(CFG, spotify=_replace(CFG.spotify, catalog_path=tmp_path / "absent.json"))
+    try:
+        _vocabulary_checks()
+    finally:
+        CFG = real
+
+
+def test_your_spotify_artists_join_the_vocabulary_hint(tmp_path):
+    import json
+    from dataclasses import replace
+
+    catalog = tmp_path / "catalog.json"
+    catalog.write_text(json.dumps({"updated": 0, "tracks": [
+        {"name": "Sonne", "uri": "u1", "artists": [{"name": "Rammstein"}]},
+        {"name": "Du hast", "uri": "u2", "artists": [{"name": "Rammstein"}]},
+        {"name": "Dragostea din tei", "uri": "u3", "artists": [{"name": "O-Zone"}]}]}), encoding="utf-8")
+    cfg = replace(CFG, spotify=replace(CFG.spotify, catalog_path=catalog))
+    assert vocabulary_hint(cfg).endswith("Mets Rammstein, O-Zone.")
+
+
+def _vocabulary_checks():
     assert vocabulary_hint(CFG) == ("Jarvis, ouvre Discord, ferme Steam, lance Google Chrome, quitte Spotify, "
                                    "ouvre Visual Studio Code, ferme le Bloc-notes. Mets un minuteur. Rappelle-moi. "
                                    f"Recherche-moi. Raconte-moi. Arrête. Tais-toi. Quel temps fera-t-il à {CFG.weather.default_location} ?")
