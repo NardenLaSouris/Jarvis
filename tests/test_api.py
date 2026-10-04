@@ -167,3 +167,25 @@ def test_routine_lifecycle_and_history(world):
 def test_unknown_routes(world):
     assert world.call("GET", "/nope")[0] == 404
     assert world.call("POST", "/routines/abc/explode")[0] == 404
+
+
+def test_many_simultaneous_clients_are_all_served():
+    import urllib.request
+    from concurrent.futures import ThreadPoolExecutor
+
+    from jarvis.api import CoreApi, CoreStatus
+
+    api = CoreApi("127.0.0.1", 0, frozenset({"127.0.0.1"}), "t" * 40, tools=None, routines=None, status=CoreStatus())
+    api.start()
+    host, port = api.address
+
+    def health(_):
+        request = urllib.request.Request(f"http://{host}:{port}/api/health", headers={"Authorization": "Bearer " + "t" * 40})
+        with urllib.request.urlopen(request, timeout=10) as response:
+            return response.status
+
+    try:
+        with ThreadPoolExecutor(40) as pool:
+            assert set(pool.map(health, range(400))) == {200}
+    finally:
+        api.stop()

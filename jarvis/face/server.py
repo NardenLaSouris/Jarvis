@@ -53,6 +53,9 @@ class ExclusiveServer(ThreadingHTTPServer):
 
     allow_reuse_address = sys.platform != "win32"
     daemon_threads = True
+    # File d'attente des connexions : 5 par défaut ; au-delà, des connexions étaient réinitialisées dès une vingtaine
+    # de clients simultanés (JARVIS Control, visages, routines). Mesuré lors du test de charge.
+    request_queue_size = 128
 
     def server_bind(self):
         exclusive = getattr(socket, "SO_EXCLUSIVEADDRUSE", None)
