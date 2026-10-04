@@ -32,12 +32,13 @@ def _safely(check: Callable[[], dict]) -> dict:
 
 class CoreStatus:
     def __init__(self, *, llm_url: str = "", llm_model: str = "", fallback_model: str = "", web=None, devices=None,
-                 rooms=None, driver=None, timers=None, routines=None, activity=None, worker=None,
+                 rooms=None, driver=None, timers=None, routines=None, activity=None, worker=None, home=None,
                  fetch: Callable[[str], dict] = http_json, clock: Callable[[], datetime] = datetime.now):
         self._llm_url, self._llm_model, self._fallback_model = llm_url.rstrip("/"), llm_model, fallback_model
         self._web, self._devices, self._rooms, self._driver = web, devices, rooms, driver
         self._timers, self._routines, self._activity = timers, routines, activity
         self._worker = worker
+        self._home = home
         self._fetch, self._clock = fetch, clock
         self._started = time.time()
 
@@ -145,6 +146,7 @@ class CoreStatus:
             "core": {"online": True, "uptime_s": round(time.time() - self._started), "time": self._clock().isoformat(
                 timespec="seconds")},
             "llm": results.get("llm", {"online": False}),
+            **({"home": self._home.snapshot()} if self._home is not None else {}),
             "search": results.get("search", {"online": False}),
             "agents": [{"id": d["id"], "name": d["name"], "online": d["online"]} for d in agents],
             "lights": {"online": sum(bool(d["online"]) for d in lights), "total": len(lights),

@@ -298,6 +298,8 @@ patterns = [
     "allume", "allumer", "eteins", "eteindre", "lumiere", "lumieres", "lampe", "lampes", "ampoule", "ampoules",
     "luminosite", "eclairage", "en rouge", "en orange", "en jaune", "en vert", "en cyan", "en bleu", "en violet",
     "en magenta", "en rose", "en blanc", "blanc chaud", "blanc froid", "blanc neutre", "kelvin", "kelvins",
+    "lumiere chaude", "lumiere froide", "mode cinema", "mode lecture", "mode nuit", "mode detente", "mode travail",
+    "ambiance cinema", "ambiance detente", "ambiance lecture", "ambiance nuit", "ambiance travail", "ambiance reveil",
     "ouvre", "ouvrir", "ouvre moi", "lance", "lancer", "lance moi", "demarre", "demarrer", "va sur", "affiche le site",
     "ferme", "fermer", "ferme moi", "quitte", "quitter", "arrete", "coupe le", "coupe la", "coupe les", "coupe moi",
     "volume", "le son", "du son", "remets le son", "verrouille", "verrouiller", "verrouillage",

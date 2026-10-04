@@ -189,7 +189,7 @@ def test_configuration_and_keys(monkeypatch):
     monkeypatch.setattr(factory, "secret", lambda name, env: {"LIGHT_KEY_CHAMBRE": "k" * 16, "LIGHT_KEY_ENTREE": "e" * 16}
                         .get(name, ""))
     assert [t.name for t in factory.light_tools_for(*factory.build_lights(on))] == ["light_on", "light_off", "light_toggle", "set_brightness",
-                                                          "set_color", "set_color_temperature"]
+                                                          "set_color", "set_color_temperature", "set_scene", "light_status"]
 
 
 def test_tuya_driver_converts_scales():
@@ -285,3 +285,89 @@ def test_compound_plan_with_an_invented_segment_falls_back_to_the_whole_request(
     single = plan(PlannerLLM(several(("light_on", {}, "allume"), ("set_brightness", {"brightness": 80}, "à 80 %"))),
                   "Allume la chambre", registry)
     assert single["tool"] == "light_on"
+
+
+# --- Scènes, groupes, état, pièces inconnues, pannes partielles ------------------------------------
+
+def test_scene_sets_power_white_and_brightness_on_each_light():
+    driver = FakeDriver()
+    spoken, _, _ = converse(["Mets la chambre en mode cinéma."], [("set_scene", {"scene": "cinema"})], driver)
+    assert spoken == ["La lumière de la chambre est en ambiance cinéma."]
+    assert driver.calls == [("chambre", "power", True), ("chambre", "white", 2700), ("chambre", "brightness", 10)]
+    assert driver.lights["entree"]["on"] is False
+
+
+def test_custom_scenes_override_and_validate():
+    from jarvis.tools.lights import load_scenes
+
+    scenes = load_scenes({"cinema": {"brightness": 20}, "fete": {"name": "fête", "color": "violet", "brightness": 80}})
+    assert scenes["cinema"]["brightness"] == 20 and scenes["cinema"]["temperature"] == 2700
+    assert scenes["fete"]["color"] == "violet"
+    for bad in ({"x": {"brightness": 0}}, {"x": {"temperature": 9000}}, {"x": {"color": "fuchsia"}}):
+        with pytest.raises(ValueError):
+            load_scenes(bad)
+
+
+def test_groups_target_their_rooms_and_are_validated():
+    rooms = load_rooms(ROOMS, lambda key: "k" * 16, {"etage": {"name": "l'étage", "rooms": ["chambre", "entree"],
+                                                                "aliases": ["en haut"]}})
+    assert rooms.resolve("Éteins en haut") == "etage" and [r.key for r in rooms.targets("etage")] == ["chambre", "entree"]
+    with pytest.raises(ValueError):
+        load_rooms(ROOMS, lambda key: "k" * 16, {"x": {"rooms": ["garage"]}})
+
+
+def test_unknown_room_is_refused_instead_of_lighting_the_whole_house():
+    driver = FakeDriver()
+    spoken, _, _ = converse(["Mets la lumière du bureau à 30 %."], [("set_brightness", {"brightness": 30})], driver)
+    assert driver.calls == [] and "bureau" in spoken[0]
+    assert rooms_from().resolve("Allume la lumière") == "all"
+
+
+def test_status_is_read_from_the_bulbs_and_stored_in_the_home_state():
+    from jarvis.home import HomeState
+
+    driver = FakeDriver(unreachable={"entree"})
+    driver.lights["chambre"].update(on=True, brightness=30)
+    home = HomeState()
+    registry = ToolRegistry()
+    for tool in light_tools(rooms_from(), driver, home=home):
+        registry.register(tool)
+    core = ToolCore(registry, PermissionManager())
+    outcome = core.submit({"tool": "light_status", "parameters": {"room": "chambre"}})
+    assert outcome.result.message == "La lumière de la chambre est allumée à 30 %."
+    assert home.get("lights.chambre.power") == {**home.get("lights.chambre.power"), "value": True, "confirmed": True}
+    outcome = core.submit({"tool": "light_status", "parameters": {"room": "all"}})
+    assert "ne répond pas" in outcome.result.message and "30 %" in outcome.result.message
+    outcome = core.submit({"tool": "light_status", "parameters": {"room": "entree"}})
+    assert not outcome.result.success
+    core.submit({"tool": "light_off", "parameters": {"room": "chambre"}})
+    assert home.get("lights.chambre.power")["value"] is False and home.get("lights.chambre.power")["confirmed"] is False
+
+
+def test_one_unreachable_light_does_not_stop_the_others():
+    driver = FakeDriver(unreachable={"entree"})
+    spoken, _, _ = converse(["Allume la lumière."], [("light_on", {})], driver)
+    assert driver.lights["chambre"]["on"] is True
+    assert spoken == ["La lumière de la chambre est allumée. Mais la lumière de l'entrée ne répond pas."]
+
+
+def test_all_lights_are_commanded_in_parallel():
+    import threading
+    import time
+
+    class SlowDriver(FakeDriver):
+        def power(self, room, on):
+            time.sleep(0.3)
+            super().power(room, on)
+
+    table = {**ROOMS, **{f"piece{i}": {"name": f"la pièce {i}", "device_id": f"d{i}", "ip": f"10.0.0.{i}"}
+                         for i in range(2)}}
+    driver = SlowDriver()
+    driver.lights.update({k: {"on": False, "brightness": 100, "mode": "white", "hue": None, "kelvin": 2700}
+                          for k in table})
+    registry = ToolRegistry()
+    for tool in light_tools(rooms_from(table), driver):
+        registry.register(tool)
+    started = time.perf_counter()
+    outcome = ToolCore(registry, PermissionManager()).submit({"tool": "light_off", "parameters": {"room": "all"}})
+    assert outcome.result.success and time.perf_counter() - started < 0.9 and threading.active_count() >= 1

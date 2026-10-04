@@ -75,6 +75,9 @@ def call(tool, **parameters):
     ("Quel temps fera-t-il demain à Lyon ?", call("get_weather", day="tomorrow", location="Lyon")),
     ("Quel temps fait-il ce soir ?", call("get_weather", moment="evening")),
     ("Verrouille le PC", call("lock_pc")),
+    ("Est-ce que la lumière est allumée ?", call("light_status")),
+    ("Mets les lumières en mode cinéma", call("set_scene", scene="cinema")),
+    ("Ambiance détente dans la chambre", call("set_scene", scene="detente")),
 ])
 def test_simple_commands_are_understood_without_llm(text, expected):
     assert quick_plan(text, REGISTRY) == expected
@@ -83,7 +86,7 @@ def test_simple_commands_are_understood_without_llm(text, expected):
 @pytest.mark.parametrize("text", [
     "Raconte-moi une blague", "N'allume pas la lumière", "Allume la lumière quand je rentre",
     "Baisse un peu la lumière", "Ouvre YouTube", "Ouvre le terminal", "Supprime le dossier Documents",
-    "Est-ce que la lumière est allumée ?", "Tous les jours à 21 h, allume la chambre", "Pourquoi le ciel est bleu ?",
+    "Tous les jours à 21 h, allume la chambre", "Pourquoi le ciel est bleu ?",
     "Mets un minuteur", "Ouvre Discord et fais-moi un café",
 ])
 def test_anything_else_is_left_to_the_llm(text):

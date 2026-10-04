@@ -208,14 +208,14 @@ def build_lights(cfg: Config):
         return None, None
     from jarvis.tools.lights import TuyaDriver, load_rooms
 
-    rooms = load_rooms(cfg.lights.rooms, lambda key: secret(f"LIGHT_KEY_{key.upper()}", ENV_FILE))
+    rooms = load_rooms(cfg.lights.rooms, lambda key: secret(f"LIGHT_KEY_{key.upper()}", ENV_FILE), cfg.lights.groups)
     return (rooms, TuyaDriver(cfg.lights.timeout)) if rooms else (None, None)
 
 
-def light_tools_for(rooms, driver) -> list:
-    from jarvis.tools.lights import light_tools
+def light_tools_for(rooms, driver, scenes: dict | None = None, home=None) -> list:
+    from jarvis.tools.lights import light_tools, load_scenes
 
-    return light_tools(rooms, driver) if rooms is not None else []
+    return light_tools(rooms, driver, load_scenes(scenes), home) if rooms is not None else []
 
 
 def build_routines(cfg: Config, tools, notifications, events: EventBus, sink=None, timers=None):
@@ -261,7 +261,7 @@ def build_routines(cfg: Config, tools, notifications, events: EventBus, sink=Non
 
 
 def build_api(cfg: Config, tools, routines, *, web=None, devices=None, rooms=None, driver=None, timers=None,
-              worker=None):
+              worker=None, home=None):
     """API d'administration démarrée ([api], pour JARVIS Control), ou None si désactivée."""
     if not cfg.api.enabled:
         return None
@@ -271,7 +271,7 @@ def build_api(cfg: Config, tools, routines, *, web=None, devices=None, rooms=Non
     activity = JsonlActivityStore(cfg.activity.path) if cfg.activity.enabled else None
     status = CoreStatus(llm_url=cfg.llm.host, llm_model=cfg.llm.model, fallback_model=cfg.llm.fallback_model,
                         web=web, devices=devices, rooms=rooms, driver=driver, timers=timers, routines=routines,
-                        activity=activity, worker=worker)
+                        activity=activity, worker=worker, home=home)
     api = CoreApi(cfg.api.host, cfg.api.port, frozenset(cfg.api.allowed_ips), secret("JARVIS_AGENT_TOKEN", ENV_FILE),
                   tools=tools, routines=routines, status=status, activity=activity)
     try:
@@ -410,10 +410,14 @@ def build_agent(
     weather = build_weather(cfg, events) if cfg.tools.enabled else None
     devices = build_devices(cfg)
     rooms, driver = build_lights(cfg)
-    tools = build_tools(cfg, personality, events, timers, weather, devices, light_tools_for(rooms, driver))
+    from jarvis.home import HomeState
+
+    home = HomeState()
+    tools = build_tools(cfg, personality, events, timers, weather, devices,
+                        light_tools_for(rooms, driver, cfg.lights.scenes, home))
     routines = build_routines(cfg, tools, notifications, events, sink, timers)
     api = build_api(cfg, tools, routines, web=web, devices=devices, rooms=rooms, driver=driver, timers=timers,
-                    worker=llm if hasattr(llm, "probe") else None)
+                    worker=llm if hasattr(llm, "probe") else None, home=home)
     if tools is not None and len(tools.registry):
         from jarvis.tools import ToolsCapability
 

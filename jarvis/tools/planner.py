@@ -84,6 +84,11 @@ EXAMPLES = (
     ("Mets l'entrée en vert", "set_color", {"color": "vert"}),
     ("Remets la chambre en blanc chaud", "set_color", {"color": "blanc chaud"}),
     ("Mets le salon à 4000 kelvins", "set_color_temperature", {"temperature": 4000}),
+    ("Mets une lumière chaude", "set_color", {"color": "blanc chaud"}),
+    ("Mets les lumières en mode cinéma", "set_scene", {"scene": "cinema"}),
+    ("Ambiance détente dans la chambre", "set_scene", {"scene": "detente"}),
+    ("Est-ce que la lumière de la chambre est allumée ?", "light_status", {}),
+    ("La lumière de l'entrée est à combien ?", "light_status", {}),
     ("Baisse un peu la lumière", None, None),
     ("Supprime le dossier Documents", None, None),
     ("Ouvre un terminal et tape une commande", None, None),
@@ -117,7 +122,9 @@ def planner_prompt(registry: ToolRegistry) -> str:
     if registry.exists("light_on"):
         rules.append("- Lumières : la pièce n'est jamais un paramètre. « allume », « éteins » -> light_on, light_off ; "
                      "brightness seulement si un pourcentage est dit ; une couleur dite (« en vert », « en blanc "
-                     "chaud ») -> set_color ; des kelvins dits -> set_color_temperature.")
+                     "chaud », « une lumière chaude » = blanc chaud) -> set_color ; des kelvins dits -> "
+                     "set_color_temperature ; une ambiance (cinéma, lecture, détente, nuit, travail, réveil) -> "
+                     "set_scene ; une question sur l'état d'une lumière (allumée ? à combien ?) -> light_status.")
     if registry.exists("get_weather"):
         rules.append("- get_weather : location uniquement si une ville est dite ; day = today, tomorrow ou "
                      "day_after_tomorrow ; moment = now (par défaut aujourd'hui), morning, afternoon, evening ou "
@@ -292,7 +299,7 @@ class ToolsCapability:
         (("set_volume", "mute_volume", "unmute_volume"), "régler le son"),
         (("system_info", "list_running_applications"), "décrire la machine"),
         (("lock_pc",), "verrouiller l'ordinateur"),
-        (("light_on", "light_off", "set_color"), "piloter vos lumières"),
+        (("light_on", "light_off", "set_color"), "piloter vos lumières et leurs ambiances"),
     )
 
     def __init__(self, registry: ToolRegistry):

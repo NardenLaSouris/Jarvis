@@ -43,6 +43,9 @@ ALARM_WORDS = ("reveille moi", "reveillez moi", "mets un reveil", "mets moi un r
 WEATHER_WORDS = ("meteo", "quel temps", "temps fait il", "temps fera t il", "il fait combien", "pleuvoir", "pleut",
                  "va t il neiger", "parapluie")
 LOCK_WORDS = ("verrouille", "verrouiller", "verrouillage")
+STATUS_WORDS = ("est allumee", "est eteinte", "sont allumees", "sont eteintes", "est elle allumee",
+                "est elle eteinte", "est a combien", "etat de la lumiere", "etat des lumieres")
+SCENE_LEADS = ("mode", "ambiance", "scene", "en mode", "en ambiance")
 COLOR_SYNONYMS = {"lumiere chaude": "blanc chaud", "chaude": "blanc chaud", "chaud": "blanc chaud",
                   "lumiere froide": "blanc froid", "froide": "blanc froid", "froid": "blanc froid",
                   "blanche": "blanc", "bleue": "bleu", "verte": "vert", "rouge": "rouge", "jaune": "jaune",
@@ -155,7 +158,8 @@ class QuickPlanner:
         return bool(room and room.resolve and room.resolve(text) != room.resolve(""))
 
     def _about_lights(self, norm: str, text: str) -> bool:
-        return self._exists("light_on") and (_has(norm, LIGHT_WORDS) or self._names_room(text))
+        return self._exists("light_on") and (_has(norm, LIGHT_WORDS) or self._names_room(text)
+                                             or self._scene(norm) is not None)
 
     # --- Une commande --------------------------------------------------------------------------------
 
@@ -189,8 +193,13 @@ class QuickPlanner:
         inherited = (previous or {}).get("tool", "").startswith(("light_", "set_color", "set_brightness"))
         if not (self._about_lights(norm, text) or inherited and not _has(norm, SOUND_WORDS)):
             return None
+        if _has(norm, STATUS_WORDS) and self._exists("light_status"):
+            return "light_status", {}
         if _has(norm, OFF_VERBS):
             return "light_off", {}
+        scene = self._scene(norm)
+        if scene:
+            return "set_scene", {"scene": scene}
         kelvin = KELVIN.search(norm)
         if kelvin and self._exists("set_color_temperature"):
             return "set_color_temperature", {"temperature": int(kelvin.group(1))}
@@ -207,6 +216,18 @@ class QuickPlanner:
             return "light_on", {}
         if inherited and self._names_room(text) and len(norm.split()) <= 4:
             return previous["tool"], {k: v for k, v in previous.get("parameters", {}).items()}
+        return None
+
+    def _scene(self, norm: str) -> str | None:
+        """Ambiance dite après « mode », « ambiance » ou « scène » (« mets les lumières en mode cinéma »)."""
+        if not self._exists("set_scene"):
+            return None
+        names = self._registry.get("set_scene").parameters["scene"].choices
+        padded = f" {norm} "
+        for lead in SCENE_LEADS:
+            for name in names:
+                if f" {lead} {name} " in padded:
+                    return name
         return None
 
     def _apps(self, norm, text, previous):

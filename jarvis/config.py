@@ -136,6 +136,8 @@ class LightsConfig:
     enabled: bool = False
     timeout: float = 3.0
     rooms: dict = field(default_factory=dict)
+    groups: dict = field(default_factory=dict)
+    scenes: dict = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
