@@ -584,8 +584,16 @@ def build_agent(
     log.info("Personnalité : %s, %d intentions prédéfinies", personality.assistant_name, len(personality.intents))
     prime_llm(llm, router, tools.registry if tools is not None else None)
     worker = llm if hasattr(llm, "probe") else None
+    from jarvis.events import SYSTEM_ERROR, SYSTEM_RECOVERED, Event
+
+    def report(source: str, ok: bool, message: str) -> None:
+        events.publish(Event(SYSTEM_RECOVERED if ok else SYSTEM_ERROR, "system", {"source": source, "message": message}))
+
     if worker is not None:
+        worker.on_state = lambda state, ok: report("llm", ok, f"worker LLM {state}")
         worker.start()
+    if hasattr(source, "on_status"):
+        source.on_status = lambda ok: report("micro", ok, "micro distant " + ("connecté" if ok else "injoignable"))
 
     a = cfg.audio
     recorder = UtteranceRecorder(

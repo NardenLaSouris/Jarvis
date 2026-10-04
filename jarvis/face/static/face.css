@@ -18,6 +18,28 @@ body {
   display: block;
 }
 
+#error {
+  position: fixed;
+  left: 50%;
+  bottom: 7vh;
+  transform: translateX(-50%);
+  max-width: min(84vw, 760px);
+  padding: 0.7em 1.2em;
+  border: 1px solid rgba(255, 110, 100, 0.45);
+  border-radius: 10px;
+  background: rgba(40, 4, 6, 0.72);
+  color: #ffd9d4;
+  font: 500 clamp(15px, 2.3vw, 24px)/1.4 "Segoe UI", system-ui, sans-serif;
+  text-align: center;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+
+#error[hidden] {
+  display: block;
+  opacity: 0;
+}
+
 #debug {
   position: fixed;
   left: 12px;

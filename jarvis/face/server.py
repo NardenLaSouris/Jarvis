@@ -92,7 +92,10 @@ class FaceServer:
 
     def payload(self) -> dict:
         """État visuel diffusé aux pages, avec le thème choisi par l'horloge du Core (même thème partout)."""
-        return {**self.visual.snapshot(), "theme": "night" if is_night(self._clock().time(), self._night) else "day"}
+        snapshot = self.visual.snapshot()
+        base = "night" if is_night(self._clock().time(), self._night) else "day"
+        # En erreur : thème rouge ; la page revient d'elle-même au thème de base quand l'erreur cesse.
+        return {**snapshot, "theme": "error" if snapshot.get("error") else base, "base_theme": base}
 
     def stop(self) -> None:
         self._stopping.set()

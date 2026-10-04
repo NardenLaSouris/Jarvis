@@ -61,7 +61,7 @@ def test_snapshot_fields_and_transition_time():
     visual.set_state("thinking")
     clock.t += 2.5
     snap = visual.snapshot()
-    assert set(snap) == {"state", "audio_level", "audio_source", "activity", "transition"}
+    assert set(snap) == {"state", "audio_level", "audio_source", "activity", "transition", "error", "errors", "error_messages"}
     assert snap["transition"] == 2.5 and snap["activity"] > VisualState(clock=clock).snapshot()["activity"]
 
 
@@ -400,3 +400,95 @@ def test_tools_inside_a_conversation_keep_the_conversation_states():
     bus.publish(Event(TOOL_STARTED, "tools", {}))
     bus.publish(Event(TOOL_EXECUTED, "tools", {}))
     assert visual.snapshot()["state"] == "thinking"  # l'agent décide de la suite (parole, écoute)
+
+
+# --- Thème rouge pendant une erreur ---------------------------------------------------------------
+
+def test_error_theme_while_a_component_is_down_then_back_to_the_previous_theme():
+    from datetime import datetime
+
+    from jarvis.events import SYSTEM_ERROR, SYSTEM_RECOVERED, Event, EventBus
+    from jarvis.face import FaceBridge, FaceServer, VisualState
+
+    visual, bus = VisualState(), EventBus()
+    FaceBridge(visual).attach(bus)
+    server = FaceServer(visual, night=((22, 0), (7, 0)) and None, clock=lambda: datetime(2026, 10, 4, 23, 0))
+    assert server.payload()["theme"] == "day"
+    bus.publish(Event(SYSTEM_ERROR, "system", {"source": "llm"}))
+    assert server.payload()["theme"] == "error" and server.payload()["errors"] == ["llm"]
+    bus.publish(Event(SYSTEM_ERROR, "system", {"source": "micro"}))
+    bus.publish(Event(SYSTEM_RECOVERED, "system", {"source": "llm"}))
+    assert server.payload()["theme"] == "error"  # le micro est toujours perdu
+    bus.publish(Event(SYSTEM_RECOVERED, "system", {"source": "micro"}))
+    assert server.payload()["theme"] == "day" and server.payload()["error"] is False
+
+
+def test_night_theme_comes_back_after_an_error():
+    from datetime import datetime, time
+
+    from jarvis.face import FaceServer, VisualState
+
+    visual = VisualState()
+    server = FaceServer(visual, night=(time(22, 0), time(7, 0)), clock=lambda: datetime(2026, 10, 4, 23, 0))
+    visual.set_error("llm", True)
+    assert server.payload()["theme"] == "error" and server.payload()["base_theme"] == "night"
+    visual.set_error("llm", False)
+    assert server.payload()["theme"] == "night"
+
+
+def test_technical_failures_flash_red_but_refusals_do_not():
+    from jarvis.events import TOOL_FAILED, Event, EventBus
+    from jarvis.face import FaceBridge, VisualState
+
+    clock = {"t": 0.0}
+    visual, bus = VisualState(clock=lambda: clock["t"]), EventBus()
+    bridge = FaceBridge(visual)
+    bridge.attach(bus)
+    bus.publish(Event(TOOL_FAILED, "tools", {"tool": "set_color", "error": "permission_denied"}))
+    bus.publish(Event(TOOL_FAILED, "tools", {"tool": "spotify_play", "error": "spotify_not_found"}))
+    assert visual.snapshot()["error"] is False
+    bus.publish(Event(TOOL_FAILED, "tools", {"tool": "light_on", "error": "light_unreachable"}))
+    assert visual.snapshot()["errors"] == ["outil:light_on"]
+    clock["t"] = 7.0
+    assert visual.snapshot()["error"] is False  # quelques secondes puis retour au thème précédent
+    bridge.on_event("error", "LLM indisponible")
+    assert visual.snapshot()["errors"] == ["conversation"]
+
+
+def test_worker_and_microphone_report_their_state():
+    from jarvis.llm.failover import FailoverLLM
+
+    states = []
+
+    class Fake:
+        def chat(self, messages):
+            return "ok"
+
+    up = {"v": False}
+    llm = FailoverLLM(Fake(), Fake(), "http://katana:11434", reachable=lambda url: up["v"], probe_interval=0)
+    llm.on_state = lambda state, ok: states.append((state, ok))
+    llm.probe()
+    up["v"] = True
+    llm.probe()
+    assert states == [("OFFLINE", False), ("ONLINE", True)]
+
+
+def test_error_messages_are_shown_in_plain_french():
+    from jarvis.events import SYSTEM_ERROR, SYSTEM_RECOVERED, TOOL_FAILED, Event, EventBus
+    from jarvis.face import FaceBridge, VisualState
+
+    clock = {"t": 0.0}
+    visual, bus = VisualState(clock=lambda: clock["t"]), EventBus()
+    bridge = FaceBridge(visual)
+    bridge.attach(bus)
+    bus.publish(Event(SYSTEM_ERROR, "system", {"source": "llm", "message": "worker LLM OFFLINE"}))
+    bus.publish(Event(TOOL_FAILED, "tools", {"tool": "light_on", "error": "light_unreachable",
+                                            "message": "La lumière de la chambre ne répond pas."}))
+    messages = visual.snapshot()["error_messages"]
+    assert "mode réduit" in messages[0] and messages[1] == "La lumière de la chambre ne répond pas."
+    clock["t"] = 7.0
+    assert visual.snapshot()["error_messages"] == [messages[0]]
+    bus.publish(Event(SYSTEM_RECOVERED, "system", {"source": "llm"}))
+    assert visual.snapshot()["error_messages"] == [] and visual.snapshot()["error"] is False
+    bridge.on_event("error", "LLM indisponible")
+    assert "n'a pas répondu" in visual.snapshot()["error_messages"][0]

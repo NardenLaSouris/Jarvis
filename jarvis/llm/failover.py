@@ -95,6 +95,7 @@ class FailoverLLM:
         self._lock = threading.Lock()
         self._stopping = threading.Event()
         self._thread: threading.Thread | None = None
+        self.on_state: Callable[[str, bool], None] | None = None  # (état, utilisable) à chaque changement
 
     # --- État ----------------------------------------------------------------------------------------
 
@@ -131,6 +132,11 @@ class FailoverLLM:
             previous, self._state, self._since = self._state, state, self._clock()
         level = logging.INFO if state == ONLINE else logging.WARNING
         log.log(level, "Worker LLM %s : %s -> %s%s", self._url, previous, state, f" ({reason})" if reason else "")
+        if self.on_state is not None:
+            try:
+                self.on_state(state, state == ONLINE)
+            except Exception:
+                log.debug("Notification d'état du worker impossible", exc_info=True)
 
     # --- Appels --------------------------------------------------------------------------------------
 

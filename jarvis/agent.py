@@ -653,6 +653,7 @@ class Agent:
                         yield sentence
             except Exception:
                 log.exception("Échec de l'appel au LLM")
+                self._event("error", "LLM indisponible")
                 failed.append(True)
                 if "llm_first_sentence" not in marks:
                     yield self._router.phrase("llm_unavailable")

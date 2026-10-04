@@ -11,6 +11,7 @@ import queue
 import threading
 import urllib.error
 import urllib.request
+from typing import Callable
 
 import numpy as np
 
@@ -89,6 +90,7 @@ class NetworkSource:
         self._queue = FrameQueue(int(max_buffered_s * sample_rate / frame_samples), "distant")
         self._stopping = threading.Event()
         self._response = None
+        self.on_status: Callable[[bool], None] | None = None  # micro connecté (True) ou perdu (False)
         self._thread = threading.Thread(target=self._run, name="micro-distant", daemon=True)
         self._thread.start()
 
@@ -101,6 +103,8 @@ class NetworkSource:
                 with self._agent.open(path, timeout=self._timeout) as response:
                     self._response = response
                     log.info("Micro distant connecté (%s)", self._agent.url)
+                    if failing:
+                        self._status(True)
                     failing = False
                     while not self._stopping.is_set():
                         data = response.read(size)
@@ -111,10 +115,18 @@ class NetworkSource:
                 if not failing and not self._stopping.is_set():
                     log.warning("Micro distant injoignable (%s) : nouvelle tentative toutes les %.0f s",
                                 _reason(exc), self._retry)
+                    self._status(False)
                 failing = True
             finally:
                 self._response = None
             self._stopping.wait(self._retry)
+
+    def _status(self, connected: bool) -> None:
+        if self.on_status is not None:
+            try:
+                self.on_status(connected)
+            except Exception:
+                log.debug("Notification d'état du micro impossible", exc_info=True)
 
     def read(self) -> np.ndarray | None:
         return self._queue.get()

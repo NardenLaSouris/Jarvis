@@ -24,6 +24,9 @@ TYPE = re.compile(r"^[a-z][a-z_]*(\.[a-z][a-z_]*)+$")
 TOOL_STARTED = "tool.started"
 TOOL_EXECUTED = "tool.executed"
 TOOL_FAILED = "tool.failed"
+# Panne d'un composant (worker LLM, micro distant...) et retour à la normale : payload {"source", "message"}.
+SYSTEM_ERROR = "system.error"
+SYSTEM_RECOVERED = "system.recovered"
 
 
 @dataclass(frozen=True)

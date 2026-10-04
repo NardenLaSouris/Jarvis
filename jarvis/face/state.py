@@ -90,6 +90,40 @@ class VisualState:
         self._manual_level: float | None = None
         self._manual_at = 0.0
         self._before_speaking: str | None = None
+        self._errors: dict[str, float | None] = {}  # source -> fin (None : jusqu'au retour à la normale)
+        self._messages: dict[str, str] = {}  # source -> explication affichée sur le visage
+
+    def set_error(self, source: str, active: bool, message: str = "") -> None:
+        """Panne durable (worker LLM hors ligne, micro perdu) : visage en rouge jusqu'au retour à la normale."""
+        with self._lock:
+            if active:
+                self._errors[source] = None
+                self._messages[source] = message or self._messages.get(source, "")
+            else:
+                self._errors.pop(source, None)
+                self._messages.pop(source, None)
+
+    def flash_error(self, source: str, seconds: float = 6.0, message: str = "") -> None:
+        """Échec ponctuel (LLM muet, appareil qui ne répond pas) : visage en rouge quelques secondes."""
+        with self._lock:
+            if self._errors.get(source, 0.0) is not None:
+                self._errors[source] = self._clock() + seconds
+                self._messages[source] = message
+
+    def errors(self) -> list[str]:
+        now = self._clock()
+        with self._lock:
+            for source, until in list(self._errors.items()):
+                if until is not None and now >= until:
+                    del self._errors[source]
+                    self._messages.pop(source, None)
+            return sorted(self._errors)
+
+    def error_messages(self) -> list[str]:
+        """Explications en clair des erreurs en cours (sans doublon), pour l'écran du visage."""
+        sources = self.errors()
+        with self._lock:
+            return list(dict.fromkeys(self._messages[s] for s in sources if self._messages.get(s)))
 
     def set_state(self, state: str) -> None:
         state = str(state).lower()
@@ -134,8 +168,10 @@ class VisualState:
         else:
             level, source = 0.0, "none"
         activity = ACTIVITY[state] + (0.4 * level if state == "speaking" else 0.0)
+        errors = self.errors()
         return {"state": state, "audio_level": round(level, 3), "audio_source": source,
-                "activity": round(min(1.0, activity), 3), "transition": round(since, 3)}
+                "activity": round(min(1.0, activity), 3), "transition": round(since, 3),
+                "error": bool(errors), "errors": errors, "error_messages": self.error_messages()}
 
     def _change(self, state: str) -> None:
         if state != self._state:

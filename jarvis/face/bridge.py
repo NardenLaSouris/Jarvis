@@ -14,7 +14,7 @@ import numpy as np
 
 import threading
 
-from jarvis.events import TOOL_EXECUTED, TOOL_FAILED, TOOL_STARTED, Event, EventBus
+from jarvis.events import SYSTEM_ERROR, SYSTEM_RECOVERED, TOOL_EXECUTED, TOOL_FAILED, TOOL_STARTED, Event, EventBus
 from jarvis.face.state import VisualState
 
 log = logging.getLogger(__name__)
@@ -30,6 +30,17 @@ EVENT_STATES = {
     "tool": "thinking",
 }
 
+# Échecs techniques (le visage passe en rouge) ; un refus, une pièce inconnue ou un titre introuvable n'en sont pas.
+TECHNICAL_ERRORS = {"execution_failed", "timeout", "light_unreachable", "device_unreachable", "spotify_unavailable",
+                    "spotify_no_device", "calendar_unavailable", "files_disabled", "already_running"}
+
+# Explications affichées sur le visage pour les pannes durables (le message de l'outil sert pour les échecs ponctuels).
+SYSTEM_MESSAGES = {
+    "llm": "Mon module de réflexion (Katana) ne répond pas : je fonctionne en mode réduit.",
+    "micro": "Je n'entends plus le micro du PC : connexion perdue, nouvelle tentative en cours.",
+}
+CONVERSATION_MESSAGE = "Mon module de réflexion n'a pas répondu à votre demande."
+
 BUS_STATES = {
     TOOL_STARTED: "thinking",
 }
@@ -44,7 +55,15 @@ class FaceBridge:
         self._background = 0
         self._lock = threading.Lock()
 
+    def _error(self, action) -> None:
+        try:
+            action()
+        except Exception:
+            log.debug("Visage : erreur non affichée", exc_info=True)
+
     def on_event(self, kind: str, text: str) -> None:
+        if kind == "error":
+            self._error(lambda: self.visual.flash_error("conversation", message=CONVERSATION_MESSAGE))
         if kind in ("wake", "sleep"):
             with self._lock:
                 self._background = 0  # une conversation reprend la main sur le visage
@@ -54,10 +73,18 @@ class FaceBridge:
 
     def attach(self, bus: EventBus) -> None:
         """Écoute aussi les événements système (bus) qui ont un état visuel associé."""
-        for event_type in (*BUS_STATES, TOOL_EXECUTED, TOOL_FAILED):
+        for event_type in (*BUS_STATES, TOOL_EXECUTED, TOOL_FAILED, SYSTEM_ERROR, SYSTEM_RECOVERED):
             bus.subscribe(event_type, self.on_bus_event)
 
     def on_bus_event(self, event: Event) -> None:
+        if event.type in (SYSTEM_ERROR, SYSTEM_RECOVERED):
+            source = str(event.payload.get("source", "système"))
+            message = SYSTEM_MESSAGES.get(source) or str(event.payload.get("message", "")) or "Un composant est en panne."
+            self._error(lambda: self.visual.set_error(source, event.type == SYSTEM_ERROR, message))
+            return
+        if event.type == TOOL_FAILED and event.payload.get("error") in TECHNICAL_ERRORS:
+            message = str(event.payload.get("message") or "Une action n'a pas pu être faite.")
+            self._error(lambda: self.visual.flash_error(f"outil:{event.payload.get('tool')}", message=message))
         if event.type in (TOOL_EXECUTED, TOOL_FAILED):
             with self._lock:
                 if not self._background:

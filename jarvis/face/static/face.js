@@ -4,7 +4,7 @@
  *   JarvisFace.setVisualState("standby" | "listening" | "thinking" | "speaking")
  *   JarvisFace.setAudioLevel(0..1)
  *   JarvisFace.standby()
- *   JarvisFace.setTheme("day" | "night")
+ *   JarvisFace.setTheme("day" | "night" | "error")
  *
  * Connecté à JARVIS par /events (Server-Sent Events). Sans connexion : veille.
  * Le thème (jour en couleur, nuit en noir et blanc) suit l'horaire du Core, sauf ?theme=day|night.
@@ -33,6 +33,11 @@
     night: {
       deep: [40, 40, 40], blue: [125, 125, 125], cyan: [205, 205, 205], white: [255, 255, 255],
       pupil: [0, 0, 0], pupilEdge: [3, 3, 3], background: ["#141414", "#080808", "#000000"],
+    },
+    // Erreur en cours (worker LLM hors ligne, appareil muet...) : rouge, puis retour au thème précédent.
+    error: {
+      deep: [110, 10, 14], blue: [230, 38, 46], cyan: [255, 110, 100], white: [255, 220, 214],
+      pupil: [12, 1, 1], pupilEdge: [22, 3, 3], background: ["#2a0507", "#160204", "#080001"],
     },
   };
   const FORCED_THEME = THEMES[params.get("theme")] ? params.get("theme") : null;
@@ -126,6 +131,25 @@
   const canvas = document.getElementById("face");
   const ctx = canvas.getContext("2d", { alpha: false });
   const debugEl = document.getElementById("debug");
+  const errorEl = document.getElementById("error");
+
+  // Aperçu : ?erreur=texte affiche le thème rouge et ce message, sans erreur réelle (pour voir le rendu).
+  const PREVIEW_ERROR = params.get("erreur") || params.get("error");
+
+  function previewError() {
+    setTheme("error");
+    showErrors([PREVIEW_ERROR]);
+  }
+
+  function showErrors(messages) {
+    const text = (messages || []).join("\n");
+    if (!errorEl) return;
+    if (text) {
+      errorEl.textContent = text;
+      errorEl.style.whiteSpace = "pre-line";
+    }
+    errorEl.hidden = !text;
+  }
   let W = 0, H = 0, CX = 0, CY = 0, R = 0, DPR = 1;
   let background = null;
   const layers = {};
@@ -628,7 +652,11 @@
       try {
         const data = JSON.parse(event.data);
         setVisualState(data.state);
-        if (!FORCED_THEME && data.theme) setTheme(data.theme);
+        // L'erreur passe avant tout (même un thème imposé par ?theme=) ; ensuite, retour au thème précédent.
+        if (data.theme === "error") setTheme("error");
+        else setTheme(FORCED_THEME || data.theme || theme);
+        showErrors(data.theme === "error" ? data.error_messages : []);
+        if (PREVIEW_ERROR) previewError();
         if (data.audio_source === "measured" || data.audio_source === "external") setAudioLevel(data.audio_level);
         face.lastMessage = now();
       } catch (err) {
@@ -675,6 +703,7 @@
   resize();
   buildLayers();
   connect();
+  if (PREVIEW_ERROR) previewError();
   demo();
   requestAnimationFrame(frame);
 })();
