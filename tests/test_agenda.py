@@ -156,11 +156,16 @@ def test_named_time_zones_are_converted_to_local_time():
 
 
 def test_recurrences_are_expanded_with_exceptions_and_limits(tmp_path):
+    from zoneinfo import ZoneInfo
+
     from jarvis.agenda import occurrences
+
+    def paris(*args):  # heure de Paris vue depuis le fuseau de la machine qui lance les tests
+        return datetime(*args, tzinfo=ZoneInfo("Europe/Paris")).astimezone().replace(tzinfo=None)
 
     events = {e.id: e for e in parse_ics(RECURRING)}
     week = occurrences(events["sport"], datetime(2026, 10, 5), datetime(2026, 10, 12))
-    assert [e.start for e in week] == [datetime(2026, 10, 5, 19, 0)]  # jeudi 8 exclu (EXDATE)
+    assert [e.start for e in week] == [paris(2026, 10, 5, 19, 0)]  # jeudi 8 exclu (EXDATE)
     assert not occurrences(events["sport"], datetime(2027, 1, 1), datetime(2027, 2, 1))  # après UNTIL
     rent = occurrences(events["loyer"], datetime(2026, 1, 1), datetime(2027, 6, 1))
     assert len(rent) <= 12 and datetime(2026, 2, 28) not in [e.start for e in rent]  # pas de 31 février
