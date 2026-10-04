@@ -8,14 +8,19 @@ enregistreur. Scénario :
   -> « Jarvis » -> « Peux-tu ouvrir Firefox et envoyer un mail à Paul ? »
   -> 10 s de silence -> phrase sans wake word, qui doit être ignorée.
 
-Nécessite les modèles téléchargés et Ollama démarré.
-Lancement : python tests/test_pipeline_e2e.py   (ou pytest)
+Nécessite les modèles téléchargés et Ollama démarré. La voix est réellement synthétisée (sans être jouée) :
+avec pytest, ce test ne tourne que sur demande (JARVIS_E2E=1), pour que la suite reste silencieuse.
+Lancement : python tests/test_pipeline_e2e.py   (ou JARVIS_E2E=1 pytest tests/test_pipeline_e2e.py)
 """
 
 from __future__ import annotations
 
+import os
 import sys
+from dataclasses import replace
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -27,6 +32,9 @@ from jarvis.factory import build_agent  # noqa: E402
 
 def run_scenario(output_dir: Path | None = None) -> tuple[list[tuple[str, str]], RecordingSink]:
     cfg = load_config(ROOT / "config.toml")
+    # Le fichier est lu d'un trait : l'interruption par le wake word (barge-in) le consommerait pendant la
+    # réflexion et avalerait la relance du scénario.
+    cfg = replace(cfg, assistant=replace(cfg.assistant, barge_in=False))
     audio, rate = read_wav(ROOT / "tests" / "fixtures" / "scenario.wav")
     source = ArraySource(audio, cfg.audio.sample_rate, cfg.audio.frame_samples, source_rate=rate)
     sink = RecordingSink(output_dir)
@@ -36,6 +44,7 @@ def run_scenario(output_dir: Path | None = None) -> tuple[list[tuple[str, str]],
     return events, sink
 
 
+@pytest.mark.skipif(os.environ.get("JARVIS_E2E") != "1", reason="vrais moteurs : JARVIS_E2E=1 pour lancer")
 def test_full_pipeline():
     events, sink = run_scenario()
     kinds = [k for k, _ in events if k != "timing"]
