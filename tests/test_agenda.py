@@ -106,3 +106,75 @@ def test_briefing_lines_and_quick_commands(tmp_path):
     assert quick_plan("Qu'est-ce que j'ai de prévu demain ?", core.registry)["tool"] == "list_events"
     assert quick_plan("Suis-je libre cet après-midi ?", core.registry)["tool"] == "free_slots"
     assert quick_plan("Quels sont mes prochains rendez-vous ?", core.registry)["tool"] == "next_events"
+
+
+# --- Fuseaux et répétitions (session red team) ------------------------------------------------------
+
+RECURRING = """BEGIN:VCALENDAR
+BEGIN:VEVENT
+UID:ny
+SUMMARY:Appel New York
+DTSTART;TZID=America/New_York:20261005T090000
+DTEND;TZID=America/New_York:20261005T100000
+END:VEVENT
+BEGIN:VEVENT
+UID:sport
+SUMMARY:Sport
+DTSTART;TZID=Europe/Paris:20260907T190000
+DTEND;TZID=Europe/Paris:20260907T200000
+RRULE:FREQ=WEEKLY;BYDAY=MO,TH;UNTIL=20261231T235959Z
+EXDATE;TZID=Europe/Paris:20261008T190000
+END:VEVENT
+BEGIN:VEVENT
+UID:loyer
+SUMMARY:Loyer
+DTSTART;VALUE=DATE:20260131
+RRULE:FREQ=MONTHLY;COUNT=12
+END:VEVENT
+BEGIN:VEVENT
+UID:casse
+SUMMARY:Règle cassée
+DTSTART:20261005T120000
+RRULE:FREQ=HOURLY;INTERVAL=abc
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Sans date
+DTSTART:pas une date
+END:VEVENT
+END:VCALENDAR
+"""
+
+
+def test_named_time_zones_are_converted_to_local_time():
+    from datetime import timezone
+    from zoneinfo import ZoneInfo
+
+    ny = next(e for e in parse_ics(RECURRING) if e.title == "Appel New York")
+    expected = datetime(2026, 10, 5, 9, 0, tzinfo=ZoneInfo("America/New_York")).astimezone().replace(tzinfo=None)
+    assert ny.start == expected and ny.end - ny.start == datetime(1, 1, 1, 1) - datetime(1, 1, 1, 0)
+    assert timezone  # import utilisé pour la lisibilité du calcul attendu
+
+
+def test_recurrences_are_expanded_with_exceptions_and_limits(tmp_path):
+    from jarvis.agenda import occurrences
+
+    events = {e.id: e for e in parse_ics(RECURRING)}
+    week = occurrences(events["sport"], datetime(2026, 10, 5), datetime(2026, 10, 12))
+    assert [e.start for e in week] == [datetime(2026, 10, 5, 19, 0)]  # jeudi 8 exclu (EXDATE)
+    assert not occurrences(events["sport"], datetime(2027, 1, 1), datetime(2027, 2, 1))  # après UNTIL
+    rent = occurrences(events["loyer"], datetime(2026, 1, 1), datetime(2027, 6, 1))
+    assert len(rent) <= 12 and datetime(2026, 2, 28) not in [e.start for e in rent]  # pas de 31 février
+    broken = occurrences(events["casse"], datetime(2026, 10, 5), datetime(2026, 10, 6))
+    assert len(broken) == 1  # règle illisible : l'événement d'origine seul
+    assert "Sans date" not in [e.title for e in events.values()]
+
+
+def test_recurring_event_appears_on_the_right_day_through_the_tools(tmp_path):
+    ics = tmp_path / "r.ics"
+    ics.write_text(RECURRING, encoding="utf-8")
+    calendar = Calendar([IcsCalendar(str(ics))], clock=lambda: NOW)
+    registry = ToolRegistry()
+    for tool in calendar_tools(calendar):
+        registry.register(tool)
+    core = ToolCore(registry, PermissionManager())
+    assert "Sport" in run(core, "list_events").message  # lundi 5 octobre : occurrence de la répétition hebdomadaire

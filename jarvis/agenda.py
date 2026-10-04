@@ -4,7 +4,7 @@ Fournisseurs (interface ``CalendarProvider``, sans dépendance externe) :
 - ``LocalCalendar`` : événements créés par la voix, dans data/calendar.json (lecture et écriture) ;
 - ``IcsCalendar`` : fichier .ics ou adresse iCal privée (lecture seule). Google Agenda et Outlook fournissent une
   « adresse secrète au format iCal » : la renseigner dans [calendar] ics suffit pour lire leurs événements.
-  Limites : les répétitions (RRULE) ne sont pas développées (seule la première occurrence compte).
+  Répétitions (RRULE quotidienne, hebdomadaire, mensuelle, annuelle, exceptions EXDATE) et fuseaux (TZID) gérés.
 ``Calendar`` réunit plusieurs fournisseurs ; les ajouts vont au calendrier local.
 """
 
@@ -18,8 +18,8 @@ import threading
 import time
 import urllib.request
 import uuid
-from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from dataclasses import dataclass, replace
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Callable, Protocol
 
@@ -45,6 +45,8 @@ class CalendarEvent:
     all_day: bool = False
     location: str = ""
     source: str = "local"
+    rule: str = ""  # RRULE iCalendar (répétition), développée à la lecture
+    exdates: tuple[datetime, ...] = ()
 
     def as_dict(self) -> dict:
         return {"id": self.id, "title": self.title, "start": self.start.isoformat(), "end": self.end.isoformat(),
@@ -112,26 +114,91 @@ class LocalCalendar:
             return True
 
 
-def _ics_datetime(value: str) -> tuple[datetime, bool]:
-    """Valeur DTSTART/DTEND (après les paramètres) -> (datetime local, journée entière)."""
+def _ics_datetime(value: str, tzid: str = "") -> tuple[datetime, bool]:
+    """Valeur DTSTART/DTEND -> (date et heure locales, journée entière) : UTC (« Z ») et fuseaux nommés (TZID)
+    convertis à l'heure de la machine (Europe/Paris pour le Core)."""
     value = value.strip()
     if re.fullmatch(r"\d{8}", value):
         return datetime.strptime(value, "%Y%m%d"), True
-    utc = value.endswith("Z")
     moment = datetime.strptime(value.rstrip("Z"), "%Y%m%dT%H%M%S")
-    if utc:  # heure UTC -> heure locale de la machine ; sinon heure locale (TZID ignoré)
-        moment = _utc_to_local(moment)
+    if value.endswith("Z"):
+        return _to_local(moment.replace(tzinfo=timezone.utc)), False
+    if tzid:
+        try:
+            from zoneinfo import ZoneInfo
+
+            return _to_local(moment.replace(tzinfo=ZoneInfo(tzid.strip('"')))), False
+        except Exception:  # fuseau inconnu (identifiant Windows...) : heure prise telle quelle
+            pass
     return moment, False
 
 
-def _utc_to_local(moment: datetime) -> datetime:
-    from datetime import timezone
+def _to_local(moment: datetime) -> datetime:
+    return moment.astimezone().replace(tzinfo=None)
 
-    return moment.replace(tzinfo=timezone.utc).astimezone().replace(tzinfo=None)
+
+def _utc_to_local(moment: datetime) -> datetime:
+    return _to_local(moment.replace(tzinfo=timezone.utc))
+
+
+WEEKDAY_CODES = {"MO": 0, "TU": 1, "WE": 2, "TH": 3, "FR": 4, "SA": 5, "SU": 6}
+MAX_OCCURRENCES = 2000
+
+
+def _add_months(moment: datetime, months: int) -> datetime | None:
+    month = moment.month - 1 + months
+    try:
+        return moment.replace(year=moment.year + month // 12, month=month % 12 + 1)
+    except ValueError:  # 31 février : ce mois-là est sauté
+        return None
+
+
+def occurrences(event: CalendarEvent, start: datetime, end: datetime) -> list[CalendarEvent]:
+    """Occurrences d'un événement répété (RRULE : FREQ DAILY / WEEKLY / MONTHLY / YEARLY, INTERVAL, COUNT, UNTIL,
+    BYDAY pour les semaines) qui tombent entre ``start`` et ``end`` ; dates exclues (EXDATE) retirées."""
+    if not event.rule:
+        return [event] if event.end > start and event.start < end else []
+    rule = dict(part.split("=", 1) for part in event.rule.split(";") if "=" in part)
+    freq = rule.get("FREQ", "").upper()
+    try:
+        interval = max(1, int(rule.get("INTERVAL", "1")))
+        count = int(rule["COUNT"]) if "COUNT" in rule else None
+        until = _ics_datetime(rule["UNTIL"])[0] if "UNTIL" in rule else None
+    except ValueError:
+        return [event] if event.end > start and event.start < end else []
+    if freq not in ("DAILY", "WEEKLY", "MONTHLY", "YEARLY"):
+        return [event] if event.end > start and event.start < end else []
+    days = sorted(WEEKDAY_CODES[d[-2:]] for d in rule.get("BYDAY", "").split(",") if d[-2:] in WEEKDAY_CODES) \
+        if freq == "WEEKLY" else []
+    duration = event.end - event.start
+    found, produced, step = [], 0, 0
+    while produced < MAX_OCCURRENCES and step < MAX_OCCURRENCES * 7:
+        if freq == "DAILY":
+            candidates = [event.start + timedelta(days=step * interval)]
+        elif freq == "WEEKLY":
+            week = event.start + timedelta(weeks=step * interval) - timedelta(days=event.start.weekday())
+            candidates = [week + timedelta(days=d) for d in (days or [event.start.weekday()])]
+        elif freq == "MONTHLY":
+            candidates = [c for c in [_add_months(event.start, step * interval)] if c]
+        else:
+            candidates = [c for c in [_add_months(event.start, 12 * step * interval)] if c]
+        step += 1
+        for moment in candidates:
+            if moment < event.start:
+                continue
+            if (until is not None and moment > until) or (count is not None and produced >= count) or moment >= end:
+                return found
+            produced += 1
+            if moment in event.exdates or moment + duration <= start:
+                continue
+            found.append(replace(event, id=f"{event.id}@{moment:%Y%m%dT%H%M}", start=moment, end=moment + duration,
+                                 rule=""))
+    return found
 
 
 def parse_ics(text: str, source: str = "ics") -> list[CalendarEvent]:
-    """Événements d'un calendrier iCalendar (VEVENT : SUMMARY, DTSTART, DTEND, LOCATION, UID)."""
+    """Événements d'un calendrier iCalendar (VEVENT : SUMMARY, DTSTART, DTEND, LOCATION, UID, RRULE, EXDATE,
+    fuseaux TZID). Un événement illisible est ignoré, jamais le calendrier entier."""
     unfolded = re.sub(r"\r?\n[ \t]", "", text)
     events, current = [], None
     for line in unfolded.splitlines():
@@ -139,18 +206,36 @@ def parse_ics(text: str, source: str = "ics") -> list[CalendarEvent]:
             current = {}
         elif line == "END:VEVENT" and current is not None:
             try:
-                start, all_day = _ics_datetime(current["DTSTART"])
-                end = _ics_datetime(current["DTEND"])[0] if "DTEND" in current else \
-                    start + (timedelta(days=1) if all_day else timedelta(hours=1))
-                title = current.get("SUMMARY", "Sans titre").replace("\\,", ",").replace("\\;", ";").replace("\\n", " ")
-                events.append(CalendarEvent(current.get("UID", uuid.uuid4().hex[:8])[:64], title[:120], start, end,
-                                            all_day, current.get("LOCATION", "").replace("\\,", ",")[:120], source))
-            except (KeyError, ValueError):
+                start_value, start_params = current["DTSTART"]
+                start, all_day = _ics_datetime(start_value, start_params.get("TZID", ""))
+                if "DTEND" in current:
+                    end = _ics_datetime(current["DTEND"][0], current["DTEND"][1].get("TZID", ""))[0]
+                else:
+                    end = start + (timedelta(days=1) if all_day else timedelta(hours=1))
+                title = current.get("SUMMARY", ("Sans titre", {}))[0]
+                title = title.replace("\\,", ",").replace("\\;", ";").replace("\\n", " ")
+                exdates = []
+                for value, params in current.get("EXDATE", []):
+                    for item in value.split(","):
+                        try:
+                            exdates.append(_ics_datetime(item, params.get("TZID", ""))[0])
+                        except ValueError:
+                            continue
+                events.append(CalendarEvent(current.get("UID", (uuid.uuid4().hex[:8], {}))[0][:64], title[:120], start,
+                                            max(end, start), all_day,
+                                            current.get("LOCATION", ("", {}))[0].replace("\\,", ",")[:120], source,
+                                            current.get("RRULE", ("", {}))[0][:200], tuple(exdates)))
+            except (KeyError, ValueError, TypeError):
                 pass
             current = None
         elif current is not None and ":" in line:
-            key, _, value = line.partition(":")
-            current[key.split(";")[0].upper()] = value
+            head, _, value = line.partition(":")
+            name, *raw = head.split(";")
+            params = dict(p.split("=", 1) for p in raw if "=" in p)
+            if name.upper() == "EXDATE":
+                current.setdefault("EXDATE", []).append((value, params))
+            else:
+                current[name.upper()] = (value, params)
     return events
 
 
@@ -177,7 +262,7 @@ class IcsCalendar:
         return events
 
     def events(self, start: datetime, end: datetime) -> list[CalendarEvent]:
-        return [e for e in self._fetch() if e.end > start and e.start < end]
+        return [o for e in self._fetch() for o in occurrences(e, start, end)]
 
 
 class Calendar:

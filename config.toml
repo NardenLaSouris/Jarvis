@@ -275,7 +275,7 @@ forecast_cache_minutes = 15
 # Agenda (list_events, next_events, search_events, free_slots, add_event, delete_event avec confirmation).
 # Événements ajoutés par la voix : path. Lecture seule d'un calendrier existant : ics = fichier .ics ou adresse
 # iCal secrète (Google Agenda : Paramètres > Adresse secrète au format iCal ; Outlook : Publier un calendrier).
-# L'adresse est un secret : la mettre plutôt dans .env (JARVIS_CALENDAR_ICS=...). Répétitions non développées.
+# L'adresse est un secret : la mettre plutôt dans .env (JARVIS_CALENDAR_ICS=...). Répétitions et fuseaux gérés.
 enabled = true
 path = "data/calendar.json"
 ics = ""
