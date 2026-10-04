@@ -96,6 +96,7 @@ class FailoverLLM:
         self._stopping = threading.Event()
         self._thread: threading.Thread | None = None
         self.on_state: Callable[[str, bool], None] | None = None  # (état, utilisable) à chaque changement
+        self._prompts: list[list[Message]] = []
 
     # --- État ----------------------------------------------------------------------------------------
 
@@ -132,6 +133,8 @@ class FailoverLLM:
             previous, self._state, self._since = self._state, state, self._clock()
         level = logging.INFO if state == ONLINE else logging.WARNING
         log.log(level, "Worker LLM %s : %s -> %s%s", self._url, previous, state, f" ({reason})" if reason else "")
+        if state == ONLINE and previous == OFFLINE:
+            self._rewarm()
         if self.on_state is not None:
             try:
                 self.on_state(state, state == ONLINE)
@@ -170,6 +173,7 @@ class FailoverLLM:
 
     def prime(self, prompts: list[list[Message]]) -> None:
         """Le principal lit les prompts complets ; le secours seulement le prompt court qu'il utilisera."""
+        self._prompts = prompts
         compact = [[Message("system", self.compact_system()), Message("user", "Bonjour.")]] if self.compact_system \
             else prompts
         self._each("préparation des prompts", lambda llm: llm.prime(prompts), lambda llm: llm.prime(compact))
@@ -240,6 +244,20 @@ class FailoverLLM:
             log.warning("LLM principal indisponible (%s, %s : %s) : mode dégradé", self._url, kind, exc)
         self._down_since = self._clock()
         self._set_state(OFFLINE if kind == "unreachable" else DEGRADED, kind)
+
+    def _rewarm(self) -> None:
+        """Worker revenu (redémarrage d'Ollama, machine rallumée) : le modèle et les prompts sont rechargés en fond,
+        pour que la première demande ne paie pas le chargement (7 s mesurées sur le Katana)."""
+        def run() -> None:
+            try:
+                self._primary.warm_up()
+                if self._prompts:
+                    self._primary.prime(self._prompts)
+                log.info("Worker LLM %s : modèle et prompts rechargés", self._url)
+            except Exception as exc:
+                log.warning("Worker LLM %s : rechargement impossible (%s)", self._url, exc)
+
+        threading.Thread(target=run, name="llm-rechargement", daemon=True).start()
 
     def probe(self) -> str:
         """Vérifie le worker (connexion TCP courte) et met l'état à jour ; rend l'état."""

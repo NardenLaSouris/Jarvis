@@ -224,3 +224,20 @@ def test_tcp_reachable_on_a_closed_port():
         s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]
     assert not tcp_reachable(f"http://127.0.0.1:{port}", timeout=0.5)
+
+
+def test_worker_back_online_is_warmed_up_again_in_background():
+    import time as clock_time
+
+    primary, local = FakeLLM("katana"), FakeLLM("local")
+    llm, state = failover(primary, local)
+    llm.prime([HELLO, HELLO])
+    state["up"] = False
+    llm.probe()
+    state["up"] = True
+    llm.probe()
+    for _ in range(50):
+        if primary.warmed and len(primary.primed) == 2:
+            break
+        clock_time.sleep(0.02)
+    assert primary.warmed == 1 and primary.primed == [2, 2]  # modèle et prompts rechargés au retour
