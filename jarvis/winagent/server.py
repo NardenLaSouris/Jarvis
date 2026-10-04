@@ -39,6 +39,7 @@ RATES = range(8000, 48001)
 FRAMES = range(160, 16001)
 STATUS = {TOOL_NOT_FOUND: 404, INVALID_PARAMETERS: 400}
 FACE_REOPEN_AFTER = 300.0
+MUSIC_PATHS = ("/audio/music", "/audio/music/stop", "/audio/music/duck", "/audio/music/volume")
 
 
 def _number(query: dict, name: str, allowed: range) -> int | None:
@@ -63,10 +64,16 @@ class _BaseHandler(JsonHandler):
 
 class AgentServer:
     def __init__(self, config: AgentConfig, actions: ToolRegistry | None = None, audio: AudioRelay | None = None,
-                 open_page: Callable[[str], object] | None = None, clock: Callable[[], float] = time.monotonic):
+                 open_page: Callable[[str], object] | None = None, clock: Callable[[], float] = time.monotonic,
+                 music=None):
         self.config = config
         self.actions = actions if actions is not None else ToolRegistry()
         self.audio = audio if audio is not None else AudioRelay(config.input_device, config.output_device)
+        if music is None:
+            from jarvis.winagent.music import MusicPlayer
+
+            music = MusicPlayer(config.output_device)
+        self.music = music
         self._open_page = open_page or _open_in_browser
         self._clock = clock
         self._core_left: float | None = None
@@ -92,6 +99,7 @@ class AgentServer:
             self._httpd.server_close()
             self._httpd = None
         self.audio.close()
+        self.music.close()
 
     def core_connected(self, ip: str) -> None:
         """Le Core vient de se connecter : son visage s'ouvre sur ce PC, sauf s'il était déjà là il y a peu."""
@@ -143,11 +151,12 @@ class AgentServer:
                 path, query = self._route()
                 if path is None:
                     return
-                if not (path.startswith("/actions/") or path in ("/audio/output", "/audio/drain", "/audio/stop")):
+                if not (path.startswith("/actions/") or path in ("/audio/output", "/audio/drain", "/audio/stop")
+                        or path in MUSIC_PATHS):
                     return self._error(404, "not_found")
                 if not self._authenticated():
                     return
-                body = self._body(MAX_AUDIO if path == "/audio/output" else MAX_BODY)
+                body = self._body(MAX_AUDIO if path in ("/audio/output", "/audio/music") else MAX_BODY)
                 if body is None:
                     return
                 if path == "/audio/output":
@@ -158,6 +167,8 @@ class AgentServer:
                 if path == "/audio/stop":
                     agent.audio.stop()
                     return self._json(200, {"status": "ok"})
+                if path in MUSIC_PATHS:
+                    return self._music(path, query, body)
                 self._json(*agent._run(path.removeprefix("/actions/"), body))
 
             def _route(self) -> tuple[str | None, dict]:
@@ -175,6 +186,26 @@ class AgentServer:
                 log.warning("Agent : jeton refusé pour %s", self.client_address[0])
                 self._error(401, "unauthorized")
                 return False
+
+            def _music(self, path: str, query: dict, body: bytes) -> None:
+                """Musique (Spotify relayé par le Core) : morceaux PCM stéréo, arrêt, baisse pendant la voix."""
+                try:
+                    if path == "/audio/music":
+                        rate, channels = _number(query, "rate", RATES), _number(query, "channels", range(1, 3))
+                        if rate is None or channels is None or len(body) % (2 * channels):
+                            return self._error(400, "bad_request")
+                        agent.music.feed(body, rate, channels)
+                    elif path == "/audio/music/stop":
+                        agent.music.stop()
+                    else:
+                        level = _number(query, "percent", range(0, 101))
+                        if level is None:
+                            return self._error(400, "bad_request")
+                        (agent.music.duck if path == "/audio/music/duck" else agent.music.set_volume)(level / 100)
+                except Exception:
+                    log.exception("Agent : musique impossible")
+                    return self._error(503, "audio_unavailable")
+                self._json(200, {"status": "ok", "buffered_s": round(agent.music.buffered_seconds, 2)})
 
             def _play(self, query: dict, body: bytes) -> None:
                 rate = _number(query, "rate", RATES)

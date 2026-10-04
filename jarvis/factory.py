@@ -253,11 +253,27 @@ def build_spotify(cfg: Config):
         return None
     from jarvis.spotify import SpotifyClient
 
-    client = SpotifyClient(secret("SPOTIFY_CLIENT_ID", ENV_FILE), cfg.spotify.token_path)
+    client = SpotifyClient(secret("SPOTIFY_CLIENT_ID", ENV_FILE), cfg.spotify.token_path, device=cfg.spotify.device)
     if not client.configured:
         log.info("Spotify non relié (SPOTIFY_CLIENT_ID et python -m jarvis --spotify-login) : touches multimédia seules")
         return None
     return client
+
+
+def build_music_relay(cfg: Config):
+    """Relais de la musique de librespot (tube) vers la sortie de la voix, si [spotify] device et [audio] remote sont
+    renseignés ; None sinon."""
+    if not (cfg.spotify.device and cfg.audio.remote):
+        return None
+    from jarvis.audio.music import MusicRelay
+
+    relay = MusicRelay(cfg.spotify.pipe, cfg.audio.remote, secret("JARVIS_AGENT_TOKEN", ENV_FILE), cfg.spotify.duck_percent)
+    try:
+        relay.start()
+    except OSError as exc:
+        log.warning("Musique Spotify : relais impossible (%s)", exc)
+        return None
+    return relay
 
 
 def build_calendar(cfg: Config):
@@ -499,10 +515,11 @@ def build_agent(
 
         extra += memory_tools(memory, current_user)
     spotify = build_spotify(cfg)
+    music = build_music_relay(cfg) if spotify is not None else None
     if spotify is not None:
         from jarvis.spotify import spotify_tools
 
-        extra += spotify_tools(spotify)
+        extra += spotify_tools(spotify, on_pause=music.stop if music is not None else None)
     calendar = build_calendar(cfg)
     if calendar is not None:
         from jarvis.agenda import calendar_tools
@@ -513,6 +530,16 @@ def build_agent(
     tools = build_tools(cfg, personality, events, timers, weather, devices,
                         light_tools_for(rooms, driver, cfg.lights.scenes, home), extra)
     speaker["core"] = tools
+    if music is not None:
+        from jarvis.audio.music import DuckingSink
+
+        sink = DuckingSink(sink, music)
+        forward = on_event
+
+        def on_event(kind: str, text: str, forward=forward) -> None:
+            music.on_event(kind)
+            if forward is not None:
+                forward(kind, text)
     routines = build_routines(cfg, tools, notifications, events, sink, timers, calendar)
     api = build_api(cfg, tools, routines, web=web, devices=devices, rooms=rooms, driver=driver, timers=timers,
                     worker=llm if hasattr(llm, "probe") else None, home=home, memory=memory,

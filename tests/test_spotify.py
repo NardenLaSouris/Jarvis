@@ -96,7 +96,7 @@ def test_login_checks_the_state_and_stores_the_token(tmp_path, monkeypatch):
     fake = FakeSpotify()
     shown = []
     monkeypatch.setattr(module, "_default_http", fake)
-    monkeypatch.setattr(module.SpotifyClient.__init__, "__defaults__", (fake, 6.0, module.time.time))
+    monkeypatch.setattr(module.SpotifyClient.__init__, "__defaults__", (fake, 6.0, module.time.time, ""))
     state = {}
 
     def ask(prompt):

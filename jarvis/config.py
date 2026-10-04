@@ -154,6 +154,11 @@ class CalendarConfig:
 class SpotifyConfig:
     enabled: bool = True
     token_path: Path = Path("data/spotify_token.json")
+    # Lecture par JARVIS lui-même (librespot sur le Core, appareil Spotify Connect « device »), relayée vers la sortie
+    # de la voix ([audio] remote) ; vide = la musique joue sur un appareil Spotify existant (PC, téléphone).
+    device: str = ""
+    pipe: Path = Path("data/music.fifo")
+    duck_percent: int = 15
 
 
 @dataclass(frozen=True)

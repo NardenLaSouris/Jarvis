@@ -73,8 +73,9 @@ def _default_http(method: str, url: str, headers: dict, body: bytes | None, time
 
 class SpotifyClient:
     def __init__(self, client_id: str, token_path: Path, http: Callable = _default_http, timeout: float = 6.0,
-                 clock: Callable[[], float] = time.time):
+                 clock: Callable[[], float] = time.time, device: str = ""):
         self._client_id = client_id
+        self.device = device  # appareil préféré (« JARVIS » : librespot sur le Core)
         self._path = Path(token_path)
         self._http, self._timeout, self._clock = http, timeout, clock
 
@@ -152,8 +153,12 @@ class SpotifyClient:
             return {}
 
     def _device(self) -> str | None:
-        """Appareil actif ; à défaut, le premier disponible (la lecture y est transférée)."""
+        """Appareil préféré (« JARVIS ») s'il est configuré et présent, sinon l'appareil actif, sinon le premier
+        disponible (la lecture y est transférée)."""
         devices = self.call("GET", "/me/player/devices").get("devices", [])
+        preferred = next((d for d in devices if self.device and d.get("name", "").lower() == self.device.lower()), None)
+        if preferred is not None:
+            return None if preferred.get("is_active") else preferred["id"]
         active = next((d for d in devices if d.get("is_active")), None)
         if active:
             return None
@@ -191,7 +196,7 @@ class SpotifyClient:
         return name
 
 
-def spotify_tools(client: SpotifyClient) -> list[Tool]:
+def spotify_tools(client: SpotifyClient, on_pause: Callable[[], None] | None = None) -> list[Tool]:
     def play(query: str | None = None, kind: str | None = None) -> dict:
         name = client.play(query, kind or "track")
         return {"playing": name or "la lecture", "kind": kind or "track"}
@@ -199,6 +204,8 @@ def spotify_tools(client: SpotifyClient) -> list[Tool]:
     def simple(method: str, path: str, message: str, query: dict | None = None):
         def run() -> dict:
             client.call(method, path, query)
+            if on_pause is not None and path.endswith(("/pause", "/next", "/previous")):
+                on_pause()  # musique relayée par JARVIS : la file de l'agent est vidée aussitôt
             return {"message": message}
         return run
 
