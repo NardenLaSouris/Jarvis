@@ -16,7 +16,7 @@ sys.path.insert(0, str(ROOT / "tests"))
 
 import jarvis.tools.applications as apps_module  # noqa: E402
 import jarvis.tools.audio as audio_module  # noqa: E402
-from jarvis.tools import PermissionManager, ToolCore, ToolRegistry, builtin_tools  # noqa: E402
+from jarvis.tools import PermissionManager, ToolCore, ToolError, ToolRegistry, builtin_tools  # noqa: E402
 from jarvis.tools.builtin import PC_TOOLS  # noqa: E402
 from jarvis.tools.devices import AgentClient, load_devices, remote_tool  # noqa: E402
 from jarvis.tools.planner import plan_schema, planner_prompt  # noqa: E402
@@ -196,3 +196,54 @@ def test_routes_are_unchanged_by_devices(machines):
     pc, laptop = machines
     spoken, events = converse(["Quelle heure est-il ?"], PlannerLLM(), devices_for(pc.url, laptop.url))
     assert routes(events) == ["tool:time"] and PERSONALITY.assistant_name == "JARVIS"
+
+
+# --- Agents défaillants (session red team) ---------------------------------------------------------
+
+def test_absent_agent_is_reported_within_two_seconds():
+    import socket
+    import time
+
+    from jarvis.tools.devices import AgentClient, Device
+
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    client = AgentClient("t" * 40, timeout=12)
+    started = time.perf_counter()
+    with pytest.raises(ToolError) as error:
+        client.call(Device("pc", "votre PC", f"http://127.0.0.1:{port}", ()), "system_info", {})
+    assert error.value.code == "device_unreachable" and time.perf_counter() - started < 2
+
+
+def test_garbage_from_an_agent_never_crashes_the_core():
+    import http.server
+    import threading
+
+    from jarvis.tools.devices import AgentClient, Device
+
+    replies = iter([(200, b"pas du json"), (200, b'{"status": "ok"}'), (500, b"<html>erreur</html>"),
+                    (418, b'{"error": 42, "message": ["x"]}')])
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_POST(self):
+            status, body = next(replies)
+            self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            self.send_response(status)
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args):
+            pass
+
+    server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    device = Device("pc", "votre PC", f"http://127.0.0.1:{server.server_address[1]}", ())
+    client = AgentClient("t" * 40, timeout=3)
+    try:
+        for _ in range(4):
+            with pytest.raises(ToolError) as error:
+                client.call(device, "system_info", {})
+            assert isinstance(error.value.message, str) and error.value.message
+    finally:
+        server.shutdown()

@@ -88,13 +88,22 @@ def load_devices(table: dict) -> Devices | None:
 class AgentClient:
     """Appelle ``POST /actions/<outil>`` sur l'agent d'un appareil, avec le jeton partagé."""
 
-    def __init__(self, token: str, timeout: float = 12.0):
+    def __init__(self, token: str, timeout: float = 12.0, reachable=None):
         if not token:
             raise ValueError("JARVIS_AGENT_TOKEN est requis pour agir sur les appareils ([tools.devices]).")
         self._headers = {"Authorization": f"Bearer {token.strip()}", "Content-Type": "application/json"}
         self._timeout = timeout
+        if reachable is None:
+            from jarvis.llm.failover import tcp_reachable
+
+            reachable = lambda url: tcp_reachable(url, 1.0)  # noqa: E731
+        self._reachable = reachable
 
     def call(self, device: Device, tool: str, parameters: dict) -> dict:
+        # Vérification rapide : un PC éteint ou un agent arrêté est signalé en 1 s, pas au bout du délai complet.
+        if not self._reachable(device.url):
+            log.warning("Agent %s injoignable", device.url)
+            raise ToolError(DEVICE_UNREACHABLE, f"{device.Name} ne répond pas.")
         body = json.dumps({"parameters": parameters}).encode()
         request = urllib.request.Request(f"{device.url}/actions/{tool}", data=body, headers=self._headers)
         try:
@@ -107,8 +116,11 @@ class AgentClient:
                 data = {}
             if exc.code == 401:
                 log.warning("Agent %s : jeton refusé", device.url)
-            raise ToolError(data.get("error", EXECUTION_FAILED),
-                            data.get("message") or f"{device.Name} a refusé l'action.") from exc
+            code, message = data.get("error") if isinstance(data, dict) else None,                 data.get("message") if isinstance(data, dict) else None
+            # Réponse d'agent non fiable : seuls un code et un message textuels courts sont repris.
+            raise ToolError(code[:48] if isinstance(code, str) and code else EXECUTION_FAILED,
+                            message[:200] if isinstance(message, str) and message.strip()
+                            else f"{device.Name} a refusé l'action.") from exc
         except (OSError, ValueError, KeyError) as exc:
             log.warning("Agent %s injoignable : %s", device.url, type(exc).__name__)
             raise ToolError(DEVICE_UNREACHABLE, f"{device.Name} ne répond pas.") from exc
