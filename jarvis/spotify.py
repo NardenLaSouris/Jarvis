@@ -100,14 +100,18 @@ class SpotifyCatalog:
         return [name for name, _ in counts.most_common(limit)]
 
     def refresh(self, client: "SpotifyClient", max_tracks: int = 5000) -> int:
-        tracks, seen = [], set()
+        tracks, seen, skipped = [], set(), 0
         playlists = client.call("GET", "/me/playlists", {"limit": 50}).get("items", [])
         for playlist in playlists:
             if not playlist or not playlist.get("id"):
                 continue
             offset = 0
             while len(tracks) < max_tracks:
-                page = client.call("GET", f"/playlists/{playlist['id']}/items", {"limit": 100, "offset": offset})
+                try:
+                    page = client.call("GET", f"/playlists/{playlist['id']}/items", {"limit": 100, "offset": offset})
+                except ToolError:  # playlist suivie mais pas à vous : illisible en mode développement, ignorée
+                    skipped += 1
+                    break
                 for entry in page.get("items", []):
                     track = (entry or {}).get("item") or (entry or {}).get("track") or {}
                     uri = track.get("uri", "")
@@ -122,7 +126,8 @@ class SpotifyCatalog:
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._path.write_text(json.dumps({"updated": self._updated, "tracks": tracks}, ensure_ascii=False),
                               encoding="utf-8")
-        log.info("Catalogue Spotify : %d titres de vos playlists", len(tracks))
+        log.info("Catalogue Spotify : %d titres de vos playlists (%d playlist(s) illisible(s) ignorée(s))", len(tracks),
+                 skipped)
         return len(tracks)
 
 
