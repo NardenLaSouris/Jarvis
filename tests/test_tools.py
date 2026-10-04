@@ -1014,3 +1014,10 @@ def test_hung_tools_never_block_the_others():
         assert core.submit(call("get_time")).result.success  # aucune file d'exécution saturée
     finally:
         release.set()
+
+
+def test_unrecognised_action_is_not_called_an_unavailable_feature():
+    llm = PlannerLLM({"type": "none"}, reply="C'est fait, la lumière est rallumée.")
+    spoken, events = run_agent(["Rallume celle du fond."], llm, make_core())
+    assert routes(events)[0] == "tool:tool.action"
+    assert "pas encore disponible" not in spoken[0] and ("reformuler" in spoken[0] or "préciser" in spoken[0])

@@ -32,6 +32,12 @@ style_examples = [
 not_understood = ["Pardon, je n'ai pas bien compris. Pouvez-vous répéter ?", "Je n'ai pas saisi, {title}. Vous pouvez répéter ?"]
 # Réponse au wake word.
 wake = ["Oui, {title} ?", "{Title} ?", "Je vous écoute, {title}.", "À votre service, {title}."]
+# Demande d'action qu'aucun outil n'a reconnue (le LLM ne peut pas l'avoir faite) : JARVIS le dit sans prétendre
+# que la fonction n'existe pas.
+action_unclear = [
+    "Je n'ai pas bien compris quelle action faire, {title}. Pouvez-vous reformuler ?",
+    "Pardon, {title}, je ne vois pas quelle action vous attendez. Pouvez-vous préciser ?",
+]
 # Mode dégradé : le worker LLM (Katana) est hors ligne ; seules les commandes simples sont comprises.
 degraded_unknown = [
     "Mon module de réflexion est hors ligne, {title} : pour l'instant, je ne comprends que les commandes simples, comme « allume la chambre » ou « mets le son à 30 % ».",
@@ -299,7 +305,7 @@ planner = true
 match = "contains"
 replaces = ["unavailable_computer", "unavailable_reminders", "unavailable_realtime", "unavailable_home"]
 patterns = [
-    "allume", "allumer", "eteins", "eteindre", "lumiere", "lumieres", "lampe", "lampes", "ampoule", "ampoules",
+    "allume", "allumer", "rallume", "rallumer", "eteins", "eteindre", "reteins", "lumiere", "lumieres", "lampe", "lampes", "ampoule", "ampoules",
     "luminosite", "eclairage", "en rouge", "en orange", "en jaune", "en vert", "en cyan", "en bleu", "en violet",
     "en magenta", "en rose", "en blanc", "blanc chaud", "blanc froid", "blanc neutre", "kelvin", "kelvins",
     "lumiere chaude", "lumiere froide", "mode cinema", "mode lecture", "mode nuit", "mode detente", "mode travail",

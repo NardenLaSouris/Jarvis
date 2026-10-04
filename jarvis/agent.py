@@ -220,6 +220,7 @@ class Agent:
         self._context = ConversationContext(tools.registry, settings.assistant_name) if tools is not None else None
         self._interrupted = False
         self._last_outcome = None
+        self._action_unclear = False
         self._last_tool_request = ""
         self._place: str | None = None
         self._corrector = corrector
@@ -320,7 +321,10 @@ class Agent:
             elif (contextual := self._context.resolve(text) if self._context is not None else None) is not None:
                 latency["route"] = "tool:context"
                 self._event("routing", latency["route"])
-                reply, end = self._run_call(history, text, contextual, latency), False
+                if contextual.get("type") == "tool_calls":
+                    reply, end = self._use_tools(history, text, contextual["calls"], latency), False
+                else:
+                    reply, end = self._run_call(history, text, contextual, latency), False
             else:
                 follow_up = self._tool_follow_up(text)
                 self._last_tool_request = ""
@@ -395,6 +399,7 @@ class Agent:
                     data = self._quick(text, latency)
             latency["tool_plan"] = time.perf_counter() - started
             if data is None:
+                self._action_unclear = True  # demande d'action sans outil reconnu : pas de « fonction indisponible »
                 fallback = self._router.route(text, tools=False)
                 latency["route"] = fallback.label
                 self._event("routing", f"{fallback.label} (aucun outil)")
@@ -629,6 +634,9 @@ class Agent:
             messages[-1] = Message("user", tool_request(text, tool_result))
         succeeded = tool_result is not None and tool_result.success
         fallback = tool_result.message if tool_result is not None and not tool_result.success else None
+        if fallback is None and self._action_unclear:
+            fallback = self._router.phrase("action_unclear")
+        self._action_unclear = False
         marks: dict[str, float] = {}
         failed, spoken = [], []
 

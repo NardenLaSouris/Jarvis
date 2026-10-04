@@ -36,7 +36,21 @@ class JsonHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _error(self, status: int, error: str, message: str = "") -> None:
+        self._drain()
         self._json(status, {"status": "error", "error": error, **({"message": message} if message else {})})
+
+    def _drain(self, limit: int = 1_000_000) -> None:
+        """Corps non lu (refus, adresse inconnue) : lu et jeté avant de répondre, sinon le client qui l'envoie encore
+        voit sa connexion coupée (Windows : « connexion abandonnée ») au lieu de recevoir l'erreur."""
+        if getattr(self, "_body_read", False) or self.command not in ("POST", "PUT", "PATCH"):
+            return
+        self._body_read = True
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except (TypeError, ValueError):
+            return
+        if 0 < length <= limit:
+            self.rfile.read(length)
 
     def _body(self, limit: int) -> bytes | None:
         """Corps de la requête (au plus ``limit`` octets) ; None après avoir répondu 400 ou 413."""
@@ -46,8 +60,10 @@ class JsonHandler(BaseHTTPRequestHandler):
             self._error(400, "bad_request")
             return None
         if not 0 <= length <= limit:
+            self._body_read = True  # trop gros : non lu, la connexion sera fermée
             self._error(413, "body_too_large")
             return None
+        self._body_read = True
         return self.rfile.read(length)
 
     def log_message(self, fmt, *args):

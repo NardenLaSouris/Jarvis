@@ -267,3 +267,14 @@ def test_errors_go_to_the_log_file_when_started_without_window(tmp_path):
             handler.close()
         root.handlers = handlers
     assert "JARVIS_AGENT_TOKEN" in log.read_text(encoding="utf-8")
+
+
+def test_refused_requests_with_a_body_get_their_error_not_a_reset():
+    server = agent()
+    try:
+        big = {"parameters": {"x": "y" * 50_000}}
+        for _ in range(20):
+            assert request(server, "/run", "POST", big, token=TOKEN)[0] == 404
+            assert request(server, "/actions/system_info", "POST", big, token="x" * 40)[0] == 401
+    finally:
+        server.stop()

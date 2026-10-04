@@ -83,3 +83,13 @@ def test_on_off_verbs_alone_follow_the_previous_room():
     assert spoken[2] == "La lumière de la chambre est éteinte." and spoken[3] == "La lumière de la chambre est allumée."
     assert driver.lights["entree"]["on"] is False and ("entree", "power", False) not in driver.calls
     assert routes(events)[-1].startswith("critical") and len(spoken) == 5
+
+
+def test_the_other_one_and_not_that_one():
+    driver = FakeDriver()
+    spoken, events = run_agent(["Allume la chambre.", "Pas celle-là.", "L'autre aussi.", "Mets la chambre en bleu.",
+                                "Non, l'autre."], PlannerLLM(), full_core(driver), fast_path=True)
+    assert spoken[1] == "La lumière de la chambre est éteinte."  # « pas celle-là » : la chambre est rééteinte...
+    assert spoken[2] == "La lumière de l'entrée est allumée."  # ... et l'autre pièce allumée
+    assert driver.lights["entree"]["hue"] == 240 and spoken[-1] == "La lumière de l'entrée est en bleu."
+    assert routes(events).count("tool:context") == 3

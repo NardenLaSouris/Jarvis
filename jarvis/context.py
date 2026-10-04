@@ -28,6 +28,9 @@ LIGHTS = ("light_on", "light_off", "light_toggle", "set_brightness", "set_color"
 SOUND = ("set_volume", "mute_volume", "unmute_volume")
 ON_OFF = {"allume": "light_on", "rallume": "light_on", "allumes": "light_on", "eteins": "light_off",
           "eteint": "light_off", "reteins": "light_off", "coupe": "light_off"}
+OTHER_ONE = {"l autre", "l autre aussi", "et l autre", "l autre lumiere", "l autre piece", "l autre aussi stp"}
+WRONG_ONE = {"pas celle la", "pas celle ci", "pas celle la l autre", "l autre plutot", "pas la bonne", "c est l autre",
+             "pas celle la plutot l autre", "je voulais dire l autre", "mauvaise piece"}
 DAY_WORDS = {"demain": "tomorrow", "apres demain": "day_after_tomorrow", "aujourd hui": "today", "hier": "yesterday"}
 WEATHER_DAYS = {"demain": "tomorrow", "apres demain": "day_after_tomorrow", "aujourd hui": "today"}
 
@@ -87,7 +90,11 @@ class ConversationContext:
             level = _percent_raw(text)
             if level is not None and self._only(rest, {str(level)}):
                 call = {"tool": "set_volume", "parameters": {"volume": level}}
-        if call is None or not self._registry.exists(call["tool"]):
+        if call is None:
+            return None
+        if call.get("type") == "tool_calls":
+            return call if all(self._registry.exists(c["tool"]) for c in call["calls"]) else None
+        if not self._registry.exists(call["tool"]):
             return None
         return {"type": "tool_call", **call}
 
@@ -106,11 +113,40 @@ class ConversationContext:
                 return {"tool": tool, "parameters": {**parameters, "day": day}}
         return None
 
+    def _rooms(self):
+        """Pièces des lumières (objet Rooms derrière le paramètre « room »), ou None."""
+        param = self._room_param("light_on")
+        return getattr(getattr(param, "check", None), "__self__", None) if param is not None else None
+
+    def _other(self, rest: str, tool: str, previous: dict, visible: dict) -> dict | None:
+        """« L'autre. » : même action sur l'autre pièce ; « Pas celle-là. » : annule l'allumage ou l'extinction de la
+        pièce précédente puis fait l'action sur l'autre. Seulement quand « l'autre » est sans ambiguïté (deux pièces)."""
+        switch = rest in WRONG_ONE
+        if not switch and rest not in OTHER_ONE:
+            return None
+        rooms = self._rooms()
+        keys = [r.key for r in rooms.rooms()] if rooms is not None else []
+        current = previous.get("room")
+        others = [k for k in keys if k != current]
+        if current not in keys or len(others) != 1:
+            return None
+        calls = []
+        if switch and tool in ("light_on", "light_off"):
+            undo = "light_off" if tool == "light_on" else "light_on"
+            calls.append({"tool": undo, "parameters": {"room": current}, "segment": rest})
+        calls.append({"tool": tool, "parameters": {**visible, "room": others[0]}, "segment": rest})
+        if len(calls) == 1:
+            return {"tool": tool, "parameters": calls[0]["parameters"]}
+        return {"type": "tool_calls", "calls": calls}
+
     def _light(self, rest: str, text: str, tool: str, previous: dict) -> dict | None:
         room = self._named_room(text)
         visible = {k: v for k, v in previous.items() if k != "room"}
         same_room = {"room": room} if room else ({"room": previous["room"]} if "room" in previous else {})
         room_words = (self._room_words(rest) | set(room[1:].split()) if room.startswith("?") else self._room_words(rest))             if room else set()
+        other = self._other(rest, tool, previous, visible)
+        if other is not None:
+            return other
         verb = rest.split()[0] if rest.split() else ""
         if verb in ON_OFF and self._only(" ".join(rest.split()[1:]), {*room_words, "le", "la", "les", "aussi"}):
             # « Non, éteins. », « Rallume. », « Éteins-la » : même pièce que l'action précédente
