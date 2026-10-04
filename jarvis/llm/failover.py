@@ -249,13 +249,16 @@ class FailoverLLM:
         """Worker revenu (redémarrage d'Ollama, machine rallumée) : le modèle et les prompts sont rechargés en fond,
         pour que la première demande ne paie pas le chargement (7 s mesurées sur le Katana)."""
         def run() -> None:
-            try:
-                self._primary.warm_up()
-                if self._prompts:
-                    self._primary.prime(self._prompts)
-                log.info("Worker LLM %s : modèle et prompts rechargés", self._url)
-            except Exception as exc:
-                log.warning("Worker LLM %s : rechargement impossible (%s)", self._url, exc)
+            for attempt in (1, 2):  # Ollama tout juste démarré peut refuser le premier chargement
+                try:
+                    self._primary.warm_up()
+                    if self._prompts:
+                        self._primary.prime(self._prompts)
+                    log.info("Worker LLM %s : modèle et prompts rechargés", self._url)
+                    return
+                except Exception as exc:
+                    log.warning("Worker LLM %s : rechargement impossible (essai %d : %s)", self._url, attempt, exc)
+                    self._stopping.wait(5)
 
         threading.Thread(target=run, name="llm-rechargement", daemon=True).start()
 

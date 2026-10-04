@@ -143,4 +143,4 @@ class OllamaLLM:
 
     def warm_up(self) -> None:
         # Une requête sans prompt charge le modèle en mémoire sans rien générer.
-        self._post("/api/generate", {"model": self._model, "keep_alive": self._keep_alive})
+        self._post("/api/generate", {"model": self._model, "keep_alive": self._keep_alive}, timeout=PRIME_TIMEOUT)
