@@ -17,9 +17,11 @@ from jarvis.tools import PermissionManager, ToolCore, ToolRegistry  # noqa: E402
 class FakeSpotify:
     def __init__(self, devices=({"id": "pc", "is_active": True},), premium=True):
         self.calls, self.devices, self.premium, self.tokens = [], list(devices), premium, 0
+        self.urls = []
 
     def __call__(self, method, url, headers, body, timeout):
         self.calls.append((method, url.split("?")[0], body))
+        self.urls.append(url)
         if url == TOKEN_URL:
             self.tokens += 1
             fields = urllib.parse.parse_qs(body.decode())
@@ -116,3 +118,18 @@ def test_pkce_pair_matches_the_specification():
     verifier, challenge = pkce_pair()
     assert 43 <= len(verifier) <= 128
     assert challenge == base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
+
+
+def test_computer_is_preferred_when_nothing_plays(tmp_path):
+    fake = FakeSpotify(devices=[{"id": "tel", "type": "Smartphone", "is_active": False},
+                                {"id": "pc", "type": "Computer", "is_active": False}])
+    run(core_for(client(tmp_path, fake)), "spotify_play", query="Back in Black", kind="track")
+    play = [u for u in fake.urls if "/me/player/play" in u][-1]
+    assert play.endswith("device_id=pc")
+
+
+def test_search_never_asks_for_extra_scopes(tmp_path):
+    fake = FakeSpotify()
+    spotify = client(tmp_path, fake)
+    spotify.find("Back in Black", "track")
+    assert any("/search" in u for u in fake.urls) and all("market" not in u for u in fake.urls)

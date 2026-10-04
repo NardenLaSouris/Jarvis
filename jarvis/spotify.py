@@ -55,6 +55,13 @@ def authorize_url(client_id: str, challenge: str, state: str) -> str:
         "code_challenge_method": "S256", "code_challenge": challenge, "state": state})
 
 
+def _error_message(data: bytes) -> str:
+    try:
+        return str(json.loads(data).get("error", {}).get("message", ""))
+    except (ValueError, AttributeError):
+        return ""
+
+
 def _default_http(method: str, url: str, headers: dict, body: bytes | None, timeout: float) -> tuple[int, bytes]:
     request = urllib.request.Request(url, data=body, headers=headers, method=method)
     try:
@@ -131,7 +138,11 @@ class SpotifyClient:
         if status == 404 and path.startswith("/me/player"):
             raise ToolError(NO_DEVICE, "Aucun appareil Spotify actif : ouvrez Spotify sur un appareil.")
         if status == 403:
-            raise ToolError(SPOTIFY_UNAVAILABLE, "Spotify refuse cette commande (compte Premium nécessaire).")
+            reason = _error_message(data)
+            log.warning("Spotify %s %s refusé : %s", method, path, reason)
+            if "premium" in reason.lower() or path.startswith("/me/player"):
+                raise ToolError(SPOTIFY_UNAVAILABLE, "Spotify refuse cette commande (compte Premium nécessaire).")
+            raise ToolError(SPOTIFY_UNAVAILABLE, "Spotify refuse cette demande.")
         if status >= 400:
             log.warning("Spotify %s %s : %s", method, path, status)
             raise ToolError(EXECUTION_FAILED, "Spotify n'a pas pu exécuter la commande.")
@@ -145,7 +156,9 @@ class SpotifyClient:
             return None
         if not devices:
             raise ToolError(NO_DEVICE, "Aucun appareil Spotify n'est disponible : ouvrez Spotify sur un appareil.")
-        return devices[0]["id"]
+        # Rien ne joue : l'ordinateur d'abord (plutôt que le téléphone dans une poche).
+        preferred = sorted(devices, key=lambda d: 0 if d.get("type") == "Computer" else 1)
+        return preferred[0]["id"]
 
     def find(self, query: str, kind: str) -> tuple[str, str]:
         """(uri, nom) : d'abord vos playlists pour une playlist, sinon la recherche Spotify."""
@@ -155,7 +168,7 @@ class SpotifyClient:
             for playlist in mine:
                 if wanted and wanted <= keywords(playlist.get("name", "")):
                     return playlist["uri"], playlist["name"]
-        found = self.call("GET", "/search", {"q": query, "type": kind, "limit": 1, "market": "from_token"})
+        found = self.call("GET", "/search", {"q": query, "type": kind, "limit": 1})
         items = found.get(f"{kind}s", {}).get("items", [])
         if not items:
             raise ToolError(NOT_FOUND, f"Je ne trouve rien sur Spotify pour « {query[:40]} ».")
