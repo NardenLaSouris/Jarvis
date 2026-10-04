@@ -326,3 +326,28 @@ def test_slow_or_unreachable_spotify_is_reported(tmp_path):
     with pytest.raises(ToolError) as error:
         client(tmp_path, http).call("GET", "/me/player")
     assert error.value.message == "Spotify ne répond pas."
+
+
+def test_track_with_a_volume_sets_the_spotify_volume_not_the_pc(tmp_path):
+    from jarvis.tools.quick import quick_plan
+    from test_tools import make_core
+
+    core = make_core()
+    for tool in spotify_tools(client(tmp_path, FakeSpotify())):
+        core.registry.register(tool)
+    data = quick_plan("Mets Back in Black de AC-DC en volume 30.", core.registry)
+    assert [(c["tool"], c["parameters"]) for c in data["calls"]] == [
+        ("spotify_play", {"query": "Back in Black de AC-DC", "kind": "track"}), ("spotify_volume", {"volume": 30})]
+    assert quick_plan("Mets le volume à 30 %.", core.registry)["tool"] == "set_volume"  # sans musique : le PC
+
+
+def test_volume_right_after_music_targets_spotify(tmp_path):
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from test_tools import PlannerLLM, make_core, run_agent
+
+    fake = FakeSpotify()
+    core = make_core()
+    for tool in spotify_tools(client(tmp_path, fake)):
+        core.registry.register(tool)
+    spoken, _ = run_agent(["Mets Back in Black de AC-DC.", "Mets le volume à 30 %."], PlannerLLM(), core, fast_path=True)
+    assert spoken[1] == "Volume de Spotify à 30 %." and any("volume_percent=30" in u for u in fake.urls)

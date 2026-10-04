@@ -174,6 +174,9 @@ class QuickPlanner:
         """Une commande simple, ou None. ``previous`` : action précédente d'une demande enchaînée (« ..., en bleu »
         hérite des lumières)."""
         norm = normalize(text)
+        combined = self._spotify_with_volume(norm, text) if norm and self._exists("spotify_play") else None
+        if combined is not None:
+            return combined
         memory = self._memory(norm, text) if norm else None
         if memory is None and (not norm or DISQUALIFIERS.search(norm)):
             return None
@@ -219,6 +222,24 @@ class QuickPlanner:
                        "chanson d avant", "morceau d avant", "reviens en arriere")):
             return ("spotify_previous", {}) if spotify else ("media_previous", {})
         return None
+
+    def _spotify_with_volume(self, norm: str, text: str):
+        """« Mets Back in Black d'AC/DC en volume 30 » : le morceau, puis le volume de Spotify (pas celui du PC)."""
+        match = re.search(r"\s+(?:en volume|au volume|volume|a volume|avec le volume a|le volume a|et le volume a|"
+                          r"et mets le volume a|et le son a|au son)\s+(?:a\s+)?(\d{1,3})(?:\s*(?:%|pour ?cent|pourcents?))?\W*$",
+                          text, re.IGNORECASE)
+        norm_match = re.search(r"\s(?:en volume|au volume|volume|le volume a|et le son a|au son)\s+(?:a\s+)?(\d{1,3})"
+                               r"(?:\s+pour ?cent)?$", norm)
+        if not (match and norm_match and self._exists("spotify_volume")) or int(norm_match.group(1)) > 100:
+            return None
+        play = self._spotify(normalize(text[:match.start()]), text[:match.start()], None)
+        if play is None:
+            return None
+        volume = int(norm_match.group(1))
+        return {"type": "tool_calls", "calls": [
+            {"type": "tool_call", "tool": play[0], "parameters": play[1], "segment": text[:match.start()].strip()},
+            {"type": "tool_call", "tool": "spotify_volume", "parameters": {"volume": volume},
+             "segment": text[match.start():].strip(" .")}]}
 
     def _spotify(self, norm, text, previous):
         """« Mets Without Me d'Eminem », « Joue la playlist chill », « Mets de la musique de Daft Punk » ; « Mais » en
@@ -283,7 +304,9 @@ class QuickPlanner:
                 return None
             level = _percent_raw(text)
             if level is not None:
-                if self._exists("spotify_volume") and _has(norm, ("spotify", "musique", "de la musique", "du morceau")):
+                music = (previous or {}).get("tool", "").startswith("spotify_")
+                if self._exists("spotify_volume") and (music or _has(norm, ("spotify", "musique", "de la musique",
+                                                                             "du morceau"))):
                     return "spotify_volume", {"volume": level}  # « le volume de Spotify » : pas celui du PC
                 return "set_volume", {"volume": level}
         return None

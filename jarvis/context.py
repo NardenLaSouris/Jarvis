@@ -26,6 +26,7 @@ FILLERS = {"dans", "le", "la", "les", "l", "de", "du", "des", "a", "au", "aux", 
 LIGHTS = ("light_on", "light_off", "light_toggle", "set_brightness", "set_color", "set_color_temperature",
           "set_scene", "light_status")
 SOUND = ("set_volume", "mute_volume", "unmute_volume")
+MUSIC = ("spotify_play", "spotify_pause", "spotify_next", "spotify_previous", "spotify_volume")
 ON_OFF = {"allume": "light_on", "rallume": "light_on", "allumes": "light_on", "eteins": "light_off",
           "eteint": "light_off", "reteins": "light_off", "coupe": "light_off"}
 OTHER_ONE = {"l autre", "l autre aussi", "et l autre", "l autre lumiere", "l autre piece", "l autre aussi stp"}
@@ -90,6 +91,12 @@ class ConversationContext:
             level = _percent_raw(text)
             if level is not None and self._only(rest, {str(level)}):
                 call = {"tool": "set_volume", "parameters": {"volume": level}}
+        elif tool in MUSIC:
+            # Musique en cours par Spotify : « mets le volume à 30 », « baisse à 20 % » visent le volume de Spotify.
+            level = _percent_raw(text)
+            if level is not None and 0 <= level <= 100 and self._only(rest, {str(level), "volume", "son", "baisse",
+                                                                              "monte", "le", "au", "a"}):
+                call = {"tool": "spotify_volume", "parameters": {"volume": level}}
         if call is None:
             return None
         if call.get("type") == "tool_calls":
