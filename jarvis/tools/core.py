@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+import contextvars
 import threading
 from concurrent.futures import Future
 from concurrent.futures import TimeoutError as FutureTimeout
@@ -28,6 +29,14 @@ from jarvis.tools.request import parse_request
 log = logging.getLogger("jarvis.tools")
 
 DONE, CONFIRM, REJECTED, CANCELLED = "done", "confirm", "rejected", "cancelled"
+
+# Utilisateur de la demande en cours d'exécution, lisible par les outils qui en dépendent (mémoire personnelle) :
+# c'est celui de la demande, pas celui de la conversation (routine du propriétaire, API...).
+REQUEST_USER: contextvars.ContextVar[str] = contextvars.ContextVar("jarvis_request_user", default="")
+
+
+def request_user(default: str = "") -> str:
+    return REQUEST_USER.get() or default
 
 
 @dataclass(frozen=True)
@@ -164,7 +173,9 @@ class ToolCore:
             except BaseException as exc:  # transmis tel quel au Core
                 future.set_exception(exc)
 
-        threading.Thread(target=run, name=f"outil-{tool.name}", daemon=True).start()
+        context = contextvars.copy_context()
+        context.run(REQUEST_USER.set, user)
+        threading.Thread(target=context.run, args=(run,), name=f"outil-{tool.name}", daemon=True).start()
         try:
             output = future.result(timeout=self._timeout)
             result = ToolResult(tool.name, True, result=output, message=tool.say(output) if tool.say else "")

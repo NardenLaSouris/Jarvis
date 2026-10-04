@@ -526,7 +526,10 @@ def build_agent(
     memory = build_memory(cfg)
     extra = []
     speaker = {"core": None}  # utilisateur en cours (profil du terminal), connu une fois le Core des outils créé
-    current_user = lambda: speaker["core"].user if speaker["core"] is not None else "owner"  # noqa: E731
+    from jarvis.tools.core import request_user
+
+    # Utilisateur de la demande exécutée (identité portée par le Core), sinon celui de la conversation.
+    current_user = lambda: request_user(speaker["core"].user if speaker["core"] is not None else "owner")  # noqa: E731
     if memory is not None:
         from jarvis.memory import memory_tools
 

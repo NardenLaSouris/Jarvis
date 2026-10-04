@@ -125,3 +125,21 @@ def test_memory_api_lists_and_deletes(tmp_path):
         assert store.all() == []
     finally:
         api.stop()
+
+
+def test_memory_follows_the_identity_of_each_request(tmp_path):
+    from jarvis.profiles import load_profiles
+    from jarvis.tools import PermissionManager, ToolCore, ToolRegistry
+    from jarvis.tools.core import request_user
+
+    store = MemoryStore(tmp_path / "m.json")
+    registry = ToolRegistry()
+    for tool in memory_tools(store, lambda: request_user("monsieur")):
+        registry.register(tool)
+    profiles = load_profiles({"monsieur": {"role": "owner"}, "lea": {"role": "adult"}}, {})
+    core = ToolCore(registry, PermissionManager(profiles=profiles), user="monsieur")
+    core.submit({"tool": "remember", "parameters": {"fact": "je préfère le bleu"}})
+    core.submit({"tool": "remember", "parameters": {"fact": "j'adore le jazz"}}, user="lea")
+    assert [f["text"] for f in store.all("monsieur")] == ["je préfère le bleu"]
+    assert [f["text"] for f in store.all("lea")] == ["j'adore le jazz"]
+    assert core.submit({"tool": "recall", "parameters": {}}, user="lea").result.result["facts"] == ["vous adorez le jazz"]
