@@ -183,8 +183,11 @@ def test_wrong_token_is_refused_by_the_agent(machines):
 
 
 def test_agent_exposes_only_pc_actions():
+    from jarvis.tools.builtin import FILE_TOOLS
+
     names = {t.name for t in pc_actions({}).list()}
-    assert names == set(PC_TOOLS)
+    assert names == set(PC_TOOLS) - set(FILE_TOOLS)  # fichiers : seulement avec [tools.files]
+    assert set(FILE_TOOLS) <= {t.name for t in pc_actions({"files": {"enabled": True, "roots": {"d": "."}}}).list()}
     assert "get_weather" not in names and "create_timer" not in names
     assert "lock_pc" not in {t.name for t in pc_actions({"lock_pc": {"enabled": False}}).list()}
 

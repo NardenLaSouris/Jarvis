@@ -13,6 +13,13 @@ allowed_ips = ["192.168.1.91"]
 input_device = "Microphone (Voicemod Virtual Au, MME"
 output_device = "Chat (2- TC-HELICON GoXLR), MME"
 
+# Fichiers accessibles à JARVIS sur ce PC (outils find_files, read_text_file, create_text_file, copy_file, move_file,
+# delete_file) : seulement ces dossiers ; créations dans sandbox ; « supprimer » = corbeille de JARVIS (récupérable).
+[tools.files]
+enabled = true
+roots = { documents = "~/Documents", bureau = "~/Desktop", telechargements = "~/Downloads" }
+sandbox = "~/JARVIS"
+
 # Visage du Core : ouvert dans le navigateur du PC quand le Core se connecte (rouvert seulement
 # après plus de 5 min sans connexion). Le Core doit l'exposer sur le réseau ([face] host = "0.0.0.0").
 [face]

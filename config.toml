@@ -211,6 +211,15 @@ enabled = true
 [tools.lock_pc]
 enabled = true          # confirmation obligatoire
 
+# Fichiers (find_files, read_text_file, create_text_file, copy_file ; move_file et delete_file avec confirmation) :
+# uniquement dans les dossiers « roots » ; création dans « sandbox » (jamais d'écrasement) ; « supprimer » met le
+# fichier dans <sandbox>/.corbeille (récupérable). Avec [tools.devices], ils s'exécutent sur le PC visé : les dossiers
+# sont alors ceux de [tools.files] dans windows_agent.toml de ce PC (ici, enabled suffit pour les proposer).
+[tools.files]
+enabled = false
+# roots = { documents = "~/Documents", bureau = "~/Desktop", telechargements = "~/Downloads" }
+# sandbox = "~/JARVIS"
+
 # Applications que JARVIS peut ouvrir, fermer et surveiller : seule cette liste fait foi.
 # Les applications du catalogue de JARVIS sont trouvées automatiquement (registre Windows,
 # emplacements habituels, Microsoft Store) ; executable = "..." impose un chemin.

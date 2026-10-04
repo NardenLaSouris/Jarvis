@@ -98,8 +98,15 @@ EXAMPLES = (
     ("Qu'est-ce que tu sais sur moi ?", "recall", {}),
     ("Tu te souviens de ma couleur préférée ?", "recall", {"topic": "couleur préférée"}),
     ("Oublie que je préfère le bleu", "forget", {"topic": "je préfère le bleu"}),
+    ("Cherche le fichier facture dans mes documents", "find_files", {"query": "facture", "location": "documents"}),
+    ("Lis-moi le fichier notes", "read_text_file", {"name": "notes"}),
+    ("Crée un fichier courses avec du lait et des œufs", "create_text_file",
+     {"name": "courses", "content": "du lait et des œufs"}),
+    ("Copie le fichier rapport sur le bureau", "copy_file", {"name": "rapport", "destination": "bureau"}),
+    ("Supprime le fichier brouillon", "delete_file", {"name": "brouillon"}),
     ("Baisse un peu la lumière", None, None),
     ("Supprime le dossier Documents", None, None),
+    ("Formate le disque", None, None),
     ("Ouvre un terminal et tape une commande", None, None),
     ("Éteins l'ordinateur", None, None),
 )
@@ -139,6 +146,10 @@ def planner_prompt(registry: ToolRegistry) -> str:
         rules.append("- get_weather : location uniquement si une ville est dite ; day = today, tomorrow ou "
                      "day_after_tomorrow ; moment = now (par défaut aujourd'hui), morning, afternoon, evening ou "
                      "day (journée entière). Une demande explicite de recherche (« cherche », « recherche ») -> none.")
+    if registry.exists("find_files"):
+        rules.append("- Fichiers : jamais de chemin ; un nom de fichier tel qu'il a été dit et, s'il est dit, un dossier "
+                     "autorisé (documents, bureau, téléchargements, jarvis). Supprimer un dossier, exécuter un fichier "
+                     "ou toucher au système -> none.")
     if registry.exists("remember"):
         rules.append("- remember : seulement si l'utilisateur demande explicitement de retenir ou de se souvenir de "
                      "quelque chose ; fact reprend ses mots, sans « retiens que ». recall : ce que JARVIS sait de lui. "
@@ -313,13 +324,15 @@ class ToolsCapability:
         (("set_volume", "mute_volume", "unmute_volume"), "régler le son"),
         (("system_info", "list_running_applications"), "décrire la machine"),
         (("lock_pc",), "verrouiller l'ordinateur"),
+        (("find_files",), "chercher, lire et ranger vos fichiers"),
         (("remember",), "retenir ce que vous me demandez de retenir"),
         (("list_routines",), "gérer vos routines et programmer des actions"),
         (("light_on", "light_off", "set_color"), "piloter vos lumières et leurs ambiances"),
     )
 
     def __init__(self, registry: ToolRegistry):
-        self.replaces = ("le contrôle de votre ordinateur", *(("la domotique",) if registry.exists("light_on") else ()))
+        self.replaces = ("le contrôle de votre ordinateur", *(("la domotique",) if registry.exists("light_on") else ()),
+                         *(("la gestion de vos fichiers",) if registry.exists("find_files") else ()))
         parts = [label for names, label in self.GROUPS if any(registry.exists(n) for n in names)]
         self.description = ", ".join(parts[:-1]) + " et " + parts[-1] if len(parts) > 1 else "".join(parts)
 

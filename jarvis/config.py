@@ -101,6 +101,13 @@ class ToolsConfig:
     mute_volume: dict = field(default_factory=dict)
     unmute_volume: dict = field(default_factory=dict)
     lock_pc: dict = field(default_factory=dict)
+    find_files: dict = field(default_factory=dict)
+    read_text_file: dict = field(default_factory=dict)
+    create_text_file: dict = field(default_factory=dict)
+    copy_file: dict = field(default_factory=dict)
+    move_file: dict = field(default_factory=dict)
+    delete_file: dict = field(default_factory=dict)
+    files: dict = field(default_factory=dict)
     applications: dict = field(default_factory=dict)
     devices: dict = field(default_factory=dict)
 

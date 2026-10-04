@@ -25,6 +25,7 @@ from jarvis.tools.applications import (
 )
 from jarvis.tools.audio import VolumeControl, mute_tool, set_volume_tool
 from jarvis.tools.base import Risk, Tool
+from jarvis.tools.files import FileAccess, file_tools
 from jarvis.tools.system import date_tool, lock_session, lock_tool, system_info_tool, time_tool
 from jarvis.tools.timers import timer_tools
 from jarvis.tools.weather import weather_tool
@@ -36,8 +37,9 @@ __all__ = ["CATALOG", "Application", "Processes", "builtin_tools", "load_applica
 
 # Outils qui agissent sur un PC : avec des appareils configurés ([tools.devices]), le Core ne les exécute
 # jamais lui-même, il les confie à l'agent de l'appareil visé.
+FILE_TOOLS = ("find_files", "read_text_file", "create_text_file", "copy_file", "move_file", "delete_file")
 PC_TOOLS = ("system_info", "open_url", "open_application", "close_application", "list_running_applications",
-            "set_volume", "mute_volume", "unmute_volume", "lock_pc")
+            "set_volume", "mute_volume", "unmute_volume", "lock_pc", *FILE_TOOLS)
 
 
 def builtin_tools(settings: dict | None = None, clock: Callable[[], datetime] = datetime.now,
@@ -51,6 +53,7 @@ def builtin_tools(settings: dict | None = None, clock: Callable[[], datetime] = 
     """
     settings = settings or {}
     enabled = lambda name: settings.get(name, {}).get("enabled", True)  # noqa: E731
+    # Les outils de fichiers se règlent ensemble dans [tools.files] ; [tools.<outil>] enabled = false en retire un.
     apps = load_applications(settings.get("applications"))
     processes = processes or Processes()
     volume = volume or VolumeControl()
@@ -71,6 +74,10 @@ def builtin_tools(settings: dict | None = None, clock: Callable[[], datetime] = 
         candidates += [(tool.name, lambda tool=tool: tool) for tool in timer_tools(timers)]
     if weather is not None:
         candidates.append(("get_weather", lambda: weather_tool(weather)))
+    files = settings.get("files", {})
+    if files.get("enabled", False):
+        access = FileAccess(files.get("roots", {}), files.get("sandbox"))
+        candidates += [(tool.name, lambda tool=tool: tool) for tool in file_tools(access)]
     tools = []
     for name, build in candidates:
         if not enabled(name):
