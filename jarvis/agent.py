@@ -139,6 +139,7 @@ def polish_web_sentence(sentence: str, question: str, first: bool, assistant_nam
 
 
 WEATHER_TOOL = "get_weather"
+SOURCES = re.compile(r"\b(tes|vos|quelles sont les|quelle est la|cite moi les|cite tes) sources?\b|\bd ou vient (cette|l) info")
 
 LATENCY_LABELS = (
     ("stt", "STT"),
@@ -312,6 +313,10 @@ class Agent:
                 latency["route"] = "tool:confirmation"
                 self._event("routing", latency["route"])
                 reply, end = self._after_tool(history, text, outcome, latency), False
+            elif self.last_sources and SOURCES.search(normalize(text)):
+                latency["route"] = "web:sources"
+                self._event("routing", latency["route"])
+                reply, end = self._say_sources(history, text, latency), False
             elif (contextual := self._context.resolve(text) if self._context is not None else None) is not None:
                 latency["route"] = "tool:context"
                 self._event("routing", latency["route"])
@@ -459,6 +464,13 @@ class Agent:
         self._remember(history, Message("assistant", reply))
         return reply
 
+    def _say_sources(self, history: list[Message], text: str, latency: dict) -> str:
+        """« Quelles sont tes sources ? » : les sites de la dernière recherche (jamais les adresses, illisibles)."""
+        sites = list(dict.fromkeys(s.get("source", "") for s in self.last_sources if s.get("source")))[:4]
+        reply = "D'après " + (", ".join(sites[:-1]) + " et " + sites[-1] if len(sites) > 1 else sites[0]) + "." \
+            if sites else "Je n'ai pas de source à vous citer."
+        return self._say_text(history, text, reply, latency)
+
     def _degraded(self) -> bool:
         """Worker LLM hors ligne ou défaillant : seules les commandes simples (sans LLM) sont tentées."""
         return bool(getattr(self._llm, "degraded", False))
@@ -559,8 +571,10 @@ class Agent:
             context = self._web.run(text)
             latency["web"] = time.perf_counter() - started
             self.last_sources = context.sources
+            sites = ", ".join(dict.fromkeys(s.get("source", "") for s in context.sources if s.get("source")))
             self._event("web", f"« {context.query} » : {len(context.results)} résultat(s) retenu(s), "
-                               f"{len(context.pages)} page(s) lue(s)" + (f" — {context.error}" if context.error else ""))
+                               f"{len(context.pages)} page(s) lue(s)" + (f" — {context.error}" if context.error else "")
+                        + (f" — sources : {sites}" if sites else ""))
             self._event("timing", f"Web search {latency['web']:.2f} s")
         if context is None or not context.found:
             key = "web_no_results" if context is not None and context.error is None else "web_unavailable"

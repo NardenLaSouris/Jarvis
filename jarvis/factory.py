@@ -230,6 +230,23 @@ def build_memory(cfg: Config):
     return MemoryStore(cfg.memory.path, cfg.memory.max_facts)
 
 
+def build_network_tool(cfg: Config, rooms=None):
+    """Outil network_status : worker LLM, agents des PC, ampoules, Internet (connexions TCP courtes)."""
+    from jarvis.tools.network import network_tool, url_target
+
+    targets = [("le worker LLM", *url_target(cfg.llm.host))]
+    for key, spec in (cfg.tools.devices or {}).items():
+        if spec.get("url"):
+            targets.append((str(spec.get("name", key)), *url_target(str(spec["url"]))))
+    if rooms is not None:
+        targets += [(f"la lumière {room.name}".replace("la lumière la ", "la lumière de la ")
+                     .replace("la lumière l'", "la lumière de l'"), room.ip, 6668) for room in rooms.rooms()]
+    if cfg.web.enabled:
+        targets.append(("la recherche Web", *url_target(cfg.web.base_url)))
+    targets.append(("Internet", "1.1.1.1", 443))
+    return network_tool(targets)
+
+
 def build_spotify(cfg: Config):
     """Client Spotify si l'identifiant (SPOTIFY_CLIENT_ID dans .env) et le jeton (--spotify-login) existent."""
     if not (cfg.tools.enabled and cfg.spotify.enabled):
@@ -491,6 +508,8 @@ def build_agent(
         from jarvis.agenda import calendar_tools
 
         extra += calendar_tools(calendar)
+    if cfg.tools.enabled:
+        extra.append(build_network_tool(cfg, rooms))
     tools = build_tools(cfg, personality, events, timers, weather, devices,
                         light_tools_for(rooms, driver, cfg.lights.scenes, home), extra)
     speaker["core"] = tools

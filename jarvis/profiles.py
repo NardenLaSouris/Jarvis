@@ -36,7 +36,7 @@ CATEGORIES = {
     "calendar": ("list_events", "next_events", "search_events", "free_slots", "add_event", "delete_event"),
     "routines": ("run_routine", "delete_routine"),
     "apps": ("open_application", "close_application", "open_url", "list_running_applications"),
-    "system": ("set_volume", "mute_volume", "unmute_volume", "system_info", "lock_pc"),
+    "system": ("set_volume", "mute_volume", "unmute_volume", "system_info", "lock_pc", "network_status"),
     "files": ("find_files", "read_text_file", "create_text_file", "copy_file", "move_file", "delete_file"),
     "memory": ("remember", "recall", "forget"),  # faits personnels : jamais lus à un enfant ou un invité
 }

@@ -106,6 +106,8 @@ EXAMPLES = (
     ("Joue Back in Black d'AC/DC", "spotify_play", {"query": "Back in Black AC/DC", "kind": "track"}),
     ("Mets de la musique de Daft Punk", "spotify_play", {"query": "Daft Punk", "kind": "artist"}),
     ("Mets Spotify en pause", "spotify_pause", {}),
+    ("Est-ce que le réseau fonctionne ?", "network_status", {}),
+    ("Est-ce que le Katana répond ?", "network_status", {}),
     ("Retiens que je préfère la lumière à 40 %", "remember", {"fact": "je préfère la lumière à 40 %"}),
     ("Souviens-toi que ma sœur s'appelle Léa", "remember", {"fact": "ma sœur s'appelle Léa"}),
     ("Qu'est-ce que tu sais sur moi ?", "recall", {}),
