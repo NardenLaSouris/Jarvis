@@ -63,7 +63,7 @@ def test_unknown_room_in_a_complement_is_refused():
 def test_new_requests_are_not_mistaken_for_complements():
     context = ConversationContext(full_core().registry)
     context.record("light_on", {"room": "chambre"})
-    for text in ("Mets le son à 30 %", "Allume l'entrée", "Raconte-moi une blague", "Quelle heure est-il ?",
+    for text in ("Mets le son à 30 %", "Raconte-moi une blague", "Quelle heure est-il ?",
                  "Ferme Discord", "Est-ce que la chambre est bien rangée et que tu vas bien ?"):
         assert context.resolve(text) is None, text
 
@@ -74,3 +74,12 @@ def test_context_is_forgotten_when_the_conversation_ends():
     context.record("light_on", {"room": "chambre"})
     context.clear()
     assert context.resolve("À 30 %.") is None
+
+
+def test_on_off_verbs_alone_follow_the_previous_room():
+    driver = FakeDriver()
+    spoken, events = run_agent(["Allume la chambre.", "En bleu.", "Non, éteins.", "Rallume.", "Finalement laisse tomber."],
+                               PlannerLLM(), full_core(driver), fast_path=True)
+    assert spoken[2] == "La lumière de la chambre est éteinte." and spoken[3] == "La lumière de la chambre est allumée."
+    assert driver.lights["entree"]["on"] is False and ("entree", "power", False) not in driver.calls
+    assert routes(events)[-1].startswith("critical") and len(spoken) == 5

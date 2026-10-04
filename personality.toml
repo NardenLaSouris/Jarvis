@@ -156,6 +156,8 @@ critical = true
 match = "exact"
 end_conversation = true
 patterns = ["stop", "tais toi", "silence", "annule", "laisse tomber", "arrete", "c est bon", "rien",
+            "finalement laisse tomber", "non laisse tomber", "bon laisse tomber", "laisse tomber finalement",
+            "finalement non", "oublie", "oublie ca", "non oublie", "annule tout", "finalement annule",
             "arrete toi", "arrete de parler", "arretes", "arrete ca", "stop stop", "chut", "ta gueule", "la ferme",
             "ferme la", "ferme ta gueule", "tais toi maintenant", "ca suffit", "assez", "c est bon arrete",
             "tu peux arreter", "j ai pas besoin", "laisse moi", "va dormir", "en veille", "mets toi en veille"]

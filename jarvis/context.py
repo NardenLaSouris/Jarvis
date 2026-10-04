@@ -26,6 +26,8 @@ FILLERS = {"dans", "le", "la", "les", "l", "de", "du", "des", "a", "au", "aux", 
 LIGHTS = ("light_on", "light_off", "light_toggle", "set_brightness", "set_color", "set_color_temperature",
           "set_scene", "light_status")
 SOUND = ("set_volume", "mute_volume", "unmute_volume")
+ON_OFF = {"allume": "light_on", "rallume": "light_on", "allumes": "light_on", "eteins": "light_off",
+          "eteint": "light_off", "reteins": "light_off", "coupe": "light_off"}
 DAY_WORDS = {"demain": "tomorrow", "apres demain": "day_after_tomorrow", "aujourd hui": "today", "hier": "yesterday"}
 WEATHER_DAYS = {"demain": "tomorrow", "apres demain": "day_after_tomorrow", "aujourd hui": "today"}
 
@@ -109,6 +111,10 @@ class ConversationContext:
         visible = {k: v for k, v in previous.items() if k != "room"}
         same_room = {"room": room} if room else ({"room": previous["room"]} if "room" in previous else {})
         room_words = (self._room_words(rest) | set(room[1:].split()) if room.startswith("?") else self._room_words(rest))             if room else set()
+        verb = rest.split()[0] if rest.split() else ""
+        if verb in ON_OFF and self._only(" ".join(rest.split()[1:]), {*room_words, "le", "la", "les", "aussi"}):
+            # « Non, éteins. », « Rallume. », « Éteins-la » : même pièce que l'action précédente
+            return {"tool": ON_OFF[verb], "parameters": same_room}
         level = _percent_raw(text)
         if level is not None and level >= 1 and self._only(rest, {str(level), *room_words}):
             return {"tool": "set_brightness", "parameters": {**same_room, "brightness": level}}
