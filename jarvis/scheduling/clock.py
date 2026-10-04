@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import re
+
 from jarvis.scheduling.durations import _number, tokens
 
 HOUR_WORDS = {"heure", "heures", "h"}
@@ -28,7 +30,10 @@ def _minutes_after(words: list[str], i: int) -> tuple[int, int]:
 
 
 def parse_clock(text: str) -> tuple[int, int] | None:
-    """Première heure dite dans ``text`` ; None s'il n'y en a pas."""
+    """Première heure dite dans ``text`` ; None s'il n'y en a pas, ou si elle est incohérente (« -3 heures »,
+    « 7 h 60 ») plutôt que de la corriger en silence."""
+    if re.search(r"-\s*\d", text):
+        return None
     words = tokens(text)
     for i, word in enumerate(words):
         if word in ("midi", "minuit"):
@@ -42,6 +47,8 @@ def parse_clock(text: str) -> tuple[int, int] | None:
         if not 0 <= hour <= 24:
             continue
         rest = i + parsed[1] + 1
+        if rest < len(words) and words[rest].isdigit() and int(words[rest]) > 59:
+            return None
         minutes, used = _minutes_after(words, rest)
         after = words[rest + used:rest + used + 3]
         if hour < 12 and ("soir" in after or "apres" in after):

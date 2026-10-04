@@ -111,8 +111,14 @@ class RoutineEngine:
         with self._lock:
             return self.view(self._find(routine_id))
 
+    def _future(self, routine: Routine) -> Routine:
+        """Une date précise doit être à venir (une routine créée ou modifiée pour le passé ne s'exécuterait jamais)."""
+        if routine.trigger["type"] == "at" and datetime.fromisoformat(routine.trigger["at"]) <= self._clock():
+            raise RoutineError("Déclencheur : la date est déjà passée.")
+        return routine
+
     def create(self, data: dict) -> dict:
-        routine = parse_routine({k: v for k, v in data.items() if k != "id"}, self._registry)
+        routine = self._future(parse_routine({k: v for k, v in data.items() if k != "id"}, self._registry))
         with self._lock:
             self._routines[routine.id] = routine
             self._interval_from[routine.id] = time.monotonic()
@@ -122,7 +128,8 @@ class RoutineEngine:
     def update(self, routine_id: str, data: dict) -> dict:
         with self._lock:
             self._find(routine_id)
-            routine = parse_routine({k: v for k, v in data.items() if k != "id"}, self._registry, routine_id)
+            routine = self._future(parse_routine({k: v for k, v in data.items() if k != "id"}, self._registry,
+                                                 routine_id))
             self._routines[routine_id] = routine
             self._interval_from[routine_id] = time.monotonic()
             self._save()

@@ -94,9 +94,11 @@ def test_actions_needing_a_confirmation_cannot_be_scheduled():
 
 
 def test_missed_one_shot_action_is_dropped_not_run_late():
-    setup = agent_setup()
-    setup.engine.create({"name": "x", "trigger": {"type": "at", "at": "2026-10-04T20:00:00"},
-                         "actions": [{"type": "tool", "tool": "light_on", "parameters": {"room": "chambre"}}]})
+    # Enregistrée avant un arrêt de JARVIS, retrouvée au redémarrage alors que l'heure est passée.
+    setup = Setup(routines=[{"id": "x", "name": "x", "once": True, "trigger": {"type": "at", "at": "2026-10-04T20:00:00"},
+                             "actions": [{"type": "tool", "tool": "light_on", "parameters": {"room": "chambre"}}]}],
+                  now=NOW)
+    assert len(setup.engine.routines()) == 1
     assert setup.engine.due(NOW, 0) == [] and setup.engine.routines() == []
 
 
@@ -138,3 +140,34 @@ def test_routine_commands_without_llm():
     assert quick_plan("Lance la routine Soir", registry)["parameters"] == {"name": "Soir"}
     assert quick_plan("Supprime la routine réveil", registry) == {
         "type": "tool_call", "tool": "delete_routine", "parameters": {"name": "réveil"}}
+
+
+# --- Régressions de la session red team ------------------------------------------------------------
+
+def test_incoherent_times_are_refused_not_silently_fixed():
+    from jarvis.scheduling.clock import parse_clock
+
+    assert parse_clock("-3 heures") is None and parse_clock("7 h 60") is None and parse_clock("99 h 99") is None
+    assert parse_clock("7 h 30") == (7, 30) and parse_clock("21 heures") == (21, 0) and parse_clock("minuit") == (0, 0)
+    manager = TimerManager(clock=lambda: NOW)
+    tools = {t.name: t for t in timer_tools(manager)}
+    import pytest
+
+    from jarvis.tools import ToolError
+
+    for value in ("-3 heures", "7 h 60"):
+        with pytest.raises(ToolError):
+            tools["create_reminder"].parameters["time"].check(value)
+
+
+def test_one_shot_routine_in_the_past_is_refused():
+    import pytest
+
+    from jarvis.routines.model import RoutineError
+
+    setup = Setup(now=NOW)
+    with pytest.raises(RoutineError, match="passée"):
+        setup.engine.create({"name": "x", "trigger": {"type": "at", "at": "2020-01-01T00:00:00"},
+                             "actions": [{"type": "say", "text": "x"}]})
+    assert setup.engine.create({"name": "y", "trigger": {"type": "at", "at": "2026-10-04T21:00:00"},
+                                "actions": [{"type": "say", "text": "x"}]})["once"] is True
