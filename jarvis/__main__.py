@@ -29,6 +29,12 @@ def main() -> int:
                              "et de transcription (WAV facultatif, sinon extrait de tests/fixtures/scenario.wav)")
     parser.add_argument("--activity", metavar="N", nargs="?", type=int, const=20,
                         help="affiche les N dernières entrées du journal d'activité (20 par défaut) et quitte")
+    parser.add_argument("--health", action="store_true",
+                        help="vérifie chaque composant (LLM, STT, agents, lumières, mémoire...) en quelques secondes")
+    parser.add_argument("--diagnostics", action="store_true",
+                        help="état complet : composants, configuration, outils et risques, derniers échecs")
+    parser.add_argument("--benchmark", action="store_true",
+                        help="mesure wake word, STT, LLM, outils et voix (rien n'est joué ni actionné)")
     parser.add_argument("--memory", action="store_true",
                         help="affiche ce que JARVIS a retenu (mémoire explicite, data/memory.json) et quitte")
     parser.add_argument("--web-test", metavar="QUESTION",
@@ -73,6 +79,12 @@ def main() -> int:
         return show_activity(cfg, args.activity)
     if args.memory:
         return show_memory(cfg)
+    if args.health or args.diagnostics or args.benchmark:
+        from jarvis import diagnostics
+
+        if args.health:
+            return diagnostics.health(cfg)
+        return diagnostics.diagnostics(cfg) if args.diagnostics else diagnostics.benchmark(cfg)
     if args.face_demo:
         return face_demo(cfg)
 
