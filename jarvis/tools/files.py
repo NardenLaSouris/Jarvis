@@ -42,6 +42,8 @@ MAX_SCAN = 20_000
 MAX_SECONDS = 3.0
 MAX_DEPTH = 6
 TRASH = ".corbeille"
+# Noms de périphériques Windows (« CON.txt » écrirait dans la console sur d'anciens Windows).
+RESERVED_WINDOWS = {"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(10)), *(f"LPT{i}" for i in range(10))}
 FORBIDDEN_NAME = set('<>:"/\\|?*') | {chr(c) for c in range(32)}
 
 
@@ -145,7 +147,9 @@ def _describe(key: str, root: Path, path: Path) -> dict:
 
 def _clean_name(name: str, default_suffix: str = ".txt") -> str:
     name = name.strip().strip(".")
-    if not name or len(name) > 80 or any(c in FORBIDDEN_NAME for c in name) or name in (".", ".."):
+    stem = name.split(".")[0].strip().upper()
+    if not name or len(name) > 80 or any(c in FORBIDDEN_NAME for c in name) or name in (".", "..") \
+            or stem in RESERVED_WINDOWS:
         raise ToolError(INVALID_PARAMETERS, "Nom de fichier invalide.")
     if Path(name).suffix.lower() not in CREATE_SUFFIXES:
         name += default_suffix
