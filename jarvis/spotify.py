@@ -203,6 +203,14 @@ class SpotifyClient:
         return name
 
 
+def spoken_name(name: str) -> str:
+    """Nom lisible à voix haute : sans emoji ni symbole (« CHILL SONG 🤤 » -> « CHILL SONG »)."""
+    import unicodedata
+
+    kept = "".join(c for c in name if unicodedata.category(c)[0] in "LNPZ" or c in "&'’-")
+    return " ".join(kept.split()).strip(" -")
+
+
 def split_title_artist(query: str) -> tuple[str, str]:
     """« without me de Eminem » -> (« without me », « Eminem ») ; sans « de », tout est le titre."""
     import re
@@ -251,7 +259,7 @@ def _said_words(value: str, text: str) -> str | None:
 def spotify_tools(client: SpotifyClient, on_pause: Callable[[], None] | None = None) -> list[Tool]:
     def play(query: str | None = None, kind: str | None = None) -> dict:
         name = client.play(query, kind or "track")
-        return {"playing": name or "la lecture", "kind": kind or "track"}
+        return {"playing": spoken_name(name) or "la lecture", "kind": kind or "track"}
 
     def simple(method: str, path: str, message: str, query: dict | None = None):
         def run() -> dict:
