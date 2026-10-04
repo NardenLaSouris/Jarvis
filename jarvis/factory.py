@@ -268,6 +268,10 @@ def build_routines(cfg: Config, tools, notifications, events: EventBus, sink=Non
 
         for tool in alarm_tools(engine, cfg.alarms.briefing):
             tools.registry.register(tool)
+    from jarvis.tools.routines import routine_tools
+
+    for tool in routine_tools(engine):
+        tools.registry.register(tool)
     engine.start()
     return engine
 
@@ -477,4 +481,4 @@ def build_agent(
                  stream_audio=cfg.tts.stream_audio, merge_under=cfg.tts.merge_under, web=web,
                  tools=tools, corrector=corrector, notifications=voice, alarm=routines.alarm if routines else None,
                  services=tuple(s for s in (api, routines, timers, notifications, worker) if s is not None),
-                 fast_path=cfg.tools.fast_path)
+                 fast_path=cfg.tools.fast_path, routines=routines)

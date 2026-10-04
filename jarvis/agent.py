@@ -23,6 +23,7 @@ from jarvis.interfaces import (
     AudioSink, AudioSource, LanguageModel, Message, SpeechToText, TextToSpeech, WakeWordDetector,
 )
 from jarvis.router import IntentRouter, Route
+from jarvis.scheduling.actions import split_schedule
 from jarvis.streaming import SpeechPipeline, sentences_from_llm
 from jarvis.personality import normalize
 from jarvis.tools.core import CANCELLED, CONFIRM, DONE
@@ -195,6 +196,7 @@ class Agent:
         services: tuple = (),
         alarm=None,
         fast_path: bool = False,
+        routines=None,
     ):
         self.settings = settings
         self._source = source
@@ -209,6 +211,7 @@ class Agent:
         self._tools = tools
         self._alarm = alarm
         self._fast_path = fast_path
+        self._routines = routines
         self._context = ConversationContext(tools.registry, settings.assistant_name) if tools is not None else None
         self._interrupted = False
         self._last_outcome = None
@@ -357,6 +360,10 @@ class Agent:
 
     def _use_tool(self, history: list[Message], text: str, route, latency: dict) -> str:
         """Demande d'outil (directe ou proposée par le LLM) -> Core : validation, permission, confirmation, exécution."""
+        schedule = split_schedule(text, self._routines.clock()) if self._routines is not None and not route.tool \
+            else None
+        if schedule is not None:
+            return self._schedule(history, text, schedule, latency)
         if route.tool:
             data = {"type": "tool_call", "tool": route.tool, "parameters": {}}
         else:
@@ -398,6 +405,48 @@ class Agent:
     def _record(self, data: dict) -> None:
         if self._context is not None:
             self._context.record(data["tool"], data.get("parameters") or {})
+
+    def _schedule(self, history: list[Message], text: str, schedule, latency: dict) -> str:
+        """« Dans 10 minutes, allume la chambre. » : la commande est comprise maintenant, puis enregistrée comme
+        routine ; à l'heure dite, elle passe par le Core comme une demande vocale. Seules les actions sans
+        confirmation peuvent être programmées (personne ne sera là pour répondre « oui »)."""
+        latency["route"] = "tool:schedule"
+        self._event("routing", f"{latency['route']} ({schedule.said})")
+        started = time.perf_counter()
+        data = self._quick(schedule.command, latency) if self._fast_path or self._degraded() else None
+        if data is None and not self._degraded():
+            data = plan(self._llm, schedule.command, self._tools.registry)
+        latency["tool_plan"] = time.perf_counter() - started
+        if data is None:
+            return self._say_text(history, text, "Je n'ai pas compris quelle action programmer.", latency)
+        calls = data["calls"] if data.get("type") == "tool_calls" else [data]
+        actions, previous = [], {}
+        for call in calls:
+            resolved = self._with_hidden({"type": "tool_call", "tool": call["tool"],
+                                          "parameters": dict(call.get("parameters") or {})},
+                                         schedule.command, call.get("segment", schedule.command), previous)
+            previous = resolved["parameters"]
+            actions.append({"type": "tool", "tool": resolved["tool"], "parameters": resolved["parameters"]})
+        from jarvis.routines.model import RoutineError
+
+        try:
+            self._routines.create({"name": schedule.command[:60], "description": f"Programmé par la voix : {text}"[:200],
+                                   "enabled": True, "once": schedule.trigger["type"] == "at",
+                                   "trigger": schedule.trigger, "actions": actions})
+        except RoutineError as exc:
+            message = str(exc)
+            if "confirmation" in message:
+                message = "cette action demande une confirmation, je ne peux pas la programmer"
+            return self._say_text(history, text, f"Je ne peux pas programmer cela : {message[:1].lower()}{message[1:]}"
+                                  .rstrip(".") + ".", latency)
+        command = schedule.command[:1].lower() + schedule.command[1:]
+        return self._say_text(history, text, f"C'est programmé {schedule.said} : {command}.", latency)
+
+    def _say_text(self, history: list[Message], text: str, reply: str, latency: dict) -> str:
+        reply = self._speak([reply], latency)
+        self._remember(history, Message("user", text))
+        self._remember(history, Message("assistant", reply))
+        return reply
 
     def _degraded(self) -> bool:
         """Worker LLM hors ligne ou défaillant : seules les commandes simples (sans LLM) sont tentées."""

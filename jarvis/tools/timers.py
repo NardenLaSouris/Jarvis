@@ -8,9 +8,11 @@ par durée / message, ou sans précision s'il n'y a qu'une seule échéance en c
 from __future__ import annotations
 
 import re
+from datetime import timedelta
 from typing import Callable
 
 from jarvis.personality import normalize, second_person, with_de
+from jarvis.scheduling.clock import parse_clock
 from jarvis.scheduling.durations import (
     DurationError, duration_in_text, parse_duration, spoken_duration, spoken_remaining,
 )
@@ -28,6 +30,16 @@ def _duration(value: str) -> int:
         return parse_duration(value)
     except DurationError as exc:
         raise ToolError(INVALID_PARAMETERS, f"Je n'ai pas compris la durée « {value[:40]} ».") from exc
+
+
+def _clock_text(value: str) -> str:
+    if parse_clock(value) is None:
+        raise ToolError(INVALID_PARAMETERS, f"Je n'ai pas compris l'heure « {value[:40]} ».")
+    return value
+
+
+def _clock_said(value: str, text: str) -> bool:
+    return parse_clock(value) is not None and parse_clock(value) == parse_clock(text)
 
 
 def _identifier(value: str) -> str:
@@ -117,7 +129,16 @@ def timer_tools(manager: TimerManager) -> list[Tool]:
         timers = [_timer_view(t, manager) for t in manager.timers()]
         return {"count": len(timers), "timers": timers}
 
-    def create_reminder(delay: int, message: str) -> dict:
+    def create_reminder(message: str, delay: int | None = None, time: str | None = None) -> dict:
+        if delay is None and time is None:
+            raise ToolError(INVALID_PARAMETERS, "Dans combien de temps, ou à quelle heure ?")
+        if delay is None:
+            hour, minute = parse_clock(time)
+            now = manager.now()
+            when = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+            if when <= now:
+                when += timedelta(days=1)
+            delay = max(1, round((when - now).total_seconds()))
         return _reminder_view(_call(lambda: manager.create_reminder(delay, message)), manager)
 
     def cancel_reminder(reminder_id: str | None = None, message: str | None = None) -> dict:
@@ -147,8 +168,10 @@ def timer_tools(manager: TimerManager) -> list[Tool]:
         Tool("list_timers", "Liste les minuteurs en cours et leur temps restant.", {},
              {"count": "nombre", "timers": "liste de {timer_id, duration, remaining, ends_at}"}, Risk.SAFE, list_timers,
              say=_timers_said),
-        Tool("create_reminder", f"Programme un rappel dans un délai donné (jusqu'à {limit}).",
-             {"delay": _duration_param("délai tel qu'il a été dit, par exemple « 20 minutes »"),
+        Tool("create_reminder", f"Programme un rappel dans un délai donné (jusqu'à {limit}) ou à une heure précise.",
+             {"delay": _duration_param("délai tel qu'il a été dit, par exemple « 20 minutes »", required=False),
+              "time": Param(str, "heure précise telle qu'elle a été dite (« à 18 heures »), au lieu d'un délai",
+                            required=False, max_length=40, check=_clock_text, evidence=_clock_said),
               "message": Param(str, "ce qu'il faudra rappeler, par exemple « sortir le linge »", max_length=200)},
              {"reminder_id": "numéro", "message": "message", "remaining": "délai", "at": "HH:MM"},
              Risk.SAFE, create_reminder,

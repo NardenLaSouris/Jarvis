@@ -310,6 +310,7 @@ patterns = [
     "rallume le son", "reactive le son",
     "espace disque", "stockage", "carte graphique", "cette machine", "ce pc", "cet ordinateur", "mon pc",
     "mon ordinateur", "la machine", "caracteristiques",
+    "routine", "routines", "actions programmees", "dans 5 minutes", "dans 10 minutes", "tous les jours a",
     "retiens", "retenez", "souviens toi", "souvenez vous", "rappelle toi que", "memorise", "oublie", "oubliez",
     "que sais tu de moi", "que sais tu sur moi", "ce que tu sais de moi", "ce que tu sais sur moi", "tu te souviens",
     "qu as tu retenu", "ce que tu as retenu",

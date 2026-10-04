@@ -89,6 +89,10 @@ EXAMPLES = (
     ("Ambiance détente dans la chambre", "set_scene", {"scene": "detente"}),
     ("Est-ce que la lumière de la chambre est allumée ?", "light_status", {}),
     ("La lumière de l'entrée est à combien ?", "light_status", {}),
+    ("Quelles routines sont programmées ?", "list_routines", {}),
+    ("Lance la routine soir", "run_routine", {"name": "soir"}),
+    ("Supprime la routine réveil", "delete_routine", {"name": "réveil"}),
+    ("Rappelle-moi à 18 h d'appeler Paul", "create_reminder", {"time": "18 h", "message": "appeler Paul"}),
     ("Retiens que je préfère la lumière à 40 %", "remember", {"fact": "je préfère la lumière à 40 %"}),
     ("Souviens-toi que ma sœur s'appelle Léa", "remember", {"fact": "ma sœur s'appelle Léa"}),
     ("Qu'est-ce que tu sais sur moi ?", "recall", {}),
@@ -120,7 +124,8 @@ def planner_prompt(registry: ToolRegistry) -> str:
         rules.append("- create_timer, create_reminder, cancel_timer : recopiez la durée exactement comme elle a été "
                      "dite (« 10 minutes », « une heure et demie »), sans la convertir ; pas de durée dite -> none. "
                      "Le message d'un rappel est l'action à rappeler, sans « de » (« sortir le linge »). "
-                     "Une heure précise (« à 7 heures ») n'est pas une durée -> none.")
+                     "Un rappel à une heure précise (« à 18 heures ») : time au lieu de delay, recopiée telle quelle ; "
+                     "pour un minuteur, une heure précise n'est pas une durée -> none.")
     if registry.exists("create_alarm"):
         rules.append("- create_alarm, cancel_alarm : recopiez l'heure exactement comme elle a été dite (« 7 heures "
                      "30 », « sept heures et demie ») ; une durée (« dans 10 minutes ») est un minuteur ou un rappel.")
@@ -309,6 +314,7 @@ class ToolsCapability:
         (("system_info", "list_running_applications"), "décrire la machine"),
         (("lock_pc",), "verrouiller l'ordinateur"),
         (("remember",), "retenir ce que vous me demandez de retenir"),
+        (("list_routines",), "gérer vos routines et programmer des actions"),
         (("light_on", "light_off", "set_color"), "piloter vos lumières et leurs ambiances"),
     )
 

@@ -16,6 +16,7 @@ from __future__ import annotations
 import re
 
 from jarvis.personality import normalize
+from jarvis.scheduling.actions import CLOCK_WORDS
 from jarvis.scheduling.clock import parse_clock
 from jarvis.scheduling.durations import DurationError, parse_duration, tokens
 from jarvis.tools.base import ToolError
@@ -177,7 +178,7 @@ class QuickPlanner:
             return None
         if memory is not None:
             return {"type": "tool_call", "tool": memory[0], "parameters": memory[1]}
-        for parse in (self._sound, self._lights, self._apps, self._timer, self._reminder, self._alarm,
+        for parse in (self._routine, self._sound, self._lights, self._apps, self._timer, self._reminder, self._alarm,
                       self._weather, self._lock):
             call = parse(norm, text, previous)
             if call is not None:
@@ -195,6 +196,20 @@ class QuickPlanner:
             if match and self._exists(tool):
                 value = _original_tail(text, tokens(match.group(1)))
                 return (tool, {key: value}) if value else None
+        return None
+
+    def _routine(self, norm, text, previous):
+        """« Quelles routines sont programmées ? », « Lance la routine soir », « Supprime la routine réveil »."""
+        if not (_has(norm, ("routine", "routines")) and self._exists("list_routines")):
+            return None
+        match = re.search(r"\b(lance|lancer|demarre|execute|joue|supprime|supprimer|efface|annule)\b.*?\broutine\s+(.+)$",
+                          norm)
+        if match:
+            tool = "run_routine" if match.group(1) in ("lance", "lancer", "demarre", "execute", "joue") else "delete_routine"
+            name = _original_tail(text, tokens(match.group(2)))
+            return (tool, {"name": name}) if name and self._exists(tool) else None
+        if _has(norm, ("quelles", "quels", "liste", "mes routines", "les routines", "programmees", "programme")):
+            return "list_routines", {}
         return None
 
     def _sound(self, norm, text, previous):
@@ -281,12 +296,32 @@ class QuickPlanner:
             return None
         found = _duration_phrase(text, after=("dans",))
         if not found:
-            return None
+            return self._reminder_at(text)
         rest = tokens(text)[found[2]:]
         while rest and rest[0] in ("de", "d", "que", "qu", "pour", "a", "il", "faut"):
             rest = rest[1:]
         message = _original_tail(text, rest)
         return ("create_reminder", {"delay": found[0], "message": message}) if message else None
+
+    def _reminder_at(self, text: str):
+        """« Rappelle-moi à 18 h 30 d'appeler Paul » : heure précise puis message."""
+        words = tokens(text)
+        for start in range(len(words)):
+            if words[start] != "a":
+                continue
+            for end in range(min(len(words), start + 7), start + 1, -1):
+                segment = " ".join(words[start + 1:end])
+                if parse_clock(segment) is None or not all(w.isdigit() or w in CLOCK_WORDS for w in words[start + 1:end]):
+                    continue
+                rest = words[end:]
+                while rest and rest[0] in ("de", "d", "que", "qu", "pour", "il", "faut"):
+                    rest = rest[1:]
+                message = _original_tail(text, rest)
+                if message:
+                    hour, minute = parse_clock(segment)
+                    return "create_reminder", {"time": f"{hour} heures {minute}" if minute else f"{hour} heures",
+                                               "message": message}
+        return None
 
     def _alarm(self, norm, text, previous):
         if not (_has(norm, ALARM_WORDS) and self._exists("create_alarm")):
