@@ -21,6 +21,7 @@ class Pending:
     request: ToolRequest
     question: str
     asked_at: float
+    user: str = ""  # qui a demandé : seul lui peut confirmer
 
 
 class ConfirmationManager:
@@ -39,8 +40,8 @@ class ConfirmationManager:
             self._pending = None
         return self._pending
 
-    def ask(self, request: ToolRequest, question: str) -> str:
-        self._pending = Pending(request, question, self._clock())
+    def ask(self, request: ToolRequest, question: str, user: str = "") -> str:
+        self._pending = Pending(request, question, self._clock(), user)
         return question
 
     def answer(self, text: str) -> tuple[str, Pending | None]:

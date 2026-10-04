@@ -120,3 +120,40 @@ def test_guest_terminal_cannot_open_apps_by_voice_nor_schedule():
     assert spoken[0] == "Je n'ai pas l'autorisation de faire cela."
     assert spoken[1] == "La lumière de la chambre est allumée."
     assert spoken[2] == "Je n'ai pas l'autorisation de programmer cela." and setup.engine.routines() == []
+
+
+# --- Régressions de la session red team ------------------------------------------------------------
+
+def test_concurrent_owner_requests_never_lend_their_rights_to_a_guest():
+    import threading
+
+    profiles = load_profiles(USERS, TERMINALS)
+    core = core_for(profiles)
+    core.set_user("invite")
+    leaks, stop = [], threading.Event()
+
+    def owner_routine():
+        while not stop.is_set():
+            core.submit({"tool": "get_time"}, user="monsieur")
+
+    threads = [threading.Thread(target=owner_routine) for _ in range(3)]
+    for thread in threads:
+        thread.start()
+    try:
+        for _ in range(500):
+            outcome = core.submit({"tool": "open_application", "parameters": {"application": "discord"}})
+            if outcome.status != "rejected":
+                leaks.append(outcome)
+    finally:
+        stop.set()
+        for thread in threads:
+            thread.join()
+    assert leaks == [] and core.user == "invite"
+
+
+def test_only_the_requester_can_confirm():
+    core = core_for(load_profiles(USERS, TERMINALS))
+    assert outcome(core, "monsieur", "lock_pc").status == "confirm"
+    assert core.answer("oui", user="invite") is None  # l'invité ne confirme pas à la place du propriétaire
+    assert outcome(core, "monsieur", "lock_pc").status == "confirm"
+    assert core.answer("oui", user="monsieur").status == "done"

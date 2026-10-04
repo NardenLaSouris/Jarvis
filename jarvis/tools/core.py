@@ -9,7 +9,8 @@ from __future__ import annotations
 import json
 import logging
 import time
-from concurrent.futures import ThreadPoolExecutor
+import threading
+from concurrent.futures import Future
 from concurrent.futures import TimeoutError as FutureTimeout
 from dataclasses import asdict, dataclass
 from typing import Any
@@ -77,7 +78,6 @@ class ToolCore:
         self._timeout = timeout
         self._user = user
         self._events = events
-        self._pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="outil")
 
     @property
     def user(self) -> str:
@@ -92,13 +92,10 @@ class ToolCore:
 
     def submit(self, data: Any, user: str | None = None) -> Outcome:
         """Demande venant du LLM ou du routeur : jamais exécutée sans validation ni permission. ``user`` : pour
-        une demande qui n'est pas celle de l'utilisateur en cours (routine du propriétaire)."""
-        if user is not None and user != self._user:
-            previous, self._user = self._user, user
-            try:
-                return self.submit(data)
-            finally:
-                self._user = previous
+        une demande qui n'est pas celle de l'utilisateur en cours (routine du propriétaire). L'identité suit la
+        demande de bout en bout : elle n'est jamais changée temporairement dans un état partagé (plusieurs fils
+        appellent le Core en même temps : conversation, routines, API)."""
+        who = self._user if user is None else user
         started = time.perf_counter()
         name = data.get("tool") if isinstance(data, dict) and isinstance(data.get("tool"), str) else "?"
         try:
@@ -106,51 +103,68 @@ class ToolCore:
         except ToolError as exc:
             request, invalid = None, ToolResult(str(name)[:48], False, error=exc.code, message=exc.message)
         if request is None:
-            self._log(invalid.tool, None, "validation", "invalid", "n/a", invalid, started)
+            self._log(invalid.tool, None, "validation", "invalid", "n/a", invalid, started, who)
             return Outcome(REJECTED, None, invalid)
         tool = self.registry.get(request.tool)
-        decision = self.permissions.decide(self._user, tool, dict(request.parameters))
+        decision = self.permissions.decide(who, tool, dict(request.parameters))
         if decision.decision is Decision.DENY:
             result = ToolResult(tool.name, False, error=PERMISSION_DENIED, message="Je n'ai pas l'autorisation de faire cela.")
-            self._log(tool.name, request.parameters, "permission", decision.decision.value, "n/a", result, started)
+            self._log(tool.name, request.parameters, "permission", decision.decision.value, "n/a", result, started, who)
             return Outcome(REJECTED, request, result)
         if decision.decision is Decision.REQUIRES_CONFIRMATION:
-            question = self.confirmations.ask(request, tool.confirmation_question(dict(request.parameters)))
-            self._log(tool.name, request.parameters, "confirmation", decision.decision.value, "asked", None, started)
+            question = self.confirmations.ask(request, tool.confirmation_question(dict(request.parameters)), who)
+            self._log(tool.name, request.parameters, "confirmation", decision.decision.value, "asked", None, started,
+                      who)
             return Outcome(CONFIRM, request, question=question)
-        return Outcome(DONE, request, self._execute(tool, request, decision.decision.value, "n/a", started))
+        return Outcome(DONE, request, self._execute(tool, request, decision.decision.value, "n/a", started, who))
 
-    def answer(self, text: str) -> Outcome | None:
+    def answer(self, text: str, user: str | None = None) -> Outcome | None:
         """Réponse de l'utilisateur à une confirmation en attente ; None s'il n'y en avait pas
-        (ou si la phrase n'est ni un oui ni un non : la demande en attente est alors abandonnée)."""
+        (ou si la phrase n'est ni un oui ni un non : la demande en attente est alors abandonnée). Seul celui qui a
+        demandé peut confirmer ; la permission est réévaluée pour lui."""
+        who = self._user if user is None else user
         verdict, pending = self.confirmations.answer(text)
         if verdict == NONE:
             return None
         started = time.perf_counter()
         request = pending.request
+        if pending.user and pending.user != who:
+            verdict = OTHER  # un autre utilisateur ne peut pas confirmer à la place du demandeur
         if verdict == OTHER:
             self._log(request.tool, request.parameters, "confirmation", "requires_confirmation", "abandoned", None,
-                      started)
+                      started, who)
             return None
         tool = self.registry.get(request.tool)
         if verdict == NO:
             result = ToolResult(tool.name, False, error=CONFIRMATION_REFUSED, message="Action annulée.")
-            self._log(tool.name, request.parameters, "confirmation", "requires_confirmation", "refused", result, started)
+            self._log(tool.name, request.parameters, "confirmation", "requires_confirmation", "refused", result, started,
+                      who)
             return Outcome(CANCELLED, request, result)
-        decision = self.permissions.decide(self._user, tool, dict(request.parameters), confirmed=(verdict == YES))
+        decision = self.permissions.decide(who, tool, dict(request.parameters), confirmed=(verdict == YES))
         if decision.decision is not Decision.ALLOW:
             result = ToolResult(tool.name, False, error=PERMISSION_DENIED, message="Je n'ai pas l'autorisation de faire cela.")
-            self._log(tool.name, request.parameters, "permission", decision.decision.value, "accepted", result, started)
+            self._log(tool.name, request.parameters, "permission", decision.decision.value, "accepted", result, started,
+                      who)
             return Outcome(REJECTED, request, result)
-        return Outcome(DONE, request, self._execute(tool, request, decision.decision.value, "accepted", started))
+        return Outcome(DONE, request, self._execute(tool, request, decision.decision.value, "accepted", started, who))
 
     def cancel_pending(self) -> None:
         self.confirmations.clear()
 
-    def _execute(self, tool: Tool, request: ToolRequest, decision: str, confirmation: str, started: float) -> ToolResult:
+    def _execute(self, tool: Tool, request: ToolRequest, decision: str, confirmation: str, started: float,
+                 user: str) -> ToolResult:
         self._publish(TOOL_STARTED, self._activity(tool.name, request.parameters, "execution", decision, confirmation,
-                                                   None, started))
-        future = self._pool.submit(tool.execute, dict(request.parameters))
+                                                   None, started, user))
+        # Un fil par exécution : un outil bloqué (appareil muet) n'empêche jamais les autres de s'exécuter.
+        future: Future = Future()
+
+        def run() -> None:
+            try:
+                future.set_result(tool.execute(dict(request.parameters)))
+            except BaseException as exc:  # transmis tel quel au Core
+                future.set_exception(exc)
+
+        threading.Thread(target=run, name=f"outil-{tool.name}", daemon=True).start()
         try:
             output = future.result(timeout=self._timeout)
             result = ToolResult(tool.name, True, result=output, message=tool.say(output) if tool.say else "")
@@ -161,11 +175,11 @@ class ToolCore:
         except Exception:
             log.exception("Outil %s : erreur inattendue", tool.name)
             result = ToolResult(tool.name, False, error=EXECUTION_FAILED, message="L'action a échoué.")
-        self._log(tool.name, request.parameters, "execution", decision, confirmation, result, started)
+        self._log(tool.name, request.parameters, "execution", decision, confirmation, result, started, user)
         return result
 
     def _activity(self, tool: str, parameters, stage: str, decision: str, confirmation: str,
-                  result: ToolResult | None, started: float) -> ToolActivity:
+                  result: ToolResult | None, started: float, user: str) -> ToolActivity:
         return ToolActivity(
             tool=tool, stage=stage, decision=decision, confirmation=confirmation,
             success=None if result is None else result.success,
@@ -173,13 +187,13 @@ class ToolCore:
             message="" if result is None or result.success else result.message,
             duration_ms=round((time.perf_counter() - started) * 1000, 1),
             parameters=_loggable(dict(parameters)) if parameters is not None else None,
-            user=self._user,
+            user=user,
         )
 
     def _log(self, tool: str, parameters, stage: str, decision: str, confirmation: str,
-             result: ToolResult | None, started: float) -> None:
+             result: ToolResult | None, started: float, user: str) -> None:
         """Journalise chaque issue ; publie tool.executed / tool.failed dès qu'il y a un résultat."""
-        activity = self._activity(tool, parameters, stage, decision, confirmation, result, started)
+        activity = self._activity(tool, parameters, stage, decision, confirmation, result, started, user)
         record = asdict(activity)
         record.pop("message")
         log.info("outil %s", json.dumps(record, ensure_ascii=False))

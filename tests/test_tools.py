@@ -998,3 +998,19 @@ def test_wake_word_needs_consecutive_frames_and_logs_rejected_peaks(caplog):
     assert "score 0.95, 1 image(s)" in caplog.text and trigger.detail.startswith("score 0.90, 2 image")
     single = WakeTrigger(0.7)
     assert single.update(0.71) is True
+
+
+def test_hung_tools_never_block_the_others():
+    import threading
+
+    from jarvis.tools.base import Risk, Tool
+
+    core = make_core(timeout=0.3)
+    release = threading.Event()
+    core.registry.register(Tool("hang", "bloque", {}, {}, Risk.SAFE, lambda: release.wait() and {}))
+    try:
+        for _ in range(4):
+            assert core.submit(call("hang")).result.error == "timeout"
+        assert core.submit(call("get_time")).result.success  # aucune file d'exécution saturée
+    finally:
+        release.set()
