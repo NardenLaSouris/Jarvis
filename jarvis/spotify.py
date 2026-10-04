@@ -139,6 +139,7 @@ class SpotifyClient:
         self.catalog: SpotifyCatalog | None = None
         self._path = Path(token_path)
         self._http, self._timeout, self._clock = http, timeout, clock
+        self._sleep = time.sleep
 
     # --- Jeton -----------------------------------------------------------------------------------------
 
@@ -178,6 +179,11 @@ class SpotifyClient:
         self._save(self._token_request({"grant_type": "authorization_code", "code": code, "redirect_uri": REDIRECT,
                                         "code_verifier": verifier}))
 
+    def _expire(self) -> None:
+        token = self._token()
+        token["expires_at"] = 0
+        self._save(token)
+
     def _access(self) -> str:
         token = self._token()
         if self._clock() >= token.get("expires_at", 0):
@@ -191,12 +197,23 @@ class SpotifyClient:
 
     def call(self, method: str, path: str, query: dict | None = None, body: dict | None = None) -> dict:
         url = API + path + ("?" + urllib.parse.urlencode(query) if query else "")
-        headers = {"Authorization": f"Bearer {self._access()}", "Content-Type": "application/json"}
-        try:
-            status, data = self._http(method, url, headers, json.dumps(body).encode() if body is not None else None,
-                                      self._timeout)
-        except OSError as exc:
-            raise ToolError(SPOTIFY_UNAVAILABLE, "Spotify ne répond pas.") from exc
+        payload = json.dumps(body).encode() if body is not None else None
+        for attempt in (1, 2):  # un second essai pour les erreurs passagères
+            headers = {"Authorization": f"Bearer {self._access()}", "Content-Type": "application/json"}
+            try:
+                status, data = self._http(method, url, headers, payload, self._timeout)
+            except OSError as exc:
+                raise ToolError(SPOTIFY_UNAVAILABLE, "Spotify ne répond pas.") from exc
+            if attempt == 2 or status not in (401, 429, 500, 502, 503, 504):
+                break
+            if status == 401:  # jeton refusé (révoqué, expiré en route) : renouvelé puis nouvel essai
+                self._expire()
+            else:
+                self._sleep(1.0 if status == 429 else 0.5)
+        if status == 401:
+            raise ToolError(SPOTIFY_UNAVAILABLE, "Spotify a refusé l'autorisation : relancez python -m jarvis --spotify-login.")
+        if status == 429:
+            raise ToolError(SPOTIFY_UNAVAILABLE, "Spotify limite les demandes pour le moment ; réessayez dans un instant.")
         if status == 404 and path.startswith("/me/player"):
             raise ToolError(NO_DEVICE, "Aucun appareil Spotify actif : ouvrez Spotify sur un appareil.")
         if status == 403:

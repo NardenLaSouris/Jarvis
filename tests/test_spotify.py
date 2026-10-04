@@ -11,7 +11,9 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from jarvis.spotify import TOKEN_URL, SpotifyClient, login, pkce_pair, spotify_tools  # noqa: E402
-from jarvis.tools import PermissionManager, ToolCore, ToolRegistry  # noqa: E402
+import pytest  # noqa: E402
+
+from jarvis.tools import PermissionManager, ToolCore, ToolError, ToolRegistry  # noqa: E402
 
 
 class FakeSpotify:
@@ -278,3 +280,49 @@ def test_spotify_volume_and_play_spotify_are_not_confused_with_the_pc(tmp_path):
     assert quick_plan("Mets le volume à 30 %.", core.registry)["tool"] == "set_volume"
     assert quick_plan("Joue Spotify.", core.registry) == {"type": "tool_call", "tool": "spotify_play", "parameters": {}}
     assert quick_plan("Ouvre Spotify", core.registry)["tool"] == "open_application"
+
+
+# --- Erreurs de l'API (session red team) -----------------------------------------------------------
+
+def scripted(tmp_path, statuses):
+    """Client dont les appels à l'API répondent successivement ``statuses`` (le jeton, lui, se renouvelle)."""
+    sequence = iter(statuses)
+    calls = []
+
+    def http(method, url, headers, body, timeout):
+        if url == TOKEN_URL:
+            calls.append("jeton")
+            return 200, json.dumps({"access_token": "jeton9", "refresh_token": "r", "expires_in": 3600}).encode()
+        calls.append(url.split("/v1")[-1].split("?")[0])
+        return next(sequence), b""
+
+    spotify = client(tmp_path, http)
+    spotify._sleep = lambda seconds: calls.append(f"pause {seconds}")
+    return spotify, calls
+
+
+def test_rate_limit_server_errors_and_revoked_token_are_retried_once(tmp_path):
+    spotify, calls = scripted(tmp_path, [429, 204])
+    assert spotify.call("PUT", "/me/player/pause") == {} and "pause 1.0" in calls
+    spotify, calls = scripted(tmp_path, [503, 200])
+    spotify.call("PUT", "/me/player/pause")
+    spotify, calls = scripted(tmp_path, [401, 204])
+    spotify.call("PUT", "/me/player/pause")
+    assert calls.count("jeton") == 1  # jeton renouvelé après le refus
+
+
+def test_persistent_api_errors_give_a_clear_message(tmp_path):
+    for statuses, words in (([429, 429], "limite"), ([401, 401], "spotify-login"), ([500, 500], "pas pu")):
+        spotify, _ = scripted(tmp_path, statuses)
+        with pytest.raises(ToolError) as error:
+            spotify.call("PUT", "/me/player/pause")
+        assert words in error.value.message
+
+
+def test_slow_or_unreachable_spotify_is_reported(tmp_path):
+    def http(method, url, headers, body, timeout):
+        raise TimeoutError("trop lent")
+
+    with pytest.raises(ToolError) as error:
+        client(tmp_path, http).call("GET", "/me/player")
+    assert error.value.message == "Spotify ne répond pas."
