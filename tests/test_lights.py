@@ -371,3 +371,35 @@ def test_all_lights_are_commanded_in_parallel():
     started = time.perf_counter()
     outcome = ToolCore(registry, PermissionManager()).submit({"tool": "light_off", "parameters": {"room": "all"}})
     assert outcome.result.success and time.perf_counter() - started < 0.9 and threading.active_count() >= 1
+
+
+def test_one_command_at_a_time_per_bulb_with_one_retry():
+    import threading
+    import time
+
+    from jarvis.tools.lights import Room
+
+    class Bulb:
+        def __init__(self):
+            self.busy, self.overlaps, self.calls = False, 0, 0
+
+        def status(self):
+            self.calls += 1
+            if self.busy:
+                self.overlaps += 1
+            self.busy = True
+            time.sleep(0.01)
+            self.busy = False
+            if self.calls == 1:
+                return {"Error": "Unexpected Payload from Device"}  # erreur passagère : nouvel essai
+            return {"dps": {"20": True, "21": "white", "22": 500}}
+
+    driver, bulb = TuyaDriver(), Bulb()
+    room = Room("chambre", "la chambre", "id", "1.2.3.4", 3.5, "k")
+    driver._bulbs["chambre"] = bulb
+    threads = [threading.Thread(target=lambda: driver.state(room)) for _ in range(12)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert bulb.overlaps == 0 and bulb.calls == 13  # 12 lectures, une erreur rattrapée, jamais deux à la fois

@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import logging
 import re
+import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Callable, Protocol
@@ -89,6 +91,7 @@ class TuyaDriver:
     def __init__(self, timeout: float = 3.0):
         self._timeout = timeout
         self._bulbs: dict[str, object] = {}
+        self._locks: dict[str, threading.Lock] = {}
 
     def _bulb(self, room: Room):
         if room.key not in self._bulbs:
@@ -101,15 +104,24 @@ class TuyaDriver:
         return self._bulbs[room.key]
 
     def _call(self, room: Room, action: Callable[[object], object]):
-        try:
-            result = action(self._bulb(room))
-        except Exception as exc:
-            log.warning("Lumière %s : %s", room.key, type(exc).__name__)
-            raise ToolError(LIGHT_UNREACHABLE, f"La lumière {of(room.name)} ne répond pas.") from exc
-        if isinstance(result, dict) and result.get("Error"):
-            log.warning("Lumière %s : %s", room.key, result.get("Error"))
-            raise ToolError(LIGHT_UNREACHABLE, f"La lumière {of(room.name)} ne répond pas.")
-        return result
+        """Une seule commande à la fois par ampoule (sa connexion n'est pas partagée entre fils : la voix, une
+        routine et le tableau de bord de JARVIS Control peuvent la viser en même temps) ; un second essai sur
+        une erreur passagère."""
+        with self._locks.setdefault(room.key, threading.Lock()):
+            for attempt in (1, 2):
+                try:
+                    result = action(self._bulb(room))
+                except Exception as exc:
+                    error = type(exc).__name__
+                    result = None
+                else:
+                    error = result.get("Error") if isinstance(result, dict) else None
+                if not error:
+                    return result
+                log.warning("Lumière %s : %s%s", room.key, error, " ; nouvel essai" if attempt == 1 else "")
+                if attempt == 1:
+                    time.sleep(0.2)
+        raise ToolError(LIGHT_UNREACHABLE, f"La lumière {of(room.name)} ne répond pas.")
 
     def state(self, room: Room) -> dict:
         dps = self._call(room, lambda b: b.status()).get("dps", {})
