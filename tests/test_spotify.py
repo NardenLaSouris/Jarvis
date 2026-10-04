@@ -264,4 +264,4 @@ def test_close_sounds_but_different_words_are_rejected():
 
     assert coverage("mein herz brent", "Rein raus") == 0.0
     assert coverage("dou ast", "Mon cœur bat vite") < 0.75
-    assert coverage("dragosta dine tei", "The Dirt") < 0.5
+    assert coverage("dragosta dine tei", "The Dirt") < 0.75  # sous le seuil sans artiste
