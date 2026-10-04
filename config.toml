@@ -288,6 +288,12 @@ day_end = "20:00"
 # .env, puis python -m jarvis --spotify-login. Compte Premium nécessaire. Sans cela : touches multimédia du PC.
 enabled = true
 token_path = "data/spotify_token.json"
+# Lecture par JARVIS lui-même : librespot sur le Core (deploy/jarvis-librespot.service) devient l'appareil Spotify
+# « device », son son est relayé vers la sortie de la voix ([audio] remote) et baisse quand JARVIS écoute ou parle.
+# Vide : la musique joue sur un appareil Spotify existant (application du PC, téléphone).
+device = ""
+pipe = "data/music.fifo"
+duck_percent = 15       # niveau de la musique (%) pendant que JARVIS écoute ou parle
 
 # Profils et terminaux (facultatif ; par défaut : un propriétaire et le terminal « main » de [audio] remote).
 # Rôles : owner (tout), adult (tout sauf effacer toute la mémoire), child (infos, lumières, musique, minuteurs,

@@ -40,7 +40,9 @@ confirmation, exécution, journal). Aucun shell, aucune commande libre.
   suppression ; calendrier local + lecture d'un .ics ou d'une adresse iCal secrète (Google, Outlook).
 - **Fichiers** (sur le PC, par l'agent) : recherche, lecture de texte, création dans un dossier de travail,
   copie ; déplacement et suppression avec confirmation, suppression récupérable (corbeille de JARVIS).
-- **Musique** : touches multimédia du PC ; Spotify par son API Web (après `--spotify-login`).
+- **Musique** : touches multimédia du PC ; Spotify par son API Web (après `--spotify-login`), joué par JARVIS
+  lui-même : librespot sur le Core (appareil « JARVIS », `deploy/jarvis-librespot.service`), son relayé vers le PC
+  comme la voix, baissé pendant que JARVIS écoute ou parle.
 - **Profils et terminaux** (`jarvis/profiles.py`) : rôles owner, adult, child, guest ; terminal → pièce et
   utilisateur ; par défaut un propriétaire, comportement inchangé.
 - **Réseau** : `network_status` ; sources des recherches Web journalisées et citées sur demande.
