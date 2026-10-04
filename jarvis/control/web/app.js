@@ -122,6 +122,10 @@
   async function dashboard() {
     const status = await api("GET", "/status");
     setConnection(true, "Core connecté");
+    setAlert([
+      ...(status.llm && status.llm.online === false ? ["Module de réflexion (Katana) injoignable : mode réduit"] : []),
+      ...status.agents.filter((a) => a.online === false).map((a) => `${cap(a.name)} ne répond pas`),
+    ]);
     const llm = status.llm;
     const lights = status.lights;
     const schedule = [...status.schedule.timers.map((t) => `Minuteur : encore ${t.remaining} (${t.ends_at})`),
@@ -392,7 +396,8 @@
           field(`Jeton API ${s.token_configured ? "(configuré)" : "(manquant)"}`, el("input", { type: "password", placeholder: "Laisser vide pour garder l'actuel", autocomplete: "off", oninput: (e) => { form.token = e.target.value; } })),
           field("Nom du PC", el("input", { type: "text", maxlength: 40, value: form.pc_name, oninput: (e) => { form.pc_name = e.target.value; } })),
           field("Thème", el("select", { onchange: (e) => { form.theme = e.target.value; } },
-            [["system", "Système"], ["dark", "Sombre"], ["light", "Clair"]].map(([v, t]) => el("option", { value: v, selected: form.theme === v }, t)))),
+            [["auto", "JARVIS automatique (nuit de 22 h à 7 h)"], ["jarvis", "JARVIS (jour)"], ["nuit", "JARVIS nuit (noir et blanc)"],
+             ["system", "Système"], ["dark", "Sombre"], ["light", "Clair"]].map(([v, t]) => el("option", { value: v, selected: form.theme === v }, t)))),
           field("Rafraîchissement (s)", el("input", { type: "number", min: 5, max: 3600, value: form.refresh_seconds, oninput: (e) => { form.refresh_seconds = Number(e.target.value); } }))),
         el("div", { class: "list", style: "margin-top:14px" },
           check("autostart", "Démarrer avec Windows (dans la zone de notification)"),
@@ -413,8 +418,25 @@
 
   const VIEWS = { dashboard, routines, devices, history: historyView, settings: settingsView };
 
+  // Thèmes du visage : « auto » suit les mêmes heures que lui (nuit de 22 h à 7 h).
   function applyTheme() {
-    document.documentElement.dataset.theme = (state.settings && state.settings.theme) || "system";
+    let theme = (state.settings && state.settings.theme) || "auto";
+    if (theme === "auto") {
+      const hour = new Date().getHours();
+      theme = hour >= 22 || hour < 7 ? "nuit" : "jarvis";
+    }
+    document.documentElement.dataset.theme = theme;
+  }
+  setInterval(applyTheme, 60000);
+
+  // Comme le visage : rouge tant qu'un composant indispensable est en panne (worker LLM, agents).
+  function setAlert(problems) {
+    document.documentElement.dataset.alert = problems.length ? "1" : "";
+    const banner = document.getElementById("alert");
+    if (banner) {
+      banner.hidden = !problems.length;
+      banner.textContent = problems.join(" · ");
+    }
   }
 
   async function show(name) {

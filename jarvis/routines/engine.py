@@ -159,11 +159,14 @@ class RoutineEngine:
         with self._lock:
             return list(self._routines.values())
 
-    def today(self, now: datetime | None = None) -> list[str]:
-        """Réveils et routines encore prévus aujourd'hui : « réveil à 7 h 30 », « routine « Soir » à 21 heures »."""
+    def today(self, now: datetime | None = None, routines: bool = True) -> list[str]:
+        """Réveils et routines encore prévus aujourd'hui : « réveil à 7 h 30 », « routine « Soir » à 21 heures ».
+        ``routines=False`` : les réveils seulement (le programme de la journée ne cite pas les automatismes)."""
         now = now or self._clock()
         items = []
         for routine in self.routines():
+            if not routines and not routine.is_alarm:
+                continue
             upcoming = next_time(routine.trigger, now) if routine.enabled else None
             if upcoming is not None and upcoming.date() == now.date():
                 label = "réveil" if routine.is_alarm else f"routine « {routine.name} »"

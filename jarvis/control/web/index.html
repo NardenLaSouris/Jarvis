@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="fr" data-theme="system">
+<html lang="fr" data-theme="jarvis">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -8,7 +8,7 @@
 </head>
 <body>
 <nav>
-  <div class="brand"><span class="core"></span>JARVIS</div>
+  <div class="brand"><span class="core"><i></i><i></i><i></i></span><span>JARVIS<small>CONTROL</small></span></div>
   <button data-view="dashboard">Tableau de bord</button>
   <button data-view="routines">Routines</button>
   <button data-view="devices">Appareils</button>
@@ -17,7 +17,7 @@
   <div class="spacer"></div>
   <div class="connection" id="connection"><span class="dot"></span>Connexion…</div>
 </nav>
-<main id="view"></main>
+<main><div id="alert" class="alert" hidden></div><div id="view"></div></main>
 <div id="toasts"></div>
 <script src="app.js"></script>
 </body>

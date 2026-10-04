@@ -40,6 +40,47 @@
   }
 }
 
+/* --- Thèmes du visage de JARVIS ---------------------------------------------------------------- */
+
+:root[data-theme="jarvis"] {
+  --bg: #030a17;
+  --panel: rgba(8, 26, 58, 0.62);
+  --panel-2: rgba(18, 52, 104, 0.5);
+  --line: rgba(70, 214, 255, 0.2);
+  --text: #d6f4ff;
+  --muted: #6f9cc4;
+  --accent: #46d6ff;
+  --accent-2: #2276ff;
+  --glow: rgba(70, 214, 255, 0.28);
+  --backdrop: radial-gradient(ellipse at 60% 45%, #0c2a5c 0%, #061329 38%, #030a17 70%, #010308 100%);
+  color-scheme: dark;
+}
+
+:root[data-theme="nuit"] {
+  --bg: #050505;
+  --panel: rgba(28, 28, 28, 0.66);
+  --panel-2: rgba(60, 60, 60, 0.45);
+  --line: rgba(255, 255, 255, 0.14);
+  --text: #f2f2f2;
+  --muted: #8f8f8f;
+  --accent: #e8e8e8;
+  --accent-2: #7d7d7d;
+  --ok: #d8d8d8;
+  --warn: #b4b4b4;
+  --glow: rgba(255, 255, 255, 0.16);
+  --backdrop: radial-gradient(ellipse at 60% 45%, #262626 0%, #141414 38%, #080808 70%, #000 100%);
+  color-scheme: dark;
+}
+
+/* Alerte (comme le visage en erreur) : accents rouges tant qu'un composant est en panne. */
+:root[data-alert="1"][data-theme="jarvis"], :root[data-alert="1"][data-theme="nuit"] {
+  --accent: #ff6e64;
+  --accent-2: #e6262e;
+  --line: rgba(255, 110, 100, 0.28);
+  --glow: rgba(255, 70, 70, 0.3);
+  --backdrop: radial-gradient(ellipse at 60% 45%, #4a0a0e 0%, #2a0507 38%, #160204 70%, #080001 100%);
+}
+
 * { box-sizing: border-box; }
 
 html, body {
@@ -214,3 +255,114 @@ td.err { color: var(--err); }
 @keyframes rise { from { transform: translateY(8px); opacity: 0; } }
 
 .banner { background: var(--panel); border: 1px solid var(--err); border-radius: var(--radius); padding: 12px 16px; margin-bottom: 16px; }
+
+
+/* --- Habillage « visage » (thèmes jarvis et nuit) ------------------------------------------------ */
+
+:root[data-theme="jarvis"] body, :root[data-theme="nuit"] body {
+  background: var(--backdrop);
+  background-attachment: fixed;
+}
+
+:root[data-theme="jarvis"] body::before, :root[data-theme="nuit"] body::before {
+  /* anneaux concentriques discrets, comme ceux du visage */
+  content: "";
+  position: fixed;
+  right: -18vmin;
+  top: 50%;
+  width: 110vmin;
+  height: 110vmin;
+  transform: translateY(-50%);
+  border-radius: 50%;
+  pointer-events: none;
+  background: repeating-radial-gradient(circle, transparent 0 46px, var(--line) 47px 48px, transparent 49px 96px);
+  -webkit-mask-image: radial-gradient(circle, #000 0%, transparent 70%);
+  mask-image: radial-gradient(circle, #000 0%, transparent 70%);
+  opacity: 0.55;
+  animation: drift 90s linear infinite;
+}
+
+@keyframes drift { to { transform: translateY(-50%) rotate(360deg); } }
+
+:root[data-theme="jarvis"] nav, :root[data-theme="nuit"] nav {
+  background: linear-gradient(180deg, rgba(4, 14, 32, 0.78), rgba(2, 8, 20, 0.62));
+  border-right: 1px solid var(--line);
+  backdrop-filter: blur(10px);
+}
+:root[data-theme="nuit"] nav { background: linear-gradient(180deg, rgba(18, 18, 18, 0.8), rgba(6, 6, 6, 0.66)); }
+
+:root[data-theme="jarvis"] main, :root[data-theme="nuit"] main { position: relative; z-index: 1; }
+
+:root[data-theme="jarvis"] .card, :root[data-theme="nuit"] .card,
+:root[data-theme="jarvis"] .block, :root[data-theme="nuit"] .block {
+  backdrop-filter: blur(8px);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02), 0 0 22px -12px var(--glow);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+:root[data-theme="jarvis"] .card:hover, :root[data-theme="nuit"] .card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 26px -8px var(--glow);
+}
+
+:root[data-theme="jarvis"] h1, :root[data-theme="nuit"] h1 {
+  font-weight: 300;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  font-size: 19px;
+  text-shadow: 0 0 14px var(--glow);
+}
+:root[data-theme="jarvis"] h3, :root[data-theme="nuit"] h3 { color: var(--accent); opacity: 0.85; letter-spacing: 0.18em; }
+
+:root[data-theme="jarvis"] .btn.primary, :root[data-theme="nuit"] .btn.primary {
+  background: transparent;
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 0 0 14px -4px var(--glow), inset 0 0 12px -6px var(--glow);
+}
+:root[data-theme="jarvis"] .btn.primary:hover, :root[data-theme="nuit"] .btn.primary:hover { background: var(--panel-2); }
+:root[data-theme="jarvis"] nav button.active, :root[data-theme="nuit"] nav button.active {
+  box-shadow: inset 3px 0 0 var(--accent), 0 0 18px -8px var(--glow);
+  color: var(--accent);
+}
+:root[data-theme="jarvis"] .dot.ok, :root[data-theme="nuit"] .dot.ok { box-shadow: 0 0 10px var(--ok); }
+
+/* Cœur animé de la marque : trois anneaux comme le visage */
+.brand small {
+  display: block;
+  font-size: 9px;
+  font-weight: 400;
+  letter-spacing: 0.42em;
+  color: var(--muted);
+}
+.brand .core {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  border: none;
+  box-shadow: none;
+}
+.brand .core i {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+}
+.brand .core i:nth-child(1) { inset: 9px; background: var(--accent); box-shadow: 0 0 12px var(--accent); animation: pulse 3.2s ease-in-out infinite; }
+.brand .core i:nth-child(2) { inset: 4px; border-color: transparent var(--accent) transparent var(--accent); opacity: 0.8; animation: spin 6s linear infinite; }
+.brand .core i:nth-child(3) { border-style: dashed; border-width: 1px; opacity: 0.55; animation: spin 14s linear infinite reverse; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse { 50% { transform: scale(0.72); opacity: 0.7; } }
+
+.alert {
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(255, 110, 100, 0.45);
+  background: rgba(60, 6, 8, 0.6);
+  color: #ffd9d4;
+  box-shadow: 0 0 22px -10px rgba(255, 70, 70, 0.6);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand .core i, body::before { animation: none !important; }
+}

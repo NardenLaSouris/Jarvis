@@ -328,7 +328,7 @@ def build_routines(cfg: Config, tools, notifications, events: EventBus, sink=Non
                     tools.submit({"type": "tool_call", "tool": tool, "parameters": parameters})
 
     def today_events() -> list[str]:
-        events_today = engine.today()
+        events_today = engine.today(routines=False)  # programme de la journée : sans les routines
         if calendar is not None:
             try:
                 events_today = [f"rendez-vous {line}" for line in calendar.today_lines()] + events_today

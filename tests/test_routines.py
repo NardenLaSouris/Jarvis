@@ -162,3 +162,11 @@ def test_a_running_routine_is_not_started_twice():
     setup = Setup(routines=[{**SOIR, "id": "soir"}])
     setup.engine._state["soir"] = {"running": True}
     assert setup.engine.run("soir") is False
+
+
+def test_day_programme_can_leave_routines_out():
+    setup = Setup(routines=[{**SOIR, "id": "soir1"},
+                            {"id": "rv", "name": "Réveil", "trigger": {"type": "time", "time": "21:30", "days": []},
+                             "actions": [{"type": "alarm"}]}])
+    assert setup.engine.today() == ["routine « Soir » à 21 heures", "réveil à 21 h 30"]
+    assert setup.engine.today(routines=False) == ["réveil à 21 h 30"]
