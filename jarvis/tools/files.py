@@ -128,6 +128,15 @@ class FileAccess:
         return found[0]
 
 
+def _folder_said(value: str, text: str) -> bool:
+    """Le dossier proposé par le LLM figure dans la demande (« dans mes documents ») : sinon il n'est pas inventé."""
+    said = f" {normalize(text)} "
+    words = normalize(value).replace("_", " ").split()
+    synonyms = {"documents": ("document", "documents"), "telechargements": ("telechargement", "telechargements", "downloads"),
+                "bureau": ("bureau", "desktop"), "jarvis": ("jarvis", "dossier de travail")}
+    return any(f" {w} " in said for word in words for w in synonyms.get(word, (word,)))
+
+
 def _describe(key: str, root: Path, path: Path) -> dict:
     stat = path.stat()
     return {"name": path.name, "location": key, "folder": str(path.parent.relative_to(root)) if path.parent != root else "",
@@ -155,8 +164,13 @@ def _free(target: Path) -> Path:
 
 
 def file_tools(access: FileAccess) -> list[Tool]:
-    location = Param(str, "dossier autorisé, seulement s'il est dit (documents, bureau, téléchargements...)",
-                     required=False, max_length=40)
+    def folder_in(text: str) -> str | None:
+        """Dossier autorisé nommé dans la demande (« dans mes documents ») ; jamais choisi par le LLM."""
+        # Sur le Core (sans dossiers locaux), les noms usuels : le PC visé vérifie ensuite qu'il les autorise.
+        keys = access.roots or ("documents", "bureau", "telechargements", "jarvis")
+        return next((key for key in keys if _folder_said(key, text)), None)
+
+    location = Param(str, "dossier autorisé", required=False, max_length=40, hidden=True, resolve=folder_in)
     name_param = Param(str, "nom du fichier tel qu'il a été dit (sans chemin)", max_length=80)
 
     def find_files(query: str, location: str | None = None) -> dict:

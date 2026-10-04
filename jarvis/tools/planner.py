@@ -113,7 +113,7 @@ EXAMPLES = (
     ("Qu'est-ce que tu sais sur moi ?", "recall", {}),
     ("Tu te souviens de ma couleur préférée ?", "recall", {"topic": "couleur préférée"}),
     ("Oublie que je préfère le bleu", "forget", {"topic": "je préfère le bleu"}),
-    ("Cherche le fichier facture dans mes documents", "find_files", {"query": "facture", "location": "documents"}),
+    ("Cherche le fichier facture dans mes documents", "find_files", {"query": "facture"}),
     ("Lis-moi le fichier notes", "read_text_file", {"name": "notes"}),
     ("Crée un fichier courses avec du lait et des œufs", "create_text_file",
      {"name": "courses", "content": "du lait et des œufs"}),
@@ -170,9 +170,9 @@ def planner_prompt(registry: ToolRegistry) -> str:
                      "précédent -> media_previous. Jouer un titre précis n'est pas possible sans Spotify relié -> none. "
                      "« Lance Spotify » (l'application) -> open_application.")
     if registry.exists("find_files"):
-        rules.append("- Fichiers : jamais de chemin ; un nom de fichier tel qu'il a été dit et, s'il est dit, un dossier "
-                     "autorisé (documents, bureau, téléchargements, jarvis). Supprimer un dossier, exécuter un fichier "
-                     "ou toucher au système -> none.")
+        rules.append("- Fichiers : jamais de chemin, un nom de fichier tel qu'il a été dit (le dossier est déduit de la "
+                     "demande, jamais un paramètre) ; destination de copy_file et move_file : dossier dit (documents, "
+                     "bureau, téléchargements). Supprimer un dossier, exécuter un fichier ou toucher au système -> none.")
     if registry.exists("list_events"):
         rules.append("- Calendrier : le jour n'est jamais un paramètre (déduit de la demande). add_event : heure recopiée "
                      "telle qu'elle a été dite ; un rappel (« rappelle-moi ») reste create_reminder.")

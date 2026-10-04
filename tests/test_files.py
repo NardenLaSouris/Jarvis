@@ -101,3 +101,11 @@ def test_file_tools_are_off_unless_configured_and_run_on_the_pc_agent():
     assert not {t.name for t in builtin_tools({})} & set(FILE_TOOLS)
     names = {t.name for t in builtin_tools({"files": {"enabled": True, "roots": {"documents": "."}}})}
     assert set(FILE_TOOLS) <= names and set(FILE_TOOLS) <= set(PC_TOOLS)
+
+
+def test_folder_comes_from_the_words_never_from_the_llm():
+    tools = {t.name: t for t in file_tools(FileAccess({}, None))}
+    location = tools["find_files"].parameters["location"]
+    assert location.hidden
+    assert location.resolve("Cherche la facture dans mes téléchargements") == "telechargements"
+    assert location.resolve("Cherche le fichier facture") is None
