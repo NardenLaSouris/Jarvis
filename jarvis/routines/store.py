@@ -7,6 +7,8 @@ import logging
 import os
 from pathlib import Path
 
+from jarvis.persist import load_json_list
+
 log = logging.getLogger(__name__)
 
 
@@ -15,14 +17,8 @@ class JsonRoutineStore:
         self.path = Path(path)
 
     def load(self) -> list[dict]:
-        if not self.path.exists():
-            return []
-        try:
-            data = json.loads(self.path.read_text(encoding="utf-8"))
-        except (OSError, ValueError) as exc:
-            log.error("Routines illisibles (%s) : %s", self.path, exc)
-            raise
-        return [item for item in data if isinstance(item, dict)] if isinstance(data, list) else []
+        # Fichier abîmé : mis de côté (jamais écrasé) et JARVIS démarre quand même, sans routines.
+        return [item for item in load_json_list(self.path, "Routines") if isinstance(item, dict)]
 
     def save(self, routines: list[dict]) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)

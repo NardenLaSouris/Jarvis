@@ -170,3 +170,16 @@ def test_day_programme_can_leave_routines_out():
                              "actions": [{"type": "alarm"}]}])
     assert setup.engine.today() == ["routine « Soir » à 21 heures", "réveil à 21 h 30"]
     assert setup.engine.today(routines=False) == ["réveil à 21 h 30"]
+
+
+def test_jarvis_starts_with_a_damaged_routines_file_and_keeps_it(tmp_path):
+    # Session QA : routines.json abîmé -> exception au démarrage, JARVIS ne démarrait plus (relancé en boucle).
+    from jarvis.persist import load_json_list
+    from jarvis.routines import JsonRoutineStore
+
+    for content in ('[1,2,{"x":', '{"routines": []}', "\x00\xff garbage"):
+        path = tmp_path / "routines.json"
+        path.write_bytes(content.encode("latin-1"))
+        assert JsonRoutineStore(path).load() == [] and not path.exists()
+    assert len(list(tmp_path.glob("routines.json.illisible-*"))) == 3  # chaque version abîmée est gardée
+    assert load_json_list(tmp_path / "absent.json", "Test") == []

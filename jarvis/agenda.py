@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Callable, Protocol
 
 from jarvis.memory import keywords
+from jarvis.persist import load_json_list
 from jarvis.personality import MONTHS, WEEKDAYS, normalize
 from jarvis.scheduling.clock import parse_clock, spoken_clock
 from jarvis.scheduling.durations import DurationError, duration_in_text, parse_duration
@@ -68,14 +69,8 @@ class LocalCalendar:
         self._lock = threading.Lock()
 
     def _load(self) -> list[dict]:
-        try:
-            data = json.loads(self._path.read_text(encoding="utf-8"))
-        except FileNotFoundError:
-            return []
-        except (OSError, ValueError) as exc:
-            log.warning("Calendrier local illisible (%s) : %s", self._path, exc)
-            return []
-        return data if isinstance(data, list) else []
+        # Fichier abîmé : mis de côté (le prochain ajout ne l'écrase pas), calendrier local vide.
+        return load_json_list(self._path, "Événements du calendrier local")
 
     def _save(self, items: list[dict]) -> None:
         self._path.parent.mkdir(parents=True, exist_ok=True)

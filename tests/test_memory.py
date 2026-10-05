@@ -46,9 +46,15 @@ def test_store_persists_dedups_searches_and_removes(tmp_path):
 
 
 def test_corrupt_file_is_kept_and_memory_starts_empty(tmp_path):
+    # Session QA : le fichier « conservé » était écrasé dès le « retiens » suivant. Il est désormais mis de côté.
     path = tmp_path / "m.json"
     path.write_text("{cassé", encoding="utf-8")
-    assert MemoryStore(path).all() == [] and path.read_text(encoding="utf-8") == "{cassé"
+    store = MemoryStore(path)
+    assert store.all() == []
+    store.add("je préfère le thé")
+    kept = list(tmp_path.glob("m.json.illisible-*"))
+    assert len(kept) == 1 and kept[0].read_text(encoding="utf-8") == "{cassé"
+    assert [f["text"] for f in MemoryStore(path).all()] == ["je préfère le thé"]
 
 
 def test_facts_are_said_back_in_the_second_person():

@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Callable, Protocol
 
 from jarvis.events import Event, EventBus
+from jarvis.persist import load_json_list
 from jarvis.scheduling.durations import spoken_duration
 from jarvis.scheduling.models import Reminder, Scheduled, Status, Timer
 from jarvis.scheduling.scheduler import Scheduler
@@ -84,14 +85,8 @@ class JsonScheduleStore(MemoryScheduleStore):
     def __init__(self, path: Path) -> None:
         super().__init__()
         self._path = Path(path)
-        try:
-            raw = json.loads(self._path.read_text(encoding="utf-8"))
-        except FileNotFoundError:
-            raw = []
-        except (OSError, ValueError) as exc:
-            log.warning("Échéances illisibles (%s) : %s", self._path, exc)
-            raw = []
-        for entry in raw if isinstance(raw, list) else []:
+        raw = load_json_list(self._path, "Échéances")  # fichier abîmé : mis de côté, jamais écrasé
+        for entry in raw:
             try:
                 cls = Reminder if entry["kind"] == Reminder.kind else Timer
                 fields = {"message": entry.get("message", "")} if cls is Reminder else {}

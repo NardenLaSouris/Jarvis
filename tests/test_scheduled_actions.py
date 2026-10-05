@@ -46,7 +46,10 @@ def test_time_expressions_are_split_from_the_command(text, trigger, command, sai
 
 @pytest.mark.parametrize("text", ["Rappelle-moi dans 20 minutes de sortir", "Mets un minuteur de 10 minutes",
                                   "Réveille-moi à 7 h", "Allume la chambre", "Mets la lumière à 30 %",
-                                  "Mets le son à 40"])
+                                  "Mets le son à 40",
+                                  # Session QA : un rendez-vous a sa propre date, ce n'est pas une action programmée.
+                                  "Ajoute un rendez-vous dentiste demain à 10 heures",
+                                  "Note une réunion lundi à 9 heures dans mon agenda"])
 def test_requests_without_schedule_are_left_alone(text):
     assert split_schedule(text, NOW) is None
 

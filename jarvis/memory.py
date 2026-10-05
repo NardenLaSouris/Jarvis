@@ -22,6 +22,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
+from jarvis.persist import load_json_list
 from jarvis.personality import normalize, second_person
 from jarvis.tools.base import INVALID_PARAMETERS, Param, Risk, Tool, ToolError
 
@@ -52,15 +53,9 @@ class MemoryStore:
         self._facts = self._load()
 
     def _load(self) -> list[dict]:
-        try:
-            data = json.loads(self._path.read_text(encoding="utf-8"))
-        except FileNotFoundError:
-            return []
-        except (OSError, ValueError) as exc:
-            log.warning("Mémoire illisible (%s) : %s ; elle repart vide, le fichier est conservé", self._path, exc)
-            return []
-        return [f for f in data if isinstance(f, dict) and isinstance(f.get("text"), str) and f.get("id")] \
-            if isinstance(data, list) else []
+        # Fichier abîmé : mis de côté sous un autre nom (le prochain « retiens » ne l'écrase pas) ; mémoire vide.
+        data = load_json_list(self._path, "Souvenirs")
+        return [f for f in data if isinstance(f, dict) and isinstance(f.get("text"), str) and f.get("id")]
 
     def _save(self) -> None:
         self._path.parent.mkdir(parents=True, exist_ok=True)
