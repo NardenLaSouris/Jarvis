@@ -1044,3 +1044,19 @@ def test_malformed_llm_proposals_are_never_read_aloud():
                       "confirmed": True})
     spoken, events = run_agent(["Ferme Discord"], llm, make_core(processes=processes))
     assert "Champs" not in spoken[0] and "demande d'outil" not in spoken[0] and processes.stopped == []
+
+
+def test_the_rest_of_a_chained_request_runs_once_the_confirmation_is_accepted():
+    # Session QA : « Verrouille le PC et mets le volume à 20 », « oui » : le PC était verrouillé, le volume oublié.
+    volume, locker = FakeVolume(), Locker()
+    spoken, events = run_agent(["Verrouille le PC et mets le volume à 20", "Oui."], PlannerLLM(),
+                               make_core(volume=volume, locker=locker), fast_path=True)
+    assert spoken[0].startswith("Voulez-vous") and locker.calls == 1 and volume.level == 20
+    volume, locker = FakeVolume(), Locker()
+    run_agent(["Verrouille le PC et mets le volume à 20", "Non."], PlannerLLM(),
+              make_core(volume=volume, locker=locker), fast_path=True)
+    assert locker.calls == 0 and volume.level == 30  # refusé : rien d'autre n'est fait
+    volume, locker = FakeVolume(), Locker()
+    run_agent(["Verrouille le PC et mets le volume à 20", "Quelle heure est-il ?", "Oui."], PlannerLLM(),
+              make_core(volume=volume, locker=locker), fast_path=True)
+    assert volume.level == 30 and locker.calls == 0  # autre demande entre-temps : tout ce qui attendait est oublié

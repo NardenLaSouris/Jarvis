@@ -223,6 +223,9 @@ class Agent:
         self._last_outcome = None
         self._action_unclear = False
         self._last_tool_request = ""
+        # Actions restantes d'une demande enchaînée arrêtée sur une confirmation (« ferme Chrome et ouvre le
+        # bloc-notes ») : (demande, actions, paramètres précédents), reprises si la confirmation est acceptée.
+        self._after_confirmation: tuple[str, list[dict], dict] | None = None
         self._place: str | None = None
         self._corrector = corrector
         self._notifications = notifications
@@ -311,10 +314,14 @@ class Agent:
             self._place = mentioned_city(text) or self._place
 
             outcome = self._tools.answer(text) if self._tools is not None else None
+            rest, self._after_confirmation = self._after_confirmation, None
             if outcome is not None:
                 latency["route"] = "tool:confirmation"
                 self._event("routing", latency["route"])
                 reply, end = self._after_tool(history, text, outcome, latency), False
+                if rest is not None and outcome.status == DONE and outcome.result.success:
+                    # Confirmation acceptée : la suite de la demande enchaînée n'est plus perdue.
+                    reply = f"{reply} {self._use_tools(history, rest[0], rest[1], latency, rest[2])}"
             elif self.last_sources and SOURCES.search(normalize(text)):
                 latency["route"] = "web:sources"
                 self._event("routing", latency["route"])
@@ -540,11 +547,13 @@ class Agent:
                 resolved[key] = value
         return {**data, "parameters": {**parameters, **resolved}} if resolved else data
 
-    def _use_tools(self, history: list[Message], text: str, calls: list[dict], latency: dict) -> str:
-        """Plusieurs actions dans l'ordre ; arrêt à la première qui échoue ou demande une confirmation."""
-        spoken, previous = [], {}
+    def _use_tools(self, history: list[Message], text: str, calls: list[dict], latency: dict,
+                   previous: dict | None = None) -> str:
+        """Plusieurs actions dans l'ordre ; arrêt à la première qui échoue ou demande une confirmation (la suite
+        attend alors la réponse)."""
+        spoken, previous = [], dict(previous or {})
         started = time.perf_counter()
-        for call in calls:
+        for index, call in enumerate(calls):
             data = self._with_hidden({"type": "tool_call", "tool": call["tool"], "parameters": call["parameters"]},
                                      text, call.get("segment", text), previous)
             previous = data["parameters"]
@@ -552,6 +561,8 @@ class Agent:
             outcome = self._tools.submit(data)
             if outcome.status == CONFIRM:
                 spoken.append(outcome.question)
+                if calls[index + 1:]:
+                    self._after_confirmation = (text, calls[index + 1:], previous)
                 break
             if outcome.result is not None and outcome.result.message:
                 spoken.append(outcome.result.message)

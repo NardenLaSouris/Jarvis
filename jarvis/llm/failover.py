@@ -18,6 +18,7 @@ JARVIS utilise alors ses commandes déterministes (voir jarvis.tools.quick).
 from __future__ import annotations
 
 import logging
+import queue
 import socket
 import threading
 import time
@@ -30,6 +31,13 @@ from jarvis.interfaces import Message
 log = logging.getLogger(__name__)
 
 ONLINE, DEGRADED, OFFLINE = "ONLINE", "DEGRADED", "OFFLINE"
+
+
+class FirstTokenTimeout(TimeoutError):
+    """Le worker accepte la demande mais ne répond pas (Ollama gelé, GPU saturé) : secours sans attendre le délai
+    complet entre deux morceaux."""
+
+    kind = "timeout"
 
 
 class LLMUnavailable(RuntimeError):
@@ -76,13 +84,14 @@ class FailoverLLM:
     def __init__(self, primary, fallback, primary_url: str, retry_after: float = 30.0,
                  reachable: Callable[[str], bool] = tcp_reachable, clock: Callable[[], float] = time.monotonic,
                  *, slow_after: float = 8.0, probe_interval: float = 10.0, json_fallback: bool = False,
-                 compact_system: Callable[[], str] | None = None):
+                 compact_system: Callable[[], str] | None = None, first_token_timeout: float = 10.0):
         self._primary, self._fallback = primary, fallback
         self._url = primary_url
         self._retry_after = retry_after
         self._reachable = reachable
         self._clock = clock
         self._slow_after = slow_after
+        self._first_token_timeout = first_token_timeout
         self._probe_interval = probe_interval
         self._json_fallback = json_fallback
         self.compact_system = compact_system
@@ -147,26 +156,88 @@ class FailoverLLM:
         return self._call(lambda llm, msgs: llm.chat(msgs), messages)
 
     def chat_json(self, messages: list[Message], schema: dict) -> dict:
-        return self._call(lambda llm, msgs: llm.chat_json(msgs, schema), messages, fallback=self._json_fallback)
+        # Choix d'outil : réponse courte, attendue d'un bloc ; un worker gelé ne bloque pas la demande 20 s.
+        return self._call(lambda llm, msgs: self._within(lambda: llm.chat_json(msgs, schema), llm), messages,
+                          fallback=self._json_fallback)
 
     def stream(self, messages: list[Message]) -> Iterator[str]:
         """Bascule sur le secours si le principal échoue avant le premier fragment (jamais au milieu d'une phrase)."""
         if self._primary_usable():
             self._last = self._primary
-            started, first = self._clock(), False
+            started = self._clock()
+            pieces = self._bounded(self._primary.stream(messages))
             try:
-                for piece in self._primary.stream(messages):
-                    if not first:
-                        first = True
-                        self._succeeded(self._clock() - started)
-                    yield piece
+                first = next(pieces)
+            except StopIteration:
+                self._succeeded(self._clock() - started)
                 return
             except Exception as exc:
-                if first:
-                    raise
                 self._primary_failed(exc)
+            else:
+                self._succeeded(self._clock() - started)
+                yield first
+                yield from pieces
+                return
         self._last = self._fallback
         yield from self._fallback_call(lambda llm, msgs: llm.stream(msgs), messages, stream=True)
+
+    def _within(self, action, llm):
+        """Appel du worker principal borné à ``first_token_timeout`` (le secours garde son propre délai)."""
+        if llm is not self._primary:
+            return action()
+        box: queue.Queue = queue.Queue()
+
+        def run() -> None:
+            try:
+                box.put(("ok", action()))
+            except Exception as exc:  # transmis à l'appelant
+                box.put(("error", exc))
+
+        threading.Thread(target=run, name="llm-json", daemon=True).start()
+        try:
+            kind, value = box.get(timeout=self._first_token_timeout)
+        except queue.Empty:
+            raise FirstTokenTimeout(f"aucune réponse en {self._first_token_timeout:.0f} s") from None
+        if kind == "error":
+            raise value
+        return value
+
+    def _bounded(self, pieces: Iterator[str]) -> Iterator[str]:
+        """Fragments du worker lus dans un fil : le premier doit arriver en ``first_token_timeout`` secondes (worker
+        gelé : 23 s de silence mesurées avant le secours). Les suivants restent bornés par le délai du client."""
+        box: queue.Queue = queue.Queue()
+        stop = threading.Event()
+
+        def pull() -> None:
+            try:
+                for piece in pieces:
+                    if stop.is_set():
+                        break
+                    box.put(("piece", piece))
+                box.put(("end", None))
+            except Exception as exc:  # transmis au lecteur
+                box.put(("error", exc))
+            finally:
+                close = getattr(pieces, "close", None)
+                if close is not None:
+                    close()
+
+        threading.Thread(target=pull, name="llm-flux", daemon=True).start()
+        try:
+            first = True
+            while True:
+                try:
+                    kind, value = box.get(timeout=self._first_token_timeout if first else None)
+                except queue.Empty:
+                    raise FirstTokenTimeout(f"aucune réponse en {self._first_token_timeout:.0f} s") from None
+                first = False
+                if kind == "end":
+                    return
+                if kind == "error":
+                    raise value
+                yield value
+        finally:
+            stop.set()
 
     def warm_up(self) -> None:
         self._each("préchargement", lambda llm: llm.warm_up(), lambda llm: llm.warm_up())

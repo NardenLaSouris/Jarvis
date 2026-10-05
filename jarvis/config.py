@@ -71,6 +71,8 @@ class LLMConfig:
     probe_interval: float = 10.0
     slow_after: float = 8.0
     retry_after: float = 30.0
+    # Premier fragment de réponse attendu au plus tant de secondes (worker gelé : secours sans attendre ``timeout``).
+    first_token_timeout: float = 10.0
 
 
 @dataclass(frozen=True)

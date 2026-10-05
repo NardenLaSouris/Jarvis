@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import logging
 import sys
+import threading
+import time
 from dataclasses import replace
 from pathlib import Path
 
@@ -241,3 +243,49 @@ def test_worker_back_online_is_warmed_up_again_in_background():
             break
         clock_time.sleep(0.02)
     assert primary.warmed == 1 and primary.primed == [2, 2]  # modèle et prompts rechargés au retour
+
+
+class FrozenLLM(FakeLLM):
+    """Worker qui accepte la demande mais ne répond jamais (Ollama gelé)."""
+
+    def __init__(self, name):
+        super().__init__(name)
+        self.release = threading.Event()
+
+    def stream(self, messages):
+        self.calls.append("stream")
+        self.release.wait(5)
+        yield "trop tard"
+
+    def chat_json(self, messages, schema):
+        self.calls.append("json")
+        self.release.wait(5)
+        return {"type": "none"}
+
+
+def test_a_frozen_worker_falls_back_after_the_first_token_timeout():
+    # Session QA : worker gelé (connexion acceptée, aucune réponse) : 23 s de silence avant le secours.
+    frozen = FrozenLLM("katana")
+    llm, _ = failover(frozen, FakeLLM("local"), first_token_timeout=0.3, json_fallback=True)
+    started = time.monotonic()
+    assert "".join(llm.stream(HELLO)) == "local parle."
+    assert time.monotonic() - started < 2 and llm.state == "DEGRADED" and llm.stats.errors["timeout"] == 1
+    frozen.release.set()
+
+
+def test_a_frozen_worker_does_not_block_the_tool_choice():
+    frozen = FrozenLLM("katana")
+    llm, _ = failover(frozen, FakeLLM("local"), first_token_timeout=0.3)
+    started = time.monotonic()
+    with pytest.raises(Exception):
+        llm.chat_json(HELLO, {})
+    assert time.monotonic() - started < 2 and llm.stats.errors["timeout"] == 1
+    frozen.release.set()
+
+
+def test_bounded_stream_keeps_all_pieces_and_errors():
+    llm, _ = failover(FakeLLM("katana"), FakeLLM("local"), first_token_timeout=1)
+    assert "".join(llm.stream(HELLO)) == "katana parle."
+    llm, _ = failover(FakeLLM("katana", error=LLMError("coupé"), fail_after=1), FakeLLM("local"), first_token_timeout=1)
+    with pytest.raises(LLMError):
+        "".join(llm.stream(HELLO))
