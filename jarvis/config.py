@@ -269,23 +269,51 @@ class Config:
     terminals: dict = field(default_factory=dict)
 
 
+# Durées, délais et fréquences : strictement positifs (« timeout = -1 », « sample_rate = -5 » étaient acceptés).
+POSITIVE = ("timeout", "interval", "sample_rate", "_after", "silence", "max_utterance", "max_minutes",
+            "cache_minutes")
+
+
+def _value(section: str, name: str, default: Any, value: Any, base_dir: Path) -> Any:
+    """Valeur d'un réglage convertie au type de sa valeur par défaut ; ValueError nommant la clé sinon."""
+    where = f"[{section}] {name}"
+    if isinstance(default, Path):
+        if not isinstance(value, str):
+            raise ValueError(f"{where} : chemin (texte) attendu, pas {value!r}")
+        path = Path(value)
+        return path if path.is_absolute() else (base_dir / path).resolve()
+    if isinstance(default, tuple):
+        if not isinstance(value, (list, tuple)):
+            raise ValueError(f"{where} : liste attendue, pas {value!r}")
+        return tuple(value)
+    if isinstance(default, bool):
+        if not isinstance(value, bool):
+            raise ValueError(f"{where} : true ou false attendu, pas {value!r}")
+        return value
+    if isinstance(default, (int, float)):
+        if isinstance(value, bool) or not isinstance(value, (int, float)) \
+                or (isinstance(default, int) and not isinstance(default, float) and isinstance(value, float)):
+            raise ValueError(f"{where} : nombre attendu, pas {value!r}")
+        value = float(value) if isinstance(default, float) else value
+        if any(word in name for word in POSITIVE) and value <= 0:
+            raise ValueError(f"{where} : doit être positif, pas {value!r}")
+        return value
+    if isinstance(default, str) and not isinstance(value, str):
+        raise ValueError(f"{where} : texte attendu, pas {value!r}")
+    return value
+
+
 def _build(cls: type, data: dict[str, Any], base_dir: Path):
-    """Instancie une section en convertissant les types (Path relatifs, tuples)."""
+    """Instancie une section en convertissant et vérifiant les types (Path relatifs, tuples, nombres)."""
     known = {f.name: f for f in fields(cls)}
     unknown = set(data) - set(known)
     if unknown:
         raise ValueError(f"Clés inconnues dans [{cls.__name__}] : {sorted(unknown)}")
+    section = cls.__name__.removesuffix("Config").lower()
     kwargs = {}
     for name, value in data.items():
         default = known[name].default
-        if isinstance(default, Path):
-            path = Path(value)
-            value = path if path.is_absolute() else (base_dir / path).resolve()
-        elif isinstance(default, tuple):
-            value = tuple(value)
-        elif isinstance(default, float):
-            value = float(value)
-        kwargs[name] = value
+        kwargs[name] = _value(section, name, default, value, base_dir)
     instance = cls(**kwargs)
     # Les chemins non surchargés sont aussi résolus par rapport au fichier.
     for name in known:

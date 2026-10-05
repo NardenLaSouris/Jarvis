@@ -5,10 +5,12 @@ Lancement : python -m pytest tests/test_units.py   (ou python tests/test_units.p
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -194,3 +196,21 @@ def test_toml_saved_with_a_bom_is_read(tmp_path):
     (tmp_path / "config.local.toml").write_text('[face]\nhost = "0.0.0.0"\n', encoding="utf-8-sig")
     cfg = load_config(tmp_path / "config.toml")
     assert (cfg.llm.model, cfg.face.host) == ("qwen2.5:3b", "0.0.0.0")
+
+
+@pytest.mark.parametrize("local, key", [
+    ('[llm]\ntimeout = "abc"\n', "[llm] timeout"),
+    ("[llm]\ntimeout = -1\n", "[llm] timeout"),
+    ("[llm]\nfirst_token_timeout = 0\n", "[llm] first_token_timeout"),
+    ("[audio]\nsample_rate = -5\n", "[audio] sample_rate"),
+    ("[assistant]\nconversation_timeout = 0\n", "[assistant] conversation_timeout"),
+    ("[web]\nenabled = \"oui\"\n", "[web] enabled"),
+    ("[llm]\nmodel = 7\n", "[llm] model"),
+])
+def test_invalid_settings_are_refused_with_their_name(tmp_path, local, key):
+    # Session QA : « timeout = -1 » ou « sample_rate = -5 » acceptés ; « could not convert string to float » sans
+    # dire quelle clé.
+    (tmp_path / "config.toml").write_text((ROOT / "config.toml").read_text(encoding="utf-8"), encoding="utf-8")
+    (tmp_path / "config.local.toml").write_text(local, encoding="utf-8")
+    with pytest.raises(ValueError, match=re.escape(key)):
+        load_config(tmp_path / "config.toml")
