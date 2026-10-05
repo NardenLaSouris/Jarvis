@@ -342,6 +342,11 @@ class QuickPlanner:
             return "unmute_volume", {}
         if _has(norm, MUTE) and self._exists("mute_volume"):
             return "mute_volume", {}
+        negative = NEGATIVE.search(text.lower())
+        if negative and _has(norm, SOUND_WORDS) and self._exists("set_volume"):
+            # « Mets le volume à moins 10 » : l'outil explique la plage (0 à 100 %), plutôt qu'une réponse floue.
+            level = re.search(r"\d{1,3}", text.lower()[negative.start():])
+            return ("set_volume", {"volume": -int(level.group())}) if level else None
         if (_has(norm, SOUND_WORDS) or (previous or {}).get("tool") == "set_volume") and self._exists("set_volume"):
             if self._about_lights(norm, text):
                 return None

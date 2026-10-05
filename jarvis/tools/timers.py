@@ -136,6 +136,7 @@ def _reminders_said(result: dict) -> str:
 
 def timer_tools(manager: TimerManager) -> list[Tool]:
     limit = spoken_duration(manager.max_seconds)
+    reminder_limit = spoken_duration(getattr(manager, "max_reminder_seconds", manager.max_seconds))
 
     def create_timer(duration: int) -> dict:
         return _timer_view(_call(lambda: manager.create_timer(duration)), manager)
@@ -154,9 +155,9 @@ def timer_tools(manager: TimerManager) -> list[Tool]:
     def create_reminder(message: str, delay: int | None = None, time: str | None = None,
                         day: str | None = None) -> dict:
         if day == OTHER_DAY and delay is None:
-            raise ToolError(INVALID_PARAMETERS, f"Je ne programme les rappels que pour les prochaines {limit} : "
-                                                "pour une date précise, ajoutez plutôt un événement au "
-                                                "calendrier.")
+            raise ToolError(INVALID_PARAMETERS, f"Je ne programme les rappels que pour les prochaines "
+                                                f"{reminder_limit} : pour une date précise, ajoutez plutôt un "
+                                                "événement au calendrier.")
         if delay is None and time is None:
             raise ToolError(INVALID_PARAMETERS, "Dans combien de temps, ou à quelle heure ?")
         if delay is None:
@@ -199,7 +200,8 @@ def timer_tools(manager: TimerManager) -> list[Tool]:
         Tool("list_timers", "Liste les minuteurs en cours et leur temps restant.", {},
              {"count": "nombre", "timers": "liste de {timer_id, duration, remaining, ends_at}"}, Risk.SAFE, list_timers,
              say=_timers_said),
-        Tool("create_reminder", f"Programme un rappel dans un délai donné (jusqu'à {limit}) ou à une heure précise.",
+        Tool("create_reminder", f"Programme un rappel dans un délai donné (jusqu'à {reminder_limit}) ou à une heure "
+             "précise.",
              {"delay": _duration_param("délai tel qu'il a été dit, par exemple « 20 minutes »", required=False),
               "time": Param(str, "heure précise telle qu'elle a été dite (« à 18 heures »), au lieu d'un délai",
                             required=False, max_length=40, check=_clock_text, evidence=_clock_said),

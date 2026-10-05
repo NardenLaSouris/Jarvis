@@ -254,7 +254,8 @@ enabled = true
 enabled = true
 persist = true
 path = "data/schedule.json"
-max_hours = 24          # durée maximale d'un minuteur ou d'un rappel
+max_hours = 24          # durée maximale d'un minuteur
+reminder_max_hours = 72 # horizon d'un rappel (« demain à 9 h », « après-demain à 18 h » à toute heure)
 max_active = 20         # nombre maximal d'échéances en cours
 
 [weather]

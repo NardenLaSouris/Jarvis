@@ -168,7 +168,7 @@ def build_timers(cfg: Config, events: EventBus | None):
 
     store = JsonScheduleStore(cfg.timers.path) if cfg.timers.persist else None
     manager = TimerManager(events, max_seconds=cfg.timers.max_hours * 3600, max_active=cfg.timers.max_active,
-                           store=store)
+                           store=store, max_reminder_seconds=cfg.timers.reminder_max_hours * 3600)
     manager.start()
     return manager
 

@@ -88,7 +88,7 @@ def test_simple_commands_are_understood_without_llm(text, expected):
     "Baisse un peu la lumière", "Ouvre YouTube", "Ouvre le terminal", "Supprime le dossier Documents",
     "Tous les jours à 21 h, allume la chambre", "Pourquoi le ciel est bleu ?",
     "Mets un minuteur", "Ouvre Discord et fais-moi un café",
-    "Mets le volume à moins 10", "Mets le son à -20 %", "Luminosité moins 30",  # jamais lu comme 10, 20 ou 30
+    "Luminosité moins 30",  # jamais lu comme 30
 ])
 def test_anything_else_is_left_to_the_llm(text):
     assert quick_plan(text, REGISTRY) is None
@@ -286,3 +286,11 @@ def test_running_applications_question_never_depends_on_the_llm(text):
 def test_cities_outside_the_french_list_are_passed_on(text, place):
     # Session QA : « la météo à Tokyo » donnait celle de Nantes (ville par défaut) sans le dire.
     assert quick_plan(text, REGISTRY)["parameters"].get("location") == place
+
+
+@pytest.mark.parametrize("text, level", [("Mets le volume à moins 10", -10), ("Mets le son à -20 %", -20)])
+def test_negative_volume_is_refused_by_the_tool_with_its_range(text, level):
+    # Jamais lu comme 10 ou 20 ; transmis tel quel, l'outil le refuse (hors limites) au lieu d'une réponse floue.
+    assert quick_plan(text, REGISTRY) == call("set_volume", volume=level)
+    outcome = make_core().submit(quick_plan(text, REGISTRY))
+    assert outcome.status == "rejected" and "volume" in outcome.result.message

@@ -547,3 +547,21 @@ def test_reminder_day_is_never_ignored():
     assert not refused.success and "calendrier" in refused.message
     assert not remind(evening, time="10 heures", day="0").success  # déjà passée aujourd'hui
     assert remind(evening, delay="10 minutes", day="other").success  # un délai n'a pas de date
+
+
+def test_reminders_reach_further_than_timers():
+    # Session QA : « Rappelle-moi demain à 9 heures… » dit à 3 h 30 dépassait les 24 h des minuteurs.
+    from datetime import datetime
+
+    from jarvis.scheduling.manager import TimerManager
+
+    manager = TimerManager(clock=lambda: datetime(2026, 10, 5, 3, 30), max_seconds=86400,
+                           max_reminder_seconds=72 * 3600)
+    registry = ToolRegistry()
+    for tool in timer_tools(manager):
+        registry.register(tool)
+    core = ToolCore(registry, PermissionManager())
+    reminder = core.submit({"tool": "create_reminder", "parameters": {"message": "appeler le garage",
+                                                                      "time": "9 heures", "day": "1"}}).result
+    assert reminder.success and reminder.result["at"] == "09:00"
+    assert not core.submit({"tool": "create_timer", "parameters": {"duration": "30 heures"}}).result.success

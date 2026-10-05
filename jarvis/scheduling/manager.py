@@ -122,9 +122,11 @@ def _reminder_payload(reminder: Reminder) -> dict:
 class TimerManager:
     def __init__(self, events: EventBus | None = None, max_seconds: float = 86400, max_active: int = 20,
                  store: ScheduleStore | None = None, clock: Callable[[], datetime] = datetime.now,
-                 monotonic: Callable[[], float] = time.monotonic):
+                 monotonic: Callable[[], float] = time.monotonic, max_reminder_seconds: float | None = None):
         self._events = events
         self._max_seconds = max_seconds
+        # Rappels : horizon propre (« demain à 9 h » dit à 3 h du matin dépasse 24 h).
+        self._max_reminder_seconds = max(max_seconds, max_reminder_seconds or max_seconds)
         self._max_active = max_active
         self._store = store or MemoryScheduleStore()
         self._clock = clock
@@ -135,6 +137,10 @@ class TimerManager:
     @property
     def max_seconds(self) -> float:
         return self._max_seconds
+
+    @property
+    def max_reminder_seconds(self) -> float:
+        return self._max_reminder_seconds
 
     def start(self) -> None:
         self._restore()
@@ -209,8 +215,9 @@ class TimerManager:
     def _create(self, cls: type, seconds: float, **fields) -> Scheduled:
         if isinstance(seconds, bool) or not isinstance(seconds, (int, float)) or not seconds > 0:
             raise SchedulingError(INVALID_DURATION, "La durée doit être positive.")
-        if seconds > self._max_seconds:
-            raise SchedulingError(INVALID_DURATION, f"La durée maximale est de {spoken_duration(self._max_seconds)}.")
+        limit = self._max_reminder_seconds if cls is Reminder else self._max_seconds
+        if seconds > limit:
+            raise SchedulingError(INVALID_DURATION, f"La durée maximale est de {spoken_duration(limit)}.")
         with self._lock:
             if sum(len(self._active_unlocked(kind)) for kind in self._numbers) >= self._max_active:
                 raise SchedulingError(LIMIT_REACHED, f"Je ne peux pas gérer plus de {self._max_active} échéances à la fois.")
