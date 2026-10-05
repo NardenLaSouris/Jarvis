@@ -1076,3 +1076,16 @@ def test_nothing_carries_over_to_the_next_conversation():
     spoken, events = run_agent(["Quel temps fait-il à Lyon ?", SLEEP, "Et demain ?"], llm, core, fast_path=True)
     assert "Lyon" in spoken[0] and "tool.follow_up" not in " ".join(routes(events))
     assert not any("Lyon" in s for s in spoken[1:])
+
+
+def test_huge_tool_results_are_bounded_before_reaching_the_llm():
+    # Session QA : une réponse d'agent de 2 Mo partait entière au LLM (10 s de lecture, réponse confuse).
+    from jarvis.tools.base import ToolResult
+    from jarvis.tools.planner import MAX_PAYLOAD_FOR_LLM, tool_request
+
+    huge = ToolResult("list_running_applications", True,
+                      result={"applications": [f"app{i}" for i in range(10_000)], "note": "A" * 2_000_000})
+    message = tool_request("Quelles applications sont ouvertes ?", huge)
+    assert len(message) < MAX_PAYLOAD_FOR_LLM + 500 and "tronqué" in message and "autres" in message
+    small = ToolResult("read_text_file", True, result={"content": "Acheter du pain. " * 200})
+    assert "tronqué" not in tool_request("Lis mes notes", small)  # un texte de fichier lu reste entier

@@ -406,9 +406,31 @@ def _grounded(data: dict, text: str, registry: ToolRegistry) -> dict | None:
     return {**data, "parameters": parameters}
 
 
+MAX_TEXT_FOR_LLM = 4000  # un texte lu dans un fichier tient en entier (MAX_READ_CHARS des outils de fichiers)
+MAX_ITEMS_FOR_LLM = 40
+MAX_PAYLOAD_FOR_LLM = 12_000
+
+
+def _bounded(value, depth: int = 0):
+    """Résultat d'outil réduit pour le LLM : une réponse démesurée (agent : 2 Mo mesurés) prenait 10 s de lecture
+    et donnait une réponse confuse. Textes et listes raccourcis, et signalés comme tels."""
+    if depth > 6:
+        return "…"
+    if isinstance(value, str):
+        return value if len(value) <= MAX_TEXT_FOR_LLM else value[:MAX_TEXT_FOR_LLM] + " […tronqué]"
+    if isinstance(value, list):
+        kept = [_bounded(v, depth + 1) for v in value[:MAX_ITEMS_FOR_LLM]]
+        return kept + ([f"… {len(value) - MAX_ITEMS_FOR_LLM} autres"] if len(value) > MAX_ITEMS_FOR_LLM else [])
+    if isinstance(value, dict):
+        return {str(k)[:60]: _bounded(v, depth + 1) for k, v in list(value.items())[:MAX_ITEMS_FOR_LLM]}
+    return value
+
+
 def tool_request(user_text: str, result: ToolResult) -> str:
-    """Message utilisateur envoyé au LLM après exécution : le résultat structuré, puis la demande."""
-    payload = json.dumps(result.as_dict(), ensure_ascii=False)
+    """Message utilisateur envoyé au LLM après exécution : le résultat structuré (borné), puis la demande."""
+    payload = json.dumps(_bounded(result.as_dict()), ensure_ascii=False)
+    if len(payload) > MAX_PAYLOAD_FOR_LLM:
+        payload = payload[:MAX_PAYLOAD_FOR_LLM] + " […tronqué]"
     return f"{RESULT_START}\n{payload}\n{RESULT_END}\n\n{user_text}"
 
 
