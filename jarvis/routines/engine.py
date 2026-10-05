@@ -15,7 +15,7 @@ from typing import Callable
 
 from jarvis.events import Event, EventBus
 from jarvis.routines.events import ROUTINE_FINISHED, ROUTINE_STARTED, ROUTINE_STEP
-from jarvis.routines.model import Routine, RoutineError, parse_routine
+from jarvis.routines.model import EVENT_TRIGGERS, Routine, RoutineError, parse_routine
 from jarvis.scheduling.clock import spoken_clock
 from jarvis.tools import DONE, ToolRegistry
 
@@ -23,7 +23,8 @@ log = logging.getLogger(__name__)
 
 MAX_LATE = 600  # une action à date précise manquée de plus de 10 minutes (JARVIS arrêté) n'est plus exécutée
 WEEKDAYS = ("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche")
-ANNOUNCE_LABELS = {"time": "l'heure", "date": "la date", "weather": "la météo", "day": "la journée"}
+ANNOUNCE_LABELS = {"time": "l'heure", "date": "la date", "weather": "la météo", "day": "la journée",
+                   "welcome": "le retour (bon retour et résumé de l'absence)"}
 
 
 def describe(action: dict) -> str:
@@ -181,27 +182,29 @@ class RoutineEngine:
 
     # --- Exécution -----------------------------------------------------------------------------------
 
-    def run(self, routine_id: str, source: str = "manual", wait: bool = False) -> bool:
-        """Lance la routine en arrière-plan ; False si elle est déjà en cours."""
+    def run(self, routine_id: str, source: str = "manual", wait: bool = False,
+            context: dict | None = None) -> bool:
+        """Lance la routine en arrière-plan ; False si elle est déjà en cours. ``context`` : données de
+        l'événement déclencheur (arrivée : utilisateur, début de l'absence), pour l'annonce « welcome »."""
         with self._lock:
             routine = self._find(routine_id)
             state = self._state.setdefault(routine_id, {})
             if state.get("running"):
                 return False
             state["running"] = True
-        thread = threading.Thread(target=self._execute, args=(routine, source), name=f"routine-{routine_id}",
-                                  daemon=True)
+        thread = threading.Thread(target=self._execute, args=(routine, source, context or {}),
+                                  name=f"routine-{routine_id}", daemon=True)
         thread.start()
         if wait:
             thread.join()
         return True
 
-    def _execute(self, routine: Routine, source: str) -> None:
+    def _execute(self, routine: Routine, source: str, context: dict | None = None) -> None:
         base = {"routine_id": routine.id, "name": routine.name, "source": source}
         self._publish(ROUTINE_STARTED, {**base, "subject": f"routine « {routine.name} »"})
         success, error = True, None
         for index, action in enumerate(routine.actions, 1):
-            ok, message = self._step(routine, action)
+            ok, message = self._step(routine, action, context or {})
             self._publish(ROUTINE_STEP, {**base, "step": index, "action": describe(action), "success": ok,
                                          "message": message, "subject": f"{routine.name} : {describe(action)}"})
             if not ok:
@@ -216,7 +219,7 @@ class RoutineEngine:
         self._publish(ROUTINE_FINISHED, {**base, "success": success, "error": error,
                                          "subject": f"routine « {routine.name} » {'réussie' if success else 'en échec'}"})
 
-    def _step(self, routine: Routine, action: dict) -> tuple[bool, str]:
+    def _step(self, routine: Routine, action: dict, context: dict | None = None) -> tuple[bool, str]:
         try:
             if action["type"] == "wait":
                 self._sleep(action["seconds"])
@@ -231,7 +234,8 @@ class RoutineEngine:
             if action["type"] == "announce":
                 if self._announce is None:
                     return False, "Annonce indisponible."
-                text = self._announce(action["what"])
+                what = action["what"]
+                text = self._announce(what, context or {}) if what == "welcome" else self._announce(what)
                 if text:
                     self._say(routine.name, text)
                 return bool(text), text or "Rien à annoncer."
@@ -285,6 +289,25 @@ class RoutineEngine:
             if expired:
                 self._save()
         return due
+
+    # --- Déclenchement par un événement de la maison --------------------------------------------------
+
+    def attach_events(self, bus: EventBus) -> None:
+        """Routines « event » : lancées par un retour ou un départ confirmés (moteur de présence)."""
+        for event_type in EVENT_TRIGGERS.values():
+            bus.subscribe(event_type, self.on_event)
+
+    def on_event(self, event: Event) -> None:
+        if event.source != "presence":  # seul le moteur de présence décide d'un retour ou d'un départ
+            log.warning("Routines : %s de source %r ignoré", event.type, event.source)
+            return
+        with self._lock:
+            matching = [r for r in self._routines.values() if r.enabled and r.trigger["type"] == "event"
+                        and EVENT_TRIGGERS.get(r.trigger["event"]) == event.type
+                        and r.trigger.get("user", event.payload.get("user")) == event.payload.get("user")]
+        for routine in matching:
+            if not self.run(routine.id, source=routine.trigger["event"], context=dict(event.payload)):
+                log.info("Routine %s déjà en cours : %s ignoré", routine.id, event.type)
 
     def start(self) -> None:
         if self._thread is None:

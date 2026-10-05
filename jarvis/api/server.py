@@ -40,7 +40,8 @@ def tool_info(tool) -> dict:
 
 class CoreApi:
     def __init__(self, host: str, port: int, allowed_ips: frozenset[str], token: str, *, tools: ToolCore | None,
-                 routines: RoutineEngine | None, status: CoreStatus, activity=None, memory=None, face_themes=None):
+                 routines: RoutineEngine | None, status: CoreStatus, activity=None, memory=None, face_themes=None,
+                 presence=None):
         if not token:
             raise ValueError("JARVIS_AGENT_TOKEN est requis pour l'API d'administration ([api]).")
         self._address = (host, port)
@@ -48,6 +49,7 @@ class CoreApi:
         self.tools, self.routines, self.status, self._activity = tools, routines, status, activity
         self.memory = memory
         self.face_themes = face_themes
+        self.presence = presence
         self._httpd: ExclusiveServer | None = None
 
     @property
@@ -92,6 +94,27 @@ class CoreApi:
         return (200 if ok else 422), {"status": "ok" if ok else "error", "tool": name,
                                       "message": result.message if result else "", "result": result.result if ok else None,
                                       "error": None if ok else (result.error if result else outcome.status)}
+
+    def presence_action(self, method: str, parts: list[str], data) -> tuple[int, object]:
+        """GET /api/presence : état et journal ; POST /api/presence/simulate {"sensor", "value", "celsius"?,
+        "name"?} : signal simulé, par le même chemin qu'un vrai capteur."""
+        if self.presence is None:
+            return 404, {"status": "error", "error": "presence_disabled"}
+        if method == "GET" and not parts:
+            return 200, self.presence.snapshot()
+        if method == "POST" and parts == ["simulate"]:
+            from jarvis.presence.sensors import SensorError
+
+            if not isinstance(data, dict) or not isinstance(data.get("sensor"), str) \
+                    or not isinstance(data.get("value"), str):
+                return 400, {"status": "error", "error": "bad_request", "message": "sensor et value attendus."}
+            extra = {k: data[k] for k in ("celsius", "name") if k in data}
+            try:
+                event = self.presence.simulate(data["sensor"], data["value"], extra or None)
+            except SensorError as exc:
+                return 400, {"status": "error", "error": "refused", "message": str(exc)}
+            return 200, {"status": "ok", "event": event.as_dict(), "presence": self.presence.engine.snapshot()}
+        return 404, {"status": "error", "error": "not_found"}
 
     def routine_action(self, method: str, parts: list[str], data) -> tuple[int, object]:
         engine = self.routines
@@ -182,6 +205,8 @@ class CoreApi:
                 if method == "POST" and len(route) == 2 and route[0] == "tools":
                     parameters = data.get("parameters") if isinstance(data, dict) else None
                     return api.call_tool(route[1], parameters)
+                if route[:1] == ["presence"]:
+                    return api.presence_action(method, route[1:], data)
                 if method == "GET" and route == ["face"]:
                     if api.face_themes is None:
                         return 404, {"status": "error", "error": "face_disabled"}

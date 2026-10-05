@@ -20,7 +20,9 @@
   };
   const INFO_TOOLS = new Set(["get_time", "get_date", "get_weather", "system_info", "list_running_applications",
     "list_timers", "list_reminders", "create_alarm", "list_alarms", "cancel_alarm"]);
-  const ANNOUNCE = { time: "L'heure", date: "La date", weather: "La météo", day: "La journée (date, météo, programme)" };
+  const ANNOUNCE = { time: "L'heure", date: "La date", weather: "La météo", day: "La journée (date, météo, programme)",
+    welcome: "Bon retour (et résumé de l'absence)" };
+  const EVENTS = { arrival: "Retour à la maison confirmé", departure: "Départ de la maison confirmé" };
   const ACTION_TYPES = [["tool", "Action"], ["say", "JARVIS dit"], ["announce", "Annoncer"], ["alarm", "Réveil (sonnerie)"],
     ["wait", "Attendre"]];
   const PARAM_LABELS = {
@@ -105,6 +107,7 @@
     }
     if (trigger.type === "interval") return `Toutes les ${trigger.minutes} min`;
     if (trigger.type === "at") return `Une fois, le ${new Date(trigger.at).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}`;
+    if (trigger.type === "event") return `${EVENTS[trigger.event] || trigger.event}${trigger.user ? ` (${trigger.user})` : ""}`;
     return "Manuellement";
   }
 
@@ -222,7 +225,11 @@
               onchange: (e) => { trigger.days = e.target.checked ? [...trigger.days, i].sort() : trigger.days.filter((x) => x !== i); } }), d))))]
         : trigger.type === "interval"
           ? [el("label", { class: "field" }, "Toutes les (minutes)", el("input", { type: "number", min: 1, max: 1440, value: trigger.minutes, oninput: (e) => { trigger.minutes = Number(e.target.value); } }))]
-          : [el("div", { class: "muted small" }, "Lancée seulement avec « Tester » (ou plus tard par une phrase ou un événement).")];
+          : trigger.type === "event"
+            ? [el("label", { class: "field" }, "Événement", el("select", { onchange: (e) => { trigger.event = e.target.value; } },
+                Object.entries(EVENTS).map(([v, t]) => el("option", { value: v, selected: trigger.event === v }, t)))),
+               el("div", { class: "muted small" }, "Décidé par le moteur de présence (téléphone, porte, mouvement), jamais par une porte seule.")]
+            : [el("div", { class: "muted small" }, "Lancée seulement avec « Tester » (ou plus tard par une phrase ou un événement).")];
 
       const blocks = draft.actions.flatMap((action, index) => {
         const move = (delta) => { const [a] = draft.actions.splice(index, 1); draft.actions.splice(index + delta, 0, a); render(); };
@@ -271,7 +278,7 @@
           el("div", { class: "arrow" }, "↓"),
           el("div", { class: "block trigger" }, el("h3", {}, "Déclencheur"),
             el("div", { class: "fields" }, el("label", { class: "field" }, "Type", el("select", { onchange: (e) => { draft.trigger = newTrigger(e.target.value); render(); } },
-              [["time", "Heure"], ["interval", "Intervalle"], ["manual", "Manuel"]].map(([v, t]) => el("option", { value: v, selected: trigger.type === v }, t)))),
+              [["time", "Heure"], ["interval", "Intervalle"], ["event", "Événement de la maison"], ["manual", "Manuel"]].map(([v, t]) => el("option", { value: v, selected: trigger.type === v }, t)))),
               triggerFields)),
           blocks,
           el("div", { class: "arrow" }, "↓"),
@@ -299,6 +306,7 @@
   function newTrigger(type) {
     if (type === "time") return { type, time: "21:00", days: [] };
     if (type === "interval") return { type, minutes: 30 };
+    if (type === "event") return { type, event: "arrival" };
     return { type: "manual" };
   }
 

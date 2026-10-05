@@ -22,7 +22,10 @@ TIME = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 
 
-ANNOUNCEMENTS = ("time", "date", "weather", "day")
+ANNOUNCEMENTS = ("time", "date", "weather", "day", "welcome")
+# Déclencheurs par événement de la maison (décidés par le moteur de présence, jamais par une porte seule).
+EVENT_TRIGGERS = {"arrival": "presence.arrival_confirmed", "departure": "presence.departure_confirmed"}
+USER = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
 
 
 class RoutineError(ValueError):
@@ -74,10 +77,18 @@ def _only(data: dict, keys: set[str], label: str) -> None:
 
 
 def parse_trigger(data) -> dict:
-    _only(data, {"type", "time", "days", "minutes", "at"}, "Déclencheur")
+    _only(data, {"type", "time", "days", "minutes", "at", "event", "user"}, "Déclencheur")
     kind = data.get("type")
     if kind == "manual":
         return {"type": "manual"}
+    if kind == "event":
+        event = data.get("event")
+        if event not in EVENT_TRIGGERS:
+            raise RoutineError("Déclencheur : événement « arrival » (retour) ou « departure » attendu.")
+        user = data.get("user", "")
+        if user and (not isinstance(user, str) or not USER.match(user)):
+            raise RoutineError("Déclencheur : utilisateur invalide.")
+        return {"type": "event", "event": event, **({"user": user} if user else {})}
     if kind == "at":
         try:
             when = datetime.fromisoformat(str(data.get("at")))
@@ -95,7 +106,7 @@ def parse_trigger(data) -> dict:
         return {"type": "time", "time": time, "days": sorted(set(days))}
     if kind == "interval":
         return {"type": "interval", "minutes": _integer(data, "minutes", 1, MAX_INTERVAL, "Intervalle (minutes)")}
-    raise RoutineError("Déclencheur : type « time », « at », « interval » ou « manual » attendu.")
+    raise RoutineError("Déclencheur : type « time », « at », « interval », « event » ou « manual » attendu.")
 
 
 def parse_action(data, registry: ToolRegistry) -> dict:
@@ -109,7 +120,7 @@ def parse_action(data, registry: ToolRegistry) -> dict:
     if kind == "announce":
         _only(data, {"type", "what"}, "Action « annoncer »")
         if data.get("what") not in ANNOUNCEMENTS:
-            raise RoutineError("Annonce : « time », « date », « weather » ou « day » attendu.")
+            raise RoutineError("Annonce : « time », « date », « weather », « day » ou « welcome » attendu.")
         return {"type": "announce", "what": data["what"]}
     if kind == "wait":
         _only(data, {"type", "seconds"}, "Action « attendre »")

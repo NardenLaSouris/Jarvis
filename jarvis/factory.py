@@ -337,7 +337,22 @@ def build_calendar(cfg: Config):
     return Calendar(providers, day_start=cfg.calendar.day_start, day_end=cfg.calendar.day_end)
 
 
-def build_routines(cfg: Config, tools, notifications, events: EventBus, sink=None, timers=None, calendar=None):
+def build_presence_system(cfg: Config, events: EventBus, home=None):
+    """Présence à la maison ([presence]) démarrée, ou None si désactivée."""
+    if not cfg.presence.enabled:
+        return None
+    from jarvis.presence.system import build_presence
+
+    known = {u.id for u in build_profiles(cfg).users()}
+    system = build_presence(cfg.presence, events, known, home)
+    system.start()
+    log.info("Présence : %d capteur(s), utilisateurs suivis : %s", len(system.hub.sensors),
+             ", ".join(system.engine.users) or "aucun")
+    return system
+
+
+def build_routines(cfg: Config, tools, notifications, events: EventBus, sink=None, timers=None, calendar=None,
+                   presence=None, personality=None):
     """Moteur des routines démarré ([routines]), avec sonnerie des réveils et annonces ; outils de réveil ajoutés au
     registre ([alarms]). None sans outils."""
     if tools is None or not cfg.routines.enabled:
@@ -374,7 +389,18 @@ def build_routines(cfg: Config, tools, notifications, events: EventBus, sink=Non
         if sink is not None and cfg.alarms.enabled else None
     owner = next(u.id for u in build_profiles(cfg).users() if u.role == "owner")
     run_as_owner = lambda data: tools.submit(data, user=owner)  # noqa: E731
-    announcer = Announcer(run_as_owner, today_events)
+    welcome = None
+    if presence is not None:
+        profiles = build_profiles(cfg)
+        title = personality.user_title if personality is not None else "monsieur"
+
+        def greeting(user: str) -> str:
+            profile = profiles.user(user)
+            name = title if profile is None or profile.role == "owner" else (profile.name or user)
+            return f"Bon retour, {name}."
+
+        welcome = lambda context: presence.welcome(context, greeting, cfg.presence.absence_summary)  # noqa: E731
+    announcer = Announcer(run_as_owner, today_events, welcome=welcome)
     engine = RoutineEngine(JsonRoutineStore(cfg.routines.path), tools.registry, run_as_owner, say, events,
                            alarm=alarm, announce=announcer.text)
     if alarm is not None:
@@ -386,12 +412,28 @@ def build_routines(cfg: Config, tools, notifications, events: EventBus, sink=Non
 
     for tool in routine_tools(engine):
         tools.registry.register(tool)
+    if presence is not None:
+        engine.attach_events(events)
+        has_welcome = any(r.trigger["type"] == "event" and r.trigger["event"] == "arrival" for r in engine.routines())
+        if cfg.presence.welcome_routine and presence.first_start and not has_welcome:
+            # Première mise en service : la routine « Bon retour » (modifiable ou supprimable dans JARVIS Control).
+            engine.create({"name": "Bon retour", "description": "Accueil au retour confirmé, avec le résumé de "
+                           "l'absence.", "trigger": {"type": "event", "event": "arrival"},
+                           "actions": [{"type": "announce", "what": "welcome"}]})
     engine.start()
     return engine
 
 
+def _person(profiles, user: str, personality) -> str:
+    """Nom dit d'un utilisateur : « vous » pour le propriétaire (titre implicite), sinon son nom."""
+    profile = profiles.user(user)
+    if profile is None or profile.role == "owner":
+        return "vous"
+    return profile.name or user
+
+
 def build_api(cfg: Config, tools, routines, *, web=None, devices=None, rooms=None, driver=None, timers=None,
-              worker=None, home=None, memory=None, profiles=None):
+              worker=None, home=None, memory=None, profiles=None, presence=None):
     """API d'administration démarrée ([api], pour JARVIS Control), ou None si désactivée."""
     if not cfg.api.enabled:
         return None
@@ -405,7 +447,8 @@ def build_api(cfg: Config, tools, routines, *, web=None, devices=None, rooms=Non
                         activity=activity, worker=worker, home=home, profiles=profiles)
     api = CoreApi(cfg.api.host, cfg.api.port, frozenset(cfg.api.allowed_ips), secret("JARVIS_AGENT_TOKEN", ENV_FILE),
                   tools=tools, routines=routines, status=status, activity=activity, memory=memory,
-                  face_themes=FaceThemeStore(cfg.face.theme_path) if cfg.face.enabled else None)
+                  face_themes=FaceThemeStore(cfg.face.theme_path) if cfg.face.enabled else None,
+                  presence=presence)
     try:
         api.start()
     except OSError as exc:
@@ -555,6 +598,7 @@ def build_agent(
     from jarvis.home import HomeState
 
     home = HomeState()
+    presence = build_presence_system(cfg, events, home)
     memory = build_memory(cfg)
     extra = []
     speaker = {"core": None}  # utilisateur en cours (profil du terminal), connu une fois le Core des outils créé
@@ -572,6 +616,11 @@ def build_agent(
         from jarvis.spotify import spotify_tools
 
         extra += spotify_tools(spotify, on_pause=music.stop if music is not None else None)
+    if presence is not None:
+        from jarvis.presence.tools import presence_tool
+
+        profiles_for_names = build_profiles(cfg)
+        extra.append(presence_tool(presence.engine, lambda user: _person(profiles_for_names, user, personality)))
     if cfg.face.enabled:
         from jarvis.face.themes import FaceThemeStore, face_theme_tool
 
@@ -596,10 +645,10 @@ def build_agent(
             music.on_event(kind)
             if forward is not None:
                 forward(kind, text)
-    routines = build_routines(cfg, tools, notifications, events, sink, timers, calendar)
+    routines = build_routines(cfg, tools, notifications, events, sink, timers, calendar, presence, personality)
     api = build_api(cfg, tools, routines, web=web, devices=devices, rooms=rooms, driver=driver, timers=timers,
                     worker=llm if hasattr(llm, "probe") else None, home=home, memory=memory,
-                    profiles=build_profiles(cfg))
+                    profiles=build_profiles(cfg), presence=presence)
     if tools is not None and len(tools.registry):
         from jarvis.tools import ToolsCapability
 
@@ -655,7 +704,7 @@ def build_agent(
     agent = Agent(settings, source, sink, wake_word, recorder, stt, llm, tts, router, on_event,
                  stream_audio=cfg.tts.stream_audio, merge_under=cfg.tts.merge_under, web=web,
                  tools=tools, corrector=corrector, notifications=voice, alarm=routines.alarm if routines else None,
-                 services=tuple(s for s in (api, routines, timers, notifications, worker) if s is not None),
+                 services=tuple(s for s in (api, routines, timers, notifications, worker, presence) if s is not None),
                  fast_path=cfg.tools.fast_path, routines=routines, profiles=build_profiles(cfg),
                  wake_verifier=build_wake_verifier(cfg), wake_captures=build_wake_captures(cfg))
     # Échéance proche (rendez-vous, minuteur, rappel) pour l'anneau du visage.

@@ -7,15 +7,16 @@ from typing import Callable
 
 from jarvis.tools import DONE
 
-WHAT = ("time", "date", "weather", "day")
+WHAT = ("time", "date", "weather", "day", "welcome")
 
 
 class Announcer:
     def __init__(self, run_tool: Callable[[dict], object], today_events: Callable[[], list[str]],
-                 clock: Callable[[], datetime] = datetime.now):
+                 clock: Callable[[], datetime] = datetime.now, welcome: Callable[[dict], str] | None = None):
         self._run_tool = run_tool
         self._today_events = today_events
         self._clock = clock
+        self._welcome = welcome
 
     def _said(self, tool: str) -> str:
         outcome = self._run_tool({"type": "tool_call", "tool": tool, "parameters": {}})
@@ -23,7 +24,9 @@ class Announcer:
         ok = getattr(outcome, "status", None) == DONE and result is not None and result.success
         return result.message if ok and result.message else ""
 
-    def text(self, what: str) -> str:
+    def text(self, what: str, context: dict | None = None) -> str:
+        if what == "welcome":  # retour confirmé : « Bon retour, monsieur. » et le résumé de l'absence
+            return self._welcome(context or {}) if self._welcome is not None else ""
         if what == "time":
             return self._said("get_time")
         if what == "date":

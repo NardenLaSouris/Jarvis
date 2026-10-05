@@ -37,6 +37,9 @@ def main() -> int:
                         help="mesure wake word, STT, LLM, outils et voix (rien n'est joué ni actionné)")
     parser.add_argument("--spotify-login", action="store_true",
                         help="relie Spotify (une fois) : autorisation PKCE, jeton dans data/spotify_token.json")
+    parser.add_argument("--simulate", nargs="+", metavar="CAPTEUR",
+                        help="simule un capteur de la maison sur le JARVIS en service : « door open », « door close », "
+                             "« presence home », « presence away », « motion detected », « status »")
     parser.add_argument("--wake-report", action="store_true",
                         help="bilan des réveils capturés (vrais, sans suite, écartés) et effet d'un autre seuil")
     parser.add_argument("--memory", action="store_true",
@@ -83,6 +86,8 @@ def main() -> int:
         return show_activity(cfg, args.activity)
     if args.memory:
         return show_memory(cfg)
+    if args.simulate:
+        return simulate(cfg, args.simulate)
     if args.wake_report:
         from jarvis.wakeword.captures import report
 
@@ -175,6 +180,57 @@ def show_activity(cfg, limit: int) -> int:
         print(f"Journal d'activité vide ({cfg.activity.path}).")
     for entry in entries:
         print(entry.line())
+    return 0
+
+
+def simulate(cfg, words: list[str]) -> int:
+    """Simulateur des capteurs : envoie le signal au JARVIS en service (API d'administration, sur cette machine),
+    qui le traite exactement comme celui d'un vrai capteur. « status » : état de présence et journal récent."""
+    import json
+    import urllib.error
+    import urllib.request
+
+    from jarvis.config import secret
+    from jarvis.factory import ENV_FILE
+
+    if not cfg.api.enabled:
+        print("L'API d'administration ([api]) est désactivée : le simulateur passe par elle.")
+        return 1
+    status = words == ["status"]
+    if not status and len(words) not in (2, 3):
+        print("Usage : --simulate <capteur ou sorte> <valeur> [°C ou nom]   (ex. door open, presence away)  |  status")
+        return 2
+    body = None
+    if not status:
+        body = {"sensor": words[0], "value": words[1]}
+        if len(words) == 3:
+            try:
+                body["celsius"] = float(words[2].replace(",", "."))
+            except ValueError:
+                body["name"] = words[2]
+    url = f"http://127.0.0.1:{cfg.api.port}/api/presence" + ("" if status else "/simulate")
+    request = urllib.request.Request(url, data=json.dumps(body).encode() if body else None,
+                                     method="GET" if status else "POST",
+                                     headers={"Authorization": f"Bearer {secret('JARVIS_AGENT_TOKEN', ENV_FILE)}",
+                                              "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            data = json.loads(response.read())
+    except urllib.error.HTTPError as exc:
+        print(f"Refusé ({exc.code}) : {json.loads(exc.read() or b'{}').get('message') or exc.reason}")
+        return 1
+    except OSError as exc:
+        print(f"JARVIS ne répond pas sur {url} : {exc}")
+        return 1
+    presence = data if status else data["presence"]
+    if not status:
+        print(f"Envoyé : {data['event']['type']} ({data['event']['payload'].get('sensor')})")
+    print(f"Maison : {presence['house']}")
+    for user, state in presence["users"].items():
+        confidence = f", confiance {state['confidence']}" if state.get("confidence") is not None else ""
+        print(f"  {user} : {state['state']}{confidence}")
+    for entry in (data.get("journal") or [])[-10:] if status else []:
+        print(f"  {entry['time'][11:16]} — {entry['text']} [{entry['priority']}]")
     return 0
 
 

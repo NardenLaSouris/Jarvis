@@ -47,6 +47,8 @@ MUSIC_STATUS = ("est ce que la musique joue", "la musique joue", "qu est ce qui 
 FACE_WORDS = ("visage", "ton visage", "theme", "ton theme", "ta couleur", "tes couleurs", "ton interface",
               "ton ecran", "ta face", "ta tete", "habille toi", "change de couleur", "couleur de jarvis",
               "arc en ciel", "en arc en ciel", "toutes les couleurs")
+PRESENCE_QUESTIONS = ("qui est a la maison", "quelqu un a la maison", "la maison est vide", "la maison est elle vide",
+                      "qui est la", "qui est present", "qui est rentre", "est ce que je suis a la maison")
 TIMER_WORDS = ("minuteur", "minuteurs", "timer", "timers", "minuterie", "compte a rebours")
 REMINDER_WORDS = ("rappelle moi", "rappelez moi", "fais moi penser", "previens moi", "rappelle nous")
 ALARM_WORDS = ("reveille moi", "reveillez moi", "mets un reveil", "mets moi un reveil", "programme un reveil",
@@ -214,8 +216,8 @@ class QuickPlanner:
             return None
         if memory is not None:
             return {"type": "tool_call", "tool": memory[0], "parameters": memory[1]}
-        parsers = (self._media, self._calendar, self._routine, self._face, self._sound, self._lights, self._apps, self._timer,
-                   self._reminder, self._alarm, self._weather, self._lock, self._spotify)
+        parsers = (self._media, self._calendar, self._routine, self._face, self._sound, self._lights, self._apps,
+                   self._timer, self._reminder, self._alarm, self._weather, self._lock, self._spotify)
         # Un rappel ou un réveil d'abord : son message peut nommer n'importe quoi (« rappelle-moi demain d'appeler le
         # garage », « ... d'éteindre la chambre »), qui ne doit jamais être exécuté tout de suite.
         if _has(norm, REMINDER_WORDS):
@@ -247,6 +249,8 @@ class QuickPlanner:
         """« Pause », « Reprends la musique », « Morceau suivant », « Chanson précédente »."""
         if self._exists("spotify_status") and _has(norm, MUSIC_STATUS):
             return "spotify_status", {}
+        if self._exists("presence_status") and _has(norm, PRESENCE_QUESTIONS):
+            return "presence_status", {}
         spotify = self._exists("spotify_pause")
         if not (spotify or self._exists("media_play_pause")):
             return None

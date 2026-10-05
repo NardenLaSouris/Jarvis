@@ -29,7 +29,7 @@ KEY = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
 # Catégories d'outils (par préfixe ou nom exact) : la politique des rôles s'exprime par catégorie.
 CATEGORIES = {
     "info": ("get_time", "get_date", "get_weather", "light_status", "list_timers", "list_reminders", "list_alarms",
-             "list_routines"),
+             "list_routines", "presence_status"),
     "home": ("light_", "set_brightness", "set_color", "set_color_temperature", "set_scene", "set_face_theme"),
     "media": ("media_", "spotify_"),
     "schedule": ("create_timer", "cancel_timer", "create_reminder", "cancel_reminder", "create_alarm", "cancel_alarm"),

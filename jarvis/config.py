@@ -175,6 +175,24 @@ class SpotifyConfig:
 
 
 @dataclass(frozen=True)
+class PresenceConfig:
+    """Présence à la maison (jarvis/presence) : capteurs, fenêtres de corrélation, seuil, accueil au retour."""
+    enabled: bool = False
+    departure_window: float = 180.0
+    arrival_window: float = 300.0
+    threshold: int = 90
+    absence_minutes: float = 20.0  # téléphone parti sans porte : départ après ce délai sans mouvement (0 : jamais)
+    door_left_open_minutes: float = 10.0  # porte d'entrée ouverte plus longtemps : noté au journal (0 : jamais)
+    max_event_age: float = 120.0
+    welcome_routine: bool = True
+    absence_summary: bool = True
+    state_path: Path = Path("data/presence.json")
+    journal_path: Path = Path("data/house_journal.jsonl")
+    journal_max_kb: int = 1000
+    sensors: dict = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class ApiConfig:
     enabled: bool = False
     host: str = "0.0.0.0"
@@ -280,6 +298,7 @@ class Config:
     memory: MemoryConfig = MemoryConfig()
     calendar: CalendarConfig = CalendarConfig()
     spotify: SpotifyConfig = SpotifyConfig()
+    presence: PresenceConfig = PresenceConfig()
     users: dict = field(default_factory=dict)
     terminals: dict = field(default_factory=dict)
 
@@ -392,6 +411,7 @@ def load_config(path: str | Path = "config.toml", local: bool = True) -> Config:
         "memory": MemoryConfig,
         "calendar": CalendarConfig,
         "spotify": SpotifyConfig,
+        "presence": PresenceConfig,
     }
     tables = {key: raw.pop(key, {}) for key in ("users", "terminals")}
     unknown = set(raw) - set(sections)

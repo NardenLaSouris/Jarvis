@@ -145,6 +145,33 @@ max_minutes = 5.0
 volume = 0
 briefing = true
 
+[presence]
+# Présence à la maison (jarvis/presence) : départs et retours confirmés à partir de plusieurs signaux (téléphone,
+# porte d'entrée, mouvement), jamais d'une porte seule ; journal de la maison et routine « Bon retour » avec le
+# résumé de l'absence. Capteurs dans config.local.toml ; pilote « simulated » tant qu'il n'y a pas de matériel :
+#   python -m jarvis --simulate door open | door close | presence home | presence away | motion detected | status
+# (sur le Core, par l'API d'administration : ajouter "127.0.0.1" à [api] allowed_ips)
+#   [presence.sensors.porte_entree]
+#   kind = "door"            # door, motion, presence, leak, smoke, temperature, appliance
+#   room = "l'entrée"         # dit tel quel : « la porte de l'entrée »
+#   entrance = true          # porte d'entrée de la maison (ou mouvement juste derrière)
+#   driver = "simulated"     # plus tard : le pilote du vrai capteur
+#   [presence.sensors.telephone_monsieur]
+#   kind = "presence"
+#   user = "owner"           # identifiant du profil ([users]) dont le téléphone est suivi
+enabled = false
+departure_window = 180.0   # s : le téléphone quitte le Wi-Fi jusqu'à quelques minutes après la porte
+arrival_window = 300.0     # s : le téléphone revient sur le Wi-Fi avant d'arriver à la porte
+threshold = 90             # confiance (téléphone 50, porte ouverte 30, refermée 10, mouvement entrée 20)
+absence_minutes = 20.0     # téléphone parti sans porte : départ après ce délai sans aucun mouvement (0 : jamais)
+door_left_open_minutes = 10.0
+max_event_age = 120.0      # s : un signal plus ancien est refusé
+welcome_routine = true     # créer la routine « Bon retour » à la première mise en service
+absence_summary = true     # au retour : ce qui s'est passé pendant l'absence (l'important seulement)
+state_path = "data/presence.json"
+journal_path = "data/house_journal.jsonl"
+journal_max_kb = 1000
+
 [api]
 # API d'administration pour JARVIS Control (HTTP, réseau local). Jeton : JARVIS_AGENT_TOKEN dans .env.
 # Seules les IP listées y accèdent (celle du PC qui exécute JARVIS Control).
