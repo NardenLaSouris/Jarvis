@@ -194,7 +194,9 @@
   function showUpcoming(next) {
     if (!upcomingEl || !upcomingLabel) return;
     const on = !!(next && next.seconds > 0 && next.window > 0);
-    upcomingEl.hidden = upcomingLabel.hidden = !on;
+    // Élément SVG : « hidden » est un attribut (la propriété n'existe que sur les éléments HTML).
+    upcomingEl.toggleAttribute("hidden", !on);
+    upcomingLabel.hidden = !on;
     if (!on) return;
     const done = Math.max(0, Math.min(1, 1 - next.seconds / next.window));
     upcomingEl.querySelector(".fill").style.strokeDashoffset = String(100 - done * 100);
@@ -224,11 +226,11 @@
                          vx: (right ? -1 : 1) * (0.6 + Math.random()) * s, vy: 0, r: (6 + Math.random() * 8) * s });
     }
     if (kind === "hyperspace") {
-      const angle = Math.random() * Math.PI * 2, d = Math.random() * 40 * s;
+      const angle = Math.random() * Math.PI * 2, d = (fresh ? Math.random() * 0.45 : Math.random() * 0.08) * Math.min(w, h);
       Object.assign(p, { x: w / 2 + Math.cos(angle) * d, y: h / 2 + Math.sin(angle) * d, a: angle,
-                         speed: (0.5 + Math.random() * 1.5) * s, vx: 0, vy: 0 });
+                         speed: (2 + Math.random() * 3) * s, vx: 0, vy: 0 });
     }
-    if (kind === "lily") { p.vy *= 0.5; p.r *= 1.4; }
+    if (kind === "lily") { p.vy *= 0.5; p.r = (5 + Math.random() * 4) * s; }
     if (kind === "clovers") { p.vy *= 0.6; p.r *= 1.6; }
     if (kind === "sparkle") { p.vy = 0; p.vx = 0; }
     return p;
@@ -301,7 +303,7 @@
       } else if (effect === "hyperspace") {
         // Passage en hyperespace : les étoiles filent depuis le centre en s'allongeant.
         const x0 = p.x, y0 = p.y;
-        p.speed *= 1.035;
+        p.speed *= 1.05;
         p.x += Math.cos(p.a) * p.speed; p.y += Math.sin(p.a) * p.speed;
         fxg.strokeStyle = rgba(COLOR.white, Math.min(0.9, 0.15 + p.speed / 25));
         fxg.lineWidth = Math.max(1, p.speed / 8);
