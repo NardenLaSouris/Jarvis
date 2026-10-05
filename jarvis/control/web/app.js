@@ -395,9 +395,8 @@
           field("Adresse du Core", el("input", { type: "text", value: form.core_url, oninput: (e) => { form.core_url = e.target.value; } })),
           field(`Jeton API ${s.token_configured ? "(configuré)" : "(manquant)"}`, el("input", { type: "password", placeholder: "Laisser vide pour garder l'actuel", autocomplete: "off", oninput: (e) => { form.token = e.target.value; } })),
           field("Nom du PC", el("input", { type: "text", maxlength: 40, value: form.pc_name, oninput: (e) => { form.pc_name = e.target.value; } })),
-          field("Thème", el("select", { onchange: (e) => { form.theme = e.target.value; } },
-            [["auto", "JARVIS automatique (nuit de 22 h à 7 h)"], ["jarvis", "JARVIS (jour)"], ["nuit", "JARVIS nuit (noir et blanc)"],
-             ["system", "Système"], ["dark", "Sombre"], ["light", "Clair"]].map(([v, t]) => el("option", { value: v, selected: form.theme === v }, t)))),
+          field("Thème", el("select", { onchange: (e) => { form.theme = e.target.value; applyTheme(form.theme); } },
+            THEMES.map(([v, t]) => el("option", { value: v, selected: form.theme === v }, t)))),
           field("Rafraîchissement (s)", el("input", { type: "number", min: 5, max: 3600, value: form.refresh_seconds, oninput: (e) => { form.refresh_seconds = Number(e.target.value); } }))),
         el("div", { class: "list", style: "margin-top:14px" },
           check("autostart", "Démarrer avec Windows (dans la zone de notification)"),
@@ -418,16 +417,35 @@
 
   const VIEWS = { dashboard, routines, devices, history: historyView, settings: settingsView };
 
-  // Thèmes du visage : « auto » suit les mêmes heures que lui (nuit de 22 h à 7 h).
-  function applyTheme() {
-    let theme = (state.settings && state.settings.theme) || "auto";
+  const THEMES = [["auto", "JARVIS automatique (nuit de 22 h à 7 h)"], ["jarvis", "JARVIS (jour)"],
+    ["nuit", "JARVIS nuit (noir et blanc)"], ["rouge", "JARVIS rouge"], ["system", "Système"], ["dark", "Sombre"],
+    ["light", "Clair"]];
+  const FACE_THEMES = ["jarvis", "nuit", "rouge"];
+
+  // Thèmes du visage : « auto » suit les mêmes heures que lui (nuit de 22 h à 7 h). « preview » : aperçu non enregistré.
+  function applyTheme(preview) {
+    let theme = preview || (state.settings && state.settings.theme) || "auto";
+    const chosen = theme;
     if (theme === "auto") {
       const hour = new Date().getHours();
       theme = hour >= 22 || hour < 7 ? "nuit" : "jarvis";
     }
     document.documentElement.dataset.theme = theme;
+    document.documentElement.dataset.skin = FACE_THEMES.includes(theme) ? "face" : "";
+    document.querySelectorAll("#themes button").forEach((b) => b.classList.toggle("active", b.dataset.theme === chosen));
   }
-  setInterval(applyTheme, 60000);
+  setInterval(() => applyTheme(), 60000);
+
+  // Sélecteur rapide du menu : un clic applique et enregistre le thème.
+  document.querySelectorAll("#themes button").forEach((b) => b.addEventListener("click", async () => {
+    applyTheme(b.dataset.theme);
+    try {
+      state.settings = await api("POST", "/settings", { theme: b.dataset.theme });
+    } catch (error) {
+      toast(error.message, "err");
+    }
+    applyTheme();
+  }));
 
   // Comme le visage : rouge tant qu'un composant indispensable est en panne (worker LLM, agents).
   function setAlert(problems) {

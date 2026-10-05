@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="fr" data-theme="jarvis">
+<html lang="fr" data-theme="jarvis" data-skin="face">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -15,6 +15,12 @@
   <button data-view="history">Historique</button>
   <button data-view="settings">Paramètres</button>
   <div class="spacer"></div>
+  <div class="themes" id="themes" title="Thème">
+    <button data-theme="auto" title="JARVIS automatique (nuit de 22 h à 7 h)"></button>
+    <button data-theme="jarvis" title="JARVIS (jour)"></button>
+    <button data-theme="nuit" title="JARVIS nuit"></button>
+    <button data-theme="rouge" title="JARVIS rouge"></button>
+  </div>
   <div class="connection" id="connection"><span class="dot"></span>Connexion…</div>
 </nav>
 <main><div id="alert" class="alert" hidden></div><div id="view"></div></main>

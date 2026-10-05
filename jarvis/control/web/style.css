@@ -72,8 +72,17 @@
   color-scheme: dark;
 }
 
-/* Alerte (comme le visage en erreur) : accents rouges tant qu'un composant est en panne. */
-:root[data-alert="1"][data-theme="jarvis"], :root[data-alert="1"][data-theme="nuit"] {
+:root[data-theme="rouge"] {
+  --bg: #120204;
+  --panel: rgba(58, 8, 12, 0.6);
+  --panel-2: rgba(104, 18, 24, 0.5);
+  --text: #ffe4e0;
+  --muted: #c48a84;
+  color-scheme: dark;
+}
+
+/* Thème rouge, et alerte (comme le visage en erreur) : accents rouges tant qu'un composant est en panne. */
+:root[data-alert="1"][data-skin="face"], :root[data-theme="rouge"] {
   --accent: #ff6e64;
   --accent-2: #e6262e;
   --line: rgba(255, 110, 100, 0.28);
@@ -259,12 +268,12 @@ td.err { color: var(--err); }
 
 /* --- Habillage « visage » (thèmes jarvis et nuit) ------------------------------------------------ */
 
-:root[data-theme="jarvis"] body, :root[data-theme="nuit"] body {
+:root[data-skin="face"] body {
   background: var(--backdrop);
   background-attachment: fixed;
 }
 
-:root[data-theme="jarvis"] body::before, :root[data-theme="nuit"] body::before {
+:root[data-skin="face"] body::before {
   /* anneaux concentriques discrets, comme ceux du visage */
   content: "";
   position: fixed;
@@ -284,47 +293,48 @@ td.err { color: var(--err); }
 
 @keyframes drift { to { transform: translateY(-50%) rotate(360deg); } }
 
-:root[data-theme="jarvis"] nav, :root[data-theme="nuit"] nav {
+:root[data-skin="face"] nav {
   background: linear-gradient(180deg, rgba(4, 14, 32, 0.78), rgba(2, 8, 20, 0.62));
   border-right: 1px solid var(--line);
   backdrop-filter: blur(10px);
 }
 :root[data-theme="nuit"] nav { background: linear-gradient(180deg, rgba(18, 18, 18, 0.8), rgba(6, 6, 6, 0.66)); }
+:root[data-theme="rouge"] nav, :root[data-alert="1"][data-skin="face"] nav { background: linear-gradient(180deg, rgba(34, 4, 8, 0.8), rgba(16, 2, 4, 0.66)); }
 
-:root[data-theme="jarvis"] main, :root[data-theme="nuit"] main { position: relative; z-index: 1; }
+:root[data-skin="face"] main { position: relative; z-index: 1; }
 
-:root[data-theme="jarvis"] .card, :root[data-theme="nuit"] .card,
-:root[data-theme="jarvis"] .block, :root[data-theme="nuit"] .block {
+:root[data-skin="face"] .card,
+:root[data-skin="face"] .block {
   backdrop-filter: blur(8px);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02), 0 0 22px -12px var(--glow);
   transition: border-color 0.2s, box-shadow 0.2s;
 }
-:root[data-theme="jarvis"] .card:hover, :root[data-theme="nuit"] .card:hover {
+:root[data-skin="face"] .card:hover {
   border-color: var(--accent);
   box-shadow: 0 0 26px -8px var(--glow);
 }
 
-:root[data-theme="jarvis"] h1, :root[data-theme="nuit"] h1 {
+:root[data-skin="face"] h1 {
   font-weight: 300;
   letter-spacing: 0.22em;
   text-transform: uppercase;
   font-size: 19px;
   text-shadow: 0 0 14px var(--glow);
 }
-:root[data-theme="jarvis"] h3, :root[data-theme="nuit"] h3 { color: var(--accent); opacity: 0.85; letter-spacing: 0.18em; }
+:root[data-skin="face"] h3 { color: var(--accent); opacity: 0.85; letter-spacing: 0.18em; }
 
-:root[data-theme="jarvis"] .btn.primary, :root[data-theme="nuit"] .btn.primary {
+:root[data-skin="face"] .btn.primary {
   background: transparent;
   border-color: var(--accent);
   color: var(--accent);
   box-shadow: 0 0 14px -4px var(--glow), inset 0 0 12px -6px var(--glow);
 }
-:root[data-theme="jarvis"] .btn.primary:hover, :root[data-theme="nuit"] .btn.primary:hover { background: var(--panel-2); }
-:root[data-theme="jarvis"] nav button.active, :root[data-theme="nuit"] nav button.active {
+:root[data-skin="face"] .btn.primary:hover { background: var(--panel-2); }
+:root[data-skin="face"] nav button.active {
   box-shadow: inset 3px 0 0 var(--accent), 0 0 18px -8px var(--glow);
   color: var(--accent);
 }
-:root[data-theme="jarvis"] .dot.ok, :root[data-theme="nuit"] .dot.ok { box-shadow: 0 0 10px var(--ok); }
+:root[data-skin="face"] .dot.ok { box-shadow: 0 0 10px var(--ok); }
 
 /* Cœur animé de la marque : trois anneaux comme le visage */
 .brand small {
@@ -366,3 +376,22 @@ td.err { color: var(--err); }
 @media (prefers-reduced-motion: reduce) {
   .brand .core i, body::before { animation: none !important; }
 }
+
+/* Sélecteur rapide de thème (menu) */
+nav .themes { display: flex; gap: 8px; padding: 8px 12px; }
+nav .themes button {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  cursor: pointer;
+  box-shadow: none;
+}
+nav .themes button[data-theme="auto"] { background: linear-gradient(135deg, #46d6ff 50%, #e8e8e8 50%); }
+nav .themes button[data-theme="jarvis"] { background: radial-gradient(circle, #46d6ff, #0c2a5c); }
+nav .themes button[data-theme="nuit"] { background: radial-gradient(circle, #f2f2f2, #262626); }
+nav .themes button[data-theme="rouge"] { background: radial-gradient(circle, #ff6e64, #4a0a0e); }
+nav .themes button:hover { transform: scale(1.12); }
+nav .themes button.active { outline: 2px solid var(--text); outline-offset: 2px; }
+:root nav .themes button.active { box-shadow: 0 0 10px var(--glow, transparent); }
