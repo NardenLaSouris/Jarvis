@@ -291,15 +291,21 @@
     fx.width = innerWidth; fx.height = innerHeight;
     const count = { snow: 90, embers: 50, confetti: 70, sparkle: 60, hearts: 40, clovers: 30, fish: 9, lily: 22,
                     hyperspace: 180 }[effect] || 40;
-    hyperStart = now();
+    nextJump();
     for (let i = 0; i < count; i++) fxParticles.push(spawn(effect, true));
     if (!fxRunning) { fxRunning = true; requestAnimationFrame(drawEffect); }
   }
 
-  // Hyperespace comme dans les films, toutes les 54 s : ciel étoilé immobile (45 s), toutes les étoiles s'étirent
-  // ensemble en longs traits partant du centre (1,6 s), traits qui défilent (6 s), retour aux étoiles (1,2 s).
-  const HYPER = { cruise: 45, stretch: 1.6, tunnel: 6, exit: 1.2 };
-  let hyperStart = 0, hyperPhase = "cruise", hyperK = 0, hctx = null;
+  // Hyperespace comme dans les films : ciel étoilé immobile, puis toutes les étoiles s'étirent ensemble en longs
+  // traits sortant de derrière le visage, qui défilent, puis retour aux étoiles.
+  // Saut de 1 min 20 (étirement 1,6 s, défilement, sortie 1,2 s), à un moment tiré au hasard entre 15 min et 1 h
+  // après le précédent (ou après l'arrivée du thème).
+  const HYPER = { stretch: 1.6, tunnel: 80 - 1.6 - 1.2, exit: 1.2, minWait: 15 * 60, maxWait: 60 * 60 };
+  let hyperJumpAt = 0, hyperPhase = "cruise", hyperK = 0, hctx = null;
+
+  function nextJump() {
+    hyperJumpAt = now() + HYPER.minWait + Math.random() * (HYPER.maxWait - HYPER.minWait);
+  }
 
   // Appelé par le rendu du visage : ciel et traits dessinés derrière lui, dans son propre canevas.
   function paintBehind(target, w, h) {
@@ -310,14 +316,14 @@
   }
 
   function hyperStep(w, h) {
-    const cycle = HYPER.cruise + HYPER.stretch + HYPER.tunnel + HYPER.exit;
-    let t = (now() - hyperStart) % cycle;
+    let t = now() - hyperJumpAt;
     const ease = (x) => x * x * (3 - 2 * x);
     const before = hyperPhase;
-    if (t < HYPER.cruise) { hyperPhase = "cruise"; hyperK = 0; }
-    else if ((t -= HYPER.cruise) < HYPER.stretch) { hyperPhase = "stretch"; hyperK = ease(t / HYPER.stretch); }
+    if (t < 0) { hyperPhase = "cruise"; hyperK = 0; }
+    else if (t < HYPER.stretch) { hyperPhase = "stretch"; hyperK = ease(t / HYPER.stretch); }
     else if ((t -= HYPER.stretch) < HYPER.tunnel) { hyperPhase = "tunnel"; hyperK = 1; }
-    else { hyperPhase = "exit"; hyperK = 1 - ease((t - HYPER.tunnel) / HYPER.exit); }
+    else if ((t -= HYPER.tunnel) < HYPER.exit) { hyperPhase = "exit"; hyperK = 1 - ease(t / HYPER.exit); }
+    else { hyperPhase = "cruise"; hyperK = 0; nextJump(); }
     if (before === "exit" && hyperPhase === "cruise") {  // retour : nouveau ciel étoilé
       for (const p of fxParticles) Object.assign(p, spawn("hyperspace", true));
     }
@@ -1056,7 +1062,7 @@
                         w: ["starwars", [53, "night"], "", "hyperspace", "starwars"],
                         j: ["naissancejarvis", [205, 44], "Joyeux anniversaire JARVIS : 1 an", "sparkle", "naissancejarvis"] };
       if ((event.key === "x" || event.key === "X") && effect === "hyperspace") {  // démo : sauter maintenant
-        hyperStart = now() - HYPER.cruise + 0.5;
+        hyperJumpAt = now();
       }
       if (event.key === "u" || event.key === "U") {  // démo : échéance dans 9 minutes
         showUpcoming({ label: "Dentiste", kind: "event", seconds: 540, window: 900 });
