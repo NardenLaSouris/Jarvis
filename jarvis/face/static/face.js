@@ -287,7 +287,7 @@
     if (!effect) { fxg && fxg.clearRect(0, 0, fx.width, fx.height); return; }
     fx.width = innerWidth; fx.height = innerHeight;
     const count = { snow: 90, embers: 50, confetti: 70, sparkle: 60, hearts: 40, clovers: 30, fish: 9, lily: 22,
-                    hyperspace: 160 }[effect] || 40;
+                    hyperspace: 70 }[effect] || 40;
     hyperStart = now();
     for (let i = 0; i < count; i++) fxParticles.push(spawn(effect, true));
     if (!fxRunning) { fxRunning = true; requestAnimationFrame(drawEffect); }
@@ -320,17 +320,17 @@
     }
   }
 
-  // Cœur du visage (le disque sombre central), en fraction de la demi-diagonale : aucune étoile en dedans.
+  // Bord extérieur du visage (anneau le plus large), en fraction de la demi-diagonale : étoiles et traits au-delà.
   function hyperInner(w, h) {
-    return (Math.min(w, h) * 0.12) / (Math.hypot(w, h) / 2);
+    return Math.min(0.95, (Math.min(w, h) * 0.47) / (Math.hypot(w, h) / 2));
   }
 
   function drawHyperStar(p, w, h) {
     const max = Math.hypot(w, h) / 2, cx = w / 2, cy = h / 2, dx = Math.cos(p.a), dy = Math.sin(p.a);
     const inner = hyperInner(w, h);
-    if (hyperPhase === "tunnel") {  // les traits filent vers l'extérieur
-      p.d += 0.006 + p.d * 0.02;
-      if (p.d > 1.15) p.d = inner + Math.random() * 0.1;
+    if (hyperPhase === "tunnel") {  // les traits filent vers l'extérieur, depuis le bord du visage
+      p.d += 0.004 + (p.d - inner) * 0.04;
+      if (p.d > 1.15) p.d = inner + Math.random() * 0.04;
     }
     p.x = cx + dx * p.d * max; p.y = cy + dy * p.d * max;
     if (hyperK < 0.02) {  // ciel étoilé : points qui scintillent
@@ -338,8 +338,8 @@
       fxg.beginPath(); fxg.arc(p.x, p.y, p.r, 0, Math.PI * 2); fxg.fill();
       return;
     }
-    // Trait : de l'étoile vers le centre, long et net (jusqu'aux trois quarts de la distance au centre).
-    const tail = Math.min((p.d - inner) * max, p.d * max * 0.75 * hyperK);
+    // Trait : de l'étoile vers le visage, jamais en deçà de son bord (le saut part de l'extérieur du visage).
+    const tail = Math.min((p.d - inner) * max, (p.d - inner) * max * 0.9 * hyperK + p.r);
     const blue = hyperPhase === "tunnel" ? 1 : hyperK;
     fxg.strokeStyle = `rgba(${Math.round(255 - 50 * blue)}, ${Math.round(255 - 20 * blue)}, 255, ${0.4 + 0.45 * hyperK})`;
     fxg.lineWidth = Math.max(0.8, p.r * (0.8 + 0.6 * hyperK));
@@ -879,6 +879,7 @@
   }
 
   function drawParticles(t, dt) {
+    if (effect === "hyperspace") return;  // ciel étoilé immobile : pas de poussières en orbite par-dessus
     const c = face.cur;
     ctx.save();
     ctx.translate(CX, CY);
