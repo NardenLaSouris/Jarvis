@@ -11,7 +11,7 @@ import re
 from datetime import timedelta
 from typing import Callable
 
-from jarvis.personality import normalize, second_person, with_de
+from jarvis.personality import MONTHS, WEEKDAYS, normalize, second_person, with_de
 from jarvis.scheduling.clock import parse_clock
 from jarvis.scheduling.durations import (
     DurationError, duration_in_text, parse_duration, spoken_duration, spoken_remaining,
@@ -30,6 +30,28 @@ def _duration(value: str) -> int:
         return parse_duration(value)
     except DurationError as exc:
         raise ToolError(INVALID_PARAMETERS, f"Je n'ai pas compris la durée « {value[:40]} ».") from exc
+
+
+DAY_OFFSETS = (("apres demain", 2), ("apres-demain", 2), ("demain", 1), ("aujourd hui", 0), ("ce soir", 0),
+               ("cet apres midi", 0), ("ce matin", 0))
+OTHER_DAY = "other"
+
+
+def _reminder_day(text: str) -> str | None:
+    """Jour dit dans la demande d'un rappel : « 0 », « 1 » (demain), « 2 » (après-demain), « other » pour une date ou
+    un jour de semaine (« le 31 février », « lundi ») que les rappels ne gèrent pas, None sinon. Jamais ignoré : sans
+    cela, « demain à 15 heures » sonnait aujourd'hui."""
+    norm = f" {normalize(text)} "
+    # Seulement autour de l'heure : « à 18 h, de préparer la réunion de demain » vise aujourd'hui.
+    clock = re.search(r" (?:\d{1,2} (?:h|heures?)(?: \d{1,2})?|midi|minuit)(?= )", norm)
+    if clock is not None:
+        norm = norm[:clock.end()] + " " + " ".join(norm[clock.end():].split()[:2]) + " "
+    for words, offset in DAY_OFFSETS:
+        if f" {words} " in norm:
+            return str(offset)
+    if any(f" {normalize(w)} " in norm for w in (*MONTHS, *WEEKDAYS)) or re.search(r" le \d{1,2} ", norm):
+        return OTHER_DAY
+    return None
 
 
 def _clock_text(value: str) -> str:
@@ -129,14 +151,23 @@ def timer_tools(manager: TimerManager) -> list[Tool]:
         timers = [_timer_view(t, manager) for t in manager.timers()]
         return {"count": len(timers), "timers": timers}
 
-    def create_reminder(message: str, delay: int | None = None, time: str | None = None) -> dict:
+    def create_reminder(message: str, delay: int | None = None, time: str | None = None,
+                        day: str | None = None) -> dict:
+        if day == OTHER_DAY and delay is None:
+            raise ToolError(INVALID_PARAMETERS, f"Je ne programme les rappels que pour les prochaines {limit} : "
+                                                "pour une date précise, ajoutez plutôt un événement au "
+                                                "calendrier.")
         if delay is None and time is None:
             raise ToolError(INVALID_PARAMETERS, "Dans combien de temps, ou à quelle heure ?")
         if delay is None:
             hour, minute = parse_clock(time)
             now = manager.now()
             when = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-            if when <= now:
+            if day in ("1", "2"):
+                when += timedelta(days=int(day))
+            elif when <= now:
+                if day == "0":
+                    raise ToolError(INVALID_PARAMETERS, "Cette heure est déjà passée aujourd'hui.")
                 when += timedelta(days=1)
             delay = max(1, round((when - now).total_seconds()))
         return _reminder_view(_call(lambda: manager.create_reminder(delay, message)), manager)
@@ -172,7 +203,9 @@ def timer_tools(manager: TimerManager) -> list[Tool]:
              {"delay": _duration_param("délai tel qu'il a été dit, par exemple « 20 minutes »", required=False),
               "time": Param(str, "heure précise telle qu'elle a été dite (« à 18 heures »), au lieu d'un délai",
                             required=False, max_length=40, check=_clock_text, evidence=_clock_said),
-              "message": Param(str, "ce qu'il faudra rappeler, par exemple « sortir le linge »", max_length=200)},
+              "message": Param(str, "ce qu'il faudra rappeler, par exemple « sortir le linge »", max_length=200),
+              "day": Param(str, "jour dit", required=False, hidden=True, max_length=8, resolve=_reminder_day,
+                           choices=("0", "1", "2", OTHER_DAY))},
              {"reminder_id": "numéro", "message": "message", "remaining": "délai", "at": "HH:MM"},
              Risk.SAFE, create_reminder,
              say=lambda r: f"Entendu, je vous rappellerai {with_de(r['message'])} dans {r['remaining']}."),

@@ -168,9 +168,8 @@ def memory_tools(store: MemoryStore, user: Callable[[], str] = lambda: "owner") 
         return "Voici ce que je sais : " + " ; ".join(r["facts"]) + "."
 
     def forget_said(r: dict) -> str:
-        if r["count"] == 1:
-            return f"C'est oublié : {r['facts'][0]}."
-        return f"J'ai oublié {r['count']} éléments."
+        # Jamais la donnée oubliée répétée à voix haute.
+        return "C'est oublié." if r["count"] == 1 else f"J'ai oublié {r['count']} éléments."
 
     return [
         Tool("remember", "Retient durablement une information que l'utilisateur demande explicitement de retenir "

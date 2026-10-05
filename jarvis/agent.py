@@ -420,14 +420,14 @@ class Agent:
         latency["tool"] = time.perf_counter() - started
         reply = self._after_tool(history, text, outcome, latency)
         if outcome.status == DONE and outcome.result.success:
-            self._record(data)
+            self._record(data, outcome.result.result)
             place = outcome.result.result.get("location") if isinstance(outcome.result.result, dict) else None
             self._place = place if data.get("tool") == WEATHER_TOOL and place else self._place
         return reply
 
-    def _record(self, data: dict) -> None:
+    def _record(self, data: dict, result=None) -> None:
         if self._context is not None:
-            self._context.record(data["tool"], data.get("parameters") or {})
+            self._context.record(data["tool"], data.get("parameters") or {}, result)
 
     def _schedule(self, history: list[Message], text: str, schedule, latency: dict) -> str:
         """« Dans 10 minutes, allume la chambre. » : la commande est comprise maintenant, puis enregistrée comme
@@ -487,7 +487,7 @@ class Agent:
             return None
         latency["route"] = "tool:quick (promue)"
         self._event("routing", latency["route"])
-        self._record(data)
+        self._record(data, outcome.result.result)
         return self._after_tool(history, text, outcome, latency)
 
     def _say_text(self, history: list[Message], text: str, reply: str, latency: dict) -> str:
@@ -556,7 +556,7 @@ class Agent:
                 spoken.append(outcome.result.message)
             if outcome.status != DONE or not outcome.result.success:
                 break
-            self._record(data)
+            self._record(data, outcome.result.result)
         latency["tool"] = time.perf_counter() - started
         reply = self._speak(spoken or [self._router.phrase("action_unavailable")], latency)
         self._remember(history, Message("user", text))
@@ -576,6 +576,9 @@ class Agent:
         annulation ou question de confirmation : phrase du Core, sans LLM (qui pourrait inventer le résultat)."""
         if outcome.status == DONE:
             self._event("tool", json.dumps(outcome.result.as_dict(), ensure_ascii=False)[:200])
+            if outcome.result.success and outcome.result.tool == "forget":
+                # Ce qui vient d'être oublié ne doit plus pouvoir être redit à partir de la conversation en cours.
+                history.clear()
             if outcome.result.success and not outcome.result.message:
                 return self._ask(history, text, latency, tool_result=outcome.result)
         if outcome.status == CONFIRM:

@@ -196,3 +196,37 @@ def test_everything_off_means_the_lights_never_the_pc_sound():
 def test_a_colour_said_at_the_end_applies_to_every_room():
     data = quick_plan("Allume l'entrée et la chambre en vert", REGISTRY)
     assert [(c["tool"], c["parameters"]) for c in data["calls"]] == [("set_color", {"color": "vert"})] * 2
+
+
+def test_wake_up_at_an_impossible_hour_goes_to_the_alarm_not_elsewhere():
+    # Session QA : « Réveille-moi à 25 heures » finissait en « toutes les lumières à 25 % » (LLM).
+    assert quick_plan("Réveille-moi à 25 heures", REGISTRY) == call("create_alarm", time="25 heures")
+
+
+def test_state_and_day_programme_questions():
+    assert quick_plan("Est-ce que l'entrée est allumée ?", REGISTRY)["tool"] == "light_status"
+
+
+def test_light_tools_must_be_named_by_the_request():
+    # Le planificateur écarte une action sur les lumières sans mot de l'éclairage ni pièce citée.
+    driver = FakeDriver()
+    llm = PlannerLLM({"type": "tool_call", "tool": "set_brightness", "parameters": {"brightness": 25}})
+    spoken, events = run_agent(["Réveille-moi à 25 heures"], llm, full_core(driver))
+    assert driver.calls == [] and "lumières" not in spoken[0]
+    from jarvis.tools.planner import _named
+
+    registry = full_core().registry
+    assert _named("set_brightness", "Mets l'entrée à 25", registry)
+    assert _named("set_brightness", "Baisse la lumière", registry)
+    assert not _named("set_brightness", "Réveille-moi à 25 heures", registry)
+
+
+def test_a_reminder_message_is_never_executed_now():
+    # Session QA : « Rappelle-moi demain à 9 heures d'appeler le garage » devenait une commande de lumière.
+    plan_ = quick_plan("Rappelle-moi demain à 9 heures d'appeler le garage", REGISTRY)
+    assert plan_["tool"] == "create_reminder" and plan_["parameters"]["message"] == "appeler le garage"
+    assert quick_plan("Rappelle-moi d'éteindre la chambre", REGISTRY) is None
+    driver = FakeDriver()
+    llm = PlannerLLM({"type": "tool_call", "tool": "light_off", "parameters": {}})
+    run_agent(["Rappelle-moi d'éteindre la chambre"], llm, full_core(driver))
+    assert driver.calls == []

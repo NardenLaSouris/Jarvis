@@ -20,6 +20,7 @@ import json
 import logging
 import os
 import secrets
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -140,6 +141,7 @@ class SpotifyClient:
         self._path = Path(token_path)
         self._http, self._timeout, self._clock = http, timeout, clock
         self._sleep = time.sleep
+        self._refreshing = threading.Lock()
 
     # --- Jeton -----------------------------------------------------------------------------------------
 
@@ -185,13 +187,24 @@ class SpotifyClient:
         self._save(token)
 
     def _access(self) -> str:
-        token = self._token()
-        if self._clock() >= token.get("expires_at", 0):
-            fresh = self._token_request({"grant_type": "refresh_token", "refresh_token": token["refresh_token"]})
+        # Un seul renouvellement à la fois : deux demandes simultanées renouvelaient avec le même jeton de
+        # renouvellement, et la seconde pouvait être refusée (Spotify en émet un nouveau).
+        with self._refreshing:
+            token = self._token()
+            if self._clock() < token.get("expires_at", 0):
+                return token["access_token"]
+            try:
+                fresh = self._token_request({"grant_type": "refresh_token", "refresh_token": token["refresh_token"]})
+            except ToolError:
+                # Renouvelé entre-temps par un autre processus (même fichier) : son jeton fait foi.
+                again = self._token()
+                if (again.get("refresh_token") != token.get("refresh_token")
+                        and self._clock() < again.get("expires_at", 0)):
+                    return again["access_token"]
+                raise
             fresh.setdefault("refresh_token", token["refresh_token"])
             self._save(fresh)
-            token = fresh
-        return token["access_token"]
+            return fresh["access_token"]
 
     # --- API -------------------------------------------------------------------------------------------
 

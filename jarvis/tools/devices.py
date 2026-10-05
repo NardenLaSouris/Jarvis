@@ -116,7 +116,8 @@ class AgentClient:
                 data = {}
             if exc.code == 401:
                 log.warning("Agent %s : jeton refusé", device.url)
-            code, message = data.get("error") if isinstance(data, dict) else None,                 data.get("message") if isinstance(data, dict) else None
+            code = data.get("error") if isinstance(data, dict) else None
+            message = data.get("message") if isinstance(data, dict) else None
             # Réponse d'agent non fiable : seuls un code et un message textuels courts sont repris.
             raise ToolError(code[:48] if isinstance(code, str) and code else EXECUTION_FAILED,
                             message[:200] if isinstance(message, str) and message.strip()

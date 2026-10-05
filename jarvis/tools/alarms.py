@@ -20,7 +20,8 @@ ALARM_NOT_FOUND = "alarm_not_found"
 def _clock(value: str) -> tuple[int, int]:
     clock = parse_clock(value)
     if clock is None:
-        raise ToolError(INVALID_PARAMETERS, "Je n'ai pas compris l'heure du réveil.")
+        raise ToolError(INVALID_PARAMETERS, "Cette heure n'existe pas, ou je ne l'ai pas comprise : dites par exemple "
+                                            "« 7 heures 30 ».")
     return clock
 
 

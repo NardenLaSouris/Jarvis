@@ -93,3 +93,27 @@ def test_the_other_one_and_not_that_one():
     assert spoken[2] == "La lumière de l'entrée est allumée."  # ... et l'autre pièce allumée
     assert driver.lights["entree"]["hue"] == 240 and spoken[-1] == "La lumière de l'entrée est en bleu."
     assert routes(events).count("tool:context") == 3
+
+
+def test_cancel_it_right_after_creating_targets_that_one():
+    # Session QA : « Annule ce rappel » juste après l'avoir créé demandait lequel parmi tous les rappels.
+    context = ConversationContext(full_core().registry)
+    context.record("create_reminder", {"delay": 2700, "message": "tester"}, {"reminder_id": "2"})
+    assert context.resolve("Annule ce rappel") == {"type": "tool_call", "tool": "cancel_reminder",
+                                                   "parameters": {"reminder_id": "2"}}
+    assert context.resolve("Non, annule-le") == {"type": "tool_call", "tool": "cancel_reminder",
+                                                 "parameters": {"reminder_id": "2"}}
+    context.record("create_timer", {"duration": 180}, {"timer_id": "5"})
+    assert context.resolve("Laisse tomber") == {"type": "tool_call", "tool": "cancel_timer",
+                                                "parameters": {"timer_id": "5"}}
+    assert context.resolve("Annule le rappel de demain matin pour le dentiste") is None
+
+
+def test_cancel_it_by_voice_cancels_only_the_new_reminder():
+    core = full_core()
+    core.submit({"tool": "create_reminder", "parameters": {"delay": "2 heures", "message": "aller au colis"}})
+    spoken, events = run_agent(["Rappelle-moi dans 45 minutes de tester JARVIS", "Annule ce rappel"],
+                               PlannerLLM(), core, fast_path=True)
+    assert routes(events)[-1] == "tool:context" and "tester" in spoken[1]
+    remaining = core.submit({"tool": "list_reminders", "parameters": {}}).result.result["reminders"]
+    assert [r["message"] for r in remaining] == ["aller au colis"]

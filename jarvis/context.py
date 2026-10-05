@@ -32,6 +32,11 @@ ON_OFF = {"allume": "light_on", "rallume": "light_on", "allumes": "light_on", "e
 OTHER_ONE = {"l autre", "l autre aussi", "et l autre", "l autre lumiere", "l autre piece", "l autre aussi stp"}
 WRONG_ONE = {"pas celle la", "pas celle ci", "pas celle la l autre", "l autre plutot", "pas la bonne", "c est l autre",
              "pas celle la plutot l autre", "je voulais dire l autre", "mauvaise piece"}
+CANCEL_IT = {"annule", "annule le", "annule la", "annule ca", "annule ce rappel", "annule le rappel", "annule ce minuteur",
+             "annule le minuteur", "supprime le", "supprime la", "supprime ce rappel", "supprime le rappel",
+             "laisse tomber", "oublie ca", "finalement annule", "annule finalement", "arrete le", "arrete le minuteur",
+             "annule les"}
+CREATED = {"create_reminder": ("cancel_reminder", "reminder_id"), "create_timer": ("cancel_timer", "timer_id")}
 DAY_WORDS = {"demain": "tomorrow", "apres demain": "day_after_tomorrow", "aujourd hui": "today", "hier": "yesterday"}
 WEATHER_DAYS = {"demain": "tomorrow", "apres demain": "day_after_tomorrow", "aujourd hui": "today"}
 
@@ -41,13 +46,14 @@ class ConversationContext:
         self._registry = registry
         self._quick = QuickPlanner(registry)
         self._name = normalize(assistant_name)
-        self.last: dict | None = None  # {"tool", "parameters"} de la dernière action réussie
+        self.last: dict | None = None  # {"tool", "parameters", "result"} de la dernière action réussie
 
     def clear(self) -> None:
         self.last = None
 
-    def record(self, tool: str, parameters: dict) -> None:
-        self.last = {"tool": tool, "parameters": dict(parameters)}
+    def record(self, tool: str, parameters: dict, result=None) -> None:
+        self.last = {"tool": tool, "parameters": dict(parameters),
+                     "result": dict(result) if isinstance(result, dict) else {}}
 
     # --- Analyse -------------------------------------------------------------------------------------
 
@@ -81,7 +87,12 @@ class ConversationContext:
             return None
         tool, previous = self.last["tool"], self.last["parameters"]
         call = None
-        if tool in ("get_time", "get_date"):
+        if tool in CREATED and rest in CANCEL_IT:
+            # « Annule-le » juste après la création : ce rappel-là (ou ce minuteur-là), jamais un autre.
+            cancel, key = CREATED[tool]
+            created = (self.last.get("result") or {}).get(key)
+            call = {"tool": cancel, "parameters": {key: str(created)}} if created else None
+        elif tool in ("get_time", "get_date"):
             call = self._day(rest, "get_date", DAY_WORDS)
         elif tool == "get_weather":
             call = self._day(rest, "get_weather", WEATHER_DAYS, previous)
@@ -150,7 +161,8 @@ class ConversationContext:
         room = self._named_room(text)
         visible = {k: v for k, v in previous.items() if k != "room"}
         same_room = {"room": room} if room else ({"room": previous["room"]} if "room" in previous else {})
-        room_words = (self._room_words(rest) | set(room[1:].split()) if room.startswith("?") else self._room_words(rest))             if room else set()
+        room_words = (self._room_words(rest) | set(room[1:].split()) if room.startswith("?") else self._room_words(rest)) \
+            if room else set()
         other = self._other(rest, tool, previous, visible)
         if other is not None:
             return other

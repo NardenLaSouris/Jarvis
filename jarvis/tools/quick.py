@@ -189,8 +189,15 @@ class QuickPlanner:
             return None
         if memory is not None:
             return {"type": "tool_call", "tool": memory[0], "parameters": memory[1]}
-        for parse in (self._media, self._calendar, self._routine, self._sound, self._lights, self._apps, self._timer, self._reminder, self._alarm,
-                      self._weather, self._lock, self._spotify):
+        parsers = (self._media, self._calendar, self._routine, self._sound, self._lights, self._apps, self._timer,
+                   self._reminder, self._alarm, self._weather, self._lock, self._spotify)
+        # Un rappel ou un réveil d'abord : son message peut nommer n'importe quoi (« rappelle-moi demain d'appeler le
+        # garage », « ... d'éteindre la chambre »), qui ne doit jamais être exécuté tout de suite.
+        if _has(norm, REMINDER_WORDS):
+            parsers = (self._reminder, self._calendar)
+        elif _has(norm, ALARM_WORDS):
+            parsers = (self._alarm,)
+        for parse in parsers:
             call = parse(norm, text, previous)
             if call is not None:
                 return {"type": "tool_call", "tool": call[0], "parameters": call[1]}
@@ -266,7 +273,8 @@ class QuickPlanner:
             kind, lead = "playlist", r"^(?:ma |la |une )?playlist "
         elif re.search(r"\balbum\b", rest):
             kind, lead = "album", r"^(?:l |un )?album "
-        elif re.match(r"^(?:de la musique de|un peu de|la musique de|du son de|des chansons de|une chanson de|un morceau de|un titre de|un son de|du) ", rest)                 and not (rest.startswith("du ") and re.search(r"\s(?:de|d)\s", rest[3:])):  # « Du hast de Rammstein »
+        elif re.match(r"^(?:de la musique de|un peu de|la musique de|du son de|des chansons de|une chanson de|un morceau de|un titre de|un son de|du) ", rest) \
+                and not (rest.startswith("du ") and re.search(r"\s(?:de|d)\s", rest[3:])):  # « Du hast de Rammstein »
             kind, lead = "artist", r"^(?:de la musique de|un peu de|la musique de|du son de|des chansons de|une chanson de|un morceau de|un titre de|un son de|du) "
         rest = re.sub(lead, "", rest).strip()
         if not rest or len(rest.split()) > 10:
@@ -283,7 +291,9 @@ class QuickPlanner:
         if _has(norm, ("prochains rendez vous", "prochain rendez vous", "prochains evenements", "prochain evenement")):
             return "next_events", {}
         if _has(norm, ("de prevu", "mon agenda", "mon calendrier", "mon planning", "dans l agenda", "j ai quoi",
-                       "mes rendez vous")) and not _has(norm, ("ajoute", "ajouter", "note", "supprime", "annule")):
+                       "mes rendez vous", "programme de la journee", "quel est mon programme", "quoi mon programme",
+                       "au programme",
+                       "programme du jour", "programme de demain")) and not _has(norm, ("ajoute", "ajouter", "note", "supprime", "annule")):
             return "list_events", {}
         return None
 
@@ -421,7 +431,12 @@ class QuickPlanner:
             return None
         clock = parse_clock(text)
         if clock is None:
-            return None
+            # Heure dite mais impossible (« à 25 heures ») : le réveil la refuse avec une phrase claire, plutôt que
+            # de laisser le LLM y voir autre chose.
+            said = re.search(r"\b(\d{1,3})\s*(?:h|heures?)\b(?:\s*(\d{1,3}))?", norm)
+            if said is None:
+                return None
+            return "create_alarm", {"time": f"{said.group(1)} heures" + (f" {said.group(2)}" if said.group(2) else "")}
         hour, minute = clock
         return "create_alarm", {"time": f"{hour} heures {minute}" if minute else f"{hour} heures"}
 

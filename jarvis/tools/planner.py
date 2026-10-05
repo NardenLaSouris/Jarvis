@@ -313,9 +313,36 @@ DOMAIN_WORDS = {
 }
 
 
-def _named(tool: str, text: str) -> bool:
+LIGHT_TOOLS = ("light_on", "light_off", "light_toggle", "set_brightness", "set_color", "set_color_temperature",
+               "set_scene")
+LIGHT_WORDS = ("lumiere", "lumieres", "lampe", "lampes", "ampoule", "ampoules", "eclairage", "luminosite", "allume",
+               "allumer", "rallume", "eteins", "eteindre", "eclaire", "tamise", "couleur", "ambiance", "mode", "kelvin",
+               "kelvins", "lumineux", "lumineuse", "sombre")
+
+
+DEFERRED_WORDS = ("rappelle moi", "rappelez moi", "fais moi penser", "faites moi penser", "rappelle nous",
+                  "reveille moi", "reveillez moi")
+DEFERRED_TOOLS = ("create_reminder", "cancel_reminder", "list_reminders", "create_alarm", "cancel_alarm",
+                  "list_alarms", "list_events", "next_events", "search_events", "free_slots", "add_event", "recall")
+
+
+def _deferred(text: str) -> bool:
+    norm = f" {normalize(text)} "
+    return any(f" {w} " in norm for w in DEFERRED_WORDS)
+
+
+def _named(tool: str, text: str, registry: ToolRegistry | None = None) -> bool:
+    """L'action doit être nommée par la demande : jamais déduite d'un mot sans rapport (« réveille-moi à 25 heures »
+    proposé en « toutes les lumières à 25 % »). Lumières : un mot de l'éclairage ou une pièce citée."""
+    norm = f" {normalize(text)} "
+    if tool in LIGHT_TOOLS:
+        if any(f" {w} " in norm for w in LIGHT_WORDS):
+            return True
+        room = registry.get(tool).parameters.get("room") if registry is not None and registry.exists(tool) else None
+        # Pièce citée : la déduction diffère de celle d'une demande vide (toutes, ou la seule pièce).
+        return bool(room is not None and room.resolve is not None and room.resolve(text) != room.resolve(""))
     words = DOMAIN_WORDS.get(tool)
-    return words is None or any(f" {w} " in f" {normalize(text)} " for w in words)
+    return words is None or any(f" {w} " in norm for w in words)
 
 
 def _grounded(data: dict, text: str, registry: ToolRegistry) -> dict | None:
@@ -325,8 +352,12 @@ def _grounded(data: dict, text: str, registry: ToolRegistry) -> dict | None:
     une luminosité de 100) ; dans un paramètre obligatoire, ou une autre valeur injustifiée, l'appel est écarté."""
     if not registry.exists(data.get("tool")) or not isinstance(data.get("parameters"), dict):
         return data
-    if not _named(data["tool"], text):
+    if not _named(data["tool"], text, registry):
         log.info("Action écartée : « %s » n'est pas demandée (%s)", data["tool"], text[:80])
+        return None
+    if _deferred(text) and not data["tool"].startswith(DEFERRED_TOOLS):
+        # « Rappelle-moi d'éteindre la chambre » : à rappeler plus tard, jamais à exécuter maintenant.
+        log.info("Action écartée : « %s » dans une demande de rappel (%s)", data["tool"], text[:80])
         return None
     said = set(re.findall(r"\d+(?:[.,]\d+)?", text))
     said |= {n.replace(",", ".") for n in said}

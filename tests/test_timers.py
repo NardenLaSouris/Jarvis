@@ -513,3 +513,37 @@ def test_timers_and_reminders_survive_a_restart(tmp_path):
         assert second.create_timer(10).id == "2"  # la numérotation reprend après les numéros retrouvés
     finally:
         second.stop()
+
+
+def test_reminder_day_is_never_ignored():
+    # Session QA : « le 31 février à 10 heures » et « demain à 15 heures » donnaient un rappel aujourd'hui.
+    from datetime import datetime
+
+    from jarvis.scheduling.manager import TimerManager
+    from jarvis.tools.timers import _reminder_day
+
+    assert _reminder_day("Rappelle-moi demain à 15 heures d'appeler Paul") == "1"
+    assert _reminder_day("Rappelle-moi à 15 heures demain d'appeler Paul") == "1"
+    assert _reminder_day("Rappelle-moi après-demain à 9 heures de payer") == "2"
+    assert _reminder_day("Rappelle-moi le 31 février à 10 heures de payer") == "other"
+    assert _reminder_day("Rappelle-moi lundi à 10 heures de payer") == "other"
+    assert _reminder_day("Rappelle-moi à 18 heures de préparer la réunion de demain") is None
+    assert _reminder_day("Rappelle-moi à 18 heures d'appeler Paul") is None
+
+    def core_at(hour):
+        registry = ToolRegistry()
+        for tool in timer_tools(TimerManager(clock=lambda: datetime(2026, 10, 5, hour, 0))):
+            registry.register(tool)
+        return ToolCore(registry, PermissionManager())
+
+    def remind(core, **parameters):
+        return core.submit({"tool": "create_reminder", "parameters": {"message": "payer", **parameters}}).result
+
+    evening = core_at(22)
+    assert remind(evening, time="8 heures", day="1").result["remaining"] == "10 heures"
+    assert not remind(core_at(2), time="15 heures", day="1").success  # au-delà de la limite : refusé, pas aujourd'hui
+    assert remind(core_at(2), time="10 heures").result["remaining"] == "8 heures"
+    refused = remind(evening, time="10 heures", day="other")
+    assert not refused.success and "calendrier" in refused.message
+    assert not remind(evening, time="10 heures", day="0").success  # déjà passée aujourd'hui
+    assert remind(evening, delay="10 minutes", day="other").success  # un délai n'a pas de date

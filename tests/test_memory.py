@@ -143,3 +143,13 @@ def test_memory_follows_the_identity_of_each_request(tmp_path):
     assert [f["text"] for f in store.all("monsieur")] == ["je préfère le bleu"]
     assert [f["text"] for f in store.all("lea")] == ["j'adore le jazz"]
     assert core.submit({"tool": "recall", "parameters": {}}, user="lea").result.result["facts"] == ["vous adorez le jazz"]
+
+
+def test_forgotten_fact_is_neither_repeated_nor_left_in_the_conversation(tmp_path):
+    # Session QA : « C'est oublié : votre code de vélo est 4512 », puis le LLM le redisait depuis l'historique.
+    core, store = core_with_memory(tmp_path)
+    llm = PlannerLLM(reply="Je ne sais pas.")
+    spoken, events = run_agent(["Retiens que mon code de vélo est 4512.", "Oublie le code de mon vélo.", "Oui.",
+                                "Raconte-moi une histoire"], llm, core, fast_path=True)
+    assert spoken[2] == "C'est oublié." and store.all() == []
+    assert llm.calls and not any("4512" in m.content for m in llm.calls[-1])

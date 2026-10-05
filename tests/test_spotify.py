@@ -351,3 +351,35 @@ def test_volume_right_after_music_targets_spotify(tmp_path):
         core.registry.register(tool)
     spoken, _ = run_agent(["Mets Back in Black de AC-DC.", "Mets le volume à 30 %."], PlannerLLM(), core, fast_path=True)
     assert spoken[1] == "Volume de Spotify à 30 %." and any("volume_percent=30" in u for u in fake.urls)
+
+
+def test_concurrent_requests_refresh_the_token_only_once(tmp_path):
+    # Session QA : deux demandes simultanées renouvelaient chacune le jeton avec le même jeton de renouvellement.
+    import threading
+    import time as _time
+
+    fake = FakeSpotify()
+    slow = lambda *a: (_time.sleep(0.05), fake(*a))[1]  # noqa: E731
+    spotify = client(tmp_path, slow, expired=True)
+    tokens = []
+    threads = [threading.Thread(target=lambda: tokens.append(spotify._access())) for _ in range(5)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert fake.tokens == 1 and set(tokens) == {"jeton1"}
+
+
+def test_refresh_refused_but_already_renewed_by_another_process(tmp_path):
+    import json as _json
+
+    path = tmp_path / "token.json"
+
+    def refused(method, url, headers, body, timeout):
+        # Pendant ce temps, l'autre processus (le service JARVIS) a renouvelé le jeton dans le même fichier.
+        path.write_text(_json.dumps({"access_token": "autre", "refresh_token": "r2", "expires_at": 10 ** 12}),
+                        encoding="utf-8")
+        return 400, b'{"error": "invalid_grant"}'
+
+    spotify = client(tmp_path, refused, expired=True)
+    assert spotify._access() == "autre"
