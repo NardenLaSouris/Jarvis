@@ -23,9 +23,10 @@ from jarvis.personality import normalize
 
 log = logging.getLogger(__name__)
 
-# Forme sonore de « Jarvis » une fois transcrite : J/G/Dj/Ch, voyelle, r facultatif, « vi » puis s ou c
-# (jarvis, jarvisse, gervis, jervice, j'avise) ; jamais « j'avais », « j'arrive », « service », « j'ai revu ».
-WAKE_SHAPE = re.compile(r"(?:dj|j|g|ch)[ae]?r?vi[sc]")
+# Forme sonore de « Jarvis » une fois transcrite : J/G/Dj/Ch, voyelle, r ou n facultatif, « vi » puis s ou c
+# (jarvis, jarvisse, gervis, jervice, j'avise, « j'en vis » : un vrai « Jarvis » écarté le 5 octobre 2026) ;
+# jamais « j'avais », « j'arrive », « j'en vais », « service », « j'ai revu ».
+WAKE_SHAPE = re.compile(r"(?:dj|j|g|ch)[ae]?[rn]?vi[sc]")
 
 
 def heard_wake(text: str) -> bool:

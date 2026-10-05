@@ -23,7 +23,8 @@ from test_tools import SLEEP, PlannerLLM, run_agent  # noqa: E402
 
 # Transcriptions réelles de whisper tiny et base sur les enregistrements de test (mini-PC, octobre 2026).
 HEARD_JARVIS = ["J'arvisse.", "Dip, j'arvisse.", "J'avis.", "et Jervis.", "J'arvis.", "Bon ! Gervisse !",
-                "D'y JARVIS !", "D'y J'ARVISS !", "J'avise.", "J'ervice !", "Jarvis, allume la lumière"]
+                "D'y JARVIS !", "D'y J'ARVISS !", "J'avise.", "J'ervice !", "Jarvis, allume la lumière",
+                "J'en vis !"]  # vrai « Jarvis » écarté en service le 5 octobre 2026
 HEARD_OTHER = ["servisseur.", "j'aiurs réunir.", "et dire très vite.", "bonjour !", "Non, j'ai revis.",
                "J'ai déjà regardé.", "Samach.", "Service.", "J'avais.", "J'arrive !", "J'en vais.", "J'arvais.",
                "Jardin.", "C'est très très... très vite", "", "Merci d'avoir regardé cette vidéo !"]
@@ -61,7 +62,7 @@ def test_a_rejected_wake_never_opens_the_conversation_and_is_kept(tmp_path):
 
 def test_saying_jarvis_again_right_after_a_rejection_is_accepted(tmp_path):
     captures = WakeCaptures(tmp_path / "captures")
-    verifier = Verifier((False, "J'en vis !"))
+    verifier = Verifier((False, "J'en revise."))
     spoken, events = run_agent([SLEEP, "Quelle heure est-il ?"], PlannerLLM(), wake_verifier=verifier,
                                wake_captures=captures)
     assert verifier.calls == 1  # le second appel n'est pas revérifié
