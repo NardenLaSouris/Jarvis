@@ -46,7 +46,7 @@ SEASONS = {
         "effect": "lily"
     },
     "starwars": {
-        "palette": "starwars", "label": "Star Wars Day", "hues": [215, 0], "greeting": "Que la Force soit avec vous",
+        "palette": "starwars", "label": "Star Wars Day", "hues": [53, "night"], "greeting": "Que la Force soit avec vous",
         "effect": "hyperspace"
     },
     "naissancejarvis": {

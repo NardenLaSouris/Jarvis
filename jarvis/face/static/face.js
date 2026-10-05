@@ -36,9 +36,9 @@
       pupil: [0, 0, 0], pupilEdge: [3, 3, 3], background: ["#141414", "#080808", "#000000"],
     },
     // Fêtes : plusieurs couleurs à la fois (anneaux, arcs, graduations), comme le tricolore.
-    starwars: {  // sabres laser : bleu Jedi, rouge Sith, vert, sur le noir de l'espace
-      deep: [16, 30, 80], blue: [40, 130, 255], cyan: [255, 45, 45], white: [110, 255, 110],
-      pupil: [0, 0, 4], pupilEdge: [2, 2, 10], background: ["#070b1a", "#03050e", "#000003"],
+    starwars: {  // jaune du logo Star Wars (#FFE81F) sur noir
+      deep: [80, 66, 0], blue: [255, 214, 20], cyan: [255, 232, 31], white: [255, 248, 200],
+      pupil: [0, 0, 0], pupilEdge: [3, 3, 0], background: ["#060604", "#020201", "#000000"],
     },
     noel: {  // rouge, vert sapin et or
       deep: [100, 12, 18], blue: [210, 30, 45], cyan: [40, 200, 80], white: [255, 210, 110],
@@ -268,8 +268,9 @@
     }
     if (kind === "hyperspace") {
       // Étoile fixe : direction depuis le centre et distance (fraction du demi-écran).
-      Object.assign(p, { a: Math.random() * Math.PI * 2, d: 0.08 + Math.random() * 0.95, vx: 0, vy: 0,
-                         x: w / 2, y: h / 2, r: (0.6 + Math.random() * 1.2) * s, tw: Math.random() * 6 });
+      const inner = hyperInner(w, h);
+      Object.assign(p, { a: Math.random() * Math.PI * 2, d: inner + Math.random() * (1.05 - inner), vx: 0, vy: 0,
+                         x: w / 2, y: h / 2, r: (0.5 + Math.random() * 0.8) * s, tw: Math.random() * 6 });
     }
     if (kind === "lily") { p.vy *= 0.5; p.r = (5 + Math.random() * 4) * s; }
     if (kind === "clovers") { p.vy *= 0.6; p.r *= 1.6; }
@@ -285,7 +286,7 @@
     if (!effect) { fxg && fxg.clearRect(0, 0, fx.width, fx.height); return; }
     fx.width = innerWidth; fx.height = innerHeight;
     const count = { snow: 90, embers: 50, confetti: 70, sparkle: 60, hearts: 40, clovers: 30, fish: 9, lily: 22,
-                    hyperspace: 220 }[effect] || 40;
+                    hyperspace: 110 }[effect] || 40;
     hyperStart = now();
     for (let i = 0; i < count; i++) fxParticles.push(spawn(effect, true));
     if (!fxRunning) { fxRunning = true; requestAnimationFrame(drawEffect); }
@@ -311,18 +312,24 @@
     if (hyperPhase === "tunnel" || hyperPhase === "exit") {  // lueur bleue du tunnel
       const w = fx.width, h = fx.height;
       const glow = fxg.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.hypot(w, h) / 2);
-      glow.addColorStop(0, `rgba(120, 170, 255, ${0.10 * hyperK})`);
+      glow.addColorStop(0, `rgba(120, 170, 255, ${0.04 * hyperK})`);
       glow.addColorStop(1, "rgba(120, 170, 255, 0)");
       fxg.fillStyle = glow;
       fxg.fillRect(0, 0, w, h);
     }
   }
 
+  // Bord du visage (anneau extérieur un peu élargi), en fraction de la demi-diagonale : aucune étoile en dedans.
+  function hyperInner(w, h) {
+    return Math.min(0.9, (Math.min(w, h) * 0.5) / (Math.hypot(w, h) / 2));
+  }
+
   function drawHyperStar(p, w, h) {
     const max = Math.hypot(w, h) / 2, cx = w / 2, cy = h / 2, dx = Math.cos(p.a), dy = Math.sin(p.a);
+    const inner = hyperInner(w, h);
     if (hyperPhase === "tunnel") {  // les traits filent vers l'extérieur
-      p.d += 0.012 + p.d * 0.03;
-      if (p.d > 1.15) p.d = 0.05 + Math.random() * 0.15;
+      p.d += 0.004 + p.d * 0.012;
+      if (p.d > 1.1) p.d = inner + Math.random() * 0.05;
     }
     p.x = cx + dx * p.d * max; p.y = cy + dy * p.d * max;
     if (hyperK < 0.02) {  // ciel étoilé : points qui scintillent
@@ -330,11 +337,11 @@
       fxg.beginPath(); fxg.arc(p.x, p.y, p.r, 0, Math.PI * 2); fxg.fill();
       return;
     }
-    // Trait : de l'étoile vers le centre, d'autant plus long que l'étirement est avancé et l'étoile lointaine.
-    const tail = p.d * max * (0.15 + 0.6 * hyperK);
+    // Trait : de l'étoile vers le centre, sans jamais entrer dans le visage ; fin et discret.
+    const tail = Math.min((p.d - inner) * max, p.d * max * 0.35 * hyperK);
     const blue = hyperPhase === "tunnel" ? 1 : hyperK;
-    fxg.strokeStyle = `rgba(${Math.round(255 - 70 * blue)}, ${Math.round(255 - 30 * blue)}, 255, ${0.35 + 0.55 * hyperK})`;
-    fxg.lineWidth = p.r * (0.8 + hyperK);
+    fxg.strokeStyle = `rgba(${Math.round(255 - 60 * blue)}, ${Math.round(255 - 25 * blue)}, 255, ${0.25 + 0.35 * hyperK})`;
+    fxg.lineWidth = Math.max(0.6, p.r * (0.7 + 0.5 * hyperK));
     fxg.lineCap = "round";
     fxg.beginPath(); fxg.moveTo(p.x - dx * tail, p.y - dy * tail); fxg.lineTo(p.x, p.y); fxg.stroke();
   }
@@ -1021,7 +1028,7 @@
                         f: ["quatorzejuillet", null, "Bonne fête nationale", "sparkle", "tricolore"],
                         o: ["poissonavril", [188, 28], "Poisson d'avril !", "fish", "poissonavril"],
                         m: ["muguet", [130, "night"], "Joyeux 1er mai", "lily", "muguet"],
-                        w: ["starwars", [215, 0], "Que la Force soit avec vous", "hyperspace", "starwars"],
+                        w: ["starwars", [53, "night"], "Que la Force soit avec vous", "hyperspace", "starwars"],
                         j: ["naissancejarvis", [205, 44], "Joyeux anniversaire JARVIS : 1 an", "sparkle", "naissancejarvis"] };
       if (event.key === "u" || event.key === "U") {  // démo : échéance dans 9 minutes
         showUpcoming({ label: "Dentiste", kind: "event", seconds: 540, window: 900 });
