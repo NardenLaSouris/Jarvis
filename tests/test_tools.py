@@ -673,11 +673,14 @@ def test_planner_never_invents_a_number():
 
 # --- Intégration dans l'agent --------------------------------------------------------------------
 
+SLEEP = "<veille>"
+
+
 def run_agent(texts, llm, core=None, tools=True, corrector=None, confidence=None, min_confidence=None,
               **agent_options):
     class Stt:
         def __init__(self):
-            self.replies = iter(texts)
+            self.replies = iter([t for t in texts if t != SLEEP])
             self.last_confidence = confidence
 
         def transcribe(self, audio, rate):
@@ -701,8 +704,9 @@ def run_agent(texts, llm, core=None, tools=True, corrector=None, confidence=None
     speech = lambda s: (3000 * np.sin(np.arange(int(s * sr)) / sr * 1400)).astype(np.int16)  # noqa: E731
     silence = lambda s: np.zeros(int(s * sr), np.int16)  # noqa: E731
     parts = [silence(1), np.full(3200, 30000, np.int16), silence(0.5)]
-    for _ in texts:
-        parts += [speech(1), silence(1.5)]
+    for text in texts:
+        # SLEEP : retour en veille (silence), puis nouveau wake word : une nouvelle conversation commence.
+        parts += [silence(4), np.full(3200, 30000, np.int16), silence(0.5)] if text == SLEEP else [speech(1), silence(1.5)]
     source, events = ArraySource(np.concatenate(parts + [silence(3)]), sr, 1280), []
     core = core or make_core()
     capabilities = CapabilityRegistry()
@@ -1060,3 +1064,15 @@ def test_the_rest_of_a_chained_request_runs_once_the_confirmation_is_accepted():
     run_agent(["Verrouille le PC et mets le volume à 20", "Quelle heure est-il ?", "Oui."], PlannerLLM(),
               make_core(volume=volume, locker=locker), fast_path=True)
     assert volume.level == 30 and locker.calls == 0  # autre demande entre-temps : tout ce qui attendait est oublié
+
+
+def test_nothing_carries_over_to_the_next_conversation():
+    # Session QA : « Et demain ? » au début d'une nouvelle conversation reprenait la météo de Lyon de la précédente.
+    core = make_core()
+    core.registry.register(Tool("get_weather", "météo", {"location": Param(str, "ville", required=False),
+                                                         "day": Param(str, "jour", required=False)},
+                                {}, Risk.SAFE, lambda **kw: {"ok": True, **kw}, say=lambda r: f"Météo {r}."))
+    llm = PlannerLLM(reply="Je ne sais pas de quoi vous parlez.")
+    spoken, events = run_agent(["Quel temps fait-il à Lyon ?", SLEEP, "Et demain ?"], llm, core, fast_path=True)
+    assert "Lyon" in spoken[0] and "tool.follow_up" not in " ".join(routes(events))
+    assert not any("Lyon" in s for s in spoken[1:])

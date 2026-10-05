@@ -282,6 +282,9 @@ class Agent:
         self._play(*random.choice(self._acks))
         history: list[Message] = []
         self._place = None
+        # Rien ne passe d'une conversation à l'autre (« Et demain ? » reprenait la météo de Lyon de la précédente).
+        self._last_tool_request = ""
+        self._after_confirmation = None
         if self.request_context is not None and self._tools is not None and hasattr(self._tools, "set_user"):
             self._tools.set_user(self.request_context.user_id)
         if self._context is not None:
