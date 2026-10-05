@@ -397,6 +397,40 @@ Côté Core (mini-PC) : `[api] enabled = true` et `allowed_ips = ["<IP du PC>"]`
 puis ouvrir le port au seul PC : `sudo ufw allow from <IP du PC> to any port 8766 proto tcp`.
 Paramètres de l'application et journal : `%APPDATA%\JARVIS Control`.
 
+## Présence à la maison (arrivées, départs, « Bon retour »)
+
+`jarvis/presence/` : JARVIS sait qui est à la maison et confirme un départ ou un retour à partir de **plusieurs
+signaux** (téléphone, porte d'entrée, mouvement), jamais d'une porte seule. Sortir les poubelles ou récupérer un
+colis ne déclenche ni « départ » ni « Bon retour ».
+
+- **Capteurs** (`[presence.sensors.<id>]` dans config.local.toml) : `door`, `motion`, `presence` (téléphone d'un
+  utilisateur), `leak`, `smoke`, `temperature`, `appliance`. Ils produisent des **événements normalisés**
+  (`door.open`, `presence.away`, `motion.detected`...) sur le bus ; le moteur ne connaît aucun fabricant.
+- **Moteur** : un état par utilisateur suivi — HOME, POSSIBLE_DEPARTURE, AWAY, POSSIBLE_ARRIVAL. Confiance
+  déterministe : téléphone 50, porte ouverte 30, refermée 10, mouvement dans l'entrée 20 ; confirmé à 90.
+  Fenêtres (`departure_window`, `arrival_window`), seuil et délais dans `[presence]`. Téléphone parti sans
+  porte : départ seulement après `absence_minutes` sans aucun mouvement. Plusieurs personnes : la maison peut
+  être occupée sans que vous soyez « rentré ».
+- **Journal de la maison** (`data/house_journal.jsonl`) : priorités CRITICAL (fuite, fumée), IMPORTANT (appareil
+  terminé, porte restée ouverte, mouvement pendant l'absence), NORMAL ; mouvements et signaux techniques ignorés.
+- **Routine « Bon retour »** (créée à la première mise en service, modifiable dans JARVIS Control) : déclencheur
+  « Événement de la maison : retour confirmé », annonce « Bon retour, monsieur. » et le résumé de l'absence
+  (l'important seulement, sinon « Rien de particulier pendant votre absence. »).
+- **Simulateur** (sans matériel ; même chemin qu'un vrai capteur, par l'API d'administration : ajouter
+  `"127.0.0.1"` à `[api] allowed_ips`) :
+
+```bash
+python -m jarvis --simulate door open
+python -m jarvis --simulate presence away
+python -m jarvis --simulate machine_a_laver finished
+python -m jarvis --simulate thermometre_salon measured 21.5
+python -m jarvis --simulate status
+```
+
+- **Brancher un vrai capteur** : écrire un pilote dans `jarvis/presence/sensors.py` (classe avec `start(emit)` et
+  `stop()`, qui appelle `emit("porte_entree", "open")` quand le matériel le signale — MQTT, Zigbee, ESP32, Home
+  Assistant...), l'ajouter à `DRIVERS`, puis `driver = "<nom>"` sur le capteur. Rien d'autre ne change.
+
 ## Lumières (ampoules Tuya / LSC Smart Connect, en local)
 
 « Allume la chambre à 30 % », « éteins les lumières », « mets l'entrée en vert », « remets la chambre en blanc
