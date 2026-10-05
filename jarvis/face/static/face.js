@@ -221,6 +221,7 @@
   const fx = document.getElementById("effects");
   const fxg = fx ? fx.getContext("2d") : null;
   let effect = "", fxParticles = [], fxRunning = false;
+  const BEHIND = new Set(["hyperspace"]);  // effets dessinés derrière le visage
 
   // --- Échéance proche : anneau ambre et « Dentiste dans 12 min » ---------------------------------------
   const upcomingEl = document.getElementById("upcoming");
@@ -284,6 +285,7 @@
     kind = fxg ? kind || "" : "";  // comme le visage, qui s'anime toujours
     if (kind === effect) return;
     effect = kind;
+    fx.style.zIndex = BEHIND.has(effect) ? "-1" : "";
     fxParticles = [];
     if (!effect) { fxg && fxg.clearRect(0, 0, fx.width, fx.height); return; }
     fx.width = innerWidth; fx.height = innerHeight;
@@ -323,7 +325,7 @@
 
   // Bord extérieur du visage (anneau le plus large), en fraction de la demi-diagonale : étoiles et traits au-delà.
   function hyperInner(w, h) {
-    return Math.min(0.95, (Math.min(w, h) * 0.47) / (Math.hypot(w, h) / 2));
+    return Math.min(0.95, (Math.min(w, h) * (BEHIND.has(effect) ? 0.36 : 0.47)) / (Math.hypot(w, h) / 2));
   }
 
   function drawHyperStar(p, w, h) {
@@ -929,8 +931,19 @@
   function render(t, dt) {
     ctx.globalCompositeOperation = "source-over";
     ctx.globalAlpha = 1;
-    ctx.fillStyle = background;
-    ctx.fillRect(0, 0, W, H);
+    if (BEHIND.has(effect)) {
+      // Le ciel (calque des effets) est derrière : fond transparent, sauf un disque opaque sous le visage.
+      ctx.clearRect(0, 0, W, H);
+      const disc = ctx.createRadialGradient(CX, CY, 0, CX, CY, R * 1.05);
+      disc.addColorStop(0, COLOR.background[0]);
+      disc.addColorStop(0.92, COLOR.background[1]);
+      disc.addColorStop(1, "rgba(0, 0, 0, 0)");
+      ctx.fillStyle = disc;
+      ctx.beginPath(); ctx.arc(CX, CY, R * 1.05, 0, TAU); ctx.fill();
+    } else {
+      ctx.fillStyle = background;
+      ctx.fillRect(0, 0, W, H);
+    }
     ctx.globalCompositeOperation = "lighter";
     drawHalo();
     for (const layer of LAYERS.slice(0, 4)) drawLayer(layer, t);
@@ -1031,7 +1044,7 @@
                         f: ["quatorzejuillet", null, "Bonne fête nationale", "sparkle", "tricolore"],
                         o: ["poissonavril", [188, 28], "Poisson d'avril !", "fish", "poissonavril"],
                         m: ["muguet", [130, "night"], "Joyeux 1er mai", "lily", "muguet"],
-                        w: ["starwars", [53, "night"], "Que la Force soit avec vous", "hyperspace", "starwars"],
+                        w: ["starwars", [53, "night"], "", "hyperspace", "starwars"],
                         j: ["naissancejarvis", [205, 44], "Joyeux anniversaire JARVIS : 1 an", "sparkle", "naissancejarvis"] };
       if ((event.key === "x" || event.key === "X") && effect === "hyperspace") {  // démo : sauter maintenant
         hyperStart = now() - HYPER.cruise + 0.5;
