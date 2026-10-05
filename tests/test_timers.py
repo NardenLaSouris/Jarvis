@@ -565,3 +565,23 @@ def test_reminders_reach_further_than_timers():
                                                                       "time": "9 heures", "day": "1"}}).result
     assert reminder.success and reminder.result["at"] == "09:00"
     assert not core.submit({"tool": "create_timer", "parameters": {"duration": "30 heures"}}).result.success
+
+
+def test_far_reminders_are_announced_by_day_and_hour():
+    # Session QA : « je vous rappellerai d'appeler le garage dans 29 heures 28 minutes ».
+    from datetime import datetime
+
+    from jarvis.scheduling.manager import TimerManager
+
+    manager = TimerManager(clock=lambda: datetime(2026, 10, 5, 3, 30), max_reminder_seconds=72 * 3600)
+    registry = ToolRegistry()
+    for tool in timer_tools(manager):
+        registry.register(tool)
+    core = ToolCore(registry, PermissionManager())
+
+    def remind(**parameters):
+        return core.submit({"tool": "create_reminder", "parameters": {"message": "appeler Paul", **parameters}}).result
+
+    assert remind(time="9 heures", day="1").message == "Entendu, je vous rappellerai d'appeler Paul demain à 9 heures."
+    assert remind(time="18 heures 30").message == "Entendu, je vous rappellerai d'appeler Paul aujourd'hui à 18 h 30."
+    assert remind(delay="20 minutes").message == "Entendu, je vous rappellerai d'appeler Paul dans 20 minutes."

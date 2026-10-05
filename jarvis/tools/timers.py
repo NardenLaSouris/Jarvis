@@ -104,8 +104,23 @@ def _timer_view(timer: Timer, manager: TimerManager) -> dict:
 
 
 def _reminder_view(reminder: Reminder, manager: TimerManager) -> dict:
+    now = manager.now()
     return {"reminder_id": reminder.id, "message": second_person(reminder.message),
-            "remaining": spoken_remaining(reminder.remaining(manager.now())), "at": f"{reminder.expires_at:%H:%M}"}
+            "remaining": spoken_remaining(reminder.remaining(now)), "at": f"{reminder.expires_at:%H:%M}",
+            "day": (reminder.expires_at.date() - now.date()).days,
+            "far": reminder.remaining(now) >= 2 * 3600}
+
+
+DAY_NAMES = {0: "aujourd'hui", 1: "demain", 2: "après-demain"}
+
+
+def _when(r: dict) -> str:
+    """« dans 20 minutes » ; au-delà de deux heures ou un autre jour : « demain à 9 heures » (session QA : « dans 29
+    heures 28 minutes »)."""
+    if not r.get("far") and not r.get("day"):
+        return f"dans {r['remaining']}"
+    day = DAY_NAMES.get(r.get("day", 0), "")
+    return f"{day} à {_at(r['at'])}".strip() if day else f"dans {r['remaining']}"
 
 
 def _at(hhmm: str) -> str:
@@ -129,8 +144,8 @@ def _reminders_said(result: dict) -> str:
         return "Aucun rappel n'est prévu."
     if len(reminders) == 1:
         r = reminders[0]
-        return f"Je dois vous rappeler {with_de(r['message'])} dans {r['remaining']}."
-    listing = " ; ".join(f"{r['message']} dans {r['remaining']}" for r in reminders)
+        return f"Je dois vous rappeler {with_de(r['message'])} {_when(r)}."
+    listing = " ; ".join(f"{r['message']} {_when(r)}" for r in reminders)
     return f"Vous avez {len(reminders)} rappels : {listing}."
 
 
@@ -210,7 +225,7 @@ def timer_tools(manager: TimerManager) -> list[Tool]:
                            choices=("0", "1", "2", OTHER_DAY))},
              {"reminder_id": "numéro", "message": "message", "remaining": "délai", "at": "HH:MM"},
              Risk.SAFE, create_reminder,
-             say=lambda r: f"Entendu, je vous rappellerai {with_de(r['message'])} dans {r['remaining']}."),
+             say=lambda r: f"Entendu, je vous rappellerai {with_de(r['message'])} {_when(r)}."),
         Tool("cancel_reminder", "Annule un rappel prévu (le seul, ou celui désigné par son numéro ou son message).",
              {"reminder_id": Param(str, "numéro du rappel, s'il a été dit", required=False, max_length=6,
                                    check=_identifier),
