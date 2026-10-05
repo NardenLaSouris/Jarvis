@@ -230,3 +230,30 @@ def test_a_reminder_message_is_never_executed_now():
     llm = PlannerLLM({"type": "tool_call", "tool": "light_off", "parameters": {}})
     run_agent(["Rappelle-moi d'éteindre la chambre"], llm, full_core(driver))
     assert driver.calls == []
+
+
+def test_turning_off_another_machine_never_turns_off_the_lights():
+    # Session QA : « Éteins le Katana » finissait en « Toutes les lumières sont éteintes » (LLM).
+    driver = FakeDriver()
+    llm = PlannerLLM({"type": "tool_call", "tool": "light_off", "parameters": {}})
+    run_agent(["Éteins le Katana"], llm, full_core(driver))
+    assert driver.calls == []
+
+
+def test_closing_is_never_turned_into_opening():
+    # Session QA : « oui et ferme aussi Discord » proposé en open_application par le LLM, et exécuté.
+    from test_tools import FakeProcesses, Launcher
+
+    processes = FakeProcesses()
+    launcher = Launcher(processes, ("Discord.exe",))
+    llm = PlannerLLM({"type": "tool_call", "tool": "open_application", "parameters": {"application": "discord"}})
+    run_agent(["Oui et ferme aussi Discord"], llm, make_core(processes=processes, launcher=launcher))
+    assert launcher.calls == []
+
+
+@pytest.mark.parametrize("text", ["Mets un minuteur de 0 seconde", "Lance 50 minuteurs de 1 minute",
+                                  "Mets un minuteur de 0 minute"])
+def test_timer_requests_never_become_a_spotify_search(text):
+    # Session QA : « Mets un minuteur de 0 seconde » cherchait « un minuteur » sur Spotify.
+    plan_ = quick_plan(text, REGISTRY)
+    assert plan_ is None or plan_["tool"] == "create_timer"

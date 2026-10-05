@@ -17,7 +17,23 @@ ALLOWED_KEYS = {"type", "tool", "parameters"}
 CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 
 
+# Demandes structurellement fausses (champ intrus, forme inattendue, venues du LLM) : même code d'erreur que les
+# autres, mais jamais une phrase à prononcer telle quelle.
+MALFORMED_MESSAGES = frozenset({
+    "Demande d'outil illisible.",
+    "Demande d'outil mal formée.",
+    "Champs non autorisés dans la demande d'outil.",
+    "Ce n'est pas une demande d'outil.",
+    "Les paramètres doivent être un objet.",
+    "Paramètres inconnus pour cet outil.",
+})
+
+
 def _invalid(message: str) -> ToolError:
+    return ToolError(INVALID_PARAMETERS, message)
+
+
+def _malformed(message: str) -> ToolError:
     return ToolError(INVALID_PARAMETERS, message)
 
 
@@ -41,23 +57,23 @@ def parse_request(data: Any, registry: ToolRegistry) -> ToolRequest:
         try:
             data = json.loads(data)
         except ValueError as exc:
-            raise _invalid("Demande d'outil illisible.") from exc
+            raise _malformed("Demande d'outil illisible.") from exc
     if not isinstance(data, dict):
-        raise _invalid("Demande d'outil mal formée.")
+        raise _malformed("Demande d'outil mal formée.")
     extra = set(data) - ALLOWED_KEYS
     if extra:
-        raise _invalid("Champs non autorisés dans la demande d'outil.")
+        raise _malformed("Champs non autorisés dans la demande d'outil.")
     if data.get("type", "tool_call") != "tool_call":
-        raise _invalid("Ce n'est pas une demande d'outil.")
+        raise _malformed("Ce n'est pas une demande d'outil.")
     tool = registry.get(data.get("tool"))
     params = data.get("parameters")
     if params is None:
         params = {}
     if not isinstance(params, dict):
-        raise _invalid("Les paramètres doivent être un objet.")
+        raise _malformed("Les paramètres doivent être un objet.")
     unknown = set(params) - set(tool.parameters)
     if unknown:
-        raise _invalid("Paramètres inconnus pour cet outil.")
+        raise _malformed("Paramètres inconnus pour cet outil.")
     clean: dict[str, Any] = {}
     for name, spec in tool.parameters.items():
         if name not in params:

@@ -803,7 +803,10 @@ def test_llm_cannot_inject_fields_pids_or_commands():
         llm = PlannerLLM(proposal)
         spoken, events = run_agent(["Ferme Discord"], llm, make_core(processes=processes, launcher=launcher,
                                                                      locker=locker))
-        assert "Voulez-vous" not in spoken[0] and llm.calls == []
+        assert "Voulez-vous" not in spoken[0]
+        # Ouvrir n'est pas demandé (« ferme ») : proposition écartée dès le planificateur, qui laisse alors la main à
+        # la conversation ; les autres sont refusées par le Core, sans LLM.
+        assert llm.calls == [] or proposal["tool"] == "open_application"
     assert launcher.calls == [] and processes.stopped == [] and locker.calls == 0
 
 
@@ -1032,3 +1035,12 @@ def test_unexpected_result_shape_never_turns_a_done_action_into_a_failure():
                            say=lambda r: f"Volume à {r['volume']} %."))
     result = ToolCore(registry, PermissionManager()).submit({"tool": "odd", "parameters": {}}).result
     assert done and result.success and result.message == "C'est fait."
+
+
+def test_malformed_llm_proposals_are_never_read_aloud():
+    # Session QA : « Champs non autorisés dans la demande d'outil. » était prononcé tel quel.
+    processes = FakeProcesses({"Discord.exe"})
+    llm = PlannerLLM({"type": "tool_call", "tool": "close_application", "parameters": {"application": "discord"},
+                      "confirmed": True})
+    spoken, events = run_agent(["Ferme Discord"], llm, make_core(processes=processes))
+    assert "Champs" not in spoken[0] and "demande d'outil" not in spoken[0] and processes.stopped == []

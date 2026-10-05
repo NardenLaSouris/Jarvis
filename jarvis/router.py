@@ -50,7 +50,13 @@ ACTION_CLAIMS = (
     re.compile(r"\bje vous (rappellerai|recontacterai|previendrai|tiendrai (au courant|informe))\b"),
     re.compile(r"\bje (peux|pourrai|vais pouvoir) (vous )?(programmer|allumer|eteindre|envoyer|lancer|ouvrir|"
                r"regler|mettre|rappeler|reveiller|noter|enregistrer)\b"),
-    re.compile(r"\bje (vais|m en vais) (allumer|eteindre|envoyer|regler|mettre|lancer|ouvrir|fermer|baisser|monter|augmenter)\b"),
+    re.compile(r"\bje (vais|m en vais) (vous )?(allumer|eteindre|envoyer|regler|mettre|lancer|ouvrir|fermer|baisser|"
+               r"monter|augmenter|verrouiller|reveiller|rappeler|programmer|couper|supprimer|redemarrer|jouer|"
+               r"effacer|annuler|creer|ajouter)\b"),
+    # Session QA : « Je vais verrouiller l'ordinateur », « Je vous réveillerai à 25 heures » sans aucun outil.
+    re.compile(r"\bje vous (reveillerai|reveille)\b"),
+    re.compile(r"\bje (verrouille|eteins|allume|ferme|ouvre|lance|coupe|redemarre|supprime|efface) (l|le|la|les|votre|"
+               r"vos|ton|ta|tes)\b"),
     re.compile(r"\b(sera|seront|va etre|vont etre) (mise?s?|allumee?s?|eteinte?s?|reglee?s?|envoyee?s?|lancee?s?|"
                r"ouverte?s?|fermee?s?|programmee?s?)\b"),
     re.compile(r"\bvous serez (bien )?(rappelee?s?|prevenue?s?|avertie?s?|notifiee?s?)\b"),

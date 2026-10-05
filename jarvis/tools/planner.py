@@ -308,6 +308,10 @@ DOMAIN_WORDS = {
     "mute_volume": ("son", "volume", "sourdine", "muet", "silence", "audio", "mute"),
     "unmute_volume": ("son", "volume", "sourdine", "muet", "audio", "unmute"),
     "set_volume": ("son", "volume", "audio", "fort", "bas"),
+    # « oui et ferme aussi Discord » proposé en open_application : ouvrir doit avoir été demandé.
+    "open_application": ("ouvre", "ouvrir", "ouvres", "lance", "lancer", "lances", "demarre", "demarrer", "mets",
+                         "mettre", "relance", "rouvre", "joue", "jouer", "affiche", "afficher", "va sur", "allume",
+                         "start", "open"),
     "lock_pc": ("verrouille", "verrouiller", "verrouillage", "verrouilles", "bloque", "lock"),
     "close_application": ("ferme", "fermer", "quitte", "quitter", "arrete", "coupe"),
 }
@@ -315,9 +319,9 @@ DOMAIN_WORDS = {
 
 LIGHT_TOOLS = ("light_on", "light_off", "light_toggle", "set_brightness", "set_color", "set_color_temperature",
                "set_scene")
-LIGHT_WORDS = ("lumiere", "lumieres", "lampe", "lampes", "ampoule", "ampoules", "eclairage", "luminosite", "allume",
-               "allumer", "rallume", "eteins", "eteindre", "eclaire", "tamise", "couleur", "ambiance", "mode", "kelvin",
-               "kelvins", "lumineux", "lumineuse", "sombre")
+# Des noms, pas des verbes : « éteins le Katana » ne vise aucune lumière.
+LIGHT_WORDS = ("lumiere", "lumieres", "lampe", "lampes", "ampoule", "ampoules", "eclairage", "luminosite", "couleur",
+               "ambiance", "mode", "scene", "kelvin", "kelvins", "lumineux", "lumineuse", "tout", "partout", "toutes")
 
 
 DEFERRED_WORDS = ("rappelle moi", "rappelez moi", "fais moi penser", "faites moi penser", "rappelle nous",

@@ -27,6 +27,7 @@ from jarvis.scheduling.actions import split_schedule
 from jarvis.streaming import SpeechPipeline, sentences_from_llm
 from jarvis.personality import normalize
 from jarvis.tools.core import CANCELLED, CONFIRM, DONE
+from jarvis.tools.request import MALFORMED_MESSAGES
 from jarvis.tools.planner import plan, tool_request
 from jarvis.tools.quick import quick_plan
 from jarvis.weather.cities import mentioned_city
@@ -585,6 +586,9 @@ class Agent:
             spoken = outcome.question
         elif outcome.status == CANCELLED:
             spoken = self._router.phrase("tool_cancelled")
+        elif outcome.result is not None and outcome.result.message in MALFORMED_MESSAGES:
+            # Proposition du LLM mal formée (champ intrus...) : jamais lue telle quelle à l'utilisateur.
+            spoken = self._router.phrase("action_unclear")
         else:
             spoken = outcome.result.message
         reply = self._speak([spoken], latency)

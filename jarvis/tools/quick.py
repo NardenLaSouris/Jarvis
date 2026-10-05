@@ -37,7 +37,7 @@ SOUND_WORDS = ("son", "volume")
 MUTE = ("coupe le son", "coupe le volume", "mets en sourdine", "sourdine", "mute", "coupe moi le son")
 UNMUTE = ("remets le son", "remet le son", "reactive le son", "rallume le son", "enleve la sourdine",
           "retire la sourdine", "remets moi le son")
-TIMER_WORDS = ("minuteur", "timer", "minuterie", "compte a rebours")
+TIMER_WORDS = ("minuteur", "minuteurs", "timer", "timers", "minuterie", "compte a rebours")
 REMINDER_WORDS = ("rappelle moi", "rappelez moi", "fais moi penser", "previens moi", "rappelle nous")
 ALARM_WORDS = ("reveille moi", "reveillez moi", "mets un reveil", "mets moi un reveil", "programme un reveil",
                "regle un reveil", "un reveil a", "une alarme a")
@@ -197,6 +197,8 @@ class QuickPlanner:
             parsers = (self._reminder, self._calendar)
         elif _has(norm, ALARM_WORDS):
             parsers = (self._alarm,)
+        elif _has(norm, TIMER_WORDS):
+            parsers = (self._timer,)
         for parse in parsers:
             call = parse(norm, text, previous)
             if call is not None:
@@ -392,7 +394,11 @@ class QuickPlanner:
         if _has(norm, ("quel", "quels", "combien", "reste", "liste")) and self._exists("list_timers"):
             return "list_timers", {}
         found = _duration_phrase(text)
-        return ("create_timer", {"duration": found[0]}) if found else None
+        if found:
+            return "create_timer", {"duration": found[0]}
+        # Durée dite mais refusée (« 0 seconde ») : le minuteur l'explique, plutôt qu'une recherche Spotify.
+        said = re.search(r"\b\d+\s*(?:secondes?|minutes?|heures?|h|min|s)\b", norm)
+        return ("create_timer", {"duration": said.group(0)}) if said else None
 
     def _reminder(self, norm, text, previous):
         if not (_has(norm, REMINDER_WORDS) and self._exists("create_reminder")):

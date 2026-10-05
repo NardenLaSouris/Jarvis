@@ -475,3 +475,12 @@ def test_misheard_brightness_still_reaches_the_lights_and_fake_tool_markup_is_ne
         assert reply_filter.accept(fake) is None and reply_filter.stopped, fake
     with_tool = router.reply_filter(user_text="Décris la machine.", tools_used=True)
     assert with_tool.accept("<<<RESULTAT_OUTIL>>> {}") is None and not with_tool.stopped
+
+
+def test_more_false_action_claims_found_by_the_qa_session():
+    for claim in ("Je vais verrouiller l'ordinateur.", "Je vous réveillerai à 25 heures.",
+                  "Je vais vous réveiller à 7 heures.", "Je verrouille l'ordinateur.", "Je ferme le navigateur."):
+        assert claims_action(claim), claim
+    for honest in ("Je vais vous expliquer comment faire.", "Je ne vais pas verrouiller l'ordinateur.",
+                   "Je vous écoute, monsieur."):
+        assert not claims_action(honest), honest

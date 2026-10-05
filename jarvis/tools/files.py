@@ -167,6 +167,12 @@ def _clean_name(name: str, default_suffix: str = ".txt") -> str:
     return name
 
 
+def _valid_new_name(name: str) -> str:
+    """Vérifié dès le Core (avant l'envoi à l'agent) : « ../../etc/passwd » est refusé sans quitter le Core."""
+    _clean_name(name)
+    return name
+
+
 def _free(target: Path) -> Path:
     """Nom libre (« notes (2).txt ») : jamais d'écrasement."""
     if not target.exists():
@@ -264,7 +270,7 @@ def file_tools(access: FileAccess) -> list[Tool]:
              Risk.SAFE, read_text_file),
         Tool("create_text_file", "Crée un fichier texte dans le dossier de travail de JARVIS (jamais ailleurs, jamais "
              "en écrasant).",
-             {"name": Param(str, "nom du fichier à créer", max_length=80),
+             {"name": Param(str, "nom du fichier à créer", max_length=80, check=_valid_new_name),
               "content": Param(str, "contenu dicté, s'il a été dit", required=False, max_length=MAX_CREATE_CHARS)},
              {"name": "fichier créé"}, Risk.SAFE, create_text_file,
              say=lambda r: f"J'ai créé le fichier {r['name']} dans mon dossier de travail."),

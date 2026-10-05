@@ -180,3 +180,15 @@ def test_patterns_and_everything_are_refused_before_any_confirmation(home, name)
         outcome = run(core, tool, name=name, destination="bureau") if tool == "move_file" else run(core, tool, name=name)
         assert outcome.status != "confirm" and not outcome.result.success, (tool, name, outcome)
     assert (tmp / "Documents" / "notes.txt").exists()
+
+
+def test_names_with_paths_are_refused_before_reaching_the_agent():
+    # Session QA : « Crée un fichier ../../etc/passwd » était transmis tel quel à l'agent du PC.
+    from jarvis.tools import parse_request
+
+    tools = {t.name: t for t in file_tools(FileAccess({"documents": "."}, "."))}
+    registry = ToolRegistry()
+    registry.register(tools["create_text_file"])
+    for name in ("../../etc/passwd", "C:\\Windows\\x.txt", "a/b.txt", "CON"):
+        with pytest.raises(Exception):
+            parse_request({"tool": "create_text_file", "parameters": {"name": name, "content": "x"}}, registry)
