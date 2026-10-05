@@ -237,6 +237,9 @@ class FaceConfig:
     night_end: str = "07:00"
     # Couleur choisie à la voix ou dans JARVIS Control (jarvis/face/themes.py).
     theme_path: Path = Path("data/face_theme.json")
+    # Thèmes de fête en « auto » (Noël, Halloween, Pâques...) ; birthday : « MM-JJ » pour le thème anniversaire.
+    seasons: bool = True
+    birthday: str = ""
 
 
 @dataclass(frozen=True)

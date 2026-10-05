@@ -199,8 +199,11 @@ def start_face(cfg, force: bool = False):
         night = night_hours(cfg.face.night_start, cfg.face.night_end)
         from jarvis.face.themes import FaceThemeStore
 
+        from jarvis.face.themes import parse_birthday
+
         url = FaceServer(visual, cfg.face.host, cfg.face.port, night=night,
-                         themes=FaceThemeStore(cfg.face.theme_path)).start()
+                         themes=FaceThemeStore(cfg.face.theme_path), seasons=cfg.face.seasons,
+                         birthday=parse_birthday(cfg.face.birthday)).start()
     except Exception:
         logging.getLogger(__name__).warning("Visage indisponible, JARVIS continue en vocal.", exc_info=True)
         return None

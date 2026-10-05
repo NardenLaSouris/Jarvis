@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Callable
 
 from jarvis.face.state import VisualState
-from jarvis.face.themes import COLORS, FaceThemeStore
+from jarvis.face.themes import COLORS, SEASONS, FaceThemeStore, season_of
 
 log = logging.getLogger(__name__)
 
@@ -68,9 +68,11 @@ class ExclusiveServer(ThreadingHTTPServer):
 class FaceServer:
     def __init__(self, visual: VisualState, host: str = "127.0.0.1", port: int = 8765, rate_hz: float = 30.0,
                  night: tuple[time, time] | None = None, clock: Callable[[], datetime] = datetime.now,
-                 themes: FaceThemeStore | None = None):
+                 themes: FaceThemeStore | None = None, birthday: tuple[int, int] | None = None,
+                 seasons: bool = True):
         self.visual = visual
         self._themes = themes
+        self._birthday, self._seasons = birthday, seasons
         self._night = night
         self._clock = clock
         self._host = host
@@ -100,11 +102,20 @@ class FaceServer:
         """État visuel diffusé aux pages, avec le thème choisi par l'horloge du Core (même thème partout)."""
         snapshot = self.visual.snapshot()
         chosen = self._themes.get() if self._themes is not None else "auto"
-        base = chosen if chosen != "auto" else ("night" if is_night(self._clock().time(), self._night) else "day")
+        now = self._clock()
+        if chosen == "auto":
+            # Jour de fête : son thème ; sinon bleu le jour, noir et blanc la nuit.
+            base = (season_of(now.date(), self._birthday) if self._seasons else None) \
+                or ("night" if is_night(now.time(), self._night) else "day")
+        else:
+            base = chosen
+        season = SEASONS.get(base, {})
         # En erreur : thème rouge ; la page revient d'elle-même au thème de base quand l'erreur cesse. Pour une
-        # couleur choisie, la page construit la palette à partir de sa teinte (« hue »).
+        # couleur choisie, la page construit la palette à partir de sa teinte (« hue ») ; pour une fête, des
+        # teintes qui alternent (« hues »), un message (« greeting ») et un effet animé (« effect »).
         return {**snapshot, "theme": "error" if snapshot.get("error") else base, "base_theme": base,
-                "hue": COLORS.get(base)}
+                "hue": COLORS.get(base), "hues": season.get("hues"), "greeting": season.get("greeting", ""),
+                "effect": season.get("effect", "")}
 
     def stop(self) -> None:
         self._stopping.set()

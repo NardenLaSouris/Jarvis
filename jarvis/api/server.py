@@ -185,10 +185,11 @@ class CoreApi:
                 if method == "GET" and route == ["face"]:
                     if api.face_themes is None:
                         return 404, {"status": "error", "error": "face_disabled"}
-                    from jarvis.face.themes import COLORS, THEMES, label
+                    from jarvis.face.themes import COLORS, SEASONS, THEMES, label
 
                     return 200, {"theme": api.face_themes.get(),
-                                 "themes": [{"id": t, "label": label(t), "hue": COLORS.get(t)} for t in THEMES]}
+                                 "themes": [{"id": t, "label": label(t), "hue": COLORS.get(t),
+                                             "hues": SEASONS.get(t, {}).get("hues")} for t in THEMES]}
                 if method == "GET" and route == ["history"]:
                     return 200, api.history(query)
                 if route[:1] == ["memory"]:

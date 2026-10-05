@@ -392,7 +392,11 @@
       const special = { auto: "linear-gradient(135deg, #46d6ff 50%, #e8e8e8 50%)", day: "radial-gradient(circle, #46d6ff, #0c2a5c)",
         night: "radial-gradient(circle, #f2f2f2, #262626)",
         arcenciel: "conic-gradient(red, orange, yellow, lime, cyan, blue, magenta, red)" }[t.id];
-      const color = special || `radial-gradient(circle, hsl(${t.hue} 100% 66%), hsl(${t.hue} 80% 22%))`;
+      const tone = (h) => (h === "night" ? "#e8e8e8" : h === "day" ? "#46d6ff" : `hsl(${h} 100% 60%)`);
+      const color = special
+        || (t.hues === "rainbow" ? "conic-gradient(red, orange, yellow, lime, cyan, blue, magenta, red)"
+          : Array.isArray(t.hues) ? `linear-gradient(135deg, ${t.hues.map(tone).join(", ")})`
+          : `radial-gradient(circle, hsl(${t.hue} 100% 66%), hsl(${t.hue} 80% 22%))`);
       box.append(el("button", { class: "swatch" + (state.face.theme === t.id ? " active" : ""), title: t.label,
         style: `background:${color}`, onclick: async () => {
           await act(api("POST", "/tools/set_face_theme", { parameters: { theme: t.id } }), `Visage : ${t.label}`)
@@ -444,7 +448,7 @@
     ["nuit", "JARVIS nuit (noir et blanc)"], ["rouge", "JARVIS rouge"], ["system", "Système"], ["dark", "Sombre"],
     ["light", "Clair"]];
   const FACE_THEMES = ["jarvis", "nuit", "rouge", "teinte"];
-  let rainbowHue = 0;
+  let rainbowHue = 0, partyStep = 0;
 
   // Couleur du visage (choisie à la voix ou ici) : lue sur le Core, reprise par le thème « visage ».
   async function loadFace() {
@@ -462,7 +466,11 @@
     const entry = state.face && state.face.themes.find((t) => t.id === face);
     if (face === "day") return ["jarvis"];
     if (face === "night") return ["nuit"];
-    if (face === "arcenciel") return ["teinte", (rainbowHue = (rainbowHue + 30) % 360)];
+    if (face === "arcenciel" || (entry && entry.hues === "rainbow")) return ["teinte", (rainbowHue = (rainbowHue + 30) % 360)];
+    if (entry && Array.isArray(entry.hues)) {
+      const numbers = entry.hues.filter((h) => typeof h === "number");
+      if (numbers.length) return ["teinte", numbers[(partyStep = (partyStep + 1) % numbers.length)]];
+    }
     if (entry && entry.hue !== null && entry.hue !== undefined) return ["teinte", entry.hue];
     return [new Date().getHours() >= 22 || new Date().getHours() < 7 ? "nuit" : "jarvis"];
   }
@@ -485,7 +493,10 @@
     document.querySelectorAll("#themes button").forEach((b) => b.classList.toggle("active", b.dataset.theme === chosen));
   }
   setInterval(() => applyTheme(), 60000);
-  setInterval(() => { if (state.face && state.face.theme === "arcenciel") applyTheme(); }, 4000);
+  setInterval(() => {
+    const entry = state.face && state.face.themes.find((t) => t.id === state.face.theme);
+    if (state.face && (state.face.theme === "arcenciel" || (entry && entry.hues))) applyTheme();
+  }, 4000);
 
   // Sélecteur rapide du menu : un clic applique et enregistre le thème.
   document.querySelectorAll("#themes button").forEach((b) => b.addEventListener("click", async () => {

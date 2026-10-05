@@ -40,6 +40,34 @@ body {
   opacity: 0;
 }
 
+#effects {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+}
+
+/* Message d'un jour de fête (« Joyeux Noël »), discret, aux couleurs du thème */
+#greeting {
+  position: fixed;
+  left: 50%;
+  top: 6vh;
+  transform: translateX(-50%);
+  color: var(--greeting, #d6f4ff);
+  font: 300 clamp(18px, 3.4vw, 40px)/1.2 "Segoe UI", system-ui, sans-serif;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-shadow: 0 0 18px var(--greeting, #46d6ff);
+  pointer-events: none;
+  transition: opacity 1s ease, color 1.5s ease;
+}
+
+#greeting[hidden] {
+  display: block;
+  opacity: 0;
+}
+
 #debug {
   position: fixed;
   left: 12px;

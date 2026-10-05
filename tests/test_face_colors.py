@@ -88,3 +88,49 @@ def test_llm_cannot_pick_a_colour_that_was_not_said(tmp_path):
     llm = PlannerLLM({"type": "tool_call", "tool": "set_face_theme", "parameters": {"theme": "rouge"}})
     run_agent(["Change ton thème"], llm, core)
     assert store.get() == "auto"
+
+
+# --- Thèmes de fête --------------------------------------------------------------------------------
+
+@pytest.mark.parametrize("day, season", [
+    ((2026, 12, 31), "nouvelan"), ((2027, 1, 1), "nouvelan"), ((2026, 2, 14), "saintvalentin"),
+    ((2026, 3, 17), "saintpatrick"), ((2026, 4, 4), "paques"), ((2026, 4, 6), "paques"), ((2027, 3, 28), "paques"),
+    ((2026, 6, 21), "fetemusique"), ((2026, 7, 14), "quatorzejuillet"), ((2026, 10, 31), "halloween"),
+    ((2026, 12, 24), "noel"), ((2026, 10, 5), None), ((2026, 4, 7), None),
+])
+def test_holidays_come_by_themselves(day, season):
+    from datetime import date
+
+    from jarvis.face.themes import season_of
+
+    assert season_of(date(*day)) == season
+
+
+def test_birthday_and_holiday_payload(tmp_path):
+    from jarvis.face.themes import SEASONS, parse_birthday
+
+    store = FaceThemeStore(tmp_path / "face_theme.json")
+    birthday = parse_birthday("10-05")
+    server = FaceServer(VisualState(), clock=lambda: datetime(2026, 10, 5, 23, 0), themes=store, birthday=birthday,
+                        night=night_hours("22:00", "07:00"))
+    payload = server.payload()
+    assert payload["theme"] == "anniversaire" and payload["greeting"] == "Joyeux anniversaire !"
+    assert payload["hues"] == "rainbow" and payload["effect"] == "confetti"
+    store.set("vert")  # une couleur choisie passe avant la fête
+    assert server.payload()["theme"] == "vert" and server.payload()["greeting"] == ""
+    store.set("noel")  # essayer un thème de fête à la voix
+    assert server.payload()["hues"] == SEASONS["noel"]["hues"] and server.payload()["effect"] == "snow"
+    off = FaceServer(VisualState(), clock=lambda: datetime(2026, 12, 24, 12, 0), themes=FaceThemeStore(tmp_path / "x"),
+                     seasons=False)
+    assert off.payload()["theme"] == "day"
+    with pytest.raises(ValueError):
+        parse_birthday("13-40")
+    assert parse_birthday("") is None
+
+
+def test_holiday_themes_by_voice(tmp_path):
+    core, store = core_with_colors(tmp_path)
+    spoken, _ = run_agent(["Mets ton visage en mode Halloween."], PlannerLLM(), core, fast_path=True)
+    assert spoken == ["Je passe en thème Halloween."] and store.get() == "halloween"
+    js = (ROOT / "jarvis" / "face" / "static" / "face.js").read_text(encoding="utf-8")
+    assert all(effect in js for effect in ("snow", "embers", "confetti", "sparkle", "hearts"))

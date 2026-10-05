@@ -59,7 +59,7 @@
     };
   }
   const RAINBOW_SECONDS = 4;  // arc-en-ciel : nouvelle teinte toutes les 4 s
-  let rainbow = null;
+  let rainbow = null, rainbowName = "";
   const forcedHue = Number(params.get("theme"));
   if (params.get("theme") && Number.isFinite(forcedHue)) THEMES["teinte"] = huePalette(forcedHue % 360);
   const FORCED_THEME = params.get("theme") === "arcenciel" ? "arcenciel"
@@ -116,8 +116,9 @@
     setAudioLevel(0, false);
   }
 
-  function setTheme(name, hue) {
-    if (name === "arcenciel") return startRainbow();
+  function setTheme(name, hue, hues) {
+    if (name === "arcenciel" || hues === "rainbow") return startRainbow(name);
+    if (Array.isArray(hues) && hues.length) return startCycle(name, hues);
     if (!THEMES[name] && Number.isFinite(hue)) THEMES[name] = huePalette(hue);
     if (!THEMES[name] || name === theme) return;
     stopRainbow();
@@ -132,10 +133,27 @@
     buildLayers();
   }
 
-  function startRainbow() {
-    if (rainbow) return;
+  function startRainbow(name = "arcenciel") {
+    if (rainbow && rainbowName === name) return;
+    stopRainbow();
+    rainbowName = name;
     let h = 0;
-    const step = () => { applyPalette("arcenciel", huePalette(h)); h = (h + 30) % 360; };
+    const step = () => { applyPalette(name, huePalette(h)); h = (h + 30) % 360; };
+    step();
+    rainbow = setInterval(step, RAINBOW_SECONDS * 1000);
+  }
+
+  // Fête : ses couleurs à tour de rôle (teintes, « day » ou « night »).
+  function startCycle(name, hues) {
+    if (rainbow && rainbowName === name) return;
+    stopRainbow();
+    rainbowName = name;
+    let i = 0;
+    const step = () => {
+      const h = hues[i % hues.length];
+      applyPalette(name, THEMES[h] || huePalette(Number(h) || 0));
+      i += 1;
+    };
     step();
     rainbow = setInterval(step, RAINBOW_SECONDS * 1000);
   }
@@ -143,7 +161,83 @@
   function stopRainbow() {
     if (rainbow) clearInterval(rainbow);
     rainbow = null;
+    rainbowName = "";
   }
+
+  // --- Jours de fête : message et effet animé (neige, braises, confettis, étincelles, cœurs) ------------
+
+  const greetingEl = document.getElementById("greeting");
+  const fx = document.getElementById("effects");
+  const fxg = fx ? fx.getContext("2d") : null;
+  let effect = "", fxParticles = [], fxRunning = false;
+
+  function showGreeting(text) {
+    if (!greetingEl) return;
+    if (text) greetingEl.textContent = text;
+    greetingEl.hidden = !text;
+    greetingEl.style.setProperty("--greeting", rgba(COLOR.cyan, 1));
+  }
+
+  function spawn(kind, fresh) {
+    const w = fx.width, h = fx.height, s = Math.max(w, h) / 900;
+    const p = { x: Math.random() * w, y: fresh ? Math.random() * h : (kind === "embers" ? h + 10 : -10),
+                r: (1 + Math.random() * 3) * s, vx: (Math.random() - 0.5) * 0.4 * s, vy: (0.4 + Math.random()) * s,
+                a: Math.random() * Math.PI * 2, va: (Math.random() - 0.5) * 0.1, life: Math.random(),
+                hue: Math.floor(Math.random() * 360) };
+    if (kind === "embers" || kind === "hearts") p.vy = -p.vy * 0.8;
+    if (kind === "sparkle") { p.vy = 0; p.vx = 0; }
+    return p;
+  }
+
+  function setEffect(kind) {
+    kind = fxg && !matchMedia("(prefers-reduced-motion: reduce)").matches ? kind || "" : "";
+    if (kind === effect) return;
+    effect = kind;
+    fxParticles = [];
+    if (!effect) { fxg && fxg.clearRect(0, 0, fx.width, fx.height); return; }
+    fx.width = innerWidth; fx.height = innerHeight;
+    const count = { snow: 90, embers: 50, confetti: 70, sparkle: 60, hearts: 26 }[effect] || 40;
+    for (let i = 0; i < count; i++) fxParticles.push(spawn(effect, true));
+    if (!fxRunning) { fxRunning = true; requestAnimationFrame(drawEffect); }
+  }
+
+  function drawEffect() {
+    if (!effect) { fxRunning = false; return; }
+    const w = fx.width, h = fx.height;
+    fxg.clearRect(0, 0, w, h);
+    for (const p of fxParticles) {
+      p.x += p.vx + (effect === "snow" ? Math.sin(p.a) * 0.3 : 0);
+      p.y += p.vy; p.a += p.va; p.life += 0.01;
+      if (p.y > h + 20 || p.y < -20 || p.x < -20 || p.x > w + 20) Object.assign(p, spawn(effect, false));
+      if (effect === "snow") {
+        fxg.fillStyle = "rgba(255,255,255,0.75)";
+        fxg.beginPath(); fxg.arc(p.x, p.y, p.r, 0, Math.PI * 2); fxg.fill();
+      } else if (effect === "embers") {
+        fxg.fillStyle = rgba(COLOR.cyan, 0.35 + 0.35 * Math.sin(p.life * 6));
+        fxg.beginPath(); fxg.arc(p.x, p.y, p.r * 0.8, 0, Math.PI * 2); fxg.fill();
+      } else if (effect === "confetti") {
+        fxg.save(); fxg.translate(p.x, p.y); fxg.rotate(p.a);
+        fxg.fillStyle = `hsla(${p.hue}, 90%, 60%, 0.8)`;
+        fxg.fillRect(-p.r, -p.r * 0.5, p.r * 2.4, p.r);
+        fxg.restore();
+      } else if (effect === "sparkle") {
+        const glow = Math.max(0, Math.sin(p.life * 4 + p.a));
+        fxg.fillStyle = rgba(COLOR.white, glow * 0.9);
+        fxg.beginPath(); fxg.arc(p.x, p.y, p.r * glow, 0, Math.PI * 2); fxg.fill();
+        if (p.life > 3) Object.assign(p, spawn(effect, true), { life: 0 });
+      } else if (effect === "hearts") {
+        const r = p.r * 2.2;
+        fxg.fillStyle = rgba(COLOR.cyan, 0.45);
+        fxg.beginPath();
+        fxg.moveTo(p.x, p.y + r * 0.6);
+        fxg.bezierCurveTo(p.x - r * 1.2, p.y - r * 0.2, p.x - r * 0.4, p.y - r, p.x, p.y - r * 0.35);
+        fxg.bezierCurveTo(p.x + r * 0.4, p.y - r, p.x + r * 1.2, p.y - r * 0.2, p.x, p.y + r * 0.6);
+        fxg.fill();
+      }
+    }
+    requestAnimationFrame(drawEffect);
+  }
+  addEventListener("resize", () => { if (effect && fx) { fx.width = innerWidth; fx.height = innerHeight; } });
 
   function paintPage() {
     document.documentElement.style.background = COLOR.background[2];
@@ -681,7 +775,8 @@
       if (DEBUG) {
         debugEl.hidden = false;
         debugEl.textContent = `${face.state}  ${fps.toFixed(0)} FPS  niveau ${face.env.core.toFixed(2)}` +
-          (DEMO ? "\n1 veille · 2 écoute · 3 réflexion · 4 parole · A cycle auto · T jour/nuit · C couleur · R arc-en-ciel" : "");
+          (DEMO ? "\n1 veille · 2 écoute · 3 réflexion · 4 parole · A cycle auto · T jour/nuit · C couleur · R arc-en-ciel"
+            + " · N Noël · H Halloween · B anniversaire · Y nouvel an" : "");
       }
     }
     requestAnimationFrame(frame);
@@ -699,7 +794,10 @@
         // L'erreur passe avant tout (même un thème imposé par ?theme=) ; ensuite, retour au thème précédent.
         if (data.theme === "error") setTheme("error");
         else if (FORCED_THEME) setTheme(FORCED_THEME);
-        else setTheme(data.theme || theme, Number.isFinite(data.hue) ? data.hue : undefined);
+        else setTheme(data.theme || theme, Number.isFinite(data.hue) ? data.hue : undefined, data.hues || undefined);
+        const party = data.theme !== "error" && !FORCED_THEME;
+        showGreeting(party ? data.greeting : "");
+        setEffect(party ? data.effect : "");
         showErrors(data.theme === "error" ? data.error_messages : []);
         if (PREVIEW_ERROR) previewError();
         if (data.audio_source === "measured" || data.audio_source === "external") setAudioLevel(data.audio_level);
@@ -732,6 +830,11 @@
         setTheme(`teinte${h}`, h);
       }
       if (event.key === "r" || event.key === "R") setTheme("arcenciel");
+      const parties = { n: ["noel", [0, 130], "Joyeux Noël", "snow"], h: ["halloween", [28, 272], "Joyeux Halloween", "embers"],
+                        b: ["anniversaire", "rainbow", "Joyeux anniversaire !", "confetti"],
+                        y: ["nouvelan", [44, "night", 44, 205], "Bonne année !", "sparkle"] };
+      const party = parties[event.key.toLowerCase()];
+      if (party) { setTheme(party[0], undefined, party[1]); showGreeting(party[2]); setEffect(party[3]); }
     });
   }
 

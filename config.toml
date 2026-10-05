@@ -351,6 +351,10 @@ night_end = "07:00"
 # normale ») ou dans JARVIS Control : rouge, orange, or, jaune, vert, émeraude, turquoise, cyan, azur, bleu,
 # indigo, violet, magenta, rose... Elle remplace bleu le jour / noir et blanc la nuit jusqu'au retour à « auto ».
 theme_path = "data/face_theme.json"
+# En automatique, thèmes de fête aux bonnes dates : Nouvel an (31/12-1/1), Saint-Valentin, Saint-Patrick, Pâques
+# (samedi-lundi), fête de la musique, 14 Juillet, Halloween (29-31/10), Noël (20-26/12) et votre anniversaire.
+seasons = true
+birthday = ""           # « MM-JJ », à mettre dans config.local.toml (ex. "07-14")
 
 [audio]
 sample_rate = 16000
