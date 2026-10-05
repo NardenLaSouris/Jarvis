@@ -88,6 +88,7 @@ def test_simple_commands_are_understood_without_llm(text, expected):
     "Baisse un peu la lumière", "Ouvre YouTube", "Ouvre le terminal", "Supprime le dossier Documents",
     "Tous les jours à 21 h, allume la chambre", "Pourquoi le ciel est bleu ?",
     "Mets un minuteur", "Ouvre Discord et fais-moi un café",
+    "Mets le volume à moins 10", "Mets le son à -20 %", "Luminosité moins 30",  # jamais lu comme 10, 20 ou 30
 ])
 def test_anything_else_is_left_to_the_llm(text):
     assert quick_plan(text, REGISTRY) is None

@@ -178,7 +178,7 @@ class ToolCore:
         threading.Thread(target=context.run, args=(run,), name=f"outil-{tool.name}", daemon=True).start()
         try:
             output = future.result(timeout=self._timeout)
-            result = ToolResult(tool.name, True, result=output, message=tool.say(output) if tool.say else "")
+            result = ToolResult(tool.name, True, result=output, message=self._phrase(tool, output))
         except FutureTimeout:
             result = ToolResult(tool.name, False, error=TIMEOUT, message="L'action a pris trop de temps.")
         except ToolError as exc:
@@ -188,6 +188,18 @@ class ToolCore:
             result = ToolResult(tool.name, False, error=EXECUTION_FAILED, message="L'action a échoué.")
         self._log(tool.name, request.parameters, "execution", decision, confirmation, result, started, user)
         return result
+
+    @staticmethod
+    def _phrase(tool: Tool, output) -> str:
+        """Phrase du résultat. L'action a déjà eu lieu : un résultat de forme inattendue (agent d'une autre
+        version) ne doit jamais la faire annoncer comme ratée."""
+        if not tool.say:
+            return ""
+        try:
+            return tool.say(output)
+        except Exception:
+            log.exception("Outil %s : résultat de forme inattendue (%r)", tool.name, str(output)[:200])
+            return "C'est fait."
 
     def _activity(self, tool: str, parameters, stage: str, decision: str, confirmation: str,
                   result: ToolResult | None, started: float, user: str) -> ToolActivity:

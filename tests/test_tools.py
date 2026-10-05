@@ -811,7 +811,7 @@ def test_unsupported_action_falls_back_to_the_usual_answer():
     llm = PlannerLLM({"type": "none"}, reply="Je ne peux pas éteindre l'ordinateur, monsieur.")
     spoken, events = run_agent(["Ouvre le panneau de configuration et supprime mes fichiers"], llm)
     assert routes(events) == ["tool:tool.action", "unavailable:unavailable_computer (aucun outil)"]
-    assert llm.calls == [] and "pas encore disponible" in spoken[0] or "Cette capacité est prévue" in spoken[0]
+    assert llm.calls == [] and ("aucune commande libre" in spoken[0] or "programme arbitraire" in spoken[0])
     llm = PlannerLLM({"type": "none"}, reply="Voici une idée de cadeau.")
     spoken, events = run_agent(["Ouvre ton cœur et donne-moi une idée de cadeau"], llm)
     assert routes(events) == ["tool:tool.action", "llm (aucun outil)"] and spoken == ["Voici une idée de cadeau."]
@@ -1021,3 +1021,14 @@ def test_unrecognised_action_is_not_called_an_unavailable_feature():
     spoken, events = run_agent(["Rallume celle du fond."], llm, make_core())
     assert routes(events)[0] == "tool:tool.action"
     assert "pas encore disponible" not in spoken[0] and ("reformuler" in spoken[0] or "préciser" in spoken[0])
+
+
+def test_unexpected_result_shape_never_turns_a_done_action_into_a_failure():
+    # Session QA : un agent d'une autre version renvoyant un résultat sans la clé attendue faisait annoncer
+    # « L'action a échoué » alors que l'action avait eu lieu.
+    registry = ToolRegistry()
+    done = []
+    registry.register(Tool("odd", "outil", {}, {}, Risk.SAFE, lambda: done.append(1) or {"autre": 1},
+                           say=lambda r: f"Volume à {r['volume']} %."))
+    result = ToolCore(registry, PermissionManager()).submit({"tool": "odd", "parameters": {}}).result
+    assert done and result.success and result.message == "C'est fait."

@@ -170,3 +170,13 @@ def test_windows_device_names_are_refused(home):
     tmp, core = home
     for name in ("CON", "nul", "COM1", "aux.txt", "LPT3"):
         assert not run(core, "create_text_file", name=name, content="x").result.success, name
+
+
+@pytest.mark.parametrize("name", ["*", "*.txt", "notes?", "tous mes fichiers", "tout", "   "])
+def test_patterns_and_everything_are_refused_before_any_confirmation(home, name):
+    # Session QA : « Supprime tous mes fichiers » faisait demander « supprimer le fichier « * » ? ».
+    tmp, core = home
+    for tool in ("delete_file", "move_file"):
+        outcome = run(core, tool, name=name, destination="bureau") if tool == "move_file" else run(core, tool, name=name)
+        assert outcome.status != "confirm" and not outcome.result.success, (tool, name, outcome)
+    assert (tmp / "Documents" / "notes.txt").exists()

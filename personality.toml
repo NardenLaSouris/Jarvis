@@ -404,8 +404,8 @@ groups = [
      "fichiers", "dossier", "commande", "terminal", "jeu", "steam", "spotify"],
 ]
 responses = [
-    "Je pourrais m'en charger, {title}, mais le contrôle de votre ordinateur n'est pas encore disponible.",
-    "Je ne peux pas encore agir sur votre ordinateur, {title}. Cette capacité est prévue.",
+    "Cela ne fait pas partie de ce que je peux faire sur vos machines, {title} : je n'exécute aucune commande libre, seulement les actions prévues.",
+    "Je ne lance ni commande ni programme arbitraire, {title} : uniquement les actions qui me sont autorisées.",
 ]
 
 [intents.unavailable_reminders]

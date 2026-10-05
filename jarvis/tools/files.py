@@ -130,6 +130,17 @@ class FileAccess:
         return found[0]
 
 
+ALL_FILES = {"tout", "tous", "toutes", "tous les fichiers", "tous mes fichiers", "tout le dossier", "all"}
+
+
+def _single_file(name: str) -> str:
+    """Un seul fichier, nommé : jamais de motif (« * », « *.txt ») ni « tous les fichiers ». Vérifié avant toute
+    question de confirmation."""
+    if any(c in name for c in "*?") or normalize(name) in ALL_FILES or not normalize(name):
+        raise ToolError(INVALID_PARAMETERS, "Je ne travaille que fichier par fichier : lequel exactement ?")
+    return name
+
+
 def _folder_said(value: str, text: str) -> bool:
     """Le dossier proposé par le LLM figure dans la demande (« dans mes documents ») : sinon il n'est pas inventé."""
     said = f" {normalize(text)} "
@@ -175,7 +186,7 @@ def file_tools(access: FileAccess) -> list[Tool]:
         return next((key for key in keys if _folder_said(key, text)), None)
 
     location = Param(str, "dossier autorisé", required=False, max_length=40, hidden=True, resolve=folder_in)
-    name_param = Param(str, "nom du fichier tel qu'il a été dit (sans chemin)", max_length=80)
+    name_param = Param(str, "nom du fichier tel qu'il a été dit (sans chemin)", max_length=80, check=_single_file)
 
     def find_files(query: str, location: str | None = None) -> dict:
         found = access.find(query, location)

@@ -72,7 +72,12 @@ def _has(norm: str, phrases) -> bool:
     return any(f" {p} " in padded for p in phrases)
 
 
+NEGATIVE = re.compile(r"(?:\bmoins\s+|-\s*)\d")
+
+
 def _percent(norm: str) -> int | None:
+    if NEGATIVE.search(norm):  # « moins 10 » : pas un niveau (jamais lu comme 10)
+        return None
     for words, value in LEVEL_WORDS:
         if _has(norm, words):
             return value
@@ -85,6 +90,8 @@ def _percent(norm: str) -> int | None:
 
 def _percent_raw(text: str) -> int | None:
     """« 30 % » écrit avec le signe (que normalize retire) ou dit (« 30 pour cent »)."""
+    if NEGATIVE.search(text.lower()):
+        return None
     match = re.search(r"(\d{1,3})\s*%", text)
     if match and 0 <= int(match.group(1)) <= 100:
         return int(match.group(1))
