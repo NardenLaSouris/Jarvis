@@ -26,7 +26,7 @@ FILLERS = {"dans", "le", "la", "les", "l", "de", "du", "des", "a", "au", "aux", 
 LIGHTS = ("light_on", "light_off", "light_toggle", "set_brightness", "set_color", "set_color_temperature",
           "set_scene", "light_status")
 SOUND = ("set_volume", "mute_volume", "unmute_volume")
-MUSIC = ("spotify_play", "spotify_pause", "spotify_next", "spotify_previous", "spotify_volume")
+MUSIC = ("spotify_play", "spotify_pause", "spotify_next", "spotify_previous", "spotify_volume", "spotify_status")
 ON_OFF = {"allume": "light_on", "rallume": "light_on", "allumes": "light_on", "eteins": "light_off",
           "eteint": "light_off", "reteins": "light_off", "coupe": "light_off"}
 OTHER_ONE = {"l autre", "l autre aussi", "et l autre", "l autre lumiere", "l autre piece", "l autre aussi stp"}

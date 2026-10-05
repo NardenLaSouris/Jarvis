@@ -331,7 +331,7 @@ DEFERRED_TOOLS = ("create_reminder", "cancel_reminder", "list_reminders", "creat
 
 
 READ_ONLY_TOOLS = ("get_", "list_", "light_status", "find_", "read_", "recall", "search_", "next_", "free_",
-                   "system_info", "network_status")
+                   "system_info", "network_status", "spotify_status")
 QUESTION = re.compile(r"^(?:jarvis )?(?:est ce que|est ce qu|est il|est elle|y a t il|qu est ce qui|quel|quelle|quels|"
                       r"quelles|combien|pourquoi|comment|ou est|quand)\b")
 REQUEST = re.compile(r"\b(?:tu peux|peux tu|tu pourrais|pourrais tu|vous pouvez|pouvez vous|vous pourriez|"

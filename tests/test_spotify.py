@@ -14,6 +14,7 @@ from jarvis.spotify import TOKEN_URL, SpotifyClient, login, pkce_pair, spotify_t
 import pytest  # noqa: E402
 
 from jarvis.tools import PermissionManager, ToolCore, ToolError, ToolRegistry  # noqa: E402
+from jarvis.tools.quick import quick_plan  # noqa: E402
 
 
 class FakeSpotify:
@@ -411,3 +412,21 @@ def test_player_restart_failure_is_reported_without_hanging(tmp_path):
     with pytest.raises(ToolError):
         spotify._device()
     assert now["t"] <= spotify.revive_wait + 1
+
+
+def test_music_status_is_read_not_guessed(tmp_path):
+    # Session QA : « Est-ce que la musique joue ? » : le LLM répondait au hasard (« Oui, la musique joue »).
+    class Playing(FakeSpotify):
+        def __call__(self, method, url, headers, body, timeout):
+            if method == "GET" and url.split("?")[0].endswith("/me/player"):
+                return 200, json.dumps({"is_playing": False, "device": {"name": "JARVIS", "volume_percent": 40},
+                                        "item": {"name": "Du hast", "artists": [{"name": "Rammstein"}]}}).encode()
+            return super().__call__(method, url, headers, body, timeout)
+
+    result = core_for(client(tmp_path, Playing())).submit({"tool": "spotify_status", "parameters": {}}).result
+    assert result.success and result.message == "Spotify est en pause, sur Du hast de Rammstein."
+    empty = core_for(client(tmp_path, FakeSpotify())).submit({"tool": "spotify_status", "parameters": {}}).result
+    assert empty.message == "Rien ne joue sur Spotify."
+    registry = core_for(client(tmp_path, FakeSpotify())).registry
+    assert quick_plan("Est-ce que la musique joue ?", registry)["tool"] == "spotify_status"
+    assert quick_plan("C'est quoi cette chanson ?", registry)["tool"] == "spotify_status"

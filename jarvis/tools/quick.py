@@ -40,6 +40,10 @@ UNMUTE = ("remets le son", "remet le son", "reactive le son", "rallume le son", 
 RUNNING_APPS = ("applications ouvertes", "application ouverte", "applications sont ouvertes", "programmes ouverts",
                 "programmes sont ouverts", "qu est ce qui tourne", "qu est ce qui est ouvert", "applications en cours",
                 "logiciels ouverts", "fenetres ouvertes", "quelles applications", "quels programmes")
+MUSIC_STATUS = ("est ce que la musique joue", "la musique joue", "qu est ce qui joue", "c est quoi cette chanson",
+                "c est quoi ce morceau", "quel est ce morceau", "quelle est cette chanson", "quel morceau joue",
+                "quelle chanson joue", "qu est ce que tu joues", "qu est ce qu on ecoute", "c est quoi ce titre",
+                "quel est le titre", "spotify joue", "la musique est en pause", "est ce que spotify")
 TIMER_WORDS = ("minuteur", "minuteurs", "timer", "timers", "minuterie", "compte a rebours")
 REMINDER_WORDS = ("rappelle moi", "rappelez moi", "fais moi penser", "previens moi", "rappelle nous")
 ALARM_WORDS = ("reveille moi", "reveillez moi", "mets un reveil", "mets moi un reveil", "programme un reveil",
@@ -238,6 +242,8 @@ class QuickPlanner:
 
     def _media(self, norm, text, previous):
         """« Pause », « Reprends la musique », « Morceau suivant », « Chanson précédente »."""
+        if self._exists("spotify_status") and _has(norm, MUSIC_STATUS):
+            return "spotify_status", {}
         spotify = self._exists("spotify_pause")
         if not (spotify or self._exists("media_play_pause")):
             return None

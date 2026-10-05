@@ -423,6 +423,21 @@ def spotify_tools(client: SpotifyClient, on_pause: Callable[[], None] | None = N
         client.call("PUT", "/me/player/volume", {"volume_percent": volume})
         return {"volume": volume}
 
+    def status() -> dict:
+        """Ce qui joue vraiment (session QA : « Est-ce que la musique joue ? » était deviné par le LLM)."""
+        state = client.call("GET", "/me/player") or {}
+        item = state.get("item") or {}
+        artists = ", ".join(a.get("name", "") for a in (item.get("artists") or [])[:2] if isinstance(a, dict))
+        return {"playing": bool(state.get("is_playing")), "track": spoken_name(str(item.get("name") or "")),
+                "artist": artists, "device": (state.get("device") or {}).get("name") or "",
+                "volume": (state.get("device") or {}).get("volume_percent")}
+
+    def status_said(r: dict) -> str:
+        if not r["track"]:
+            return "Rien ne joue sur Spotify."
+        what = r["track"] + (f" de {r['artist']}" if r["artist"] else "")
+        return f"Spotify joue {what}." if r["playing"] else f"Spotify est en pause, sur {what}."
+
     return [
         Tool("spotify_play", "Lance sur Spotify un morceau, un album, un artiste ou une playlist (ou reprend la lecture).",
              {"query": Param(str, "ce qu'il faut jouer, avec les mots de l'utilisateur (« titre de artiste », nom de "
@@ -436,6 +451,9 @@ def spotify_tools(client: SpotifyClient, on_pause: Callable[[], None] | None = N
              simple("POST", "/me/player/next", "suivant"), say=lambda r: "Morceau suivant."),
         Tool("spotify_previous", "Revient au morceau précédent sur Spotify.", {}, {}, Risk.SAFE,
              simple("POST", "/me/player/previous", "précédent"), say=lambda r: "Morceau précédent."),
+        Tool("spotify_status", "Dit ce que joue Spotify (morceau, artiste) ou s'il est en pause.", {},
+             {"playing": "en lecture ou non", "track": "morceau", "artist": "artiste", "volume": "%"}, Risk.SAFE,
+             status, say=status_said),
         Tool("spotify_volume", "Règle le volume de Spotify (0 à 100 %).",
              {"volume": Param(int, "volume en pourcentage, seulement s'il est dit", minimum=0, maximum=100)},
              {"volume": "%"}, Risk.SAFE, volume, say=lambda r: f"Volume de Spotify à {r['volume']} %."),
