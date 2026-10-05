@@ -26,6 +26,13 @@ class WakeWordConfig:
     embedding_model: Path = Path("models/openwakeword/embedding_model.onnx")
     threshold: float = 0.5
     patience: int = 1
+    # Seconde vérification par un petit Whisper sur le Core (jarvis/wakeword/verify.py) : « Jarvis » doit être
+    # entendu dans l'audio du déclenchement.
+    verify: bool = False
+    verify_model: str = "tiny"
+    # Audio et issue de chaque réveil (jarvis/wakeword/captures.py) ; captures_keep = 0 : aucune capture.
+    captures: Path = Path("data/wakeword/captures")
+    captures_keep: int = 300
 
 
 @dataclass(frozen=True)

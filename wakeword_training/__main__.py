@@ -7,6 +7,7 @@
   python -m wakeword_training evaluate   # mesures et seuil recommandé
   python -m wakeword_training all        # les 5 étapes ci-dessus
   python -m wakeword_training record positive|negative|ambient   # vos enregistrements
+  python -m wakeword_training import-captures [dossier]  # réveils capturés en service (faux réveils, votre voix)
 """
 
 from __future__ import annotations
@@ -46,14 +47,22 @@ def download(spec: Spec) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(prog="wakeword_training")
-    parser.add_argument("step", choices=["download", "generate", "features", "train", "evaluate", "all", "record"])
-    parser.add_argument("kind", nargs="?", help="pour record : positive, negative ou ambient")
+    parser.add_argument("step", choices=["download", "generate", "features", "train", "evaluate", "all", "record",
+                                         "import-captures"])
+    parser.add_argument("kind", nargs="?", help="pour record : positive, negative ou ambient ; pour import-captures : "
+                                                "dossier des captures (data/wakeword/captures par défaut)")
     parser.add_argument("--spec", default=str(Path(__file__).parent / "specs" / "jarvis_fr.toml"))
     parser.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) // 2))
     parser.add_argument("--count", type=int, help="pour record : nombre de prises (ou secondes pour ambient)")
     parser.add_argument("--model", type=Path, help="pour evaluate : autre modèle à mesurer (ex. hey_jarvis)")
     args = parser.parse_args()
     spec = load_spec(args.spec)
+
+    if args.step == "import-captures":
+        from wakeword_training import captures
+
+        captures.run(spec, Path(args.kind) if args.kind else Path("data/wakeword/captures"))
+        return 0
 
     if args.step == "record":
         from wakeword_training import record

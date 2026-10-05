@@ -48,6 +48,27 @@ def build_llm(cfg: Config) -> LanguageModel:
     raise ValueError(f"Backend LLM inconnu : {cfg.llm.backend}")
 
 
+def build_wake_verifier(cfg: Config):
+    """Seconde vérification du wake word ([wake_word] verify), ou None (désactivée, ou Whisper indisponible)."""
+    if not cfg.wake_word.verify:
+        return None
+    from jarvis.wakeword.verify import WakeVerifier
+
+    try:
+        return WakeVerifier(cfg.wake_word.verify_model, cfg.stt.download_root, cfg.assistant.language)
+    except Exception as exc:  # JARVIS fonctionne sans : la détection seule, comme avant
+        log.warning("Vérification du wake word indisponible (%s) : détection seule", exc)
+        return None
+
+
+def build_wake_captures(cfg: Config):
+    if cfg.wake_word.captures_keep <= 0:
+        return None
+    from jarvis.wakeword.captures import WakeCaptures
+
+    return WakeCaptures(cfg.wake_word.captures, cfg.wake_word.captures_keep)
+
+
 def build_wake_word(cfg: Config) -> WakeWordDetector:
     from jarvis.wakeword.openwakeword import OpenWakeWordDetector
 
@@ -627,4 +648,5 @@ def build_agent(
                  stream_audio=cfg.tts.stream_audio, merge_under=cfg.tts.merge_under, web=web,
                  tools=tools, corrector=corrector, notifications=voice, alarm=routines.alarm if routines else None,
                  services=tuple(s for s in (api, routines, timers, notifications, worker) if s is not None),
-                 fast_path=cfg.tools.fast_path, routines=routines, profiles=build_profiles(cfg))
+                 fast_path=cfg.tools.fast_path, routines=routines, profiles=build_profiles(cfg),
+                 wake_verifier=build_wake_verifier(cfg), wake_captures=build_wake_captures(cfg))

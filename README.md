@@ -634,6 +634,21 @@ et retente le worker 30 s plus tard. Les deux sont préchargés au lancement.
 
 ## Wake word
 
+### Contre les faux réveils : vérification, captures, réentraînement
+
+Relevé sur trois jours : environ un réveil sur deux sans aucune demande ensuite (voix de jeu, Discord, TV).
+
+1. **Seconde vérification** (`[wake_word] verify`, `jarvis/wakeword/verify.py`) : après la détection, un petit
+   Whisper (`tiny`, 0,4 s sur le mini-PC) relit les deux dernières secondes ; la conversation ne s'ouvre que s'il
+   y entend « Jarvis » (« Jervis », « J'avise » compris ; « service », « j'arrive », « j'avais » écartés). Un
+   « Jarvis » écarté à tort se rattrape en le redisant entre 1 et 8 s plus tard (accepté sans vérification).
+2. **Captures** (`[wake_word] captures`, `captures_keep`) : l'audio et la fiche de chaque réveil (score,
+   transcription, issue : demande, sans suite, écarté) dans `data/wakeword/captures`. Bilan et effet d'un autre
+   seuil : `python -m jarvis --wake-report`.
+3. **Réentraînement** : `python -m wakeword_training import-captures [dossier]` verse les faux réveils dans les
+   mots pièges réels et vos « Jarvis » confirmés dans les positifs réels, puis `features`, `train`, `evaluate`.
+   Vos propres enregistrements (`record positive`) restent le meilleur complément.
+
 ### Moteur et modèle
 
 - **Moteur :** openWakeWord (inférence ONNX locale, `jarvis/wakeword/openwakeword.py`).

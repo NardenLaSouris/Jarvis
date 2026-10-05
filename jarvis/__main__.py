@@ -37,6 +37,8 @@ def main() -> int:
                         help="mesure wake word, STT, LLM, outils et voix (rien n'est joué ni actionné)")
     parser.add_argument("--spotify-login", action="store_true",
                         help="relie Spotify (une fois) : autorisation PKCE, jeton dans data/spotify_token.json")
+    parser.add_argument("--wake-report", action="store_true",
+                        help="bilan des réveils capturés (vrais, sans suite, écartés) et effet d'un autre seuil")
     parser.add_argument("--memory", action="store_true",
                         help="affiche ce que JARVIS a retenu (mémoire explicite, data/memory.json) et quitte")
     parser.add_argument("--web-test", metavar="QUESTION",
@@ -81,6 +83,11 @@ def main() -> int:
         return show_activity(cfg, args.activity)
     if args.memory:
         return show_memory(cfg)
+    if args.wake_report:
+        from jarvis.wakeword.captures import report
+
+        print(report(cfg.wake_word.captures))
+        return 0
     if args.spotify_login:
         from jarvis.config import secret
         from jarvis.factory import ENV_FILE

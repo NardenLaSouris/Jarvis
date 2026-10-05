@@ -12,7 +12,9 @@ import random
 import re
 import threading
 import time
+from collections import deque
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Callable
 
 import numpy as np
@@ -52,6 +54,13 @@ class AgentSettings:
     wake_patience: int = 1
 
 
+WAKE_WINDOW = 2.0  # secondes d'audio gardées avant la détection (vérification, captures)
+# Après un rejet : un pic dans la seconde qui suit est le même son (le score reste haut quelques images) et est
+# ignoré ; un nouvel appel entre 1 et 8 s plus tard est accepté sans vérification (« Jarvis » redit).
+WAKE_SAME_SOUND = 1.0
+WAKE_RETRY_WINDOW = 8.0
+
+
 class WakeTrigger:
     """Wake word retenu quand le score reste au-dessus du seuil pendant ``patience`` images d'affilée ; les pics
     non retenus sont journalisés (pic, durée) pour régler seuil et patience sur la vraie voix."""
@@ -76,6 +85,14 @@ class WakeTrigger:
     @property
     def detail(self) -> str:
         return f"score {self._peak:.2f}, {self._run} image(s)"
+
+    @property
+    def peak(self) -> float:
+        return self._peak
+
+    @property
+    def run(self) -> int:
+        return self._run
 
 
 class WakeWatcher:
@@ -201,6 +218,8 @@ class Agent:
         routines=None,
         profiles=None,
         terminal: str = "main",
+        wake_verifier=None,
+        wake_captures=None,
     ):
         self.settings = settings
         self._source = source
@@ -223,6 +242,11 @@ class Agent:
         self._last_outcome = None
         self._action_unclear = False
         self._last_tool_request = ""
+        # Seconde vérification du wake word (jarvis.wakeword.verify) et audio des réveils (jarvis.wakeword.captures).
+        self._wake_verifier = wake_verifier
+        self._wake_captures = wake_captures
+        self._wake_capture: Path | None = None
+        self._since_rejection: float | None = None  # secondes d'audio écoutées depuis le dernier rejet
         # Actions restantes d'une demande enchaînée arrêtée sur une confirmation (« ferme Chrome et ouvre le
         # bloc-notes ») : (demande, actions, paramètres précédents), reprises si la confirmation est acceptée.
         self._after_confirmation: tuple[str, list[dict], dict] | None = None
@@ -266,18 +290,68 @@ class Agent:
         self._event("sleep", f"En veille — dites « {self.settings.wake_phrase} »")
         self._wake_word.reset()
         trigger = WakeTrigger(self.settings.wake_threshold, self.settings.wake_patience)
+        rate = getattr(self._source, "sample_rate", 16000)
+        recent: deque = deque(maxlen=max(1, round(WAKE_WINDOW * rate / max(1, getattr(self._source, "frame_samples",
+                                                                                       1280)))))
+        frame_seconds = getattr(self._source, "frame_samples", 1280) / rate
         while (frame := self._source.read()) is not None:
+            recent.append(frame)
+            if self._since_rejection is not None:
+                self._since_rejection += frame_seconds
+                if self._since_rejection > WAKE_RETRY_WINDOW:
+                    self._since_rejection = None
             if self._deliver_notifications():
                 self._wake_word.reset()
                 trigger.reset()
                 continue
             if trigger.update(self._wake_word.process(frame)):
+                if self._since_rejection is not None and self._since_rejection < WAKE_SAME_SOUND:
+                    trigger.reset()  # fin du même son que celui qui vient d'être écarté
+                    continue
+                if not self._wake_confirmed(np.concatenate(recent), rate, trigger):
+                    self._wake_word.reset()
+                    trigger.reset()
+                    recent.clear()
+                    continue
                 self._event("wake", f"Wake word détecté ({trigger.detail})")
                 self._stop_alarm()
                 return True
         return False
 
+    def _wake_confirmed(self, audio: np.ndarray, rate: int, trigger: WakeTrigger) -> bool:
+        """Seconde vérification (« Jarvis » bien entendu dans l'audio du déclenchement) ; un second appel peu après
+        un rejet est accepté sans elle (le « Jarvis » écarté à tort se rattrape en le redisant)."""
+        meta = {"score": round(trigger.peak, 3), "frames": trigger.run, "threshold": self.settings.wake_threshold}
+        retry = self._since_rejection is not None
+        if self._wake_verifier is not None and not retry:
+            started = time.perf_counter()
+            try:
+                confirmed, heard = self._wake_verifier.check(audio, rate)
+            except Exception:
+                log.exception("Vérification du wake word impossible : réveil accepté")
+                confirmed, heard = True, ""
+            meta.update(verified=confirmed, heard=heard[:120], verify_s=round(time.perf_counter() - started, 2))
+            if not confirmed:
+                self._since_rejection = 0.0
+                self._event("wake_rejected", f"Wake word écarté ({trigger.detail}, entendu « {heard[:60]} »)")
+                if self._wake_captures is not None:
+                    self._wake_captures.finish(self._wake_captures.save(audio, rate, meta), "rejected")
+                return False
+        elif retry:
+            meta["retry"] = True
+        self._since_rejection = None
+        self._wake_capture = self._wake_captures.save(audio, rate, meta) if self._wake_captures is not None else None
+        return True
+
     def _conversation(self) -> None:
+        understood = self._listen_and_answer()
+        if self._wake_captures is not None:
+            self._wake_captures.finish(self._wake_capture, "used" if understood else "silent")
+            self._wake_capture = None
+
+    def _listen_and_answer(self) -> bool:
+        """Conversation ouverte par le wake word ; True si au moins une demande a été comprise."""
+        understood = False
         self._router.start_conversation()
         self._play(*random.choice(self._acks))
         history: list[Message] = []
@@ -312,6 +386,7 @@ class Agent:
                     self._event("correction", f"« {text} » -> « {corrected} »")
                     text = corrected
             self._event("user", text)
+            understood = True
             confidence = getattr(self._stt, "last_confidence", None)
             self._event("timing", f"STT {latency['stt']:.1f} s" + (f" (confiance {confidence:.2f})" if confidence is not None else ""))
             self._place = mentioned_city(text) or self._place
@@ -365,6 +440,7 @@ class Agent:
         if self._tools is not None:
             self._tools.cancel_pending()
         self._event("sleep", "Retour en veille")
+        return understood
 
     def _answer(self, history: list[Message], text: str, route, latency: dict) -> str:
         if route.source == "tool" and self._tools is not None:
