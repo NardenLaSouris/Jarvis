@@ -190,7 +190,7 @@
   }
 
   function setEffect(kind) {
-    kind = fxg && !matchMedia("(prefers-reduced-motion: reduce)").matches ? kind || "" : "";
+    kind = fxg ? kind || "" : "";  // comme le visage, qui s'anime toujours
     if (kind === effect) return;
     effect = kind;
     fxParticles = [];
