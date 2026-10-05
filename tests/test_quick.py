@@ -277,3 +277,12 @@ def test_a_question_never_triggers_an_action():
 def test_running_applications_question_never_depends_on_the_llm(text):
     core = make_core()
     assert quick_plan(text, core.registry) == call("list_running_applications")
+
+
+@pytest.mark.parametrize("text, place", [("Quelle est la météo à Tokyo en ce moment ?", "Tokyo"),
+                                         ("Quel temps fait-il à New York demain ?", "New York"),
+                                         ("Quel temps fait-il en Islande ?", "Islande"),
+                                         ("Quel temps fait-il ?", None), ("La météo en ce moment", None)])
+def test_cities_outside_the_french_list_are_passed_on(text, place):
+    # Session QA : « la météo à Tokyo » donnait celle de Nantes (ville par défaut) sans le dire.
+    assert quick_plan(text, REGISTRY)["parameters"].get("location") == place

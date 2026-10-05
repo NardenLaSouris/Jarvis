@@ -101,6 +101,21 @@ def _percent_raw(text: str) -> int | None:
     return _percent(normalize(text))
 
 
+PLACE_NAME = re.compile(r"\b(?:à|a|au|aux|en|sur|pour|vers)\s+((?:New |Los |Las |San |Saint-|Sainte-|Le |La |Les )?"
+                        r"[A-ZÀÂÉÈÊÎÔÛÇ][\w'’-]{1,30}(?:[ -][A-ZÀÂÉÈÊÎÔÛÇ][\w'’-]{1,30})?)")
+
+
+def _named_place(text: str) -> str | None:
+    """Ville hors de la liste française, dite avec sa majuscule (« à Tokyo », « à New York ») : transmise telle
+    quelle au service météo (qui la cherche, ou dit qu'il ne la trouve pas), plutôt que la ville par défaut sans
+    prévenir (session QA : « la météo à Tokyo » donnait celle de Nantes)."""
+    match = PLACE_NAME.search(text)
+    if match is None:
+        return None
+    place = match.group(1).strip()
+    return None if normalize(place) in ("jarvis", "monsieur") else place
+
+
 def _colour(norm: str, colours: tuple[str, ...]) -> str | None:
     """Couleur dite, en préférant la plus longue (« blanc chaud » avant « blanc »)."""
     padded = f" {norm} "
@@ -465,7 +480,7 @@ class QuickPlanner:
             params["moment"] = moment
         from jarvis.weather.cities import mentioned_city
 
-        city = mentioned_city(text)
+        city = mentioned_city(text) or _named_place(text)
         if city:
             params["location"] = city
         return "get_weather", params
