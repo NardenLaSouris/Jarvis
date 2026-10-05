@@ -114,7 +114,8 @@ class FaceServer:
         # couleur choisie, la page construit la palette à partir de sa teinte (« hue ») ; pour une fête, des
         # teintes qui alternent (« hues »), un message (« greeting ») et un effet animé (« effect »).
         return {**snapshot, "theme": "error" if snapshot.get("error") else base, "base_theme": base,
-                "hue": COLORS.get(base), "hues": season.get("hues"), "greeting": season.get("greeting", ""),
+                "hue": COLORS.get(base), "hues": season.get("hues"), "palette": season.get("palette"),
+                "greeting": season.get("greeting", ""),
                 "effect": season.get("effect", "")}
 
     def stop(self) -> None:

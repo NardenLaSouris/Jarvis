@@ -35,6 +35,11 @@
       deep: [40, 40, 40], blue: [125, 125, 125], cyan: [205, 205, 205], white: [255, 255, 255],
       pupil: [0, 0, 0], pupilEdge: [3, 3, 3], background: ["#141414", "#080808", "#000000"],
     },
+    // 14 Juillet : bleu, blanc et rouge ensemble (anneaux bleus, arcs rouges, graduations blanches).
+    tricolore: {
+      deep: [0, 35, 120], blue: [0, 85, 164], cyan: [239, 65, 53], white: [255, 255, 255],
+      pupil: [1, 2, 10], pupilEdge: [3, 5, 18], background: ["#0a1430", "#050a1c", "#01030a"],
+    },
     // Erreur en cours (worker LLM hors ligne, appareil muet...) : rouge, puis retour au thème précédent.
     error: {
       deep: [110, 10, 14], blue: [230, 38, 46], cyan: [255, 110, 100], white: [255, 220, 214],
@@ -116,7 +121,12 @@
     setAudioLevel(0, false);
   }
 
-  function setTheme(name, hue, hues) {
+  function setTheme(name, hue, hues, palette) {
+    if (palette && THEMES[palette]) {  // fête à palette fixe (14 Juillet) : pas d'alternance
+      if (name === theme && !rainbow) return;
+      stopRainbow();
+      return applyPalette(name, THEMES[palette]);
+    }
     if (name === "arcenciel" || hues === "rainbow") return startRainbow(name);
     if (Array.isArray(hues) && hues.length) return startCycle(name, hues);
     if (!THEMES[name] && Number.isFinite(hue)) THEMES[name] = huePalette(hue);
@@ -180,11 +190,13 @@
 
   function spawn(kind, fresh) {
     const w = fx.width, h = fx.height, s = Math.max(w, h) / 900;
-    const p = { x: Math.random() * w, y: fresh ? Math.random() * h : (kind === "embers" ? h + 10 : -10),
+    const rising = kind === "embers" || kind === "hearts";
+    const p = { x: Math.random() * w, y: fresh ? Math.random() * h : (rising ? h + 10 : -10),
                 r: (1 + Math.random() * 3) * s, vx: (Math.random() - 0.5) * 0.4 * s, vy: (0.4 + Math.random()) * s,
                 a: Math.random() * Math.PI * 2, va: (Math.random() - 0.5) * 0.1, life: Math.random(),
                 hue: Math.floor(Math.random() * 360) };
-    if (kind === "embers" || kind === "hearts") p.vy = -p.vy * 0.8;
+    if (rising) p.vy = -p.vy * 0.8;
+    if (kind === "clovers") { p.vy *= 0.6; p.r *= 1.6; }
     if (kind === "sparkle") { p.vy = 0; p.vx = 0; }
     return p;
   }
@@ -196,7 +208,7 @@
     fxParticles = [];
     if (!effect) { fxg && fxg.clearRect(0, 0, fx.width, fx.height); return; }
     fx.width = innerWidth; fx.height = innerHeight;
-    const count = { snow: 90, embers: 50, confetti: 70, sparkle: 60, hearts: 26 }[effect] || 40;
+    const count = { snow: 90, embers: 50, confetti: 70, sparkle: 60, hearts: 40, clovers: 30 }[effect] || 40;
     for (let i = 0; i < count; i++) fxParticles.push(spawn(effect, true));
     if (!fxRunning) { fxRunning = true; requestAnimationFrame(drawEffect); }
   }
@@ -225,6 +237,18 @@
         fxg.fillStyle = rgba(COLOR.white, glow * 0.9);
         fxg.beginPath(); fxg.arc(p.x, p.y, p.r * glow, 0, Math.PI * 2); fxg.fill();
         if (p.life > 3) Object.assign(p, spawn(effect, true), { life: 0 });
+      } else if (effect === "clovers") {
+        // Trèfle à trois feuilles qui tombe en tournant (Saint-Patrick).
+        const r = p.r * 1.6;
+        fxg.save(); fxg.translate(p.x, p.y); fxg.rotate(p.a);
+        fxg.fillStyle = "rgba(60, 200, 90, 0.6)";
+        for (let k = 0; k < 3; k++) {
+          const t = (k / 3) * Math.PI * 2 - Math.PI / 2;
+          fxg.beginPath(); fxg.arc(Math.cos(t) * r * 0.75, Math.sin(t) * r * 0.75, r * 0.62, 0, Math.PI * 2); fxg.fill();
+        }
+        fxg.strokeStyle = "rgba(60, 200, 90, 0.6)"; fxg.lineWidth = Math.max(1, r * 0.18);
+        fxg.beginPath(); fxg.moveTo(0, r * 0.4); fxg.quadraticCurveTo(r * 0.3, r * 1.2, r * 0.1, r * 1.7); fxg.stroke();
+        fxg.restore();
       } else if (effect === "hearts") {
         const r = p.r * 2.2;
         fxg.fillStyle = rgba(COLOR.cyan, 0.45);
@@ -776,7 +800,8 @@
         debugEl.hidden = false;
         debugEl.textContent = `${face.state}  ${fps.toFixed(0)} FPS  niveau ${face.env.core.toFixed(2)}` +
           (DEMO ? "\n1 veille · 2 écoute · 3 réflexion · 4 parole · A cycle auto · T jour/nuit · C couleur · R arc-en-ciel"
-            + " · N Noël · H Halloween · B anniversaire · Y nouvel an" : "");
+            + " · N Noël · H Halloween · B anniversaire · Y nouvel an · V Saint-Valentin · P Saint-Patrick"
+            + " · F 14 Juillet" : "");
       }
     }
     requestAnimationFrame(frame);
@@ -794,7 +819,8 @@
         // L'erreur passe avant tout (même un thème imposé par ?theme=) ; ensuite, retour au thème précédent.
         if (data.theme === "error") setTheme("error");
         else if (FORCED_THEME) setTheme(FORCED_THEME);
-        else setTheme(data.theme || theme, Number.isFinite(data.hue) ? data.hue : undefined, data.hues || undefined);
+        else setTheme(data.theme || theme, Number.isFinite(data.hue) ? data.hue : undefined, data.hues || undefined,
+                      data.palette || undefined);
         const party = data.theme !== "error" && !FORCED_THEME;
         showGreeting(party ? data.greeting : "");
         setEffect(party ? data.effect : "");
@@ -832,9 +858,12 @@
       if (event.key === "r" || event.key === "R") setTheme("arcenciel");
       const parties = { n: ["noel", [0, 130], "Joyeux Noël", "snow"], h: ["halloween", [28, 272], "Joyeux Halloween", "embers"],
                         b: ["anniversaire", "rainbow", "Joyeux anniversaire !", "confetti"],
-                        y: ["nouvelan", [44, "night", 44, 205], "Bonne année !", "sparkle"] };
+                        y: ["nouvelan", [44, "night", 44, 205], "Bonne année !", "sparkle"],
+                        v: ["saintvalentin", [342, 325], "Joyeuse Saint-Valentin", "hearts"],
+                        p: ["saintpatrick", [130, 155], "Joyeuse Saint-Patrick", "clovers"],
+                        f: ["quatorzejuillet", null, "Bonne fête nationale", "sparkle", "tricolore"] };
       const party = parties[event.key.toLowerCase()];
-      if (party) { setTheme(party[0], undefined, party[1]); showGreeting(party[2]); setEffect(party[3]); }
+      if (party) { setTheme(party[0], undefined, party[1], party[4]); showGreeting(party[2]); setEffect(party[3]); }
     });
   }
 

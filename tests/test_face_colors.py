@@ -133,4 +133,17 @@ def test_holiday_themes_by_voice(tmp_path):
     spoken, _ = run_agent(["Mets ton visage en mode Halloween."], PlannerLLM(), core, fast_path=True)
     assert spoken == ["Je passe en thème Halloween."] and store.get() == "halloween"
     js = (ROOT / "jarvis" / "face" / "static" / "face.js").read_text(encoding="utf-8")
-    assert all(effect in js for effect in ("snow", "embers", "confetti", "sparkle", "hearts"))
+    assert all(effect in js for effect in ("snow", "embers", "confetti", "sparkle", "hearts", "clovers"))
+    # Cœurs : renaissent en bas, en continu (une seule salve auparavant).
+    assert 'const rising = kind === "embers" || kind === "hearts";' in js
+
+
+def test_national_day_shows_its_three_colours_at_once(tmp_path):
+    store = FaceThemeStore(tmp_path / "face_theme.json")
+    server = FaceServer(VisualState(), clock=lambda: datetime(2026, 7, 14, 12, 0), themes=store)
+    payload = server.payload()
+    assert payload["theme"] == "quatorzejuillet" and payload["palette"] == "tricolore"
+    js = (ROOT / "jarvis" / "face" / "static" / "face.js").read_text(encoding="utf-8")
+    assert "tricolore: {" in js and "data.palette" in js
+    patrick = FaceServer(VisualState(), clock=lambda: datetime(2026, 3, 17, 12, 0), themes=store).payload()
+    assert patrick["effect"] == "clovers"
