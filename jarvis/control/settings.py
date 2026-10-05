@@ -63,7 +63,7 @@ class SettingsStore:
 
     def load(self) -> Settings:
         try:
-            data = json.loads(self._settings_file.read_text(encoding="utf-8"))
+            data = json.loads(self._settings_file.read_text(encoding="utf-8-sig"))
             known = {f.name for f in fields(Settings)}
             return Settings(**{k: v for k, v in data.items() if k in known}).validated()
         except FileNotFoundError:
@@ -80,7 +80,7 @@ class SettingsStore:
 
     def token(self) -> str:
         try:
-            saved = self._token_file.read_text(encoding="utf-8").strip()
+            saved = self._token_file.read_text(encoding="utf-8-sig").strip()
         except OSError:
             saved = ""
         return saved or secret("JARVIS_AGENT_TOKEN", self._env_file)

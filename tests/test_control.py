@@ -134,6 +134,14 @@ def test_settings_store_defaults_and_token_fallback(tmp_path):
         Settings(refresh_seconds=1).validated()
 
 
+def test_settings_written_with_a_bom_are_still_read(tmp_path):
+    # PowerShell 5.1 (Set-Content -Encoding utf8) ajoute un BOM : les réglages ne doivent pas être perdus.
+    (tmp_path / "app").mkdir()
+    (tmp_path / "app" / "settings.json").write_text('{"theme": "nuit", "pc_name": "PC fixe"}', encoding="utf-8-sig")
+    loaded = SettingsStore(tmp_path / "app", env_file=tmp_path / "absent.env").load()
+    assert loaded.theme == "nuit" and loaded.pc_name == "PC fixe"
+
+
 @pytest.mark.skipif(sys.platform != "win32", reason="application Windows")
 def test_autostart_shortcut_is_created_with_fixed_arguments(monkeypatch, tmp_path):
     import jarvis.control.app as app
