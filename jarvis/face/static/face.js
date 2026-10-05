@@ -285,9 +285,6 @@
     kind = fxg ? kind || "" : "";  // comme le visage, qui s'anime toujours
     if (kind === effect) return;
     effect = kind;
-    fx.style.zIndex = BEHIND.has(effect) ? "-1" : "";
-    // Sous le visage, le calque passerait aussi sous le fond du <body> : fond transparent (celui de <html> reste).
-    document.body.style.background = BEHIND.has(effect) ? "transparent" : "";
     fxParticles = [];
     if (!effect) { fxg && fxg.clearRect(0, 0, fx.width, fx.height); return; }
     fx.width = innerWidth; fx.height = innerHeight;
@@ -301,9 +298,17 @@
   // Hyperespace comme dans les films, toutes les 54 s : ciel étoilé immobile (45 s), toutes les étoiles s'étirent
   // ensemble en longs traits partant du centre (1,6 s), traits qui défilent (6 s), retour aux étoiles (1,2 s).
   const HYPER = { cruise: 45, stretch: 1.6, tunnel: 6, exit: 1.2 };
-  let hyperStart = 0, hyperPhase = "cruise", hyperK = 0;
+  let hyperStart = 0, hyperPhase = "cruise", hyperK = 0, hctx = null;
 
-  function hyperStep() {
+  // Appelé par le rendu du visage : ciel et traits dessinés derrière lui, dans son propre canevas.
+  function paintBehind(target, w, h) {
+    hctx = target;
+    hyperStep(w, h);
+    for (const p of fxParticles) drawHyperStar(p, w, h);
+    hctx = null;
+  }
+
+  function hyperStep(w, h) {
     const cycle = HYPER.cruise + HYPER.stretch + HYPER.tunnel + HYPER.exit;
     let t = (now() - hyperStart) % cycle;
     const ease = (x) => x * x * (3 - 2 * x);
@@ -316,12 +321,11 @@
       for (const p of fxParticles) Object.assign(p, spawn("hyperspace", true));
     }
     if (hyperPhase === "tunnel" || hyperPhase === "exit") {  // lueur bleue du tunnel
-      const w = fx.width, h = fx.height;
-      const glow = fxg.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.hypot(w, h) / 2);
+      const glow = hctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.hypot(w, h) / 2);
       glow.addColorStop(0, `rgba(120, 170, 255, ${0.04 * hyperK})`);
       glow.addColorStop(1, "rgba(120, 170, 255, 0)");
-      fxg.fillStyle = glow;
-      fxg.fillRect(0, 0, w, h);
+      hctx.fillStyle = glow;
+      hctx.fillRect(0, 0, w, h);
     }
   }
 
@@ -332,6 +336,7 @@
 
   function drawHyperStar(p, w, h) {
     const max = Math.hypot(w, h) / 2, cx = w / 2, cy = h / 2, dx = Math.cos(p.a), dy = Math.sin(p.a);
+    const k = w / Math.max(1, fx.width);  // canevas du visage : pixels physiques
     const inner = hyperInner(w, h);
     if (hyperPhase === "tunnel") {  // les traits filent vers l'extérieur, depuis le bord du visage
       p.d += 0.004 + (p.d - inner) * 0.04;
@@ -339,24 +344,24 @@
     }
     p.x = cx + dx * p.d * max; p.y = cy + dy * p.d * max;
     if (hyperK < 0.02) {  // ciel étoilé : points qui scintillent
-      fxg.fillStyle = `rgba(255, 255, 255, ${0.6 + 0.15 * Math.sin(now() * 0.8 + p.tw)})`;
-      fxg.beginPath(); fxg.arc(p.x, p.y, p.r, 0, Math.PI * 2); fxg.fill();
+      hctx.fillStyle = `rgba(255, 255, 255, ${0.6 + 0.15 * Math.sin(now() * 0.8 + p.tw)})`;
+      hctx.beginPath(); hctx.arc(p.x, p.y, p.r * k, 0, Math.PI * 2); hctx.fill();
       return;
     }
     // Trait : de l'étoile vers le visage, jamais en deçà de son bord (le saut part de l'extérieur du visage).
     const tail = Math.min((p.d - inner) * max, (p.d - inner) * max * 0.9 * hyperK + p.r);
     const blue = hyperPhase === "tunnel" ? 1 : hyperK;
-    fxg.strokeStyle = `rgba(${Math.round(255 - 50 * blue)}, ${Math.round(255 - 20 * blue)}, 255, ${0.4 + 0.45 * hyperK})`;
-    fxg.lineWidth = Math.max(0.8, p.r * (0.8 + 0.6 * hyperK));
-    fxg.lineCap = "round";
-    fxg.beginPath(); fxg.moveTo(p.x - dx * tail, p.y - dy * tail); fxg.lineTo(p.x, p.y); fxg.stroke();
+    hctx.strokeStyle = `rgba(${Math.round(255 - 50 * blue)}, ${Math.round(255 - 20 * blue)}, 255, ${0.4 + 0.45 * hyperK})`;
+    hctx.lineWidth = Math.max(0.8, p.r * k * (0.8 + 0.6 * hyperK));
+    hctx.lineCap = "round";
+    hctx.beginPath(); hctx.moveTo(p.x - dx * tail, p.y - dy * tail); hctx.lineTo(p.x, p.y); hctx.stroke();
   }
 
   function drawEffect() {
     if (!effect) { fxRunning = false; return; }
     const w = fx.width, h = fx.height;
     fxg.clearRect(0, 0, w, h);
-    if (effect === "hyperspace") hyperStep();
+    if (BEHIND.has(effect)) { fxRunning = false; return; }
     for (const p of fxParticles) {
       p.x += p.vx + (effect === "snow" ? Math.sin(p.a) * 0.3 : 0);
       p.y += p.vy; p.a += p.va; p.life += 0.01;
@@ -404,8 +409,6 @@
           fxg.fill();
         }
         fxg.restore();
-      } else if (effect === "hyperspace") {
-        drawHyperStar(p, w, h);
       } else if (effect === "clovers") {
         // Trèfle à trois feuilles qui tombe en tournant (Saint-Patrick).
         const r = p.r * 1.6;
@@ -933,18 +936,18 @@
   function render(t, dt) {
     ctx.globalCompositeOperation = "source-over";
     ctx.globalAlpha = 1;
+    ctx.fillStyle = background;
+    ctx.fillRect(0, 0, W, H);
     if (BEHIND.has(effect)) {
-      // Le ciel (calque des effets) est derrière : fond transparent, sauf un disque opaque sous le visage.
-      ctx.clearRect(0, 0, W, H);
-      const disc = ctx.createRadialGradient(CX, CY, 0, CX, CY, R * 1.05);
-      disc.addColorStop(0, COLOR.background[0]);
-      disc.addColorStop(0.92, COLOR.background[1]);
+      // Effet derrière le visage (hyperespace) : dessiné dans ce canevas, puis caché par un disque sous le visage.
+      paintBehind(ctx, W, H);
+      const disc = ctx.createRadialGradient(CX, CY, R * 0.9, CX, CY, R * 1.06);
+      disc.addColorStop(0, COLOR.background[1]);
       disc.addColorStop(1, "rgba(0, 0, 0, 0)");
+      ctx.fillStyle = COLOR.background[1];
+      ctx.beginPath(); ctx.arc(CX, CY, R * 0.9, 0, TAU); ctx.fill();
       ctx.fillStyle = disc;
-      ctx.beginPath(); ctx.arc(CX, CY, R * 1.05, 0, TAU); ctx.fill();
-    } else {
-      ctx.fillStyle = background;
-      ctx.fillRect(0, 0, W, H);
+      ctx.beginPath(); ctx.arc(CX, CY, R * 1.06, 0, TAU); ctx.fill();
     }
     ctx.globalCompositeOperation = "lighter";
     drawHalo();
