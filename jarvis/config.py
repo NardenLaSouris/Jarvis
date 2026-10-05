@@ -235,6 +235,8 @@ class FaceConfig:
     open_browser: bool = True
     night_start: str = "22:00"
     night_end: str = "07:00"
+    # Couleur choisie à la voix ou dans JARVIS Control (jarvis/face/themes.py).
+    theme_path: Path = Path("data/face_theme.json")
 
 
 @dataclass(frozen=True)

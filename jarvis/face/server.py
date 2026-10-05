@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Callable
 
 from jarvis.face.state import VisualState
+from jarvis.face.themes import COLORS, FaceThemeStore
 
 log = logging.getLogger(__name__)
 
@@ -66,8 +67,10 @@ class ExclusiveServer(ThreadingHTTPServer):
 
 class FaceServer:
     def __init__(self, visual: VisualState, host: str = "127.0.0.1", port: int = 8765, rate_hz: float = 30.0,
-                 night: tuple[time, time] | None = None, clock: Callable[[], datetime] = datetime.now):
+                 night: tuple[time, time] | None = None, clock: Callable[[], datetime] = datetime.now,
+                 themes: FaceThemeStore | None = None):
         self.visual = visual
+        self._themes = themes
         self._night = night
         self._clock = clock
         self._host = host
@@ -96,9 +99,12 @@ class FaceServer:
     def payload(self) -> dict:
         """État visuel diffusé aux pages, avec le thème choisi par l'horloge du Core (même thème partout)."""
         snapshot = self.visual.snapshot()
-        base = "night" if is_night(self._clock().time(), self._night) else "day"
-        # En erreur : thème rouge ; la page revient d'elle-même au thème de base quand l'erreur cesse.
-        return {**snapshot, "theme": "error" if snapshot.get("error") else base, "base_theme": base}
+        chosen = self._themes.get() if self._themes is not None else "auto"
+        base = chosen if chosen != "auto" else ("night" if is_night(self._clock().time(), self._night) else "day")
+        # En erreur : thème rouge ; la page revient d'elle-même au thème de base quand l'erreur cesse. Pour une
+        # couleur choisie, la page construit la palette à partir de sa teinte (« hue »).
+        return {**snapshot, "theme": "error" if snapshot.get("error") else base, "base_theme": base,
+                "hue": COLORS.get(base)}
 
     def stop(self) -> None:
         self._stopping.set()

@@ -30,7 +30,7 @@
   };
   const CHOICE_LABELS = { all: "Toutes les pièces" };
 
-  const state = { view: "dashboard", tools: null, settings: null, timer: null, devices: null };
+  const state = { view: "dashboard", tools: null, settings: null, timer: null, devices: null, face: null };
   const view = document.getElementById("view");
 
   // --- Outils ---------------------------------------------------------------------------------------
@@ -383,6 +383,27 @@
 
   // --- Paramètres -----------------------------------------------------------------------------------
 
+  // Pastilles de couleur du visage : un clic l'applique sur tous les écrans du visage.
+  function faceColors() {
+    const box = el("div", { class: "face-colors" });
+    const themes = (state.face && state.face.themes) || [];
+    if (!themes.length) return el("div", { class: "muted small" }, "Visage indisponible sur le Core.");
+    for (const t of themes) {
+      const special = { auto: "linear-gradient(135deg, #46d6ff 50%, #e8e8e8 50%)", day: "radial-gradient(circle, #46d6ff, #0c2a5c)",
+        night: "radial-gradient(circle, #f2f2f2, #262626)",
+        arcenciel: "conic-gradient(red, orange, yellow, lime, cyan, blue, magenta, red)" }[t.id];
+      const color = special || `radial-gradient(circle, hsl(${t.hue} 100% 66%), hsl(${t.hue} 80% 22%))`;
+      box.append(el("button", { class: "swatch" + (state.face.theme === t.id ? " active" : ""), title: t.label,
+        style: `background:${color}`, onclick: async () => {
+          await act(api("POST", "/tools/set_face_theme", { parameters: { theme: t.id } }), `Visage : ${t.label}`)
+            .catch(() => null);
+          await loadFace();
+          show("settings");
+        } }));
+    }
+    return box;
+  }
+
   async function settingsView() {
     const s = await api("GET", "/settings");
     const form = { ...s, token: "" };
@@ -397,6 +418,7 @@
           field("Nom du PC", el("input", { type: "text", maxlength: 40, value: form.pc_name, oninput: (e) => { form.pc_name = e.target.value; } })),
           field("Thème", el("select", { onchange: (e) => { form.theme = e.target.value; applyTheme(form.theme); } },
             THEMES.map(([v, t]) => el("option", { value: v, selected: form.theme === v }, t)))),
+          field("Couleur du visage de JARVIS (aussi à la voix : « mets ton visage en vert »)", faceColors()),
           field("Rafraîchissement (s)", el("input", { type: "number", min: 5, max: 3600, value: form.refresh_seconds, oninput: (e) => { form.refresh_seconds = Number(e.target.value); } }))),
         el("div", { class: "list", style: "margin-top:14px" },
           check("autostart", "Démarrer avec Windows (dans la zone de notification)"),
@@ -417,10 +439,33 @@
 
   const VIEWS = { dashboard, routines, devices, history: historyView, settings: settingsView };
 
-  const THEMES = [["auto", "JARVIS automatique (nuit de 22 h à 7 h)"], ["jarvis", "JARVIS (jour)"],
+  const THEMES = [["auto", "JARVIS automatique (nuit de 22 h à 7 h)"],
+    ["visage", "Comme le visage de JARVIS (sa couleur du moment)"], ["jarvis", "JARVIS (jour)"],
     ["nuit", "JARVIS nuit (noir et blanc)"], ["rouge", "JARVIS rouge"], ["system", "Système"], ["dark", "Sombre"],
     ["light", "Clair"]];
-  const FACE_THEMES = ["jarvis", "nuit", "rouge"];
+  const FACE_THEMES = ["jarvis", "nuit", "rouge", "teinte"];
+  let rainbowHue = 0;
+
+  // Couleur du visage (choisie à la voix ou ici) : lue sur le Core, reprise par le thème « visage ».
+  async function loadFace() {
+    try {
+      state.face = await api("GET", "/face");
+    } catch (error) {
+      state.face = null;
+    }
+    applyTheme();
+  }
+  setInterval(loadFace, 30000);
+
+  function faceTheme() {
+    const face = state.face && state.face.theme;
+    const entry = state.face && state.face.themes.find((t) => t.id === face);
+    if (face === "day") return ["jarvis"];
+    if (face === "night") return ["nuit"];
+    if (face === "arcenciel") return ["teinte", (rainbowHue = (rainbowHue + 30) % 360)];
+    if (entry && entry.hue !== null && entry.hue !== undefined) return ["teinte", entry.hue];
+    return [new Date().getHours() >= 22 || new Date().getHours() < 7 ? "nuit" : "jarvis"];
+  }
 
   // Thèmes du visage : « auto » suit les mêmes heures que lui (nuit de 22 h à 7 h). « preview » : aperçu non enregistré.
   function applyTheme(preview) {
@@ -430,11 +475,17 @@
       const hour = new Date().getHours();
       theme = hour >= 22 || hour < 7 ? "nuit" : "jarvis";
     }
+    if (theme === "visage") {
+      const [name, hue] = faceTheme();
+      theme = name;
+      if (hue !== undefined) document.documentElement.style.setProperty("--h", hue);
+    }
     document.documentElement.dataset.theme = theme;
     document.documentElement.dataset.skin = FACE_THEMES.includes(theme) ? "face" : "";
     document.querySelectorAll("#themes button").forEach((b) => b.classList.toggle("active", b.dataset.theme === chosen));
   }
   setInterval(() => applyTheme(), 60000);
+  setInterval(() => { if (state.face && state.face.theme === "arcenciel") applyTheme(); }, 4000);
 
   // Sélecteur rapide du menu : un clic applique et enregistre le thème.
   document.querySelectorAll("#themes button").forEach((b) => b.addEventListener("click", async () => {
@@ -480,6 +531,7 @@
       toast(error.message, "err");
     }
     applyTheme();
+    loadFace();
     await show("dashboard");
     setInterval(() => { if (state.view === "dashboard" && document.visibilityState === "visible") show("dashboard"); },
       ((state.settings && state.settings.refresh_seconds) || 15) * 1000);

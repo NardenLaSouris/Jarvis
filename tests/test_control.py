@@ -156,3 +156,9 @@ def test_autostart_shortcut_is_created_with_fixed_arguments(monkeypatch, tmp_pat
     (tmp_path / "JARVIS Control.lnk").write_text("x")
     app.set_autostart(False)
     assert not (tmp_path / "JARVIS Control.lnk").exists()
+
+
+def test_face_colour_is_read_through_the_bridge(bridge):
+    # Le Core de test n'a pas de visage : la page l'indique, sans erreur.
+    status, data = call(bridge, "GET", "/face")
+    assert status in (200, 404, 502) and isinstance(data, dict)

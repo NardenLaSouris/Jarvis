@@ -308,6 +308,7 @@ DOMAIN_WORDS = {
     "mute_volume": ("son", "volume", "sourdine", "muet", "silence", "audio", "mute"),
     "unmute_volume": ("son", "volume", "sourdine", "muet", "audio", "unmute"),
     "set_volume": ("son", "volume", "audio", "fort", "bas"),
+    "set_face_theme": ("visage", "theme", "couleur", "couleurs", "interface", "ecran", "arc", "face", "tete"),
     # « oui et ferme aussi Discord » proposé en open_application : ouvrir doit avoir été demandé.
     "open_application": ("ouvre", "ouvrir", "ouvres", "lance", "lancer", "lances", "demarre", "demarrer", "mets",
                          "mettre", "relance", "rouvre", "joue", "jouer", "affiche", "afficher", "va sur", "allume",

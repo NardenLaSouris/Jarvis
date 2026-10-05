@@ -81,6 +81,24 @@
   color-scheme: dark;
 }
 
+:root[data-theme="teinte"] {
+  /* Couleur choisie pour le visage (thème « visage ») : palette tirée de la teinte --h, comme sur le visage. */
+  --h: 205;
+  --bg: hsl(var(--h) 75% 5%);
+  --panel: hsl(var(--h) 70% 14% / 0.6);
+  --panel-2: hsl(var(--h) 70% 22% / 0.5);
+  --line: hsl(var(--h) 100% 64% / 0.22);
+  --text: hsl(var(--h) 100% 95%);
+  --muted: hsl(var(--h) 30% 66%);
+  --accent: hsl(var(--h) 100% 64%);
+  --accent-2: hsl(var(--h) 100% 50%);
+  --glow: hsl(var(--h) 100% 64% / 0.28);
+  --backdrop: radial-gradient(ellipse at 60% 45%, hsl(var(--h) 70% 18%) 0%, hsl(var(--h) 75% 9%) 38%,
+              hsl(var(--h) 80% 4%) 70%, #000 100%);
+  color-scheme: dark;
+  transition: background 1s;
+}
+
 /* Thème rouge, et alerte (comme le visage en erreur) : accents rouges tant qu'un composant est en panne. */
 :root[data-alert="1"][data-skin="face"], :root[data-theme="rouge"] {
   --accent: #ff6e64;
@@ -395,3 +413,17 @@ nav .themes button[data-theme="rouge"] { background: radial-gradient(circle, #ff
 nav .themes button:hover { transform: scale(1.12); }
 nav .themes button.active { outline: 2px solid var(--text); outline-offset: 2px; }
 :root nav .themes button.active { box-shadow: 0 0 10px var(--glow, transparent); }
+
+:root[data-theme="teinte"] nav { background: linear-gradient(180deg, hsl(var(--h) 70% 7% / 0.8), hsl(var(--h) 75% 4% / 0.66)); }
+nav .themes button[data-theme="visage"] { background: conic-gradient(#ff5050, #ffd040, #50ff80, #40d0ff, #a060ff, #ff5050); }
+.face-colors { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 0; }
+.face-colors .swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  cursor: pointer;
+  padding: 0;
+}
+.face-colors .swatch:hover { transform: scale(1.12); }
+.face-colors .swatch.active { outline: 2px solid var(--text); outline-offset: 2px; }

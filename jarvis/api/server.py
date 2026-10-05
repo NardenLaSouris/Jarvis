@@ -40,13 +40,14 @@ def tool_info(tool) -> dict:
 
 class CoreApi:
     def __init__(self, host: str, port: int, allowed_ips: frozenset[str], token: str, *, tools: ToolCore | None,
-                 routines: RoutineEngine | None, status: CoreStatus, activity=None, memory=None):
+                 routines: RoutineEngine | None, status: CoreStatus, activity=None, memory=None, face_themes=None):
         if not token:
             raise ValueError("JARVIS_AGENT_TOKEN est requis pour l'API d'administration ([api]).")
         self._address = (host, port)
         self._allowed, self._token = allowed_ips, token
         self.tools, self.routines, self.status, self._activity = tools, routines, status, activity
         self.memory = memory
+        self.face_themes = face_themes
         self._httpd: ExclusiveServer | None = None
 
     @property
@@ -181,6 +182,13 @@ class CoreApi:
                 if method == "POST" and len(route) == 2 and route[0] == "tools":
                     parameters = data.get("parameters") if isinstance(data, dict) else None
                     return api.call_tool(route[1], parameters)
+                if method == "GET" and route == ["face"]:
+                    if api.face_themes is None:
+                        return 404, {"status": "error", "error": "face_disabled"}
+                    from jarvis.face.themes import COLORS, THEMES, label
+
+                    return 200, {"theme": api.face_themes.get(),
+                                 "themes": [{"id": t, "label": label(t), "hue": COLORS.get(t)} for t in THEMES]}
                 if method == "GET" and route == ["history"]:
                     return 200, api.history(query)
                 if route[:1] == ["memory"]:

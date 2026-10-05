@@ -322,6 +322,7 @@ patterns = [
     "sur spotify", "chanson", "joue", "playlist", "la musique de",
     "pause", "musique", "morceau", "chanson", "titre suivant", "piste", "playlist", "spotify", "reprends la lecture",
     "agenda", "calendrier", "rendez vous", "rdv", "de prevu", "evenement", "evenements", "creneau", "creneaux",
+    "ton visage", "ta couleur", "tes couleurs", "change de couleur", "ton theme", "arc en ciel",
     "suis je libre", "je suis libre", "mon planning", "programme de la journee", "quel est mon programme",
     "quoi mon programme", "au programme",
     "programme du jour", "programme de demain", "est allumee", "est eteinte", "sont allumees", "sont eteintes",

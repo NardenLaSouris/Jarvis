@@ -79,6 +79,7 @@ class Bridge:
         c = self.client
         if method == "GET":
             simple = {("status",): c.get_status, ("devices",): c.get_devices, ("tools",): c.get_tools,
+                      ("face",): c.get_face,
                       ("routines",): c.get_routines, ("settings",): self.settings_view}
             if tuple(route) in simple:
                 return simple[tuple(route)]()

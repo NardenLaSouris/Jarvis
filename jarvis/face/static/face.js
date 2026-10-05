@@ -4,10 +4,11 @@
  *   JarvisFace.setVisualState("standby" | "listening" | "thinking" | "speaking")
  *   JarvisFace.setAudioLevel(0..1)
  *   JarvisFace.standby()
- *   JarvisFace.setTheme("day" | "night" | "error")
+ *   JarvisFace.setTheme("day" | "night" | "error" | "<couleur>", teinte?)   (couleur : palette tirée de la teinte)
  *
  * Connecté à JARVIS par /events (Server-Sent Events). Sans connexion : veille.
- * Le thème (jour en couleur, nuit en noir et blanc) suit l'horaire du Core, sauf ?theme=day|night.
+ * Le thème (jour en couleur, nuit en noir et blanc, ou la couleur choisie à la voix) vient du Core, sauf
+ * ?theme=day|night|<teinte 0-360>|arcenciel.
  * ?demo=1 : démonstration autonome (touches 1-4, A = cycle auto, T = thème). ?debug=1 : état et FPS.
  */
 (() => {
@@ -40,8 +41,31 @@
       pupil: [12, 1, 1], pupilEdge: [22, 3, 3], background: ["#2a0507", "#160204", "#080001"],
     },
   };
-  const FORCED_THEME = THEMES[params.get("theme")] ? params.get("theme") : null;
-  let theme = FORCED_THEME || "day";
+  // Palette d'une couleur choisie (« mets ton visage en vert ») : mêmes rôles que le bleu d'origine, tirés de la
+  // teinte (0-360) envoyée par le Core.
+  function hsl(h, s, l) {
+    s /= 100; l /= 100;
+    const k = (n) => (n + h / 30) % 12;
+    const a = s * Math.min(l, 1 - l);
+    const f = (n) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+    return [Math.round(f(0) * 255), Math.round(f(8) * 255), Math.round(f(4) * 255)];
+  }
+  const hex = (c) => "#" + c.map((v) => v.toString(16).padStart(2, "0")).join("");
+  function huePalette(h) {
+    return {
+      deep: hsl(h, 80, 24), blue: hsl(h, 100, 57), cyan: hsl((h + 12) % 360, 100, 66), white: hsl(h, 100, 92),
+      pupil: hsl(h, 80, 3), pupilEdge: hsl(h, 70, 6),
+      background: [hex(hsl(h, 70, 10)), hex(hsl(h, 75, 5)), hex(hsl(h, 80, 2))],
+    };
+  }
+  const RAINBOW_SECONDS = 4;  // arc-en-ciel : nouvelle teinte toutes les 4 s
+  let rainbow = null;
+  const forcedHue = Number(params.get("theme"));
+  if (params.get("theme") && Number.isFinite(forcedHue)) THEMES["teinte"] = huePalette(forcedHue % 360);
+  const FORCED_THEME = params.get("theme") === "arcenciel" ? "arcenciel"
+    : Number.isFinite(forcedHue) && params.get("theme") ? "teinte"
+    : THEMES[params.get("theme")] ? params.get("theme") : null;
+  let theme = FORCED_THEME && THEMES[FORCED_THEME] ? FORCED_THEME : "day";
   const COLOR = { ...THEMES[theme] };
   const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${Math.max(0, Math.min(1, a)).toFixed(3)})`;
   const clamp01 = (v) => Math.max(0, Math.min(1, v));
@@ -92,13 +116,33 @@
     setAudioLevel(0, false);
   }
 
-  function setTheme(name) {
+  function setTheme(name, hue) {
+    if (name === "arcenciel") return startRainbow();
+    if (!THEMES[name] && Number.isFinite(hue)) THEMES[name] = huePalette(hue);
     if (!THEMES[name] || name === theme) return;
+    stopRainbow();
+    applyPalette(name, THEMES[name]);
+  }
+
+  function applyPalette(name, palette) {
     theme = name;
-    Object.assign(COLOR, THEMES[name]);
+    Object.assign(COLOR, palette);
     paintPage();
     resize();
     buildLayers();
+  }
+
+  function startRainbow() {
+    if (rainbow) return;
+    let h = 0;
+    const step = () => { applyPalette("arcenciel", huePalette(h)); h = (h + 30) % 360; };
+    step();
+    rainbow = setInterval(step, RAINBOW_SECONDS * 1000);
+  }
+
+  function stopRainbow() {
+    if (rainbow) clearInterval(rainbow);
+    rainbow = null;
   }
 
   function paintPage() {
@@ -637,7 +681,7 @@
       if (DEBUG) {
         debugEl.hidden = false;
         debugEl.textContent = `${face.state}  ${fps.toFixed(0)} FPS  niveau ${face.env.core.toFixed(2)}` +
-          (DEMO ? "\n1 veille · 2 écoute · 3 réflexion · 4 parole · A cycle auto" : "");
+          (DEMO ? "\n1 veille · 2 écoute · 3 réflexion · 4 parole · A cycle auto · T jour/nuit · C couleur · R arc-en-ciel" : "");
       }
     }
     requestAnimationFrame(frame);
@@ -654,7 +698,8 @@
         setVisualState(data.state);
         // L'erreur passe avant tout (même un thème imposé par ?theme=) ; ensuite, retour au thème précédent.
         if (data.theme === "error") setTheme("error");
-        else setTheme(FORCED_THEME || data.theme || theme);
+        else if (FORCED_THEME) setTheme(FORCED_THEME);
+        else setTheme(data.theme || theme, Number.isFinite(data.hue) ? data.hue : undefined);
         showErrors(data.theme === "error" ? data.error_messages : []);
         if (PREVIEW_ERROR) previewError();
         if (data.audio_source === "measured" || data.audio_source === "external") setAudioLevel(data.audio_level);
@@ -682,6 +727,11 @@
       if (i >= 0) { auto = false; setVisualState(order[i]); }
       if (event.key === "a" || event.key === "A") auto = !auto;
       if (event.key === "t" || event.key === "T") setTheme(theme === "day" ? "night" : "day");
+      if (event.key === "c" || event.key === "C") {  // démo : une couleur au hasard
+        const h = Math.floor(Math.random() * 360);
+        setTheme(`teinte${h}`, h);
+      }
+      if (event.key === "r" || event.key === "R") setTheme("arcenciel");
     });
   }
 

@@ -55,6 +55,9 @@ class CoreClient:
     def get_devices(self) -> list:
         return self._call("GET", "/devices")
 
+    def get_face(self) -> dict:
+        return self._call("GET", "/face")
+
     def get_tools(self) -> list:
         return self._call("GET", "/tools")
 

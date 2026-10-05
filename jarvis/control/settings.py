@@ -18,7 +18,7 @@ log = logging.getLogger(__name__)
 REPO_ENV = Path(__file__).resolve().parents[2] / ".env"
 # Thèmes du visage de JARVIS (jour bleu, nuit noir et blanc, rouge comme le visage en erreur ; « auto » : nuit de 22 h à 7 h comme le visage),
 # plus les thèmes génériques.
-THEMES = ("auto", "jarvis", "nuit", "rouge", "system", "dark", "light")
+THEMES = ("auto", "visage", "jarvis", "nuit", "rouge", "system", "dark", "light")
 
 
 def app_dir() -> Path:

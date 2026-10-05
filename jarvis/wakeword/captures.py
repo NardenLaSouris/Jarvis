@@ -35,7 +35,11 @@ class WakeCaptures:
         from jarvis.audio.files import write_wav
 
         stamp = datetime.now()
-        path = self.folder / f"{stamp:%Y%m%d-%H%M%S}-{stamp.microsecond // 1000:03d}_{meta.get('score', 0):.2f}.wav"
+        name = f"{stamp:%Y%m%d-%H%M%S}-{stamp.microsecond // 1000:03d}_{meta.get('score', 0):.2f}"
+        path, n = self.folder / f"{name}.wav", 1
+        while path.exists():  # deux réveils dans la même milliseconde : jamais l'un écrasé par l'autre
+            n += 1
+            path = self.folder / f"{name}-{n}.wav"
         try:
             self.folder.mkdir(parents=True, exist_ok=True)
             write_wav(path, audio.astype(np.int16), rate)

@@ -397,13 +397,15 @@ def build_api(cfg: Config, tools, routines, *, web=None, devices=None, rooms=Non
         return None
     from jarvis.activity import JsonlActivityStore
     from jarvis.api import CoreApi, CoreStatus
+    from jarvis.face.themes import FaceThemeStore
 
     activity = JsonlActivityStore(cfg.activity.path) if cfg.activity.enabled else None
     status = CoreStatus(llm_url=cfg.llm.host, llm_model=cfg.llm.model, fallback_model=cfg.llm.fallback_model,
                         web=web, devices=devices, rooms=rooms, driver=driver, timers=timers, routines=routines,
                         activity=activity, worker=worker, home=home, profiles=profiles)
     api = CoreApi(cfg.api.host, cfg.api.port, frozenset(cfg.api.allowed_ips), secret("JARVIS_AGENT_TOKEN", ENV_FILE),
-                  tools=tools, routines=routines, status=status, activity=activity, memory=memory)
+                  tools=tools, routines=routines, status=status, activity=activity, memory=memory,
+                  face_themes=FaceThemeStore(cfg.face.theme_path) if cfg.face.enabled else None)
     try:
         api.start()
     except OSError as exc:
@@ -570,6 +572,10 @@ def build_agent(
         from jarvis.spotify import spotify_tools
 
         extra += spotify_tools(spotify, on_pause=music.stop if music is not None else None)
+    if cfg.face.enabled:
+        from jarvis.face.themes import FaceThemeStore, face_theme_tool
+
+        extra.append(face_theme_tool(FaceThemeStore(cfg.face.theme_path)))
     calendar = build_calendar(cfg)
     if calendar is not None:
         from jarvis.agenda import calendar_tools

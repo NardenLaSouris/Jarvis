@@ -347,6 +347,10 @@ open_browser = true     # ouvre la page dans le navigateur au lancement (inutile
 # Thème nuit (même visage en noir et blanc) entre ces heures, selon l'horloge du Core ; vides = jamais.
 night_start = "22:00"
 night_end = "07:00"
+# Couleur du visage choisie à la voix (« mets ton visage en vert », « en arc-en-ciel », « remets ta couleur
+# normale ») ou dans JARVIS Control : rouge, orange, or, jaune, vert, émeraude, turquoise, cyan, azur, bleu,
+# indigo, violet, magenta, rose... Elle remplace bleu le jour / noir et blanc la nuit jusqu'au retour à « auto ».
+theme_path = "data/face_theme.json"
 
 [audio]
 sample_rate = 16000
