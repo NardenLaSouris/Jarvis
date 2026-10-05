@@ -269,8 +269,9 @@
     if (kind === "hyperspace") {
       // Étoile fixe : direction depuis le centre et distance (fraction du demi-écran).
       const inner = hyperInner(w, h);
-      Object.assign(p, { a: Math.random() * Math.PI * 2, d: inner + Math.random() * (1.05 - inner), vx: 0, vy: 0,
-                         x: w / 2, y: h / 2, r: (0.5 + Math.random() * 0.8) * s, tw: Math.random() * 6 });
+      // Répartition uniforme sur l'écran (racine : autant d'étoiles loin du centre que près).
+      Object.assign(p, { a: Math.random() * Math.PI * 2, d: inner + Math.sqrt(Math.random()) * (1.02 - inner), vx: 0,
+                         vy: 0, x: w / 2, y: h / 2, r: (0.5 + Math.random() * 0.9) * s, tw: Math.random() * 6 });
     }
     if (kind === "lily") { p.vy *= 0.5; p.r = (5 + Math.random() * 4) * s; }
     if (kind === "clovers") { p.vy *= 0.6; p.r *= 1.6; }
@@ -286,15 +287,15 @@
     if (!effect) { fxg && fxg.clearRect(0, 0, fx.width, fx.height); return; }
     fx.width = innerWidth; fx.height = innerHeight;
     const count = { snow: 90, embers: 50, confetti: 70, sparkle: 60, hearts: 40, clovers: 30, fish: 9, lily: 22,
-                    hyperspace: 110 }[effect] || 40;
+                    hyperspace: 160 }[effect] || 40;
     hyperStart = now();
     for (let i = 0; i < count; i++) fxParticles.push(spawn(effect, true));
     if (!fxRunning) { fxRunning = true; requestAnimationFrame(drawEffect); }
   }
 
-  // Hyperespace comme dans les films, en boucle de 14 s : ciel étoilé (6 s), toutes les étoiles s'étirent ensemble
-  // en traits partant du centre (1,2 s), tunnel bleuté qui défile (3,5 s), retour aux étoiles (0,8 s).
-  const HYPER = { cruise: 6, stretch: 1.2, tunnel: 3.5, exit: 0.8 };
+  // Hyperespace comme dans les films, toutes les 54 s : ciel étoilé immobile (45 s), toutes les étoiles s'étirent
+  // ensemble en longs traits partant du centre (1,6 s), traits qui défilent (6 s), retour aux étoiles (1,2 s).
+  const HYPER = { cruise: 45, stretch: 1.6, tunnel: 6, exit: 1.2 };
   let hyperStart = 0, hyperPhase = "cruise", hyperK = 0;
 
   function hyperStep() {
@@ -319,29 +320,29 @@
     }
   }
 
-  // Bord du visage (anneau extérieur un peu élargi), en fraction de la demi-diagonale : aucune étoile en dedans.
+  // Cœur du visage (le disque sombre central), en fraction de la demi-diagonale : aucune étoile en dedans.
   function hyperInner(w, h) {
-    return Math.min(0.9, (Math.min(w, h) * 0.5) / (Math.hypot(w, h) / 2));
+    return (Math.min(w, h) * 0.12) / (Math.hypot(w, h) / 2);
   }
 
   function drawHyperStar(p, w, h) {
     const max = Math.hypot(w, h) / 2, cx = w / 2, cy = h / 2, dx = Math.cos(p.a), dy = Math.sin(p.a);
     const inner = hyperInner(w, h);
     if (hyperPhase === "tunnel") {  // les traits filent vers l'extérieur
-      p.d += 0.004 + p.d * 0.012;
-      if (p.d > 1.1) p.d = inner + Math.random() * 0.05;
+      p.d += 0.006 + p.d * 0.02;
+      if (p.d > 1.15) p.d = inner + Math.random() * 0.1;
     }
     p.x = cx + dx * p.d * max; p.y = cy + dy * p.d * max;
     if (hyperK < 0.02) {  // ciel étoilé : points qui scintillent
-      fxg.fillStyle = `rgba(255, 255, 255, ${0.45 + 0.4 * Math.sin(now() * 2 + p.tw)})`;
+      fxg.fillStyle = `rgba(255, 255, 255, ${0.6 + 0.15 * Math.sin(now() * 0.8 + p.tw)})`;
       fxg.beginPath(); fxg.arc(p.x, p.y, p.r, 0, Math.PI * 2); fxg.fill();
       return;
     }
-    // Trait : de l'étoile vers le centre, sans jamais entrer dans le visage ; fin et discret.
-    const tail = Math.min((p.d - inner) * max, p.d * max * 0.35 * hyperK);
+    // Trait : de l'étoile vers le centre, long et net (jusqu'aux trois quarts de la distance au centre).
+    const tail = Math.min((p.d - inner) * max, p.d * max * 0.75 * hyperK);
     const blue = hyperPhase === "tunnel" ? 1 : hyperK;
-    fxg.strokeStyle = `rgba(${Math.round(255 - 60 * blue)}, ${Math.round(255 - 25 * blue)}, 255, ${0.25 + 0.35 * hyperK})`;
-    fxg.lineWidth = Math.max(0.6, p.r * (0.7 + 0.5 * hyperK));
+    fxg.strokeStyle = `rgba(${Math.round(255 - 50 * blue)}, ${Math.round(255 - 20 * blue)}, 255, ${0.4 + 0.45 * hyperK})`;
+    fxg.lineWidth = Math.max(0.8, p.r * (0.8 + 0.6 * hyperK));
     fxg.lineCap = "round";
     fxg.beginPath(); fxg.moveTo(p.x - dx * tail, p.y - dy * tail); fxg.lineTo(p.x, p.y); fxg.stroke();
   }
@@ -964,7 +965,7 @@
         debugEl.textContent = `${face.state}  ${fps.toFixed(0)} FPS  niveau ${face.env.core.toFixed(2)}` +
           (DEMO ? "\n1 veille · 2 écoute · 3 réflexion · 4 parole · A cycle auto · T jour/nuit · C couleur · R arc-en-ciel"
             + " · N Noël · H Halloween · B anniversaire · Y nouvel an · V Saint-Valentin · P Saint-Patrick"
-            + " · F 14 Juillet · O 1er avril · M 1er mai · W Star Wars · J JARVIS · U rendez-vous" : "");
+            + " · F 14 Juillet · O 1er avril · M 1er mai · W Star Wars (X : saut) · J JARVIS · U rendez-vous" : "");
       }
     }
     requestAnimationFrame(frame);
@@ -1030,6 +1031,9 @@
                         m: ["muguet", [130, "night"], "Joyeux 1er mai", "lily", "muguet"],
                         w: ["starwars", [53, "night"], "Que la Force soit avec vous", "hyperspace", "starwars"],
                         j: ["naissancejarvis", [205, 44], "Joyeux anniversaire JARVIS : 1 an", "sparkle", "naissancejarvis"] };
+      if ((event.key === "x" || event.key === "X") && effect === "hyperspace") {  // démo : sauter maintenant
+        hyperStart = now() - HYPER.cruise + 0.5;
+      }
       if (event.key === "u" || event.key === "U") {  // démo : échéance dans 9 minutes
         showUpcoming({ label: "Dentiste", kind: "event", seconds: 540, window: 900 });
       }
