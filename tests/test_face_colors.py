@@ -212,3 +212,15 @@ def test_upcoming_reaches_the_face_and_never_breaks_it():
     assert FaceServer(visual).payload()["upcoming"] is None
     html = (ROOT / "jarvis" / "face" / "static" / "index.html").read_text(encoding="utf-8")
     assert 'id="upcoming"' in html and 'id="upcoming-label"' in html
+
+
+def test_holidays_have_their_own_multicolour_palette():
+    # Plusieurs couleurs à la fois (sabres bleu, rouge et vert le 4 mai ; rouge, vert et or à Noël...).
+    from jarvis.face.themes import SEASONS
+
+    js = (ROOT / "jarvis" / "face" / "static" / "face.js").read_text(encoding="utf-8")
+    for season in ("starwars", "noel", "halloween", "nouvelan", "paques", "saintvalentin", "saintpatrick"):
+        assert SEASONS[season]["palette"] == season and f"    {season}: {{" in js, season
+    store_less = FaceServer(VisualState(), clock=lambda: datetime(2027, 5, 4, 12, 0))
+    assert store_less.payload()["palette"] == "starwars" and store_less.payload()["effect"] == "hyperspace"
+    assert "function hyperStep" in js and "stretch" in js and "tunnel" in js  # saut fidèle aux films

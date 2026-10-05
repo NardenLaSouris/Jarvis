@@ -26,30 +26,58 @@ COLORS = {
     "framboise": 342,
 }
 # Thèmes de fête, pris d'eux-mêmes en « auto » aux dates dites (ou choisis à la voix pour les essayer) :
-# couleurs qui alternent (teintes, « day », « night » ou « rainbow »), message à l'écran, effet animé.
+# palette de plusieurs couleurs à la fois (« palette », définie dans la page), sinon couleurs qui alternent
+# (« hues » : teintes, « day », « night » ou « rainbow ») ; message à l'écran ; effet animé.
 SEASONS = {
-    "nouvelan": {"label": "Nouvel an", "hues": [44, "night", 44, 205], "greeting": "Bonne année !",
-                 "effect": "sparkle"},
-    "saintvalentin": {"label": "Saint-Valentin", "hues": [342, 325], "greeting": "Joyeuse Saint-Valentin",
-                      "effect": "hearts"},
-    "poissonavril": {"label": "1er avril", "hues": [188, 28], "greeting": "Poisson d'avril !", "effect": "fish"},
-    "muguet": {"label": "1er Mai", "hues": [130, "night"], "greeting": "Joyeux 1er mai", "effect": "lily"},
-    "starwars": {"label": "Star Wars Day", "hues": [215, 0], "greeting": "Que la Force soit avec vous",
-                 "effect": "hyperspace"},
-    "naissancejarvis": {"label": "anniversaire de JARVIS", "hues": [205, 44],
-                        "greeting": "Joyeux anniversaire JARVIS", "effect": "sparkle"},
-    "saintpatrick": {"label": "Saint-Patrick", "hues": [130, 155], "greeting": "Joyeuse Saint-Patrick",
-                     "effect": "clovers"},
-    "paques": {"label": "Pâques", "hues": [325, 55, 130, 188], "greeting": "Joyeuses Pâques", "effect": "confetti"},
-    "fetemusique": {"label": "Fête de la musique", "hues": "rainbow", "greeting": "Bonne fête de la musique",
-                    "effect": "confetti"},
+    "nouvelan": {
+        "palette": "nouvelan", "label": "Nouvel an", "hues": [44, "night", 44, 205], "greeting": "Bonne année !",
+        "effect": "sparkle"
+    },
+    "saintvalentin": {
+        "palette": "saintvalentin", "label": "Saint-Valentin", "hues": [342, 325],
+        "greeting": "Joyeuse Saint-Valentin", "effect": "hearts"
+    },
+    "poissonavril": {
+        "palette": "poissonavril", "label": "1er avril", "hues": [188, 28], "greeting": "Poisson d'avril !",
+        "effect": "fish"
+    },
+    "muguet": {
+        "palette": "muguet", "label": "1er Mai", "hues": [130, "night"], "greeting": "Joyeux 1er mai",
+        "effect": "lily"
+    },
+    "starwars": {
+        "palette": "starwars", "label": "Star Wars Day", "hues": [215, 0], "greeting": "Que la Force soit avec vous",
+        "effect": "hyperspace"
+    },
+    "naissancejarvis": {
+        "palette": "naissancejarvis", "label": "anniversaire de JARVIS", "hues": [205, 44],
+        "greeting": "Joyeux anniversaire JARVIS", "effect": "sparkle"
+    },
+    "saintpatrick": {
+        "palette": "saintpatrick", "label": "Saint-Patrick", "hues": [130, 155], "greeting": "Joyeuse Saint-Patrick",
+        "effect": "clovers"
+    },
+    "paques": {
+        "palette": "paques", "label": "Pâques", "hues": [325, 55, 130, 188], "greeting": "Joyeuses Pâques",
+        "effect": "confetti"
+    },
+    "fetemusique": {
+        "label": "Fête de la musique", "hues": "rainbow", "greeting": "Bonne fête de la musique",
+        "effect": "confetti"
+    },
     # Une seule palette aux trois couleurs à la fois (anneaux bleus, rouges et blancs), sans alternance.
-    "quatorzejuillet": {"label": "14 Juillet", "hues": [225, "night", 0], "palette": "tricolore",
-                        "greeting": "Bonne fête nationale", "effect": "sparkle"},
-    "halloween": {"label": "Halloween", "hues": [28, 272], "greeting": "Joyeux Halloween", "effect": "embers"},
-    "noel": {"label": "Noël", "hues": [0, 130], "greeting": "Joyeux Noël", "effect": "snow"},
-    "anniversaire": {"label": "anniversaire", "hues": "rainbow", "greeting": "Joyeux anniversaire !",
-                     "effect": "confetti"},
+    "quatorzejuillet": {
+        "label": "14 Juillet", "hues": [225, "night", 0], "palette": "tricolore", "greeting": "Bonne fête nationale",
+        "effect": "sparkle"
+    },
+    "halloween": {
+        "palette": "halloween", "label": "Halloween", "hues": [28, 272], "greeting": "Joyeux Halloween",
+        "effect": "embers"
+    },
+    "noel": {"palette": "noel", "label": "Noël", "hues": [0, 130], "greeting": "Joyeux Noël", "effect": "snow"},
+    "anniversaire": {
+        "label": "anniversaire", "hues": "rainbow", "greeting": "Joyeux anniversaire !", "effect": "confetti"
+    },
 }
 # day : le bleu d'origine (réglé à la main) ; night : noir et blanc ;
 # arcenciel : toutes les couleurs à tour de rôle.

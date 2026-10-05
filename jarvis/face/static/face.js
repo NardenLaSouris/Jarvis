@@ -35,6 +35,47 @@
       deep: [40, 40, 40], blue: [125, 125, 125], cyan: [205, 205, 205], white: [255, 255, 255],
       pupil: [0, 0, 0], pupilEdge: [3, 3, 3], background: ["#141414", "#080808", "#000000"],
     },
+    // Fêtes : plusieurs couleurs à la fois (anneaux, arcs, graduations), comme le tricolore.
+    starwars: {  // sabres laser : bleu Jedi, rouge Sith, vert, sur le noir de l'espace
+      deep: [16, 30, 80], blue: [40, 130, 255], cyan: [255, 45, 45], white: [110, 255, 110],
+      pupil: [0, 0, 4], pupilEdge: [2, 2, 10], background: ["#070b1a", "#03050e", "#000003"],
+    },
+    noel: {  // rouge, vert sapin et or
+      deep: [100, 12, 18], blue: [210, 30, 45], cyan: [40, 200, 80], white: [255, 210, 110],
+      pupil: [4, 1, 1], pupilEdge: [10, 3, 3], background: ["#0a1f10", "#051008", "#010402"],
+    },
+    halloween: {  // orange citrouille, violet et vert poison
+      deep: [50, 14, 70], blue: [150, 60, 230], cyan: [255, 135, 20], white: [170, 255, 80],
+      pupil: [3, 1, 5], pupilEdge: [8, 3, 12], background: ["#150a20", "#0a0512", "#030106"],
+    },
+    nouvelan: {  // or, bleu glacier et blanc
+      deep: [70, 52, 12], blue: [235, 185, 60], cyan: [120, 185, 255], white: [255, 255, 255],
+      pupil: [3, 2, 0], pupilEdge: [8, 6, 2], background: ["#15120a", "#0a0805", "#030201"],
+    },
+    paques: {  // pastels : lilas, rose, menthe, jaune
+      deep: [80, 50, 110], blue: [255, 150, 205], cyan: [150, 235, 150], white: [255, 240, 150],
+      pupil: [4, 2, 6], pupilEdge: [10, 6, 14], background: ["#1a1426", "#0e0a17", "#05030a"],
+    },
+    saintvalentin: {  // rouge, rose et blanc
+      deep: [95, 10, 40], blue: [225, 30, 85], cyan: [255, 125, 175], white: [255, 232, 242],
+      pupil: [4, 0, 2], pupilEdge: [10, 2, 6], background: ["#1c0712", "#0f030a", "#040103"],
+    },
+    saintpatrick: {  // vert trèfle et or
+      deep: [10, 65, 25], blue: [30, 175, 75], cyan: [130, 255, 130], white: [255, 210, 90],
+      pupil: [0, 3, 1], pupilEdge: [2, 8, 3], background: ["#06180b", "#030d06", "#010402"],
+    },
+    muguet: {  // vert tendre et blanc
+      deep: [20, 75, 32], blue: [60, 175, 85], cyan: [235, 255, 235], white: [255, 255, 255],
+      pupil: [0, 3, 1], pupilEdge: [2, 8, 3], background: ["#071a0c", "#040e07", "#010402"],
+    },
+    poissonavril: {  // bleu océan et orange poisson
+      deep: [5, 55, 75], blue: [20, 165, 205], cyan: [255, 145, 45], white: [220, 250, 255],
+      pupil: [0, 2, 4], pupilEdge: [2, 6, 10], background: ["#04161e", "#020b10", "#000305"],
+    },
+    naissancejarvis: {  // le bleu de JARVIS et l'or
+      deep: [12, 42, 110], blue: [34, 118, 255], cyan: [70, 214, 255], white: [255, 200, 80],
+      pupil: [1, 4, 12], pupilEdge: [2, 8, 20], background: ["#061329", "#030a17", "#010308"],
+    },
     // 14 Juillet : bleu, blanc et rouge ensemble (anneaux bleus, arcs rouges, graduations blanches).
     tricolore: {
       deep: [0, 35, 120], blue: [0, 85, 164], cyan: [239, 65, 53], white: [255, 255, 255],
@@ -226,9 +267,9 @@
                          vx: (right ? -1 : 1) * (0.6 + Math.random()) * s, vy: 0, r: (6 + Math.random() * 8) * s });
     }
     if (kind === "hyperspace") {
-      const angle = Math.random() * Math.PI * 2, d = (fresh ? Math.random() * 0.45 : Math.random() * 0.08) * Math.min(w, h);
-      Object.assign(p, { x: w / 2 + Math.cos(angle) * d, y: h / 2 + Math.sin(angle) * d, a: angle,
-                         speed: (2 + Math.random() * 3) * s, vx: 0, vy: 0 });
+      // Étoile fixe : direction depuis le centre et distance (fraction du demi-écran).
+      Object.assign(p, { a: Math.random() * Math.PI * 2, d: 0.08 + Math.random() * 0.95, vx: 0, vy: 0,
+                         x: w / 2, y: h / 2, r: (0.6 + Math.random() * 1.2) * s, tw: Math.random() * 6 });
     }
     if (kind === "lily") { p.vy *= 0.5; p.r = (5 + Math.random() * 4) * s; }
     if (kind === "clovers") { p.vy *= 0.6; p.r *= 1.6; }
@@ -244,15 +285,65 @@
     if (!effect) { fxg && fxg.clearRect(0, 0, fx.width, fx.height); return; }
     fx.width = innerWidth; fx.height = innerHeight;
     const count = { snow: 90, embers: 50, confetti: 70, sparkle: 60, hearts: 40, clovers: 30, fish: 9, lily: 22,
-                    hyperspace: 140 }[effect] || 40;
+                    hyperspace: 220 }[effect] || 40;
+    hyperStart = now();
     for (let i = 0; i < count; i++) fxParticles.push(spawn(effect, true));
     if (!fxRunning) { fxRunning = true; requestAnimationFrame(drawEffect); }
+  }
+
+  // Hyperespace comme dans les films, en boucle de 14 s : ciel étoilé (6 s), toutes les étoiles s'étirent ensemble
+  // en traits partant du centre (1,2 s), tunnel bleuté qui défile (3,5 s), retour aux étoiles (0,8 s).
+  const HYPER = { cruise: 6, stretch: 1.2, tunnel: 3.5, exit: 0.8 };
+  let hyperStart = 0, hyperPhase = "cruise", hyperK = 0;
+
+  function hyperStep() {
+    const cycle = HYPER.cruise + HYPER.stretch + HYPER.tunnel + HYPER.exit;
+    let t = (now() - hyperStart) % cycle;
+    const ease = (x) => x * x * (3 - 2 * x);
+    const before = hyperPhase;
+    if (t < HYPER.cruise) { hyperPhase = "cruise"; hyperK = 0; }
+    else if ((t -= HYPER.cruise) < HYPER.stretch) { hyperPhase = "stretch"; hyperK = ease(t / HYPER.stretch); }
+    else if ((t -= HYPER.stretch) < HYPER.tunnel) { hyperPhase = "tunnel"; hyperK = 1; }
+    else { hyperPhase = "exit"; hyperK = 1 - ease((t - HYPER.tunnel) / HYPER.exit); }
+    if (before === "exit" && hyperPhase === "cruise") {  // retour : nouveau ciel étoilé
+      for (const p of fxParticles) Object.assign(p, spawn("hyperspace", true));
+    }
+    if (hyperPhase === "tunnel" || hyperPhase === "exit") {  // lueur bleue du tunnel
+      const w = fx.width, h = fx.height;
+      const glow = fxg.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.hypot(w, h) / 2);
+      glow.addColorStop(0, `rgba(120, 170, 255, ${0.10 * hyperK})`);
+      glow.addColorStop(1, "rgba(120, 170, 255, 0)");
+      fxg.fillStyle = glow;
+      fxg.fillRect(0, 0, w, h);
+    }
+  }
+
+  function drawHyperStar(p, w, h) {
+    const max = Math.hypot(w, h) / 2, cx = w / 2, cy = h / 2, dx = Math.cos(p.a), dy = Math.sin(p.a);
+    if (hyperPhase === "tunnel") {  // les traits filent vers l'extérieur
+      p.d += 0.012 + p.d * 0.03;
+      if (p.d > 1.15) p.d = 0.05 + Math.random() * 0.15;
+    }
+    p.x = cx + dx * p.d * max; p.y = cy + dy * p.d * max;
+    if (hyperK < 0.02) {  // ciel étoilé : points qui scintillent
+      fxg.fillStyle = `rgba(255, 255, 255, ${0.45 + 0.4 * Math.sin(now() * 2 + p.tw)})`;
+      fxg.beginPath(); fxg.arc(p.x, p.y, p.r, 0, Math.PI * 2); fxg.fill();
+      return;
+    }
+    // Trait : de l'étoile vers le centre, d'autant plus long que l'étirement est avancé et l'étoile lointaine.
+    const tail = p.d * max * (0.15 + 0.6 * hyperK);
+    const blue = hyperPhase === "tunnel" ? 1 : hyperK;
+    fxg.strokeStyle = `rgba(${Math.round(255 - 70 * blue)}, ${Math.round(255 - 30 * blue)}, 255, ${0.35 + 0.55 * hyperK})`;
+    fxg.lineWidth = p.r * (0.8 + hyperK);
+    fxg.lineCap = "round";
+    fxg.beginPath(); fxg.moveTo(p.x - dx * tail, p.y - dy * tail); fxg.lineTo(p.x, p.y); fxg.stroke();
   }
 
   function drawEffect() {
     if (!effect) { fxRunning = false; return; }
     const w = fx.width, h = fx.height;
     fxg.clearRect(0, 0, w, h);
+    if (effect === "hyperspace") hyperStep();
     for (const p of fxParticles) {
       p.x += p.vx + (effect === "snow" ? Math.sin(p.a) * 0.3 : 0);
       p.y += p.vy; p.a += p.va; p.life += 0.01;
@@ -301,14 +392,7 @@
         }
         fxg.restore();
       } else if (effect === "hyperspace") {
-        // Passage en hyperespace : les étoiles filent depuis le centre en s'allongeant.
-        const x0 = p.x, y0 = p.y;
-        p.speed *= 1.05;
-        p.x += Math.cos(p.a) * p.speed; p.y += Math.sin(p.a) * p.speed;
-        fxg.strokeStyle = rgba(COLOR.white, Math.min(0.9, 0.15 + p.speed / 25));
-        fxg.lineWidth = Math.max(1, p.speed / 8);
-        fxg.beginPath(); fxg.moveTo(x0 - Math.cos(p.a) * p.speed * 2, y0 - Math.sin(p.a) * p.speed * 2);
-        fxg.lineTo(p.x, p.y); fxg.stroke();
+        drawHyperStar(p, w, h);
       } else if (effect === "clovers") {
         // Trèfle à trois feuilles qui tombe en tournant (Saint-Patrick).
         const r = p.r * 1.6;
@@ -929,16 +1013,16 @@
         setTheme(`teinte${h}`, h);
       }
       if (event.key === "r" || event.key === "R") setTheme("arcenciel");
-      const parties = { n: ["noel", [0, 130], "Joyeux Noël", "snow"], h: ["halloween", [28, 272], "Joyeux Halloween", "embers"],
+      const parties = { n: ["noel", [0, 130], "Joyeux Noël", "snow", "noel"], h: ["halloween", [28, 272], "Joyeux Halloween", "embers", "halloween"],
                         b: ["anniversaire", "rainbow", "Joyeux anniversaire !", "confetti"],
-                        y: ["nouvelan", [44, "night", 44, 205], "Bonne année !", "sparkle"],
-                        v: ["saintvalentin", [342, 325], "Joyeuse Saint-Valentin", "hearts"],
-                        p: ["saintpatrick", [130, 155], "Joyeuse Saint-Patrick", "clovers"],
+                        y: ["nouvelan", [44, "night", 44, 205], "Bonne année !", "sparkle", "nouvelan"],
+                        v: ["saintvalentin", [342, 325], "Joyeuse Saint-Valentin", "hearts", "saintvalentin"],
+                        p: ["saintpatrick", [130, 155], "Joyeuse Saint-Patrick", "clovers", "saintpatrick"],
                         f: ["quatorzejuillet", null, "Bonne fête nationale", "sparkle", "tricolore"],
-                        o: ["poissonavril", [188, 28], "Poisson d'avril !", "fish"],
-                        m: ["muguet", [130, "night"], "Joyeux 1er mai", "lily"],
-                        w: ["starwars", [215, 0], "Que la Force soit avec vous", "hyperspace"],
-                        j: ["naissancejarvis", [205, 44], "Joyeux anniversaire JARVIS : 1 an", "sparkle"] };
+                        o: ["poissonavril", [188, 28], "Poisson d'avril !", "fish", "poissonavril"],
+                        m: ["muguet", [130, "night"], "Joyeux 1er mai", "lily", "muguet"],
+                        w: ["starwars", [215, 0], "Que la Force soit avec vous", "hyperspace", "starwars"],
+                        j: ["naissancejarvis", [205, 44], "Joyeux anniversaire JARVIS : 1 an", "sparkle", "naissancejarvis"] };
       if (event.key === "u" || event.key === "U") {  // démo : échéance dans 9 minutes
         showUpcoming({ label: "Dentiste", kind: "event", seconds: 540, window: 900 });
       }
