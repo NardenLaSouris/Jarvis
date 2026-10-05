@@ -286,6 +286,8 @@
     if (kind === effect) return;
     effect = kind;
     fx.style.zIndex = BEHIND.has(effect) ? "-1" : "";
+    // Sous le visage, le calque passerait aussi sous le fond du <body> : fond transparent (celui de <html> reste).
+    document.body.style.background = BEHIND.has(effect) ? "transparent" : "";
     fxParticles = [];
     if (!effect) { fxg && fxg.clearRect(0, 0, fx.width, fx.height); return; }
     fx.width = innerWidth; fx.height = innerHeight;
