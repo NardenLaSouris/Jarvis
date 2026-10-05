@@ -273,7 +273,8 @@
       // Répartition uniforme sur l'écran (racine : autant d'étoiles loin du centre que près).
       // va = 0 : « a » est ici la direction depuis le centre ; la boucle commune la faisait tourner (étoiles en orbite).
       Object.assign(p, { a: Math.random() * Math.PI * 2, d: inner + Math.sqrt(Math.random()) * (1.02 - inner), vx: 0,
-                         vy: 0, va: 0, x: w / 2, y: h / 2, r: (0.5 + Math.random() * 0.9) * s, tw: Math.random() * 6 });
+                         vy: 0, va: 0, x: w / 2, y: h / 2, r: (0.5 + Math.random() * 0.9) * s, tw: Math.random() * 6,
+                         sp: 0.5 + Math.random() * 1.3, len: 0.45 + Math.random() * 0.9 });
     }
     if (kind === "lily") { p.vy *= 0.5; p.r = (5 + Math.random() * 4) * s; }
     if (kind === "clovers") { p.vy *= 0.6; p.r *= 1.6; }
@@ -339,8 +340,11 @@
     const k = w / Math.max(1, fx.width);  // canevas du visage : pixels physiques
     const inner = hyperInner(w, h);
     if (hyperPhase === "tunnel") {  // les traits filent vers l'extérieur, depuis le bord du visage
-      p.d += 0.004 + (p.d - inner) * 0.04;
-      if (p.d > 1.15) p.d = inner + Math.random() * 0.04;
+      p.d += (0.004 + (p.d - inner) * 0.04) * p.sp;
+      if (p.d > 1.15 + p.len * 0.2) {
+        Object.assign(p, { a: Math.random() * Math.PI * 2, d: inner + Math.random() * Math.random() * 0.35,
+                           sp: 0.5 + Math.random() * 1.3, len: 0.45 + Math.random() * 0.9 });
+      }
     }
     p.x = cx + dx * p.d * max; p.y = cy + dy * p.d * max;
     if (hyperK < 0.02) {  // ciel étoilé : points qui scintillent
@@ -349,7 +353,7 @@
       return;
     }
     // Trait : de l'étoile vers le visage, jamais en deçà de son bord (le saut part de l'extérieur du visage).
-    const tail = Math.min((p.d - inner) * max, (p.d - inner) * max * 0.9 * hyperK + p.r);
+    const tail = Math.min((p.d - inner) * max, (p.d - inner) * max * 0.9 * hyperK * p.len + p.r);
     const blue = hyperPhase === "tunnel" ? 1 : hyperK;
     hctx.strokeStyle = `rgba(${Math.round(255 - 50 * blue)}, ${Math.round(255 - 20 * blue)}, 255, ${0.4 + 0.45 * hyperK})`;
     hctx.lineWidth = Math.max(0.8, p.r * k * (0.8 + 0.6 * hyperK));
