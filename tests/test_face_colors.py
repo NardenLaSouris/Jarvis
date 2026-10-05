@@ -224,3 +224,11 @@ def test_holidays_have_their_own_multicolour_palette():
     store_less = FaceServer(VisualState(), clock=lambda: datetime(2027, 5, 4, 12, 0))
     assert store_less.payload()["palette"] == "starwars" and store_less.payload()["effect"] == "hyperspace"
     assert "function hyperStep" in js and "stretch" in js and "tunnel" in js  # saut fidèle aux films
+
+
+def test_hyperspace_stars_never_orbit():
+    # Les étoiles tournaient autour du visage : la boucle commune des effets incrémente « a » (rotation des
+    # confettis), qui est pour l'hyperespace la direction de l'étoile depuis le centre.
+    js = (ROOT / "jarvis" / "face" / "static" / "face.js").read_text(encoding="utf-8")
+    block = js[js.index('if (kind === "hyperspace") {'):js.index('if (kind === "lily")')]
+    assert "va: 0" in block

@@ -270,8 +270,9 @@
       // Étoile fixe : direction depuis le centre et distance (fraction du demi-écran).
       const inner = hyperInner(w, h);
       // Répartition uniforme sur l'écran (racine : autant d'étoiles loin du centre que près).
+      // va = 0 : « a » est ici la direction depuis le centre ; la boucle commune la faisait tourner (étoiles en orbite).
       Object.assign(p, { a: Math.random() * Math.PI * 2, d: inner + Math.sqrt(Math.random()) * (1.02 - inner), vx: 0,
-                         vy: 0, x: w / 2, y: h / 2, r: (0.5 + Math.random() * 0.9) * s, tw: Math.random() * 6 });
+                         vy: 0, va: 0, x: w / 2, y: h / 2, r: (0.5 + Math.random() * 0.9) * s, tw: Math.random() * 6 });
     }
     if (kind === "lily") { p.vy *= 0.5; p.r = (5 + Math.random() * 4) * s; }
     if (kind === "clovers") { p.vy *= 0.6; p.r *= 1.6; }
