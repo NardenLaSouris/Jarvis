@@ -70,6 +70,61 @@ body {
   opacity: 0;
 }
 
+/* Échéance proche : anneau ambre autour du visage, rempli pendant le dernier quart d'heure */
+#upcoming {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  width: 94vmin;
+  height: 94vmin;
+  transform: translate(-50%, -50%) rotate(-90deg);
+  pointer-events: none;
+  transition: opacity 0.8s ease;
+}
+
+#upcoming[hidden] {
+  display: block;
+  opacity: 0;
+}
+
+#upcoming circle {
+  fill: none;
+  stroke-width: 0.7;
+}
+
+#upcoming .track { stroke: rgba(255, 176, 40, 0.14); }
+
+#upcoming .fill {
+  stroke: rgb(255, 176, 40);
+  stroke-linecap: round;
+  stroke-dasharray: 100;
+  filter: drop-shadow(0 0 1.2px rgba(255, 176, 40, 0.9));
+  transition: stroke-dashoffset 1s linear;
+}
+
+#upcoming.close .fill { animation: urgent 1.2s ease-in-out infinite; }
+
+@keyframes urgent { 50% { opacity: 0.45; } }
+
+#upcoming-label {
+  position: fixed;
+  left: 50%;
+  bottom: 4vh;
+  transform: translateX(-50%);
+  color: rgb(255, 196, 90);
+  font: 400 clamp(15px, 2.2vw, 26px)/1.3 "Segoe UI", system-ui, sans-serif;
+  letter-spacing: 0.08em;
+  text-shadow: 0 0 12px rgba(255, 176, 40, 0.7);
+  white-space: nowrap;
+  pointer-events: none;
+  transition: opacity 0.8s ease;
+}
+
+#upcoming-label[hidden] {
+  display: block;
+  opacity: 0;
+}
+
 #debug {
   position: fixed;
   left: 12px;

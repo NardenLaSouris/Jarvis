@@ -240,6 +240,8 @@ class FaceConfig:
     # Thèmes de fête en « auto » (Noël, Halloween, Pâques...) ; birthday : « MM-JJ » pour le thème anniversaire.
     seasons: bool = True
     birthday: str = ""
+    # Premier démarrage de JARVIS (« AAAA-MM-JJ ») : son anniversaire chaque année.
+    jarvis_birthday: str = ""
 
 
 @dataclass(frozen=True)

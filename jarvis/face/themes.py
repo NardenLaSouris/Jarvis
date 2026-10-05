@@ -32,6 +32,12 @@ SEASONS = {
                  "effect": "sparkle"},
     "saintvalentin": {"label": "Saint-Valentin", "hues": [342, 325], "greeting": "Joyeuse Saint-Valentin",
                       "effect": "hearts"},
+    "poissonavril": {"label": "1er avril", "hues": [188, 28], "greeting": "Poisson d'avril !", "effect": "fish"},
+    "muguet": {"label": "1er Mai", "hues": [130, "night"], "greeting": "Joyeux 1er mai", "effect": "lily"},
+    "starwars": {"label": "Star Wars Day", "hues": [215, 0], "greeting": "Que la Force soit avec vous",
+                 "effect": "hyperspace"},
+    "naissancejarvis": {"label": "anniversaire de JARVIS", "hues": [205, 44],
+                        "greeting": "Joyeux anniversaire JARVIS", "effect": "sparkle"},
     "saintpatrick": {"label": "Saint-Patrick", "hues": [130, 155], "greeting": "Joyeuse Saint-Patrick",
                      "effect": "clovers"},
     "paques": {"label": "Pâques", "hues": [325, 55, 130, 188], "greeting": "Joyeuses Pâques", "effect": "confetti"},
@@ -45,7 +51,8 @@ SEASONS = {
     "anniversaire": {"label": "anniversaire", "hues": "rainbow", "greeting": "Joyeux anniversaire !",
                      "effect": "confetti"},
 }
-# day : le bleu d'origine (réglé à la main) ; night : noir et blanc ; arcenciel : toutes les couleurs à tour de rôle.
+# day : le bleu d'origine (réglé à la main) ; night : noir et blanc ;
+# arcenciel : toutes les couleurs à tour de rôle.
 THEMES = ("auto", "day", "night", "arcenciel", *COLORS, *SEASONS)
 LABELS = {"auto": "automatique (bleu le jour, noir et blanc la nuit, fêtes)", "day": "bleu",
           "night": "noir et blanc", "arcenciel": "arc-en-ciel", "emeraude": "émeraude",
@@ -61,6 +68,10 @@ SAID = {
     "saint patrick": "saintpatrick", "paques": "paques", "fete de la musique": "fetemusique",
     "14 juillet": "quatorzejuillet", "quatorze juillet": "quatorzejuillet", "fete nationale": "quatorzejuillet",
     "halloween": "halloween", "noel": "noel", "anniversaire": "anniversaire",
+    "poisson d avril": "poissonavril", "1er avril": "poissonavril", "premier avril": "poissonavril",
+    "1er mai": "muguet", "premier mai": "muguet", "muguet": "muguet", "star wars": "starwars",
+    "4 mai": "starwars", "la force": "starwars", "anniversaire de jarvis": "naissancejarvis",
+    "ton anniversaire": "naissancejarvis", "ta naissance": "naissancejarvis",
 }
 
 
@@ -89,11 +100,31 @@ def parse_birthday(value: str) -> tuple[int, int] | None:
     return month, day
 
 
-def season_of(day: date, birthday: tuple[int, int] | None = None) -> str | None:
-    """Fête du jour (prise d'elle-même par le visage en « auto »), ou None. L'anniversaire passe avant tout."""
+def parse_born(value: str) -> date | None:
+    """« 2026-10-02 » (premier démarrage de JARVIS) -> date ; vide -> None."""
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(value.strip())
+    except ValueError as exc:
+        raise ValueError(f"[face] jarvis_birthday : AAAA-MM-JJ attendu, pas {value!r}") from exc
+
+
+def jarvis_age(day: date, born: date | None) -> int | None:
+    """Âge de JARVIS le jour anniversaire de son premier démarrage (1 an et plus), sinon None."""
+    if born is None or (day.month, day.day) != (born.month, born.day) or day.year <= born.year:
+        return None
+    return day.year - born.year
+
+
+def season_of(day: date, birthday: tuple[int, int] | None = None, born: date | None = None) -> str | None:
+    """Fête du jour (prise d'elle-même par le visage en « auto »), ou None. Votre anniversaire passe avant tout,
+    puis celui de JARVIS (premier démarrage)."""
     md = (day.month, day.day)
     if birthday is not None and md == birthday:
         return "anniversaire"
+    if jarvis_age(day, born) is not None:
+        return "naissancejarvis"
     if md in ((12, 31), (1, 1)):
         return "nouvelan"
     if (12, 20) <= md <= (12, 26):
@@ -103,8 +134,8 @@ def season_of(day: date, birthday: tuple[int, int] | None = None) -> str | None:
     sunday = easter(day.year)
     if sunday - timedelta(days=1) <= day <= sunday + timedelta(days=1):
         return "paques"
-    return {(2, 14): "saintvalentin", (3, 17): "saintpatrick", (6, 21): "fetemusique",
-            (7, 14): "quatorzejuillet"}.get(md)
+    return {(2, 14): "saintvalentin", (3, 17): "saintpatrick", (4, 1): "poissonavril", (5, 1): "muguet",
+            (5, 4): "starwars", (6, 21): "fetemusique", (7, 14): "quatorzejuillet"}.get(md)
 
 
 def label(theme: str) -> str:

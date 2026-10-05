@@ -181,6 +181,28 @@
   const fxg = fx ? fx.getContext("2d") : null;
   let effect = "", fxParticles = [], fxRunning = false;
 
+  // --- Échéance proche : anneau ambre et « Dentiste dans 12 min » ---------------------------------------
+  const upcomingEl = document.getElementById("upcoming");
+  const upcomingLabel = document.getElementById("upcoming-label");
+
+  function spokenLeft(seconds) {
+    if (seconds < 60) return "dans moins d'une minute";
+    const minutes = Math.ceil(seconds / 60);
+    return `dans ${minutes} min`;
+  }
+
+  function showUpcoming(next) {
+    if (!upcomingEl || !upcomingLabel) return;
+    const on = !!(next && next.seconds > 0 && next.window > 0);
+    upcomingEl.hidden = upcomingLabel.hidden = !on;
+    if (!on) return;
+    const done = Math.max(0, Math.min(1, 1 - next.seconds / next.window));
+    upcomingEl.querySelector(".fill").style.strokeDashoffset = String(100 - done * 100);
+    upcomingEl.classList.toggle("close", next.seconds <= 60);
+    const what = next.kind === "timer" ? `Fin du ${next.label}` : next.label;
+    upcomingLabel.textContent = `${what} ${spokenLeft(next.seconds)}`;
+  }
+
   function showGreeting(text) {
     if (!greetingEl) return;
     if (text) greetingEl.textContent = text;
@@ -196,6 +218,17 @@
                 a: Math.random() * Math.PI * 2, va: (Math.random() - 0.5) * 0.1, life: Math.random(),
                 hue: Math.floor(Math.random() * 360) };
     if (rising) p.vy = -p.vy * 0.8;
+    if (kind === "fish") {
+      const right = Math.random() < 0.5;
+      Object.assign(p, { x: fresh ? Math.random() * w : (right ? w + 50 : -50), y: h * (0.1 + Math.random() * 0.8),
+                         vx: (right ? -1 : 1) * (0.6 + Math.random()) * s, vy: 0, r: (6 + Math.random() * 8) * s });
+    }
+    if (kind === "hyperspace") {
+      const angle = Math.random() * Math.PI * 2, d = Math.random() * 40 * s;
+      Object.assign(p, { x: w / 2 + Math.cos(angle) * d, y: h / 2 + Math.sin(angle) * d, a: angle,
+                         speed: (0.5 + Math.random() * 1.5) * s, vx: 0, vy: 0 });
+    }
+    if (kind === "lily") { p.vy *= 0.5; p.r *= 1.4; }
     if (kind === "clovers") { p.vy *= 0.6; p.r *= 1.6; }
     if (kind === "sparkle") { p.vy = 0; p.vx = 0; }
     return p;
@@ -208,7 +241,8 @@
     fxParticles = [];
     if (!effect) { fxg && fxg.clearRect(0, 0, fx.width, fx.height); return; }
     fx.width = innerWidth; fx.height = innerHeight;
-    const count = { snow: 90, embers: 50, confetti: 70, sparkle: 60, hearts: 40, clovers: 30 }[effect] || 40;
+    const count = { snow: 90, embers: 50, confetti: 70, sparkle: 60, hearts: 40, clovers: 30, fish: 9, lily: 22,
+                    hyperspace: 140 }[effect] || 40;
     for (let i = 0; i < count; i++) fxParticles.push(spawn(effect, true));
     if (!fxRunning) { fxRunning = true; requestAnimationFrame(drawEffect); }
   }
@@ -220,7 +254,7 @@
     for (const p of fxParticles) {
       p.x += p.vx + (effect === "snow" ? Math.sin(p.a) * 0.3 : 0);
       p.y += p.vy; p.a += p.va; p.life += 0.01;
-      if (p.y > h + 20 || p.y < -20 || p.x < -20 || p.x > w + 20) Object.assign(p, spawn(effect, false));
+      if (p.y > h + 60 || p.y < -60 || p.x < -60 || p.x > w + 60) Object.assign(p, spawn(effect, false));
       if (effect === "snow") {
         fxg.fillStyle = "rgba(255,255,255,0.75)";
         fxg.beginPath(); fxg.arc(p.x, p.y, p.r, 0, Math.PI * 2); fxg.fill();
@@ -237,6 +271,42 @@
         fxg.fillStyle = rgba(COLOR.white, glow * 0.9);
         fxg.beginPath(); fxg.arc(p.x, p.y, p.r * glow, 0, Math.PI * 2); fxg.fill();
         if (p.life > 3) Object.assign(p, spawn(effect, true), { life: 0 });
+      } else if (effect === "fish") {
+        // Poisson d'avril : corps, queue et œil, nage en ondulant.
+        const r = p.r, dir = Math.sign(p.vx) || 1;
+        p.y += Math.sin(p.life * 3) * 0.3;
+        fxg.save(); fxg.translate(p.x, p.y); fxg.scale(dir, 1);
+        fxg.fillStyle = rgba(COLOR.cyan, 0.75);
+        fxg.beginPath(); fxg.ellipse(0, 0, r * 1.6, r * 0.8, 0, 0, Math.PI * 2); fxg.fill();
+        fxg.beginPath(); fxg.moveTo(-r * 1.4, 0); fxg.lineTo(-r * 2.6, -r * 0.8); fxg.lineTo(-r * 2.6, r * 0.8);
+        fxg.closePath(); fxg.fill();
+        fxg.fillStyle = "rgba(0,0,0,0.7)";
+        fxg.beginPath(); fxg.arc(r * 0.9, -r * 0.2, r * 0.18, 0, Math.PI * 2); fxg.fill();
+        fxg.restore();
+      } else if (effect === "lily") {
+        // Brin de muguet : tige verte, feuille, clochettes blanches.
+        const r = p.r * 1.4;
+        fxg.save(); fxg.translate(p.x, p.y); fxg.rotate(p.a * 0.3);
+        fxg.strokeStyle = "rgba(70, 180, 90, 0.75)"; fxg.lineWidth = Math.max(1, r * 0.15);
+        fxg.beginPath(); fxg.moveTo(0, r * 2.4); fxg.quadraticCurveTo(r * 0.2, 0, r * 1.2, -r * 1.6); fxg.stroke();
+        fxg.fillStyle = "rgba(70, 180, 90, 0.35)";
+        fxg.beginPath(); fxg.ellipse(-r * 0.5, r * 1.2, r * 0.35, r * 1.3, -0.3, 0, Math.PI * 2); fxg.fill();
+        fxg.fillStyle = "rgba(255, 255, 250, 0.85)";
+        for (let k = 0; k < 4; k++) {
+          const t = k / 4;
+          fxg.beginPath(); fxg.arc(r * (0.25 + t), -r * (0.1 + t * 1.3) + r * 0.45, r * (0.28 - t * 0.04), 0, Math.PI * 2);
+          fxg.fill();
+        }
+        fxg.restore();
+      } else if (effect === "hyperspace") {
+        // Passage en hyperespace : les étoiles filent depuis le centre en s'allongeant.
+        const x0 = p.x, y0 = p.y;
+        p.speed *= 1.035;
+        p.x += Math.cos(p.a) * p.speed; p.y += Math.sin(p.a) * p.speed;
+        fxg.strokeStyle = rgba(COLOR.white, Math.min(0.9, 0.15 + p.speed / 25));
+        fxg.lineWidth = Math.max(1, p.speed / 8);
+        fxg.beginPath(); fxg.moveTo(x0 - Math.cos(p.a) * p.speed * 2, y0 - Math.sin(p.a) * p.speed * 2);
+        fxg.lineTo(p.x, p.y); fxg.stroke();
       } else if (effect === "clovers") {
         // Trèfle à trois feuilles qui tombe en tournant (Saint-Patrick).
         const r = p.r * 1.6;
@@ -801,7 +871,7 @@
         debugEl.textContent = `${face.state}  ${fps.toFixed(0)} FPS  niveau ${face.env.core.toFixed(2)}` +
           (DEMO ? "\n1 veille · 2 écoute · 3 réflexion · 4 parole · A cycle auto · T jour/nuit · C couleur · R arc-en-ciel"
             + " · N Noël · H Halloween · B anniversaire · Y nouvel an · V Saint-Valentin · P Saint-Patrick"
-            + " · F 14 Juillet" : "");
+            + " · F 14 Juillet · O 1er avril · M 1er mai · W Star Wars · J JARVIS · U rendez-vous" : "");
       }
     }
     requestAnimationFrame(frame);
@@ -824,6 +894,7 @@
         const party = data.theme !== "error" && !FORCED_THEME;
         showGreeting(party ? data.greeting : "");
         setEffect(party ? data.effect : "");
+        showUpcoming(data.upcoming);
         showErrors(data.theme === "error" ? data.error_messages : []);
         if (PREVIEW_ERROR) previewError();
         if (data.audio_source === "measured" || data.audio_source === "external") setAudioLevel(data.audio_level);
@@ -861,7 +932,14 @@
                         y: ["nouvelan", [44, "night", 44, 205], "Bonne année !", "sparkle"],
                         v: ["saintvalentin", [342, 325], "Joyeuse Saint-Valentin", "hearts"],
                         p: ["saintpatrick", [130, 155], "Joyeuse Saint-Patrick", "clovers"],
-                        f: ["quatorzejuillet", null, "Bonne fête nationale", "sparkle", "tricolore"] };
+                        f: ["quatorzejuillet", null, "Bonne fête nationale", "sparkle", "tricolore"],
+                        o: ["poissonavril", [188, 28], "Poisson d'avril !", "fish"],
+                        m: ["muguet", [130, "night"], "Joyeux 1er mai", "lily"],
+                        w: ["starwars", [215, 0], "Que la Force soit avec vous", "hyperspace"],
+                        j: ["naissancejarvis", [205, 44], "Joyeux anniversaire JARVIS : 1 an", "sparkle"] };
+      if (event.key === "u" || event.key === "U") {  // démo : échéance dans 9 minutes
+        showUpcoming({ label: "Dentiste", kind: "event", seconds: 540, window: 900 });
+      }
       const party = parties[event.key.toLowerCase()];
       if (party) { setTheme(party[0], undefined, party[1], party[4]); showGreeting(party[2]); setEffect(party[3]); }
     });

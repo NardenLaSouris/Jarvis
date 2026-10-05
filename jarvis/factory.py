@@ -650,9 +650,14 @@ def build_agent(
         barge_in=cfg.assistant.barge_in,
         min_confidence=cfg.stt.min_confidence,
     )
-    return Agent(settings, source, sink, wake_word, recorder, stt, llm, tts, router, on_event,
+    from jarvis.face.upcoming import Upcoming
+
+    agent = Agent(settings, source, sink, wake_word, recorder, stt, llm, tts, router, on_event,
                  stream_audio=cfg.tts.stream_audio, merge_under=cfg.tts.merge_under, web=web,
                  tools=tools, corrector=corrector, notifications=voice, alarm=routines.alarm if routines else None,
                  services=tuple(s for s in (api, routines, timers, notifications, worker) if s is not None),
                  fast_path=cfg.tools.fast_path, routines=routines, profiles=build_profiles(cfg),
                  wake_verifier=build_wake_verifier(cfg), wake_captures=build_wake_captures(cfg))
+    # Échéance proche (rendez-vous, minuteur, rappel) pour l'anneau du visage.
+    agent.upcoming = Upcoming(calendar, timers) if calendar is not None or timers is not None else None
+    return agent

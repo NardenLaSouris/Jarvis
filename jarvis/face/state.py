@@ -92,6 +92,8 @@ class VisualState:
         self._before_speaking: str | None = None
         self._errors: dict[str, float | None] = {}  # source -> fin (None : jusqu'au retour à la normale)
         self._messages: dict[str, str] = {}  # source -> explication affichée sur le visage
+        # Échéance proche (jarvis/face/upcoming.py) : anneau ambre et « Dentiste dans 12 min ».
+        self.upcoming: Callable[[], dict | None] | None = None
 
     def set_error(self, source: str, active: bool, message: str = "") -> None:
         """Panne durable (worker LLM hors ligne, micro perdu) : visage en rouge jusqu'au retour à la normale."""
@@ -169,9 +171,14 @@ class VisualState:
             level, source = 0.0, "none"
         activity = ACTIVITY[state] + (0.4 * level if state == "speaking" else 0.0)
         errors = self.errors()
+        try:
+            upcoming = self.upcoming() if self.upcoming is not None else None
+        except Exception:  # le visage n'en dépend jamais
+            upcoming = None
         return {"state": state, "audio_level": round(level, 3), "audio_source": source,
                 "activity": round(min(1.0, activity), 3), "transition": round(since, 3),
-                "error": bool(errors), "errors": errors, "error_messages": self.error_messages()}
+                "error": bool(errors), "errors": errors, "error_messages": self.error_messages(),
+                "upcoming": upcoming}
 
     def _change(self, state: str) -> None:
         if state != self._state:

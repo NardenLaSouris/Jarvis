@@ -61,7 +61,8 @@ def test_snapshot_fields_and_transition_time():
     visual.set_state("thinking")
     clock.t += 2.5
     snap = visual.snapshot()
-    assert set(snap) == {"state", "audio_level", "audio_source", "activity", "transition", "error", "errors", "error_messages"}
+    assert set(snap) == {"state", "audio_level", "audio_source", "activity", "transition", "error", "errors", "error_messages",
+                         "upcoming"}
     assert snap["transition"] == 2.5 and snap["activity"] > VisualState(clock=clock).snapshot()["activity"]
 
 

@@ -147,3 +147,68 @@ def test_national_day_shows_its_three_colours_at_once(tmp_path):
     assert "tricolore: {" in js and "data.palette" in js
     patrick = FaceServer(VisualState(), clock=lambda: datetime(2026, 3, 17, 12, 0), themes=store).payload()
     assert patrick["effect"] == "clovers"
+
+
+# --- 1er avril, 1er mai, 4 mai, anniversaire de JARVIS ----------------------------------------------
+
+@pytest.mark.parametrize("day, season", [((2027, 4, 1), "poissonavril"), ((2027, 5, 1), "muguet"),
+                                         ((2027, 5, 4), "starwars"), ((2027, 10, 2), "naissancejarvis"),
+                                         ((2026, 10, 2), None), ((2027, 6, 27), "anniversaire")])
+def test_new_holidays(day, season):
+    from datetime import date
+
+    from jarvis.face.themes import parse_born, season_of
+
+    assert season_of(date(*day), (6, 27), parse_born("2026-10-02")) == season
+
+
+def test_jarvis_birthday_greeting_counts_the_years(tmp_path):
+    from datetime import date
+
+    server = FaceServer(VisualState(), clock=lambda: datetime(2028, 10, 2, 9, 0),
+                        themes=FaceThemeStore(tmp_path / "t.json"), born=date(2026, 10, 2))
+    assert server.payload()["greeting"] == "Joyeux anniversaire JARVIS : 2 ans"
+    js = (ROOT / "jarvis" / "face" / "static" / "face.js").read_text(encoding="utf-8")
+    assert all(effect in js for effect in ('"fish"', '"lily"', '"hyperspace"'))
+
+
+# --- Échéance proche ---------------------------------------------------------------------------------
+
+def test_upcoming_ring_for_events_timers_and_reminders():
+    from datetime import timedelta
+
+    from jarvis.agenda import CalendarEvent
+    from jarvis.face.upcoming import Upcoming
+    from jarvis.scheduling.manager import TimerManager
+
+    now = datetime(2026, 10, 5, 14, 0)
+
+    class Agenda:
+        reads = 0
+
+        def events(self, start, end):
+            Agenda.reads += 1
+            return [CalendarEvent("1", "Dentiste", now + timedelta(minutes=12), now + timedelta(minutes=42)),
+                    CalendarEvent("2", "Congés", now, now + timedelta(days=1), all_day=True)]
+
+    clock = {"t": 0.0}
+    upcoming = Upcoming(Agenda(), clock=lambda: now, monotonic=lambda: clock["t"])
+    assert upcoming.current() == {"label": "Dentiste", "kind": "event", "seconds": 720, "window": 900}
+    for _ in range(50):
+        upcoming.current()
+    assert Agenda.reads == 1  # le calendrier n'est pas relu 30 fois par seconde
+    timers = TimerManager(clock=lambda: now)
+    timers.create_timer(300)
+    both = Upcoming(Agenda(), timers, clock=lambda: now, monotonic=lambda: clock["t"]).current()
+    assert both["kind"] == "timer" and both["seconds"] == 300 and both["window"] == 300
+    assert Upcoming(None, TimerManager(clock=lambda: now), clock=lambda: now).current() is None
+
+
+def test_upcoming_reaches_the_face_and_never_breaks_it():
+    visual = VisualState()
+    visual.upcoming = lambda: {"label": "Dentiste", "kind": "event", "seconds": 60, "window": 900}
+    assert FaceServer(visual).payload()["upcoming"]["label"] == "Dentiste"
+    visual.upcoming = lambda: 1 / 0
+    assert FaceServer(visual).payload()["upcoming"] is None
+    html = (ROOT / "jarvis" / "face" / "static" / "index.html").read_text(encoding="utf-8")
+    assert 'id="upcoming"' in html and 'id="upcoming-label"' in html

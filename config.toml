@@ -355,6 +355,8 @@ theme_path = "data/face_theme.json"
 # (samedi-lundi), fête de la musique, 14 Juillet, Halloween (29-31/10), Noël (20-26/12) et votre anniversaire.
 seasons = true
 birthday = ""           # « MM-JJ », à mettre dans config.local.toml (ex. "07-14")
+jarvis_birthday = ""    # premier démarrage de JARVIS, « AAAA-MM-JJ » : son anniversaire chaque année
+# Aussi : 1er avril (poissons), 1er mai (muguet), 4 mai (Star Wars, hyperespace).
 
 [audio]
 sample_rate = 16000
