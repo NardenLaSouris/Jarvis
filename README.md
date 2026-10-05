@@ -628,7 +628,7 @@ et retente le worker 30 s plus tard. Les deux sont préchargés au lancement.
 
 - `[llm] model` : modèle Ollama ; sur CPU seul, préférer un 3-4B.
 - `[stt] model` : `small` (précis, ~2 s par phrase sur Ryzen 7) ou `base` (~0,7 s, moins fiable).
-- `[wake_word] threshold` et `patience` : 0,70 tenu 2 images (80 ms chacune) d'affilée, réglage retenu après un essai sur 960 enregistrements (l'évaluation d'origine donnait 0,96 pour une seule image) ; à ajuster avec `--wake-test`.
+- `[wake_word] threshold` et `patience` : 0,55 tenu 2 images (80 ms chacune) d'affilée ; bas parce que la seconde vérification (`verify`) écarte les faux réveils ; à ajuster avec `--wake-test` et `--wake-report`.
 - `[assistant] conversation_timeout` : durée d'écoute sans wake word après une réponse.
 - `[audio] min_rms`, `speech_to_noise_ratio`, `end_of_speech_silence` : détection de parole.
 
