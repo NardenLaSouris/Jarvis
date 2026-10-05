@@ -7,6 +7,7 @@ nouveau moteur (autre STT, autre LLM...) se fait ici, sans toucher à l'agent.
 from __future__ import annotations
 
 import logging
+import re
 import threading
 import time
 from pathlib import Path
@@ -260,6 +261,14 @@ def build_spotify(cfg: Config):
     from jarvis.spotify import SpotifyClient
 
     client = SpotifyClient(secret("SPOTIFY_CLIENT_ID", ENV_FILE), cfg.spotify.token_path, device=cfg.spotify.device)
+    if cfg.spotify.device and re.fullmatch(r"[\w@.-]+", cfg.spotify.player_service or "") \
+            and not cfg.spotify.player_service.startswith("-"):
+        import subprocess
+
+        service = cfg.spotify.player_service
+        # Commande fixe (aucun texte venu d'une demande) : relance du lecteur de JARVIS, service de l'utilisateur.
+        client.revive = lambda: subprocess.run(["systemctl", "--user", "restart", service], check=True, timeout=20,
+                                               capture_output=True)
     if not client.configured:
         log.info("Spotify non relié (SPOTIFY_CLIENT_ID et python -m jarvis --spotify-login) : touches multimédia seules")
         return None

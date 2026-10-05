@@ -142,6 +142,9 @@ class SpotifyClient:
         self._http, self._timeout, self._clock = http, timeout, clock
         self._sleep = time.sleep
         self._refreshing = threading.Lock()
+        # Relance du lecteur (librespot) quand l'appareil préféré a disparu ; None = jamais.
+        self.revive: Callable[[], None] | None = None
+        self.revive_wait = 15.0
 
     # --- Jeton -----------------------------------------------------------------------------------------
 
@@ -247,7 +250,10 @@ class SpotifyClient:
         """Appareil préféré (« JARVIS ») s'il est configuré et présent, sinon l'appareil actif, sinon le premier
         disponible (la lecture y est transférée)."""
         devices = self.call("GET", "/me/player/devices").get("devices", [])
-        preferred = next((d for d in devices if self.device and d.get("name", "").lower() == self.device.lower()), None)
+        preferred = self._preferred(devices)
+        if preferred is None and self.device and self.revive is not None:
+            devices = self._revived(devices)
+            preferred = self._preferred(devices)
         if preferred is not None:
             return None if preferred.get("is_active") else preferred["id"]
         active = next((d for d in devices if d.get("is_active")), None)
@@ -258,6 +264,27 @@ class SpotifyClient:
         # Rien ne joue : l'ordinateur d'abord (plutôt que le téléphone dans une poche).
         preferred = sorted(devices, key=lambda d: 0 if d.get("type") == "Computer" else 1)
         return preferred[0]["id"]
+
+    def _preferred(self, devices: list[dict]) -> dict | None:
+        return next((d for d in devices if self.device and d.get("name", "").lower() == self.device.lower()), None)
+
+    def _revived(self, devices: list[dict]) -> list[dict]:
+        """Appareil « JARVIS » absent alors que le lecteur est censé tourner : il est relancé, puis attendu."""
+        log.warning("Spotify : appareil %s introuvable, relance du lecteur", self.device)
+        try:
+            self.revive()
+        except Exception as exc:
+            log.warning("Spotify : relance du lecteur impossible : %s", exc)
+            return devices
+        deadline = self._clock() + self.revive_wait
+        while self._clock() < deadline:
+            self._sleep(1.0)
+            devices = self.call("GET", "/me/player/devices").get("devices", [])
+            if self._preferred(devices) is not None:
+                log.info("Spotify : appareil %s de retour", self.device)
+                return devices
+        log.warning("Spotify : appareil %s toujours absent après la relance", self.device)
+        return devices
 
     def find(self, query: str, kind: str) -> tuple[str, str]:
         """(uri, nom) cohérent avec la demande, quelle que soit la langue du titre :

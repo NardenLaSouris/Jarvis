@@ -128,3 +128,14 @@ def test_common_grammar_slips_still_route(heard):
 
     router = IntentRouter(load_personality(ROOT / "personality.toml"), CapabilityRegistry(), tools=("get_time",))
     assert router.route(heard).label == "tool:time"
+
+
+def test_other_command_verbs_are_never_turned_into_open():
+    # Session QA : « Joue Spotify » corrigé en « ouvre spotify » ouvrait l'application au lieu de la musique.
+    from jarvis.stt.correction import CommandCorrector
+
+    corrector = CommandCorrector({"ouvre": ("ouvre", "lance"), "ferme": ("ferme",)},
+                                 {"spotify": "spotify", "steam": "steam", "discord": "discord"})
+    for text in ("Joue Spotify", "Mets Spotify", "Relance Spotify", "Coupe Discord"):
+        assert corrector.correct(text) == text, text
+    assert corrector.correct("ou vos teams") == "ouvre steam"

@@ -159,6 +159,9 @@ class SpotifyConfig:
     # Lecture par JARVIS lui-même (librespot sur le Core, appareil Spotify Connect « device »), relayée vers la sortie
     # de la voix ([audio] remote) ; vide = la musique joue sur un appareil Spotify existant (PC, téléphone).
     device: str = ""
+    # Service utilisateur systemd du lecteur (librespot), relancé si l'appareil « device » a disparu de Spotify
+    # (session perdue après une longue inactivité) ; vide = jamais relancé.
+    player_service: str = ""
     pipe: Path = Path("data/music.fifo")
     catalog_path: Path = Path("data/spotify_catalog.json")
     duck_percent: int = 15

@@ -53,7 +53,10 @@ ACTION_CLAIMS = (
     re.compile(r"\bje (vais|m en vais) (vous )?(allumer|eteindre|envoyer|regler|mettre|lancer|ouvrir|fermer|baisser|"
                r"monter|augmenter|verrouiller|reveiller|rappeler|programmer|couper|supprimer|redemarrer|jouer|"
                r"effacer|annuler|creer|ajouter)\b"),
-    # Session QA : « Je vais verrouiller l'ordinateur », « Je vous réveillerai à 25 heures » sans aucun outil.
+    # Session QA : « Je vais verrouiller l'ordinateur », « Je vous réveillerai à 25 heures », « J'ouvre Without
+    # Me » sans aucun outil.
+    re.compile(r"\bj (ouvre|allume|eteins|arrete|active|augmente|ajoute|annule|efface|enregistre|envoie)\b"),
+    re.compile(r"\bje (lance|mets|joue|demarre|coupe|baisse|monte|programme|regle|passe a|passe au)\b"),
     re.compile(r"\bje vous (reveillerai|reveille)\b"),
     re.compile(r"\bje (verrouille|eteins|allume|ferme|ouvre|lance|coupe|redemarre|supprime|efface) (l|le|la|les|votre|"
                r"vos|ton|ta|tes)\b"),

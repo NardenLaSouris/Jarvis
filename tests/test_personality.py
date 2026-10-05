@@ -484,3 +484,8 @@ def test_more_false_action_claims_found_by_the_qa_session():
     for honest in ("Je vais vous expliquer comment faire.", "Je ne vais pas verrouiller l'ordinateur.",
                    "Je vous écoute, monsieur."):
         assert not claims_action(honest), honest
+
+
+def test_first_person_present_claims_are_detected():
+    for claim in ("J'ouvre Without Me d'Eminem pour vous.", "Je lance la musique.", "J'allume la chambre."):
+        assert claims_action(claim), claim

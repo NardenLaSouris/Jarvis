@@ -23,6 +23,11 @@ SOUND_RULES = (
 )
 ARTICLES = {"le", "la", "les", "l", "un", "une", "moi"}
 POLITE = ("s il te plait", "s il vous plait", "stp", "svp", "merci")
+# Verbes d'autres commandes, bien entendus : jamais pris pour un « ouvre » mal transcrit (« Joue Spotify » devenait
+# « ouvre spotify » et ouvrait l'application au lieu de reprendre la musique).
+OTHER_VERBS = {"joue", "jouer", "rejoue", "mets", "met", "mettre", "remets", "relance", "reprends", "reprend", "coupe",
+               "monte", "baisse", "passe", "allume", "eteins", "rallume", "cherche", "trouve", "lis", "supprime",
+               "copie", "deplace", "cree", "verrouille", "pause", "arrete", "stoppe", "ecoute", "change"}
 
 
 def sound(word: str) -> str:
@@ -75,6 +80,8 @@ class CommandCorrector:
         with_verb = self._with_known_verb(words)
         if with_verb is not None:
             return with_verb if with_verb != " ".join(words) else text
+        if words[0] in OTHER_VERBS:
+            return text
         return self._whole_phrase(words) or text
 
     def _core_words(self, text: str) -> list[str]:

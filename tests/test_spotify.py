@@ -383,3 +383,31 @@ def test_refresh_refused_but_already_renewed_by_another_process(tmp_path):
 
     spotify = client(tmp_path, refused, expired=True)
     assert spotify._access() == "autre"
+
+
+def test_missing_jarvis_player_is_restarted_then_used(tmp_path):
+    # Session QA : librespot perd sa session Spotify Connect après des heures d'inactivité (« Broken pipe ») et
+    # l'appareil « JARVIS » disparaît alors que le processus tourne : plus aucune musique sans intervention.
+    fake = FakeSpotify(devices=())
+    spotify = client(tmp_path, fake)
+    spotify.device, spotify._sleep = "JARVIS", lambda s: None
+    restarted = []
+
+    def revive():
+        restarted.append(True)
+        fake.devices.append({"id": "jarvis", "name": "JARVIS", "is_active": False})
+
+    spotify.revive = revive
+    assert spotify._device() == "jarvis" and restarted == [True]
+
+
+def test_player_restart_failure_is_reported_without_hanging(tmp_path):
+    fake = FakeSpotify(devices=())
+    spotify = client(tmp_path, fake)
+    now = {"t": 0.0}
+    spotify.device, spotify._clock = "JARVIS", lambda: now["t"]
+    spotify._sleep = lambda s: now.__setitem__("t", now["t"] + s)
+    spotify.revive = lambda: None  # relancé, mais l'appareil ne revient pas
+    with pytest.raises(ToolError):
+        spotify._device()
+    assert now["t"] <= spotify.revive_wait + 1

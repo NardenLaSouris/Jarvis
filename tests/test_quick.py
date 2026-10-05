@@ -257,3 +257,16 @@ def test_timer_requests_never_become_a_spotify_search(text):
     # Session QA : « Mets un minuteur de 0 seconde » cherchait « un minuteur » sur Spotify.
     plan_ = quick_plan(text, REGISTRY)
     assert plan_ is None or plan_["tool"] == "create_timer"
+
+
+def test_a_question_never_triggers_an_action():
+    # Session QA : « Est-ce que la musique joue ? » faisait lecture/pause sur le PC (LLM : media_play_pause).
+    from jarvis.tools.planner import _question
+
+    driver = FakeDriver()
+    llm = PlannerLLM({"type": "tool_call", "tool": "light_off", "parameters": {"room": "chambre"}})
+    run_agent(["Est-ce que la chambre est éteinte ?"], llm, full_core(driver))
+    assert ("chambre", "power", False) not in driver.calls
+    assert _question("Est-ce que la musique joue ?") and _question("Quelle est la luminosité de la chambre ?")
+    assert not _question("Est-ce que tu peux éteindre la chambre ?")
+    assert not _question("Éteins la chambre")

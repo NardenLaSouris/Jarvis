@@ -292,6 +292,9 @@ token_path = "data/spotify_token.json"
 # « device », son son est relayé vers la sortie de la voix ([audio] remote) et baisse quand JARVIS écoute ou parle.
 # Vide : la musique joue sur un appareil Spotify existant (application du PC, téléphone).
 device = ""
+# Avec device : service du lecteur, relancé par JARVIS si l'appareil a disparu (librespot perd parfois sa session
+# Spotify Connect après des heures d'inactivité, tout en continuant de tourner).
+player_service = "jarvis-librespot"
 pipe = "data/music.fifo"
 duck_percent = 15       # niveau de la musique (%) pendant que JARVIS écoute ou parle
 

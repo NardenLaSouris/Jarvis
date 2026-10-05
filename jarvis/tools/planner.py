@@ -330,6 +330,20 @@ DEFERRED_TOOLS = ("create_reminder", "cancel_reminder", "list_reminders", "creat
                   "list_alarms", "list_events", "next_events", "search_events", "free_slots", "add_event", "recall")
 
 
+READ_ONLY_TOOLS = ("get_", "list_", "light_status", "find_", "read_", "recall", "search_", "next_", "free_",
+                   "system_info", "network_status")
+QUESTION = re.compile(r"^(?:jarvis )?(?:est ce que|est ce qu|est il|est elle|y a t il|qu est ce qui|quel|quelle|quels|"
+                      r"quelles|combien|pourquoi|comment|ou est|quand)\b")
+REQUEST = re.compile(r"\b(?:tu peux|peux tu|tu pourrais|pourrais tu|vous pouvez|pouvez vous|vous pourriez|"
+                     r"pourriez vous|tu veux bien|veux tu|voudrais tu|voulez vous|tu voudrais|merci de)\b")
+
+
+def _question(text: str) -> bool:
+    """Vraie question (« est-ce que la musique joue ? »), pas une demande polie (« est-ce que tu peux allumer ? »)."""
+    norm = normalize(text)
+    return bool(QUESTION.match(norm)) and not REQUEST.search(norm)
+
+
 def _deferred(text: str) -> bool:
     norm = f" {normalize(text)} "
     return any(f" {w} " in norm for w in DEFERRED_WORDS)
@@ -358,6 +372,10 @@ def _grounded(data: dict, text: str, registry: ToolRegistry) -> dict | None:
         return data
     if not _named(data["tool"], text, registry):
         log.info("Action écartée : « %s » n'est pas demandée (%s)", data["tool"], text[:80])
+        return None
+    if _question(text) and not data["tool"].startswith(READ_ONLY_TOOLS):
+        # « Est-ce que la musique joue ? » : une question ne déclenche jamais une action (lecture/pause du PC).
+        log.info("Action écartée : « %s » pour une question (%s)", data["tool"], text[:80])
         return None
     if _deferred(text) and not data["tool"].startswith(DEFERRED_TOOLS):
         # « Rappelle-moi d'éteindre la chambre » : à rappeler plus tard, jamais à exécuter maintenant.
