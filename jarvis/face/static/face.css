@@ -59,6 +59,8 @@ body {
   letter-spacing: 0.18em;
   text-transform: uppercase;
   text-shadow: 0 0 18px var(--greeting, #46d6ff);
+  text-align: center;
+  white-space: nowrap;
   pointer-events: none;
   transition: opacity 1s ease, color 1.5s ease;
 }
