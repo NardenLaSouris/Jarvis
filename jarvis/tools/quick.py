@@ -37,6 +37,9 @@ SOUND_WORDS = ("son", "volume")
 MUTE = ("coupe le son", "coupe le volume", "mets en sourdine", "sourdine", "mute", "coupe moi le son")
 UNMUTE = ("remets le son", "remet le son", "reactive le son", "rallume le son", "enleve la sourdine",
           "retire la sourdine", "remets moi le son")
+RUNNING_APPS = ("applications ouvertes", "application ouverte", "applications sont ouvertes", "programmes ouverts",
+                "programmes sont ouverts", "qu est ce qui tourne", "qu est ce qui est ouvert", "applications en cours",
+                "logiciels ouverts", "fenetres ouvertes", "quelles applications", "quels programmes")
 TIMER_WORDS = ("minuteur", "minuteurs", "timer", "timers", "minuterie", "compte a rebours")
 REMINDER_WORDS = ("rappelle moi", "rappelez moi", "fais moi penser", "previens moi", "rappelle nous")
 ALARM_WORDS = ("reveille moi", "reveillez moi", "mets un reveil", "mets moi un reveil", "programme un reveil",
@@ -372,6 +375,10 @@ class QuickPlanner:
         return None
 
     def _apps(self, norm, text, previous):
+        # « Quelles applications sont ouvertes ? » : l'outil de lecture, sans laisser le choix au LLM (session QA :
+        # il n'en choisissait parfois aucun et répondait « je n'ai pas accès à cette information »).
+        if self._exists("list_running_applications") and _has(norm, RUNNING_APPS):
+            return "list_running_applications", {}
         for verbs, tool in ((OPEN_VERBS, "open_application"), (CLOSE_VERBS, "close_application")):
             if not self._exists(tool):
                 continue

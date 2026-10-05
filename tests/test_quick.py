@@ -270,3 +270,10 @@ def test_a_question_never_triggers_an_action():
     assert _question("Est-ce que la musique joue ?") and _question("Quelle est la luminosité de la chambre ?")
     assert not _question("Est-ce que tu peux éteindre la chambre ?")
     assert not _question("Éteins la chambre")
+
+
+@pytest.mark.parametrize("text", ["Quelles applications sont ouvertes ?", "Qu'est-ce qui tourne sur le PC ?",
+                                  "Quels programmes sont ouverts ?"])
+def test_running_applications_question_never_depends_on_the_llm(text):
+    core = make_core()
+    assert quick_plan(text, core.registry) == call("list_running_applications")

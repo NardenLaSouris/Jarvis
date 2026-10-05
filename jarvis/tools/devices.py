@@ -119,9 +119,11 @@ class AgentClient:
             code = data.get("error") if isinstance(data, dict) else None
             message = data.get("message") if isinstance(data, dict) else None
             # Réponse d'agent non fiable : seuls un code et un message textuels courts sont repris.
-            raise ToolError(code[:48] if isinstance(code, str) and code else EXECUTION_FAILED,
-                            message[:200] if isinstance(message, str) and message.strip()
-                            else f"{device.Name} a refusé l'action.") from exc
+            # Message prononcé seulement s'il est court et lisible (une réponse de 5 000 « x » était lue tronquée).
+            spoken = message.strip() if isinstance(message, str) else ""
+            if not spoken or len(spoken) > 200 or not spoken.isprintable() or not re.search(r"\s", spoken):
+                spoken = f"{device.Name} a refusé l'action."
+            raise ToolError(code[:48] if isinstance(code, str) and code else EXECUTION_FAILED, spoken) from exc
         except (OSError, ValueError, KeyError) as exc:
             log.warning("Agent %s injoignable : %s", device.url, type(exc).__name__)
             raise ToolError(DEVICE_UNREACHABLE, f"{device.Name} ne répond pas.") from exc

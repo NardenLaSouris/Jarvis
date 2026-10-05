@@ -223,7 +223,10 @@ def test_garbage_from_an_agent_never_crashes_the_core():
     from jarvis.tools.devices import AgentClient, Device
 
     replies = iter([(200, b"pas du json"), (200, b'{"status": "ok"}'), (500, b"<html>erreur</html>"),
-                    (418, b'{"error": 42, "message": ["x"]}')])
+                    (418, b'{"error": 42, "message": ["x"]}'),
+                    # Session QA : un message de 5 000 caractères était prononcé (tronqué à 200 « x »).
+                    (500, b'{"error": "boom", "message": "' + b"x" * 5000 + b'"}'),
+                    (500, '{"error": "boom", "message": "Discord n\'est pas installé."}'.encode())])
 
     class Handler(http.server.BaseHTTPRequestHandler):
         def do_POST(self):
@@ -241,9 +244,12 @@ def test_garbage_from_an_agent_never_crashes_the_core():
     device = Device("pc", "votre PC", f"http://127.0.0.1:{server.server_address[1]}", ())
     client = AgentClient("t" * 40, timeout=3)
     try:
-        for _ in range(4):
+        messages = []
+        for _ in range(6):
             with pytest.raises(ToolError) as error:
                 client.call(device, "system_info", {})
             assert isinstance(error.value.message, str) and error.value.message
+            messages.append(error.value.message)
+        assert messages[4] == "Votre PC a refusé l'action." and messages[5] == "Discord n'est pas installé."
     finally:
         server.shutdown()
