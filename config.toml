@@ -104,6 +104,7 @@ fallback_timeout = 30.0 # délai du LLM de secours (prompt court, mode dégradé
 probe_interval = 10.0   # sonde de fond (s) : reconnexion automatique quand le worker revient
 slow_after = 8.0        # réponse plus lente que cela (s) : worker marqué DEGRADED
 retry_after = 30.0      # après un échec, délai avant de resolliciter le worker sans attendre la sonde
+first_token_timeout = 10.0  # worker qui accepte la demande mais ne répond pas (gelé) : secours au bout de ce délai
 
 [lights]
 # Lumières Tuya (par exemple LSC Smart Connect), pilotées en local par le Core. Une pièce par ampoule, dans

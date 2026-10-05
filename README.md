@@ -19,8 +19,9 @@ confirmation, exécution, journal). Aucun shell, aucune commande libre.
 - **Worker LLM robuste** : état ONLINE / DEGRADED / OFFLINE, erreurs typées (injoignable, délai dépassé, erreur
   du modèle), sonde de reconnexion toutes les 10 s, métriques de latence (API, `--health`). Katana hors ligne :
   **mode dégradé** — commandes simples exécutées sans LLM, conversation par le LLM local avec un prompt court
-  (1 à 2 s au lieu de 70 s), phrase claire sinon. Réglages `[llm] connect_timeout`, `fallback_timeout`,
-  `probe_interval`, `slow_after`, `retry_after`.
+  (1 à 2 s au lieu de 70 s), phrase claire sinon. Worker gelé (connexion acceptée, aucune réponse) : secours au
+  bout de `first_token_timeout` (10 s). Réglages `[llm] connect_timeout`, `fallback_timeout`, `probe_interval`,
+  `slow_after`, `retry_after`, `first_token_timeout`.
 - **Commandes simples sans LLM** (`jarvis/tools/quick.py`, `[tools] fast_path`) : lumières, son, applications,
   minuteurs, rappels, réveils, météo, musique, agenda, mémoire, routines, verrouillage, et leurs enchaînements
   (« allume la chambre à 30 %, en bleu »). 0,2 ms au lieu de 0,5 à 1,4 s de choix d'outil.
@@ -34,20 +35,30 @@ confirmation, exécution, journal). Aucun shell, aucune commande libre.
   retenu automatiquement ; `data/memory.json`, `python -m jarvis --memory`, `GET/DELETE /api/memory`.
 - **Actions programmées** : « Dans 10 minutes, allume la chambre », « Tous les jours à 21 h, mets la lumière à
   30 % », « Éteins tout à 23 h » → routine exécutée par le même Core ; actions à confirmer refusées. Rappels à
-  heure précise ; minuteurs et rappels conservés au redémarrage (`[timers] persist`) ; `list_routines`,
-  `run_routine`, `delete_routine`.
+  heure précise, aujourd'hui, demain ou après-demain (une autre date renvoie au calendrier) ; « annule-le » vise
+  le rappel ou le minuteur qui vient d'être créé ; minuteurs et rappels conservés au redémarrage
+  (`[timers] persist`) ; `list_routines`, `run_routine`, `delete_routine`.
 - **Calendrier** (`jarvis/agenda.py`) : aujourd'hui, demain, prochains, recherche, créneaux libres, ajout,
   suppression ; calendrier local + lecture d'un .ics ou d'une adresse iCal secrète (Google, Outlook).
 - **Fichiers** (sur le PC, par l'agent) : recherche, lecture de texte, création dans un dossier de travail,
   copie ; déplacement et suppression avec confirmation, suppression récupérable (corbeille de JARVIS).
 - **Musique** : touches multimédia du PC ; Spotify par son API Web (après `--spotify-login`), joué par JARVIS
   lui-même : librespot sur le Core (appareil « JARVIS », `deploy/jarvis-librespot.service`), son relayé vers le PC
-  comme la voix, baissé pendant que JARVIS écoute ou parle.
+  comme la voix, baissé pendant que JARVIS écoute ou parle ; « est-ce que la musique joue ? » lu sur Spotify
+  (`spotify_status`). Si l'appareil « JARVIS » disparaît (librespot perd sa session après des heures
+  d'inactivité), JARVIS relance le service `[spotify] player_service` puis joue.
 - **Profils et terminaux** (`jarvis/profiles.py`) : rôles owner, adult, child, guest ; terminal → pièce et
   utilisateur ; par défaut un propriétaire, comportement inchangé.
 - **Réseau** : `network_status` ; sources des recherches Web journalisées et citées sur demande.
 - **Diagnostics** : `python -m jarvis --health`, `--diagnostics`, `--benchmark` (non destructifs).
 - **Tests silencieux** : garde-fous contre tout son, navigateur, ampoule ou touche réels (`tests/conftest.py`).
+- **Données abîmées** (`jarvis/persist.py`) : un `data/*.json` illisible (routines, souvenirs, échéances,
+  calendrier local) est renommé `<nom>.illisible-<date>` — jamais écrasé ni supprimé — et JARVIS démarre à vide.
+- **Garde-fous du choix d'outil** : une action doit être nommée par la demande (une lumière par un mot de
+  l'éclairage ou une pièce, ouvrir par « ouvre / lance »…) ; une vraie question n'appelle que des outils de
+  lecture ; une demande de rappel n'exécute jamais son contenu ; les réponses du LLM qui prétendent avoir agi
+  sans outil sont remplacées. La suite d'une demande enchaînée attend la confirmation de la première action.
+- **Configuration vérifiée** : type de chaque réglage (message avec la clé fautive), durées et fréquences > 0.
 
 ## Architecture
 
