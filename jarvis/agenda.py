@@ -35,6 +35,8 @@ log = logging.getLogger(__name__)
 EVENT_NOT_FOUND = "event_not_found"
 CALENDAR_UNAVAILABLE = "calendar_unavailable"
 DAYS = {"today": 0, "tomorrow": 1, "day_after_tomorrow": 2}
+MOMENTS = {"morning": ("08:00", "12:00"), "afternoon": ("12:00", "18:00"), "evening": ("18:00", "23:00")}
+DATE_SAID = re.compile(r"\b(?:le )?(\d{1,2})(?: (" + "|".join(normalize(m) for m in MONTHS) + r")|/(\d{1,2}))?\b")
 
 
 @dataclass(frozen=True)
@@ -287,7 +289,9 @@ class Calendar:
         return sorted(found, key=lambda e: (e.start, e.title))
 
     def day(self, offset: int) -> tuple[date, list[CalendarEvent]]:
-        day = (self._clock() + timedelta(days=offset)).date()
+        return self.on((self._clock() + timedelta(days=offset)).date())
+
+    def on(self, day: date) -> tuple[date, list[CalendarEvent]]:
         start = datetime.combine(day, datetime.min.time())
         return day, self.events(start, start + timedelta(days=1))
 
@@ -313,21 +317,82 @@ def _said_event(e: CalendarEvent, today: date, with_day: bool = False) -> str:
     return f"{day}{when}, {e.title}" + (f" ({e.location})" if e.location else "")
 
 
-def said_day(text: str) -> str | None:
+def said_date(text: str, today: date) -> date | None:
+    """Jour dit dans la demande : « demain », « jeudi », « jeudi prochain », « le 12 », « 12 octobre », « 12/10 ».
+    Session QA : « jeudi » donnait la journée d'aujourd'hui (seuls demain et après-demain étaient compris)."""
     norm = f" {normalize(text)} "
     if " apres demain " in norm:
-        return "day_after_tomorrow"
+        return today + timedelta(days=2)
     if " demain " in norm:
-        return "tomorrow"
+        return today + timedelta(days=1)
+    for index, name in enumerate(WEEKDAYS):
+        if f" {name} " in norm:
+            ahead = (index - today.weekday()) % 7
+            if ahead == 0 and f" {name} prochain " in norm:
+                ahead = 7
+            return today + timedelta(days=ahead)
+    for match in DATE_SAID.finditer(norm):
+        day, month_name, month_number = match.groups()
+        if month_name is None and month_number is None and not match.group(0).startswith("le "):
+            continue  # « à 15 heures », « 30 minutes » : pas une date
+        month = ([normalize(m) for m in MONTHS].index(month_name) + 1) if month_name else \
+            int(month_number) if month_number else today.month
+        for year in (today.year, today.year + 1):
+            try:
+                found = date(year, month, int(day))
+            except ValueError:
+                return None
+            if found >= today:
+                return found
+            if not (month_name or month_number):  # « le 3 » passé ce mois-ci : le 3 du mois prochain
+                following = (today.replace(day=1) + timedelta(days=32)).replace(day=1)
+                try:
+                    return following.replace(day=int(day))
+                except ValueError:
+                    return None
+    if " aujourd hui " in norm or " ce soir " in norm or " ce matin " in norm or " cet apres midi " in norm:
+        return today
+    return None
+
+
+def said_moment(text: str) -> str | None:
+    norm = f" {normalize(text)} "
+    if " apres midi " in norm:
+        return "afternoon"
+    if " matin " in norm or " matinee " in norm:
+        return "morning"
+    if " soir " in norm or " soiree " in norm:
+        return "evening"
     return None
 
 
 def calendar_tools(calendar: Calendar) -> list[Tool]:
-    day_param = Param(str, "jour", required=False, choices=tuple(DAYS), hidden=True, resolve=said_day)
+    def resolve_day(text: str) -> str | None:
+        found = said_date(text, calendar.now().date())
+        return found.isoformat() if found else None
+
+    def day_check(value: str) -> str:
+        if value in DAYS:
+            return value
+        try:
+            date.fromisoformat(value)
+        except ValueError as exc:
+            raise ToolError(INVALID_PARAMETERS, "Je n'ai pas compris le jour.") from exc
+        return value
+
+    def on(day: str | None) -> date:
+        today = calendar.now().date()
+        if day is None or day in DAYS:
+            return today + timedelta(days=DAYS.get(day or "today", 0))
+        return date.fromisoformat(day)
+
+    day_param = Param(str, "jour", required=False, max_length=20, hidden=True, resolve=resolve_day, check=day_check)
+    moment_param = Param(str, "moment de la journée", required=False, choices=tuple(MOMENTS), hidden=True,
+                         resolve=said_moment)
 
     def list_events(day: str | None = None) -> dict:
         today = calendar.now().date()
-        when, events = calendar.day(DAYS.get(day or "today", 0))
+        when, events = calendar.on(on(day))
         return {"day": _spoken_day(when, today), "count": len(events),
                 "events": [_said_event(e, today) for e in events]}
 
@@ -343,19 +408,23 @@ def calendar_tools(calendar: Calendar) -> list[Tool]:
                   if wanted and wanted & keywords(f"{e.title} {e.location}")]
         return {"query": query, "count": len(events), "events": [_said_event(e, now.date(), True) for e in events[:5]]}
 
-    def free_slots(day: str | None = None, duration: int | None = None) -> dict:
+    def free_slots(day: str | None = None, duration: int | None = None, moment: str | None = None) -> dict:
         minutes = (duration or 1800) / 60
         now = calendar.now()
-        when, events = calendar.day(DAYS.get(day or "today", 0))
-        start = datetime.combine(when, datetime.strptime(calendar.day_start, "%H:%M").time())
-        end = datetime.combine(when, datetime.strptime(calendar.day_end, "%H:%M").time())
+        when, events = calendar.on(on(day))
+        first, last = calendar.day_start, calendar.day_end
+        if moment in MOMENTS:  # « cet après-midi » : de midi à 18 heures, dans les limites de la journée
+            first, last = max(first, MOMENTS[moment][0]), min(last, MOMENTS[moment][1])
+        start = datetime.combine(when, datetime.strptime(first, "%H:%M").time())
+        end = datetime.combine(when, datetime.strptime(last, "%H:%M").time())
         cursor = max(start, now.replace(second=0, microsecond=0)) if when == now.date() else start
         slots = []
         for e in [e for e in events if not e.all_day] + [CalendarEvent("fin", "", end, end)]:
             if (e.start - cursor).total_seconds() / 60 >= minutes:
                 slots.append(f"de {spoken_clock(cursor.hour, cursor.minute)} à {spoken_clock(e.start.hour, e.start.minute)}")
             cursor = max(cursor, e.end)
-        return {"day": _spoken_day(when, now.date()), "slots": slots, "count": len(slots)}
+        part = {"morning": " matin", "afternoon": " après-midi", "evening": " soir"}.get(moment or "", "")
+        return {"day": _spoken_day(when, now.date()) + part, "slots": slots, "count": len(slots)}
 
     def add_event(title: str, time: str, day: str | None = None, duration: int | None = None) -> dict:
         local = calendar.local
@@ -363,7 +432,7 @@ def calendar_tools(calendar: Calendar) -> list[Tool]:
             raise ToolError(CALENDAR_UNAVAILABLE, "Aucun calendrier modifiable n'est configuré.")
         hour, minute = parse_clock(time)
         now = calendar.now()
-        start = now.replace(hour=hour, minute=minute, second=0, microsecond=0) + timedelta(days=DAYS.get(day or "today", 0))
+        start = datetime.combine(on(day), now.time()).replace(hour=hour, minute=minute, second=0, microsecond=0)
         if day is None and start <= now:
             start += timedelta(days=1)
         event = local.add(title.strip(" ."), start, start + timedelta(seconds=duration or 3600))
@@ -421,7 +490,7 @@ def calendar_tools(calendar: Calendar) -> list[Tool]:
     duration = Param(str, "durée telle qu'elle a été dite, si elle l'a été", required=False, max_length=40,
                      check=duration_check, evidence=duration_in_text)
     return [
-        Tool("list_events", "Donne les événements du calendrier d'aujourd'hui (ou de demain, d'après-demain).",
+        Tool("list_events", "Donne les événements du calendrier d'un jour (aujourd'hui, demain, jeudi, le 12...).",
              {"day": day_param}, {"events": "événements du jour"}, Risk.SAFE, list_events, say=events_said),
         Tool("next_events", "Donne les prochains événements du calendrier.",
              {"count": Param(int, "nombre d'événements, s'il est dit", required=False, minimum=1, maximum=10)},
@@ -430,7 +499,8 @@ def calendar_tools(calendar: Calendar) -> list[Tool]:
              {"query": Param(str, "mots de l'événement cherché", max_length=80)},
              {"events": "événements trouvés"}, Risk.SAFE, search_events, say=search_said),
         Tool("free_slots", "Donne les créneaux libres d'une journée.",
-             {"day": day_param, "duration": duration}, {"slots": "créneaux libres"}, Risk.SAFE, free_slots,
+             {"day": day_param, "duration": duration, "moment": moment_param}, {"slots": "créneaux libres"},
+             Risk.SAFE, free_slots,
              say=slots_said),
         Tool("add_event", "Ajoute un événement au calendrier à une heure précise.",
              {"title": Param(str, "intitulé de l'événement", max_length=120),

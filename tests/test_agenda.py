@@ -183,3 +183,47 @@ def test_recurring_event_appears_on_the_right_day_through_the_tools(tmp_path):
         registry.register(tool)
     core = ToolCore(registry, PermissionManager())
     assert "Sport" in run(core, "list_events").message  # lundi 5 octobre : occurrence de la répétition hebdomadaire
+
+
+# --- Jours de la semaine, dates, moments (session QA : « jeudi » donnait aujourd'hui) -------------------------
+
+import pytest  # noqa: E402
+from datetime import date  # noqa: E402
+
+from jarvis.agenda import said_date, said_moment  # noqa: E402
+
+
+@pytest.mark.parametrize("text, expected", [
+    ("Qu'est-ce que j'ai de prévu jeudi ?", date(2026, 10, 8)),
+    ("Suis-je libre lundi ?", date(2026, 10, 5)),
+    ("Et lundi prochain ?", date(2026, 10, 12)),
+    ("Mon agenda de demain", date(2026, 10, 6)),
+    ("Après-demain", date(2026, 10, 7)),
+    ("Ajoute un rendez-vous le 12 à 15 heures", date(2026, 10, 12)),
+    ("Ajoute un rendez-vous le 3 à 15 heures", date(2026, 11, 3)),
+    ("Qu'est-ce que j'ai le 2 janvier ?", date(2027, 1, 2)),
+    ("Le 31 février", None),
+    ("Ajoute le dentiste à 15 heures", None),
+    ("Dans 30 minutes", None),
+])
+def test_said_dates(text, expected):
+    assert said_date(text, NOW.date()) == expected
+
+
+def test_a_weekday_reaches_the_tools_through_the_hidden_day(tmp_path):
+    calendar, local, core = setup(tmp_path)
+    day = core.registry.get("list_events").parameters["day"].resolve("Qu'est-ce que j'ai de prévu jeudi ?")
+    assert day == "2026-10-08"
+    assert run(core, "list_events", day=day).message == "Rien de prévu jeudi 8 octobre."
+    added = run(core, "add_event", title="Dentiste", time="15 heures", day=day)
+    assert added.message == "C'est noté dans votre calendrier : jeudi 8 octobre à 15 heures, Dentiste."
+    assert run(core, "list_events", day="tomorrow").success  # forme enregistrée dans les routines : toujours valide
+    assert run(core, "list_events", day="mardi").error == "invalid_parameters"
+
+
+def test_free_slots_of_an_afternoon(tmp_path):
+    calendar, local, core = setup(tmp_path)
+    assert said_moment("Suis-je libre jeudi après-midi ?") == "afternoon"
+    result = run(core, "free_slots", moment="afternoon")
+    assert result.result["slots"] == ["de 12 heures à 14 h 30", "de 15 heures à 18 heures"]
+    assert result.message.startswith("Aujourd'hui après-midi, vous êtes libre")

@@ -399,3 +399,18 @@ def test_reply_keeps_the_dictated_words_and_still_asks():
 def test_without_mailbox_mail_questions_say_it_is_not_available(text):
     router = IntentRouter(PERSONALITY, CapabilityRegistry(), tools=("get_time",))
     assert router.route(text).name == "unavailable_messages"
+
+
+@pytest.mark.parametrize("text, expected", [
+    ("Cherche le fichier rapport dans mes documents", "tool"),
+    ("Cherche les mails de la banque", "tool"),
+    ("Cherche le rendez-vous chez le dentiste", "tool"),
+    ("Cherche sur internet comment ouvrir un fichier pdf", "web.search"),
+    ("Cherche le prix du bitcoin", "web.search"),
+])
+def test_explicit_search_of_a_local_thing_goes_to_the_tools(text, expected):
+    # Session QA : « Cherche le fichier rapport » partait sur le Web (réponse sur Zotero).
+    router = IntentRouter(PERSONALITY, CapabilityRegistry(), web_enabled=True,
+                          tools=("get_time", "check_mail", "find_files", "search_events"))
+    route = router.route(text)
+    assert route.source == expected

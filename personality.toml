@@ -353,6 +353,9 @@ match = "contains"
 replaces = ["unavailable_realtime"]
 # Demande explicite de recherche : toujours la recherche Web, même si un outil (météo...) pourrait répondre.
 explicit = ["cherche", "cherche moi", "recherche", "recherche moi", "sur internet", "sur le web", "sur google"]
+local = ["fichier", "fichiers", "dossier", "document", "documents", "telechargements", "mes documents", "sur le bureau",
+         "mail", "mails", "email", "emails", "courriel", "agenda", "calendrier", "rendez vous", "evenement", "playlist",
+         "chanson", "musique", "spotify"]
 patterns = [
     # demande explicite
     "cherche", "cherche moi", "recherche", "recherche moi", "trouve moi", "sur internet", "sur le web",

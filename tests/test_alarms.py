@@ -223,3 +223,20 @@ def test_alarm_requests_route_to_the_tools():
     router = IntentRouter(PERSONALITY, CapabilityRegistry(), tools=tuple(t.name for t in core.registry.list()))
     for text in ("Réveille-moi à 7 heures.", "Mets une alarme à 6 h 30.", "Quels réveils sont programmés ?"):
         assert router.route(text).label == "tool:tool.action", text
+
+
+def test_cancel_the_alarm_of_a_said_day():
+    # Session QA : « annule le réveil de demain » : le LLM proposait « demain » comme heure, appel écarté, puis
+    # « les rappels ne sont pas encore disponibles ».
+    from jarvis.tools.quick import quick_plan
+
+    engine, core = alarm_core()
+    submit(core, "create_alarm", time="7 heures", day="tomorrow")
+    engine.create({"name": "Réveil", "trigger": {"type": "time", "time": "23:30", "days": []},
+                   "actions": [{"type": "alarm"}]})
+    assert quick_plan("Annule le réveil de demain", core.registry) == {
+        "type": "tool_call", "tool": "cancel_alarm", "parameters": {}}
+    assert quick_plan("Supprime mon réveil de 7 heures", core.registry)["parameters"] == {"time": "7 heures"}
+    day = core.registry.get("cancel_alarm").parameters["day"].resolve("Annule le réveil de demain")
+    assert submit(core, "cancel_alarm", day=day).message == "Le réveil de 7 heures est annulé."
+    assert [a["spoken"] for a in submit(core, "list_alarms").result["alarms"]] == ["23 h 30"]

@@ -503,6 +503,11 @@ class QuickPlanner:
         return None
 
     def _alarm(self, norm, text, previous):
+        if self._exists("cancel_alarm") and re.search(
+                r"\b(?:annule|annuler|supprime|supprimer|enleve|desactive|retire)\b.*\breveils?\b", norm):
+            clock = parse_clock(text)
+            return "cancel_alarm", ({"time": f"{clock[0]} heures {clock[1]}" if clock[1] else f"{clock[0]} heures"}
+                                    if clock else {})
         if not (_has(norm, ALARM_WORDS) and self._exists("create_alarm")):
             return None
         clock = parse_clock(text)

@@ -69,6 +69,9 @@ class Intent:
     needs: str = ""
     planner: bool = False
     explicit: tuple[str, ...] = ()
+    # « Cherche le fichier rapport » : demande explicite ignorée si elle vise une chose locale (fichier, mail...),
+    # sauf si elle nomme le Web (« sur internet »).
+    local: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -174,6 +177,7 @@ def load_personality(path: str | Path) -> Personality:
             needs=spec.get("needs", ""),
             planner=spec.get("planner", False),
             explicit=tuple(canonical(x) for x in spec.get("explicit", [])),
+            local=tuple(canonical(x) for x in spec.get("local", [])),
         )
         for name, spec in raw.get("intents", {}).items()
     )

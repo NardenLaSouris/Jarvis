@@ -37,6 +37,17 @@ def _day(when: datetime, now: datetime) -> str:
     return WEEKDAYS[when.weekday()]
 
 
+def _said_alarm_day(text: str) -> str | None:
+    """Jour d'un réveil à annuler, sous la forme de _day : « aujourd hui », « demain » ou le nom du jour."""
+    norm = f" {normalize(text)} "
+    if " apres demain " in norm:
+        return None
+    for said, day in ((" demain ", "demain"), (" aujourd hui ", "aujourd hui"), (" ce matin ", "aujourd hui")):
+        if said in norm:
+            return day
+    return next((d for d in WEEKDAYS if f" {d} " in norm), None)
+
+
 def alarm_tools(engine, briefing: bool = True) -> list[Tool]:
     def upcoming() -> list[tuple[datetime, object]]:
         now = engine.clock()
@@ -65,8 +76,10 @@ def alarm_tools(engine, briefing: bool = True) -> list[Tool]:
                 "alarms": [{"alarm_id": r.id, "day": _day(when, now), "time": f"{when:%H:%M}",
                             "spoken": spoken_clock(when.hour, when.minute), "repeat": not r.once} for when, r in alarms]}
 
-    def cancel_alarm(time: str | None = None) -> dict:
+    def cancel_alarm(time: str | None = None, day: str | None = None) -> dict:
         alarms = upcoming()
+        if day is not None:  # « annule le réveil de demain » (session QA : « demain » proposé comme heure, écarté)
+            alarms = [(when, r) for when, r in alarms if normalize(_day(when, engine.clock())) == day]
         if time is not None:
             wanted = _clock(time)
             alarms = [(when, r) for when, r in alarms if (when.hour, when.minute) == wanted]
@@ -103,7 +116,8 @@ def alarm_tools(engine, briefing: bool = True) -> list[Tool]:
              list_alarms, say=said_list),
         Tool("cancel_alarm", "Annule un réveil (le seul, ou celui de l'heure dite).",
              {"time": Param(str, "heure du réveil à annuler, si elle a été dite", required=False, max_length=40,
-                            evidence=_clock_said)},
+                            evidence=_clock_said),
+              "day": Param(str, "jour", required=False, max_length=20, hidden=True, resolve=_said_alarm_day)},
              {"cancelled": "true"}, Risk.SAFE, cancel_alarm,
              say=lambda r: f"Le réveil de {r['spoken']} est annulé."),
     ]

@@ -160,7 +160,9 @@ class IntentRouter:
             if self._matches(intent, exact, norm, core):
                 return Route("unavailable", intent.name, self._pick(intent.name, intent.responses))
         for intent, _ in self._web:
-            if any(f" {phrase} " in f" {norm} " for phrase in intent.explicit):
+            said = [p for p in intent.explicit if f" {p} " in f" {norm} "]
+            local = any(f" {w} " in f" {norm} " for w in intent.local) and not any(p.startswith("sur ") for p in said)
+            if said and not (local and tools):
                 return Route(intent.name)
         for intent, exact in self._planners if tools else ():
             if self._matches(intent, exact, norm, core):
