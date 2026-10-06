@@ -20,7 +20,7 @@ confirmation, exécution, journal). Aucun shell, aucune commande libre.
   du modèle), sonde de reconnexion toutes les 10 s, métriques de latence (API, `--health`). Katana hors ligne :
   **mode dégradé** — commandes simples exécutées sans LLM, conversation par le LLM local avec un prompt court
   (1 à 2 s au lieu de 70 s), phrase claire sinon. Worker gelé (connexion acceptée, aucune réponse) : secours au
-  bout de `first_token_timeout` (10 s). Réglages `[llm] connect_timeout`, `fallback_timeout`, `probe_interval`,
+  bout de `first_token_timeout` (10 s), annoncé aussitôt (« Un instant, monsieur. »). Réglages `[llm] connect_timeout`, `fallback_timeout`, `probe_interval`,
   `slow_after`, `retry_after`, `first_token_timeout`.
 - **Commandes simples sans LLM** (`jarvis/tools/quick.py`, `[tools] fast_path`) : lumières, son, applications,
   minuteurs, rappels, réveils, météo, musique, agenda, mémoire, routines, verrouillage, et leurs enchaînements
@@ -38,8 +38,9 @@ confirmation, exécution, journal). Aucun shell, aucune commande libre.
   heure précise, aujourd'hui, demain ou après-demain (une autre date renvoie au calendrier) ; « annule-le » vise
   le rappel ou le minuteur qui vient d'être créé ; minuteurs et rappels conservés au redémarrage
   (`[timers] persist`) ; `list_routines`, `run_routine`, `delete_routine`.
-- **Calendrier** (`jarvis/agenda.py`) : aujourd'hui, demain, prochains, recherche, créneaux libres, ajout,
-  suppression ; calendrier local + lecture d'un .ics ou d'une adresse iCal secrète (Google, Outlook).
+- **Calendrier** (`jarvis/agenda.py`) : aujourd'hui, demain, un jour de la semaine (« jeudi », « lundi
+  prochain »), une date (« le 12 », « 2 janvier »), prochains, recherche, créneaux libres (aussi « jeudi
+  après-midi »), ajout, suppression ; calendrier local + lecture d'un .ics ou d'une adresse iCal secrète (Google, Outlook).
 - **Fichiers** (sur le PC, par l'agent) : recherche, lecture de texte, création dans un dossier de travail,
   copie ; déplacement et suppression avec confirmation, suppression récupérable (corbeille de JARVIS).
 - **Musique** : touches multimédia du PC ; Spotify par son API Web (après `--spotify-login`), joué par JARVIS
@@ -49,6 +50,10 @@ confirmation, exécution, journal). Aucun shell, aucune commande libre.
   d'inactivité), JARVIS relance le service `[spotify] player_service` puis joue.
 - **Profils et terminaux** (`jarvis/profiles.py`) : rôles owner, adult, child, guest ; terminal → pièce et
   utilisateur ; par défaut un propriétaire, comportement inchangé.
+- **Mails** (`jarvis/mail`, voir « Mails » plus bas) : lecture, tri, recherche, résumé sans rien marquer lu ;
+  archiver, supprimer, envoyer, répondre toujours confirmés ; contenu des mails traité comme donnée non fiable.
+- **Liens de téléchargement** : `open_url` reste sans confirmation, mais n'ouvre jamais un lien qui télécharge
+  directement un programme (.exe, .msi, .ps1, .bat...).
 - **Réseau** : `network_status` ; sources des recherches Web journalisées et citées sur demande.
 - **Diagnostics** : `python -m jarvis --health`, `--diagnostics`, `--benchmark` (non destructifs).
 - **Tests silencieux** : garde-fous contre tout son, navigateur, ampoule ou touche réels (`tests/conftest.py`).
