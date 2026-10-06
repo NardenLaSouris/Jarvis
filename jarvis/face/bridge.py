@@ -53,6 +53,7 @@ class FaceBridge:
         # Outils lancés hors conversation (routine, JARVIS Control) pendant la veille : le visage revient en veille
         # à la fin, au lieu de rester « en réflexion » jusqu'à la prochaine conversation.
         self._background = 0
+        self._conversing = False  # entre le wake word et le retour en veille
         self._lock = threading.Lock()
 
     def _error(self, action) -> None:
@@ -67,6 +68,7 @@ class FaceBridge:
         if kind in ("wake", "sleep"):
             with self._lock:
                 self._background = 0  # une conversation reprend la main sur le visage
+                self._conversing = kind == "wake"
         self._show(EVENT_STATES.get(kind))
         if self._forward is not None:
             self._forward(kind, text)
@@ -94,9 +96,12 @@ class FaceBridge:
             if done and self._current() == "thinking":
                 self._show("standby")
             return
-        if event.type == TOOL_STARTED and self._current() == "standby":
+        if event.type == TOOL_STARTED:
+            # Hors conversation, toute action est de fond, même lancée pendant une annonce (« speaking ») :
+            # session du 6 octobre, point du jour lancé en pleine annonce, visage resté « en réflexion » 3 h 30.
             with self._lock:
-                self._background += 1
+                if not self._conversing:
+                    self._background += 1
         self._show(BUS_STATES.get(event.type))
 
     def _current(self) -> str | None:

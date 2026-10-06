@@ -493,3 +493,21 @@ def test_error_messages_are_shown_in_plain_french():
     assert visual.snapshot()["error_messages"] == [] and visual.snapshot()["error"] is False
     bridge.on_event("error", "LLM indisponible")
     assert "n'a pas répondu" in visual.snapshot()["error_messages"][0]
+
+
+def test_a_routine_started_during_an_announcement_ends_in_standby():
+    # 6 octobre : point du jour lancé pendant une annonce (visage « speaking »), resté « en réflexion » 3 h 30.
+    import numpy as np
+
+    from jarvis.events import TOOL_EXECUTED, TOOL_STARTED, Event, EventBus
+    from jarvis.face import FaceBridge, VisualState
+
+    visual, bus = VisualState(), EventBus()
+    FaceBridge(visual).attach(bus)
+    visual.speak(np.zeros(1600, np.int16), 16000)
+    assert visual.snapshot()["state"] == "speaking"
+    for _ in range(2):
+        bus.publish(Event(TOOL_STARTED, "tools", {}))
+    for _ in range(2):
+        bus.publish(Event(TOOL_EXECUTED, "tools", {}))
+    assert visual.snapshot()["state"] == "standby"
