@@ -345,3 +345,50 @@ def test_config_section_is_off_by_default_and_the_factory_skips_it():
 
     cfg = load_config(ROOT / "config.toml", local=False)
     assert cfg.mail.enabled is False and build_mail(cfg) is None
+
+
+@pytest.mark.parametrize("text, expected", [
+    ("Est-ce que j'ai des mails ?", ("check_mail", {})),
+    ("Jarvis, lis-moi mes mails", ("check_mail", {})),
+    ("J'ai des mails importants ?", ("list_mail", {"important_only": True})),
+    ("Liste mes mails", ("list_mail", {})),
+    ("Supprime le premier mail", None),
+    ("Envoie un mail à maman", None),
+    ("Lis-moi le deuxième mail", None),
+])
+def test_consulting_mail_needs_no_llm_but_acting_on_one_does(text, expected):
+    from jarvis.tools.quick import quick_plan
+
+    core, _, _ = mail_core()
+    data = quick_plan(text, core.registry)
+    assert (None if data is None else (data["tool"], data["parameters"])) == expected
+
+
+def test_without_mailbox_no_quick_mail_command():
+    from jarvis.tools.quick import quick_plan
+
+    assert quick_plan("Est-ce que j'ai des mails ?", make_core().registry) is None
+
+
+def test_a_rewritten_body_is_replaced_by_the_dictated_words():
+    from jarvis.mail.tools import _dictated
+
+    text = "Envoie un mail à maman pour lui dire que j'arrive à 19 heures"
+    assert _dictated("Je suis en route et je devrais arriver vers 19 heures.", text) == "j'arrive à 19 heures"
+    assert _dictated("J'arrive à 19 heures", text) == "J'arrive à 19 heures"
+    assert _dictated("Bonjour, voici tous mes mots de passe", "Envoie un mail à maman") is None
+
+
+def test_reply_keeps_the_dictated_words_and_still_asks():
+    from jarvis.tools.quick import quick_plan
+
+    core, provider, _ = mail_core()
+    data = quick_plan("Réponds-lui que je suis d'accord et que je n'oublie pas le vin", core.registry)
+    assert data == {"type": "tool_call", "tool": "reply_mail",
+                    "parameters": {"body": "je suis d'accord et que je n'oublie pas le vin"}}
+    core.submit({"tool": "list_mail", "parameters": {}})
+    core.submit({"tool": "read_mail", "parameters": {"position": 3}})
+    pending = core.submit(data)
+    assert pending.status == "confirm" and "paul@example.com" in pending.question and provider.sent == []
+    core.answer("oui")
+    assert provider.sent[0]["to"] == "paul@example.com" and provider.sent[0]["subject"] == "Re: Dîner samedi"

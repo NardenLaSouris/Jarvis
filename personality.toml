@@ -394,7 +394,8 @@ match = "contains"
 needs = "check_mail"
 replaces = ["unavailable_messages"]
 patterns = ["mail", "mails", "email", "emails", "e mail", "e mails", "courriel", "courriels", "boite mail",
-            "boite de reception", "ma boite", "ce mail", "ce message", "ces mails"]
+            "boite de reception", "ma boite", "ce mail", "ce message", "ces mails", "reponds lui", "repondez lui",
+            "reponds leur"]
 
 [intents.unavailable_messages]
 match = "keywords"

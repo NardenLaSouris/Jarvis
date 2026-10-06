@@ -116,6 +116,23 @@ def _said(value, text: str) -> bool:
     return bool(wanted) and wanted in norm
 
 
+DICTATED_LEAD = re.compile(r"\b(?:que|qu)\s+")
+
+
+def _dictated(value, text: str):
+    """Texte envoyé tel qu'il a été dit : le LLM réécrivait « j'arrive à 19 heures » en « Je suis en route et je
+    devrais arriver vers 19 heures ». Gardé s'il reprend les mots de la demande, sinon la fin dictée (« ... que X »)."""
+    from jarvis.scheduling.durations import tokens
+    from jarvis.tools.quick import _original_tail
+
+    words, said = tokens(str(value)), set(tokens(text))
+    if words and sum(w in said for w in words) >= 0.8 * len(words):
+        return str(value).strip()
+    norm = " ".join(tokens(text))
+    match = DICTATED_LEAD.search(norm)
+    return (_original_tail(text, norm[match.end():].split()) or None) if match else None
+
+
 def mail_tools(box: MailBox) -> list[Tool]:
     position = Param(int, "rang du mail dans la dernière liste", required=False, hidden=True, resolve=_position)
 
@@ -223,7 +240,8 @@ def mail_tools(box: MailBox) -> list[Tool]:
             address = box.recipient(p.get("to", ""))
         except ToolError:
             address = p.get("to", "")
-        return f"J'envoie à {address} : « {str(p.get('body', ''))[:200]} ». Je l'envoie ?"
+        subject = f", objet « {str(p['subject'])[:80]} »" if p.get("subject") else ""
+        return f"J'envoie à {address}{subject} : « {str(p.get('body', ''))[:200]} ». Je l'envoie ?"
 
     def reply_mail(body: str, position: int | None = None) -> dict:
         m = box.target(position)
@@ -275,12 +293,13 @@ def mail_tools(box: MailBox) -> list[Tool]:
              say=lambda r: "Le mail est dans la corbeille ; vous pouvez encore le récupérer."),
         Tool("send_mail", "Envoie un mail dicté à une adresse ou un contact dit par l'utilisateur (sans pièce jointe).",
              {"to": Param(str, "adresse ou nom du contact, tel qu'il a été dit", max_length=120, evidence=_said),
-              "body": Param(str, "texte dicté", max_length=MAX_SEND_CHARS),
+              "body": Param(str, "texte dicté, mot pour mot", max_length=MAX_SEND_CHARS, ground=_dictated),
               "subject": Param(str, "objet, s'il a été dit", required=False, max_length=120)},
              {"to": "destinataire"}, Risk.CONFIRMATION_REQUIRED, send_mail, question=send_question,
              say=lambda r: "C'est envoyé, monsieur."),
         Tool("reply_mail", "Répond à l'expéditeur d'un mail (« réponds-lui que... »), sans pièce jointe.",
-             {"body": Param(str, "texte dicté de la réponse", max_length=MAX_SEND_CHARS), "position": position},
+             {"body": Param(str, "texte dicté de la réponse, mot pour mot", max_length=MAX_SEND_CHARS,
+                            ground=_dictated), "position": position},
              {"to": "destinataire"}, Risk.CONFIRMATION_REQUIRED, reply_mail, question=reply_question,
              say=lambda r: "Réponse envoyée, monsieur."),
     ]

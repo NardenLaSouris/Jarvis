@@ -49,6 +49,19 @@ FACE_WORDS = ("visage", "ton visage", "theme", "ton theme", "ta couleur", "tes c
               "arc en ciel", "en arc en ciel", "toutes les couleurs")
 PRESENCE_QUESTIONS = ("qui est a la maison", "quelqu un a la maison", "la maison est vide", "la maison est elle vide",
                       "qui est la", "qui est present", "qui est rentre", "est ce que je suis a la maison")
+# Consultation des mails : sans LLM (rien n'y change dans la boîte). Lire un mail précis passe par le LLM.
+MAIL_CHECK = ("j ai des mails", "j ai des nouveaux mails", "j ai du courrier", "j ai recu des mails", "des nouveaux mails",
+              "nouveaux mails", "mes mails", "mes emails", "mes e mails", "ma boite mail", "ma boite de reception",
+              "des mails", "un mail", "nouveau mail")
+MAIL_LIST = ("liste mes mails", "liste les mails", "mes derniers mails", "les derniers mails", "mes mails recents")
+# Une demande qui agit sur un mail ou en désigne un va au LLM (et aux confirmations), jamais à la consultation.
+MAIL_ACTIONS = ("envoie", "envoyer", "ecris", "ecrire", "reponds", "repondre", "supprime", "efface", "archive",
+                "marque", "lis le", "lis moi le", "lis la", "resume", "cherche", "trouve", "de la part", "premier",
+                "deuxieme", "dernier", "troisieme", "transfere")
+# « Réponds-lui que je suis d'accord » : le texte dit, mot pour mot (jamais reformulé), au mail lu en dernier.
+REPLY = re.compile(r"^(?:jarvis\s+)?(?:reponds|repondez|repond)(?:\s+(?:lui|leur|moi))?"
+                   r"(?:\s+(?:a ce mail|au mail|a ce message|a ce courriel))?\s+(?:que|qu|:)\s+(.+)$")
+MAIL_IMPORTANT = ("mails importants", "mail important", "emails importants")
 TIMER_WORDS = ("minuteur", "minuteurs", "timer", "timers", "minuterie", "compte a rebours")
 REMINDER_WORDS = ("rappelle moi", "rappelez moi", "fais moi penser", "previens moi", "rappelle nous")
 ALARM_WORDS = ("reveille moi", "reveillez moi", "mets un reveil", "mets moi un reveil", "programme un reveil",
@@ -251,6 +264,13 @@ class QuickPlanner:
             return "spotify_status", {}
         if self._exists("presence_status") and _has(norm, PRESENCE_QUESTIONS):
             return "presence_status", {}
+        if self._exists("check_mail") and not _has(norm, MAIL_ACTIONS):
+            if _has(norm, MAIL_IMPORTANT):
+                return "list_mail", {"important_only": True}
+            if _has(norm, MAIL_LIST):
+                return "list_mail", {}
+            if _has(norm, MAIL_CHECK):
+                return "check_mail", {}
         spotify = self._exists("spotify_pause")
         if not (spotify or self._exists("media_play_pause")):
             return None
@@ -526,6 +546,11 @@ class QuickPlanner:
         Une demande enchaînée dont une partie n'est pas reconnue est laissée au LLM : jamais d'action à moitié
         devinée (sauf un rappel, dont le message peut contenir « et »)."""
         names = {normalize(n) for n in ignored}
+        reply = REPLY.match(normalize(text)) if self._exists("reply_mail") else None
+        if reply is not None:
+            # Avant le découpage : la réponse dictée peut contenir « et », « ne », « pas »...
+            body = _original_tail(text, tokens(reply.group(1)))
+            return {"type": "tool_call", "tool": "reply_mail", "parameters": {"body": body}} if body else None
         if self._exists("set_face_theme") and _has(normalize(text), FACE_WORDS):
             # « Mets ton thème en noir et blanc », « Change de couleur, violet » : une seule demande, jamais coupée.
             whole = self.one(text)
