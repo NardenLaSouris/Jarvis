@@ -289,3 +289,14 @@ def test_bounded_stream_keeps_all_pieces_and_errors():
     llm, _ = failover(FakeLLM("katana", error=LLMError("coupé"), fail_after=1), FakeLLM("local"), first_token_timeout=1)
     with pytest.raises(LLMError):
         "".join(llm.stream(HELLO))
+
+
+def test_a_frozen_worker_is_announced_before_the_slower_fallback():
+    # Session QA : 22 s de silence (10 s d'attente, puis le secours sur CPU) ; une phrase d'attente aussitôt.
+    frozen = FrozenLLM("katana")
+    llm, _ = failover(frozen, FakeLLM("local"), first_token_timeout=0.3, waiting_notice="Un instant, monsieur.")
+    pieces = list(llm.stream(HELLO))
+    assert pieces[0] == "Un instant, monsieur. " and "".join(pieces[1:]) == "local parle."
+    frozen.release.set()
+    unreachable, _ = failover(FakeLLM("katana"), FakeLLM("local"), up=False, waiting_notice="Un instant, monsieur.")
+    assert "".join(unreachable.stream(HELLO)) == "local parle."  # worker éteint : secours immédiat, rien à annoncer

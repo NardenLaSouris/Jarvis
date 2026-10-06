@@ -401,7 +401,8 @@ patterns = ["mail", "mails", "email", "emails", "e mail", "e mails", "courriel",
 match = "keywords"
 fallback = true
 groups = [
-    ["envoie", "envoyer", "ecris", "ecrire", "lis", "lire", "reponds", "repondre", "consulte", "verifie", "as tu"],
+    ["envoie", "envoyer", "ecris", "ecrire", "lis", "lire", "reponds", "repondre", "consulte", "verifie", "as tu",
+     "j ai", "ai je", "y a t il", "nouveaux", "nouveau"],
     ["message", "messages", "mail", "mails", "email", "emails", "e mail", "sms", "texto", "whatsapp", "courrier"],
 ]
 responses = [

@@ -44,7 +44,8 @@ def build_llm(cfg: Config) -> LanguageModel:
                              c.fallback_timeout)
         return FailoverLLM(llm, fallback, c.host, retry_after=c.retry_after,
                            reachable=lambda url: tcp_reachable(url, c.connect_timeout), slow_after=c.slow_after,
-                           probe_interval=c.probe_interval, first_token_timeout=c.first_token_timeout)
+                           probe_interval=c.probe_interval, first_token_timeout=c.first_token_timeout,
+                           waiting_notice="Un instant, monsieur.")
     raise ValueError(f"Backend LLM inconnu : {cfg.llm.backend}")
 
 

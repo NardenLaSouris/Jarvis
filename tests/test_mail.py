@@ -392,3 +392,10 @@ def test_reply_keeps_the_dictated_words_and_still_asks():
     assert pending.status == "confirm" and "paul@example.com" in pending.question and provider.sent == []
     core.answer("oui")
     assert provider.sent[0]["to"] == "paul@example.com" and provider.sent[0]["subject"] == "Re: Dîner samedi"
+
+
+@pytest.mark.parametrize("text", ["Est-ce que j'ai des mails ?", "Ai-je des nouveaux mails ?",
+                                  "Y a-t-il des mails pour moi ?"])
+def test_without_mailbox_mail_questions_say_it_is_not_available(text):
+    router = IntentRouter(PERSONALITY, CapabilityRegistry(), tools=("get_time",))
+    assert router.route(text).name == "unavailable_messages"

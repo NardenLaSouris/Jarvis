@@ -84,7 +84,8 @@ class FailoverLLM:
     def __init__(self, primary, fallback, primary_url: str, retry_after: float = 30.0,
                  reachable: Callable[[str], bool] = tcp_reachable, clock: Callable[[], float] = time.monotonic,
                  *, slow_after: float = 8.0, probe_interval: float = 10.0, json_fallback: bool = False,
-                 compact_system: Callable[[], str] | None = None, first_token_timeout: float = 10.0):
+                 compact_system: Callable[[], str] | None = None, first_token_timeout: float = 10.0,
+                 waiting_notice: str = ""):
         self._primary, self._fallback = primary, fallback
         self._url = primary_url
         self._retry_after = retry_after
@@ -92,6 +93,9 @@ class FailoverLLM:
         self._clock = clock
         self._slow_after = slow_after
         self._first_token_timeout = first_token_timeout
+        # Dit dès qu'un worker gelé est abandonné : le secours (CPU) met encore une dizaine de secondes à répondre,
+        # 22 s de silence mesurées sinon.
+        self._waiting_notice = waiting_notice
         self._probe_interval = probe_interval
         self._json_fallback = json_fallback
         self.compact_system = compact_system
@@ -173,6 +177,8 @@ class FailoverLLM:
                 return
             except Exception as exc:
                 self._primary_failed(exc)
+                if isinstance(exc, FirstTokenTimeout) and self._waiting_notice:
+                    yield self._waiting_notice.rstrip() + " "
             else:
                 self._succeeded(self._clock() - started)
                 yield first
