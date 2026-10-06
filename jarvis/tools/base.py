@@ -57,6 +57,9 @@ class Param:
     resolve: Callable[[str], Any] | None = None
     # ``ground(valeur, demande)`` : valeur ramenée aux mots de la demande (mots inventés par le LLM retirés), ou None.
     ground: Callable[[Any, str], Any] | None = None
+    # Valeur facultative non justifiée par la demande : retirée (l'action garde son sens) plutôt qu'appel écarté.
+    # Seulement là où l'omettre ne change pas la cible (durée d'un rendez-vous inventée : « 1 heure »).
+    drop_unsaid: bool = False
 
 
 @dataclass(frozen=True)

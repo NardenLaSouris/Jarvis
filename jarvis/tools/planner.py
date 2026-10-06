@@ -414,6 +414,9 @@ def _grounded(data: dict, text: str, registry: ToolRegistry) -> dict | None:
                 return None
             parameters[name] = value
         if spec.evidence is not None and value is not None and not spec.evidence(value, text):
+            if spec.drop_unsaid and not spec.required:
+                del parameters[name]
+                continue
             return None
     return {**data, "parameters": parameters}
 

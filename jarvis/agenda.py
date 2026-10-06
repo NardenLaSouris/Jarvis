@@ -488,7 +488,7 @@ def calendar_tools(calendar: Calendar) -> list[Tool]:
         return parse_clock(value) is not None and parse_clock(value) == parse_clock(text)
 
     duration = Param(str, "durée telle qu'elle a été dite, si elle l'a été", required=False, max_length=40,
-                     check=duration_check, evidence=duration_in_text)
+                     check=duration_check, evidence=duration_in_text, drop_unsaid=True)
     return [
         Tool("list_events", "Donne les événements du calendrier d'un jour (aujourd'hui, demain, jeudi, le 12...).",
              {"day": day_param}, {"events": "événements du jour"}, Risk.SAFE, list_events, say=events_said),

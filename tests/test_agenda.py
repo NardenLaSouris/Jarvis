@@ -227,3 +227,18 @@ def test_free_slots_of_an_afternoon(tmp_path):
     result = run(core, "free_slots", moment="afternoon")
     assert result.result["slots"] == ["de 12 heures à 14 h 30", "de 15 heures à 18 heures"]
     assert result.message.startswith("Aujourd'hui après-midi, vous êtes libre")
+
+
+def test_an_invented_duration_is_dropped_not_the_whole_event(tmp_path):
+    # Session QA : le LLM ajoutait « duration: 1 heure » jamais dit : rendez-vous refusé (« pas encore disponible »).
+    from jarvis.tools.planner import _grounded
+
+    calendar, local, core = setup(tmp_path)
+    call = {"type": "tool_call", "tool": "add_event",
+            "parameters": {"title": "dentiste", "time": "15 heures", "duration": "1 heure"}}
+    grounded = _grounded(call, "Ajoute un rendez-vous chez le dentiste jeudi à 15 heures", core.registry)
+    assert grounded["parameters"] == {"title": "dentiste", "time": "15 heures"}
+    said = _grounded(call, "Ajoute le dentiste jeudi à 15 heures pendant 1 heure", core.registry)
+    assert said["parameters"]["duration"] == "1 heure"
+    wrong_time = {**call, "parameters": {"title": "dentiste", "time": "16 heures"}}
+    assert _grounded(wrong_time, "Ajoute le dentiste jeudi à 15 heures", core.registry) is None  # obligatoire : écarté
