@@ -323,6 +323,10 @@ def list_apps_tool(apps: dict[str, Application], processes: Processes) -> Tool:
 
 # --- URL ------------------------------------------------------------------------------------------
 
+EXECUTABLE_DOWNLOADS = (".exe", ".msi", ".msix", ".bat", ".cmd", ".com", ".scr", ".ps1", ".vbs", ".jse",
+                        ".wsf", ".hta", ".lnk", ".jar", ".dll", ".reg", ".appx", ".appxbundle", ".sh")
+
+
 def validate_url(url: str) -> str:
     """URL http(s) sans caractère exotique ni identifiants ; lève ToolError(invalid_url) sinon."""
     if len(url) > MAX_URL or any(c in FORBIDDEN_URL_CHARS or ord(c) < 32 for c in url):
@@ -341,6 +345,9 @@ def validate_url(url: str) -> str:
         valid_host = False
     if not valid_host:
         raise ToolError(INVALID_URL, "Cette adresse n'est pas valide.")
+    if parts.path.lower().rsplit("/", 1)[-1].endswith(EXECUTABLE_DOWNLOADS):
+        # Ouvrir un site reste sans confirmation ; un lien qui télécharge directement un programme, jamais.
+        raise ToolError(INVALID_URL, "Ce lien télécharge un programme : je ne l'ouvre pas.")
     return parts.geturl()
 
 

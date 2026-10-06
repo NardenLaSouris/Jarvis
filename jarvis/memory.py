@@ -148,7 +148,7 @@ def memory_tools(store: MemoryStore, user: Callable[[], str] = lambda: "owner") 
         return {"count": len(found), "facts": [said_back(f["text"]) for f in found[:8]], "topic": topic or ""}
 
     def forget(topic: str) -> dict:
-        everything = normalize(topic) in ("tout", "toute ta memoire", "tout ce que tu sais", "ta memoire")
+        everything = _everything(topic)
         found = store.all(user()) if everything else store.search(topic, user())
         if not found:
             raise ToolError(MEMORY_NOT_FOUND, "Je n'ai rien retenu à ce sujet.")
@@ -180,10 +180,20 @@ def memory_tools(store: MemoryStore, user: Callable[[], str] = lambda: "owner") 
              {"topic": Param(str, "ce qu'il faut oublier, avec les mots de l'utilisateur", max_length=MAX_TEXT)},
              {"count": "nombre d'éléments oubliés"}, Risk.CONFIRMATION_REQUIRED, forget,
              question=lambda p: ("Voulez-vous vraiment que j'efface toute ma mémoire ?"
-                                 if normalize(p["topic"]) in ("tout", "ta memoire", "toute ta memoire")
+                                 if _everything(p["topic"])
                                  else f"Voulez-vous que j'oublie « {said_back(p['topic'])} » ?"),
              say=forget_said),
     ]
+
+
+EVERYTHING = re.compile(r"^(?:tout|ta memoire|toute ta memoire|tout ce que (?:tu sais|tu as retenu|vous savez)"
+                        r"(?: (?:de|sur) (?:moi|vous))?)$")
+
+
+def _everything(topic: str) -> bool:
+    """« Oublie tout ce que tu sais de moi » : toute la mémoire. La question et l'action doivent le comprendre de la
+    même façon (la question citait « tout ce que tu sais de vous » et l'action cherchait ce sujet)."""
+    return bool(EVERYTHING.match(normalize(topic)))
 
 
 def memory_prompt(store: MemoryStore, limit: int = 20, user: str = "owner") -> str:

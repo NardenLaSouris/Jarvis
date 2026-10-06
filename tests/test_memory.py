@@ -159,3 +159,15 @@ def test_forgotten_fact_is_neither_repeated_nor_left_in_the_conversation(tmp_pat
                                 "Raconte-moi une histoire"], llm, core, fast_path=True)
     assert spoken[2] == "C'est oublié." and store.all() == []
     assert llm.calls and not any("4512" in m.content for m in llm.calls[-1])
+
+
+@pytest.mark.parametrize("topic", ["tout ce que tu sais de moi", "tout ce que tu sais sur moi", "Tout ce que vous savez"])
+def test_forgetting_all_you_know_about_me_is_forgetting_everything(tmp_path, topic):
+    # Session QA : « oublie tout ce que tu sais de moi » demandait « oublie « tout ce que tu sais de vous » ? »
+    # puis cherchait ce sujet au lieu de tout effacer.
+    core, store = core_with_memory(tmp_path)
+    store.add("je préfère le bleu")
+    store.add("j'habite à Nantes")
+    outcome = core.submit({"tool": "forget", "parameters": {"topic": topic}})
+    assert "toute ma mémoire" in outcome.question
+    assert core.answer("oui").result.result["count"] == 2 and store.all() == []

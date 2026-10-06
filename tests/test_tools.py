@@ -558,6 +558,9 @@ def test_extra_parameters_pids_and_unknown_tools_are_refused(data):
     "https://user:pass@example.com", 'https://example.com/"&calc.exe', "https://example.com/`whoami`",
     "https://example.com/|cmd", "https://example.com:99999/", "https://-bad-.com",
     "https://example.com/" + "a" * 3000, "\\\\serveur\\partage", "https://example.com\n/&calc",
+    # Liens qui téléchargent directement un programme (session QA : install.exe ouvert sans un mot).
+    "https://evil.example/install.exe", "https://evil.example/dl/Setup.MSI", "https://x.example/a.ps1",
+    "https://x.example/run.bat?x=1",
 ])
 def test_invalid_or_dangerous_urls_are_refused(url):
     browser = Browser()
@@ -1100,3 +1103,11 @@ def test_a_plan_left_with_one_action_runs_it_as_a_single_call():
         {"tool": "lock_pc", "parameters": {}, "segment": "ouvre Discord"}]})
     spoken, events = run_agent(["Jarvis, ouvre Discord."], llm, make_core(launcher=launcher, processes=processes))
     assert spoken == ["Discord est ouvert."] and launcher.calls == [["C:/Apps/discord.exe"]]
+
+
+@pytest.mark.parametrize("url", ["https://example.com/telechargements", "https://github.com/user/projet.js",
+                                 "https://example.com/exercice.html", "https://example.com/?file=a.exe"])
+def test_ordinary_pages_still_open_without_confirmation(url):
+    browser = Browser()
+    outcome = make_core(opener=browser).submit(call("open_url", url=url))
+    assert outcome.status == "done" and outcome.result.success and browser.opened
