@@ -103,8 +103,18 @@ class SpotifyCatalog:
     def refresh(self, client: "SpotifyClient", max_tracks: int = 5000) -> int:
         tracks, seen, skipped = [], set(), 0
         playlists = client.call("GET", "/me/playlists", {"limit": 50}).get("items", [])
+        try:
+            me = client.call("GET", "/me").get("id")
+        except ToolError:
+            me = None
         for playlist in playlists:
             if not playlist or not playlist.get("id"):
+                continue
+            owner = (playlist.get("owner") or {}).get("id")
+            if me and owner and owner != me and not playlist.get("collaborative"):
+                # Playlist suivie (pas à vous) : illisible pour l'API en mode développement (403). Ignorée sans la
+                # demander : une vingtaine d'avertissements à chaque mise à jour du catalogue sinon.
+                skipped += 1
                 continue
             offset = 0
             while len(tracks) < max_tracks:

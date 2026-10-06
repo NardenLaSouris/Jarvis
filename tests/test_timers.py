@@ -585,3 +585,11 @@ def test_far_reminders_are_announced_by_day_and_hour():
     assert remind(time="9 heures", day="1").message == "Entendu, je vous rappellerai d'appeler Paul demain à 9 heures."
     assert remind(time="18 heures 30").message == "Entendu, je vous rappellerai d'appeler Paul aujourd'hui à 18 h 30."
     assert remind(delay="20 minutes").message == "Entendu, je vous rappellerai d'appeler Paul dans 20 minutes."
+
+
+def test_a_short_reminder_stays_relative_across_midnight():
+    # Régression : à 23 h 58, un rappel « dans 20 minutes » était annoncé « demain à 0 h 18 ».
+    from jarvis.tools.timers import _when
+
+    assert _when({"remaining": "20 minutes", "at": "00:18", "day": 1, "far": False}) == "dans 20 minutes"
+    assert _when({"remaining": "9 heures", "at": "09:00", "day": 1, "far": True}) == "demain à 9 heures"

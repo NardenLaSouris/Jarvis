@@ -115,7 +115,9 @@ class IntentRouter:
         self._tools = set(tools)
         self.memory = memory
         web = [i for i in personality.intents if i.web] if web_enabled else []
-        planners = [i for i in personality.intents if i.planner] if self._tools else []
+        # Demandes d'action d'un domaine (« needs ») : seulement si son outil existe (mails configurés...), sinon la
+        # réponse « pas encore disponible » reste.
+        planners = [i for i in personality.intents if i.planner and (not i.needs or i.needs in self._tools)]             if self._tools else []
         by_web = {name for i in web for name in i.replaces}
         by_tools = by_web | {name for i in planners for name in i.replaces}
         ordered = [i for i in personality.intents if i.critical] + [

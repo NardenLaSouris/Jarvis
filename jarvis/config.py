@@ -193,6 +193,25 @@ class PresenceConfig:
 
 
 @dataclass(frozen=True)
+class MailConfig:
+    """Boîte mail (jarvis/mail) en IMAP/SMTP ; mot de passe (d'application) dans .env : MAIL_PASSWORD."""
+    enabled: bool = False
+    user: str = ""
+    imap_host: str = ""
+    imap_port: int = 993
+    smtp_host: str = ""  # vide : imap_host avec « smtp. » au lieu de « imap. »
+    smtp_port: int = 465
+    folder: str = "INBOX"
+    archive_folder: str = "Archive"
+    trash_folder: str = "Trash"
+    timeout: float = 20.0
+    max_fetch: int = 100
+    important_senders: tuple = ()
+    noise_senders: tuple = ()
+    contacts: dict = field(default_factory=dict)  # nom dit -> adresse (seuls destinataires possibles par leur nom)
+
+
+@dataclass(frozen=True)
 class ApiConfig:
     enabled: bool = False
     host: str = "0.0.0.0"
@@ -299,6 +318,7 @@ class Config:
     calendar: CalendarConfig = CalendarConfig()
     spotify: SpotifyConfig = SpotifyConfig()
     presence: PresenceConfig = PresenceConfig()
+    mail: MailConfig = MailConfig()
     users: dict = field(default_factory=dict)
     terminals: dict = field(default_factory=dict)
 
@@ -412,6 +432,7 @@ def load_config(path: str | Path = "config.toml", local: bool = True) -> Config:
         "calendar": CalendarConfig,
         "spotify": SpotifyConfig,
         "presence": PresenceConfig,
+        "mail": MailConfig,
     }
     tables = {key: raw.pop(key, {}) for key in ("users", "terminals")}
     unknown = set(raw) - set(sections)

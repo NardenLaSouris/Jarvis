@@ -430,3 +430,31 @@ def test_music_status_is_read_not_guessed(tmp_path):
     registry = core_for(client(tmp_path, FakeSpotify())).registry
     assert quick_plan("Est-ce que la musique joue ?", registry)["tool"] == "spotify_status"
     assert quick_plan("C'est quoi cette chanson ?", registry)["tool"] == "spotify_status"
+
+
+def test_followed_playlists_are_skipped_without_asking(tmp_path):
+    # Les playlists suivies (pas à vous) répondent 403 : une vingtaine d'avertissements à chaque mise à jour du
+    # catalogue. Elles sont ignorées d'emblée.
+    from jarvis.spotify import SpotifyCatalog
+
+    class Owned(FakeSpotify):
+        def __call__(self, method, url, headers, body, timeout):
+            path = url.split("?")[0]
+            if path.endswith("/v1/me"):
+                return 200, json.dumps({"id": "jules"}).encode()
+            if path.endswith("/me/playlists"):
+                return 200, json.dumps({"items": [
+                    {"id": "mine", "owner": {"id": "jules"}},
+                    {"id": "theirs", "owner": {"id": "spotify"}},
+                    {"id": "shared", "owner": {"id": "paul"}, "collaborative": True}]}).encode()
+            if "/playlists/" in path:
+                self.urls.append(url)
+                return 200, json.dumps({"items": [], "next": None}).encode()
+            return super().__call__(method, url, headers, body, timeout)
+
+    fake = Owned()
+    spotify = client(tmp_path, fake)
+    SpotifyCatalog(tmp_path / "catalog.json").refresh(spotify)
+    asked = [u for u in fake.urls if "/playlists/" in u]
+    assert any("/mine/" in u for u in asked) and any("/shared/" in u for u in asked)
+    assert not any("/theirs/" in u for u in asked)

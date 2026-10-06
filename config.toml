@@ -145,6 +145,22 @@ max_minutes = 5.0
 volume = 0
 briefing = true
 
+[mail]
+# Boîte mail en IMAP/SMTP (jarvis/mail). Lecture, recherche, tri, résumé : sans confirmation, sans rien marquer lu.
+# Marquer lu, archiver, supprimer (corbeille), envoyer, répondre : toujours confirmés. Jamais de pièce jointe.
+# Mot de passe d'application dans .env : MAIL_PASSWORD=... (Gmail : compte Google > Sécurité > Mots de passe
+# des applications ; IMAP activé). Adresse et serveurs dans config.local.toml :
+#   [mail]
+#   enabled = true
+#   user = "vous@gmail.com"
+#   imap_host = "imap.gmail.com"
+#   archive_folder = "[Gmail]/Tous les messages"
+#   trash_folder = "[Gmail]/Corbeille"
+#   important_senders = ["@banque.fr", "maman"]
+#   [mail.contacts]
+#   maman = "maman@example.com"
+enabled = false
+
 [presence]
 # Présence à la maison (jarvis/presence) : départs et retours confirmés à partir de plusieurs signaux (téléphone,
 # porte d'entrée, mouvement), jamais d'une porte seule ; journal de la maison et routine « Bon retour » avec le

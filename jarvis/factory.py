@@ -337,6 +337,22 @@ def build_calendar(cfg: Config):
     return Calendar(providers, day_start=cfg.calendar.day_start, day_end=cfg.calendar.day_end)
 
 
+def build_mail(cfg: Config):
+    """Boîte mail ([mail]) si activée et configurée (MAIL_PASSWORD dans .env), sinon None."""
+    if not (cfg.tools.enabled and cfg.mail.enabled):
+        return None
+    from jarvis.mail import ImapSmtpProvider, MailBox, MailError, MailSorter
+
+    m = cfg.mail
+    try:
+        provider = ImapSmtpProvider(m.user, secret("MAIL_PASSWORD", ENV_FILE), m.imap_host, m.smtp_host, m.imap_port,
+                                    m.smtp_port, m.folder, m.archive_folder, m.trash_folder, m.timeout, m.max_fetch)
+    except MailError as exc:
+        log.warning("Mails désactivés : %s", exc.message)
+        return None
+    return MailBox(provider, MailSorter(m.important_senders, m.noise_senders), m.contacts)
+
+
 def build_presence_system(cfg: Config, events: EventBus, home=None):
     """Présence à la maison ([presence]) démarrée, ou None si désactivée."""
     if not cfg.presence.enabled:
@@ -630,6 +646,11 @@ def build_agent(
         from jarvis.agenda import calendar_tools
 
         extra += calendar_tools(calendar)
+    mailbox = build_mail(cfg)
+    if mailbox is not None:
+        from jarvis.mail import mail_tools
+
+        extra += mail_tools(mailbox)
     if cfg.tools.enabled:
         extra.append(build_network_tool(cfg, rooms))
     tools = build_tools(cfg, personality, events, timers, weather, devices,

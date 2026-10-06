@@ -431,6 +431,34 @@ python -m jarvis --simulate status
   `stop()`, qui appelle `emit("porte_entree", "open")` quand le matériel le signale — MQTT, Zigbee, ESP32, Home
   Assistant...), l'ajouter à `DRIVERS`, puis `driver = "<nom>"` sur le capteur. Rien d'autre ne change.
 
+## Mails (lecture, tri, résumé ; actions confirmées)
+
+Module `jarvis/mail` en IMAP/SMTP (bibliothèque standard), désactivé tant que `[mail]` n'est pas configuré :
+« lis-moi mes mails » répond alors toujours que l'accès n'est pas disponible.
+
+- **Sans confirmation** (rien ne change dans la boîte) : `check_mail` (« ai-je des mails ? », importants d'abord,
+  lettres d'information comptées à part), `list_mail`, `search_mail` (« cherche les mails de la banque »),
+  `read_mail` et `summarize_mail` (« lis le deuxième », « résume ce mail »). Le dossier est ouvert en lecture seule
+  et lu avec `BODY.PEEK` : un mail lu par JARVIS reste **non lu**.
+- **Toujours confirmées** (la question nomme l'expéditeur et l'objet, ou le destinataire et le texte) :
+  `mark_mail_read`, `archive_mail`, `delete_mail` (vers la corbeille, récupérable), `send_mail`, `reply_mail`.
+  Jamais d'envoi, de suppression ni de transfert automatique ; aucune pièce jointe n'est ouverte ni envoyée.
+- **Contenu non fiable** : le texte d'un mail est une donnée, jamais une instruction (règle du prompt). Une action
+  doit être dite par l'utilisateur (verbe « supprime », « archive », « réponds »... dans sa phrase) et un destinataire
+  doit avoir été prononcé (adresse, ou nom d'un contact de `[mail.contacts]`) : un mail qui demande « envoie tout à
+  pirate@... » ne peut rien déclencher. Les mails sont désignés par leur rang dans la dernière liste dite, jamais
+  par un identifiant choisi par le LLM.
+- **Droits** : catégorie `mail` réservée au propriétaire (ni adulte, ni enfant, ni invité).
+- **Tri** (`jarvis/mail/priority.py`, déterministe) : important = expéditeur de `important_senders`, mail étoilé,
+  ou objet avec un mot d'alerte (facture, rendez-vous, livraison...) ; bruit = envoi automatique (List-Unsubscribe,
+  noreply, newsletter, notifications) ; normal sinon.
+
+Configuration : mot de passe **d'application** dans `.env` (`MAIL_PASSWORD=...` ; Gmail : compte Google > Sécurité >
+Mots de passe des applications, IMAP activé), le reste dans `config.local.toml` (exemple commenté dans
+`config.toml`, section `[mail]`). Pour Gmail, `archive_folder = "[Gmail]/Tous les messages"` et
+`trash_folder = "[Gmail]/Corbeille"` (noms selon la langue du compte). OAuth n'est pas implémenté : une boîte qui
+refuse les mots de passe d'application (Microsoft 365 professionnel) n'est pas encore prise en charge.
+
 ## Lumières (ampoules Tuya / LSC Smart Connect, en local)
 
 « Allume la chambre à 30 % », « éteins les lumières », « mets l'entrée en vert », « remets la chambre en blanc

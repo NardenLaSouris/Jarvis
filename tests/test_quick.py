@@ -188,7 +188,7 @@ def test_everything_off_means_the_lights_never_the_pc_sound():
                 {"tool": "light_off", "parameters": {}, "segment": "Éteins tout"},
                 {"tool": "mute_volume", "parameters": {}, "segment": "Éteins tout"}]}
 
-    assert plan(Overeager(), "Éteins tout.", REGISTRY) == {**call("light_off"), "segment": "Éteins tout"}
+    assert plan(Overeager(), "Éteins tout.", REGISTRY) == call("light_off")  # appel simple, accepté par le Core
     assert plan(PlannerLLM(call("lock_pc")), "Mets-toi en veille", REGISTRY) is None
     assert plan(PlannerLLM(call("mute_volume")), "Coupe le son", REGISTRY) == call("mute_volume")
 

@@ -1089,3 +1089,14 @@ def test_huge_tool_results_are_bounded_before_reaching_the_llm():
     assert len(message) < MAX_PAYLOAD_FOR_LLM + 500 and "tronqué" in message and "autres" in message
     small = ToolResult("read_text_file", True, result={"content": "Acheter du pain. " * 200})
     assert "tronqué" not in tool_request("Lis mes notes", small)  # un texte de fichier lu reste entier
+
+
+def test_a_plan_left_with_one_action_runs_it_as_a_single_call():
+    # Régression : l'action restante gardait son « segment », refusé par le Core (« je n'ai pas compris »).
+    processes = FakeProcesses()
+    launcher = Launcher(processes, ("Discord.exe",))
+    llm = PlannerLLM({"type": "tool_calls", "calls": [
+        {"tool": "open_application", "parameters": {"application": "discord"}, "segment": "ouvre Discord"},
+        {"tool": "lock_pc", "parameters": {}, "segment": "ouvre Discord"}]})
+    spoken, events = run_agent(["Jarvis, ouvre Discord."], llm, make_core(launcher=launcher, processes=processes))
+    assert spoken == ["Discord est ouvert."] and launcher.calls == [["C:/Apps/discord.exe"]]

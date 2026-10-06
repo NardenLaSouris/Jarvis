@@ -299,7 +299,12 @@ def _several(calls: list, text: str, registry: ToolRegistry) -> dict | None:
         kept.append(grounded)
     if not kept:
         return None
-    return kept[0] if len(kept) == 1 else {"type": "tool_calls", "calls": kept}
+    if len(kept) == 1:
+        # Une seule action retenue : un appel simple, sans « segment » (champ refusé par le Core : « lis ce mail »
+        # dont l'envoi suggéré a été écarté finissait en « je n'ai pas compris quelle action faire »).
+        kept[0].pop("segment")
+        return kept[0]
+    return {"type": "tool_calls", "calls": kept}
 
 
 # Actions sur le PC qui exigent d'être nommées dans la demande : le LLM ne les ajoute jamais par interprétation
@@ -315,6 +320,12 @@ DOMAIN_WORDS = {
                          "start", "open"),
     "lock_pc": ("verrouille", "verrouiller", "verrouillage", "verrouilles", "bloque", "lock"),
     "close_application": ("ferme", "fermer", "quitte", "quitter", "arrete", "coupe"),
+    # Mails : l'action doit être dite par l'utilisateur, jamais suggérée par le contenu d'un mail lu.
+    "mark_mail_read": ("lu", "lus", "marque", "marquer"),
+    "archive_mail": ("archive", "archiver", "archives", "range", "ranger"),
+    "delete_mail": ("supprime", "supprimer", "supprimes", "efface", "effacer", "corbeille", "jette", "jeter"),
+    "send_mail": ("envoie", "envoyer", "envoies", "ecris", "ecrire", "ecrit", "mail a", "email a"),
+    "reply_mail": ("reponds", "repondre", "reponse", "repond"),
 }
 
 
@@ -332,7 +343,7 @@ DEFERRED_TOOLS = ("create_reminder", "cancel_reminder", "list_reminders", "creat
 
 
 READ_ONLY_TOOLS = ("get_", "list_", "light_status", "find_", "read_", "recall", "search_", "next_", "free_",
-                   "system_info", "network_status", "spotify_status")
+                   "system_info", "network_status", "spotify_status", "check_mail", "summarize_mail")
 QUESTION = re.compile(r"^(?:jarvis )?(?:est ce que|est ce qu|est il|est elle|y a t il|qu est ce qui|quel|quelle|quels|"
                       r"quelles|combien|pourquoi|comment|ou est|quand)\b")
 REQUEST = re.compile(r"\b(?:tu peux|peux tu|tu pourrais|pourrais tu|vous pouvez|pouvez vous|vous pourriez|"

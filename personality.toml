@@ -386,6 +386,16 @@ responses = [
     "La domotique n'est pas encore disponible, {title}. Ce sera l'une de mes prochaines capacités.",
 ]
 
+# Mails ([mail] dans config.toml) : lire, chercher, résumer, trier ; archiver, supprimer, envoyer avec confirmation.
+# Absente sans boîte configurée (needs) : la réponse « pas encore disponible » ci-dessous reste.
+[intents."tool.mail"]
+planner = true
+match = "contains"
+needs = "check_mail"
+replaces = ["unavailable_messages"]
+patterns = ["mail", "mails", "email", "emails", "e mail", "e mails", "courriel", "courriels", "boite mail",
+            "boite de reception", "ma boite", "ce mail", "ce message", "ces mails"]
+
 [intents.unavailable_messages]
 match = "keywords"
 fallback = true

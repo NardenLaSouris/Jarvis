@@ -39,10 +39,13 @@ CATEGORIES = {
     "system": ("set_volume", "mute_volume", "unmute_volume", "system_info", "lock_pc", "network_status"),
     "files": ("find_files", "read_text_file", "create_text_file", "copy_file", "move_file", "delete_file"),
     "memory": ("remember", "recall", "forget"),  # faits personnels : jamais lus à un enfant ou un invité
+    # Boîte du propriétaire : ni un autre adulte, ni un enfant, ni un invité ne la lit ou n'écrit en son nom.
+    "mail": ("check_mail", "list_mail", "search_mail", "read_mail", "summarize_mail", "mark_mail_read",
+             "archive_mail", "delete_mail", "send_mail", "reply_mail"),
 }
 POLICY = {
     OWNER: {"categories": set(CATEGORIES), "confirm": True},
-    ADULT: {"categories": set(CATEGORIES), "confirm": True},
+    ADULT: {"categories": set(CATEGORIES) - {"mail"}, "confirm": True},
     CHILD: {"categories": {"info", "home", "media", "schedule"}, "confirm": False},
     GUEST: {"categories": {"info", "home", "media"}, "confirm": False},
 }

@@ -116,8 +116,9 @@ DAY_NAMES = {0: "aujourd'hui", 1: "demain", 2: "après-demain"}
 
 def _when(r: dict) -> str:
     """« dans 20 minutes » ; au-delà de deux heures ou un autre jour : « demain à 9 heures » (session QA : « dans 29
-    heures 28 minutes »)."""
-    if not r.get("far") and not r.get("day"):
+    heures 28 minutes »). Moins de deux heures : toujours « dans 20 minutes », même passé minuit (à 23 h 58,
+    « demain à 0 h 18 » pour un rappel dans 20 minutes)."""
+    if not r.get("far"):
         return f"dans {r['remaining']}"
     day = DAY_NAMES.get(r.get("day", 0), "")
     return f"{day} à {_at(r['at'])}".strip() if day else f"dans {r['remaining']}"
