@@ -21,7 +21,7 @@
   const DEBUG = params.has("debug") || DEMO;
 
   const PROFILES = {
-    standby:   { speed: 0.18, glow: 0.32, focus: 0.0, complexity: 0.10, pulseRate: 0.15, pulseDepth: 0.15 },
+    standby:   { speed: 0.18, glow: 0.55, focus: 0.0, complexity: 0.10, pulseRate: 0.15, pulseDepth: 0.15 },
     listening: { speed: 0.45, glow: 0.66, focus: 1.0, complexity: 0.30, pulseRate: 0.70, pulseDepth: 0.22 },
     thinking:  { speed: 1.50, glow: 0.80, focus: 0.4, complexity: 1.00, pulseRate: 1.20, pulseDepth: 0.10 },
     speaking:  { speed: 0.60, glow: 0.92, focus: 0.6, complexity: 0.40, pulseRate: 0.00, pulseDepth: 0.00 },
@@ -516,7 +516,8 @@
   function glowStroke(g, width, color, alpha, blur) {
     g.shadowColor = rgba(color, alpha);
     g.shadowBlur = blur * GLOW;
-    g.lineWidth = width;
+    // Traits fins : un peu plus épais sur grand écran (1 pixel se perdait en 1080p).
+    g.lineWidth = width < R * 0.004 ? Math.max(width, Math.min(2, R / 260)) : width;
     g.strokeStyle = rgba(color, alpha);
     g.stroke();
     g.shadowBlur = 0;
@@ -600,10 +601,15 @@
     outerArcs(g) {
       const r = R * 0.905;
       for (const [a0, a1] of [[-1.25, -0.42], [2.75, 3.55], [1.75, 2.45], [0.35, 1.05]]) {
-        for (let s = 0; s < 3; s++) {  // trois passes : cœur plus clair, bords qui s'estompent
-          const cut = (2 - s) * 0.03;
-          arc(g, r, a0 + cut, a1 - cut);
-          glowStroke(g, R * 0.046, s === 2 ? COLOR.blue : COLOR.deep, s === 2 ? 0.36 : 0.5, 0);
+        // Extrémités en fondu (trois passes en escalier se voyaient en 1080p).
+        const n = 60;
+        for (let i = 0; i < n; i++) {
+          const k = i / n, edge = Math.min(1, k / 0.18, (1 - k) / 0.18);
+          const fade = edge * edge * (3 - 2 * edge);
+          arc(g, r, a0 + (a1 - a0) * k, a0 + (a1 - a0) * (k + 1 / n) + 0.003);
+          glowStroke(g, R * 0.046, COLOR.deep, 0.55 * fade, 0);
+          arc(g, r, a0 + (a1 - a0) * k, a0 + (a1 - a0) * (k + 1 / n) + 0.003);
+          glowStroke(g, R * 0.03, COLOR.blue, 0.34 * fade, 0);
         }
       }
     },
@@ -825,9 +831,10 @@
 
     ctx.globalCompositeOperation = "source-over";
     const pupil = ctx.createRadialGradient(CX, CY, 0, CX, CY, rc);
-    pupil.addColorStop(0, rgba(COLOR.deep, 0.06 + 0.05 * glow + 0.06 * lvl));  // à peine éclairé, rien au centre
-    pupil.addColorStop(0.75, rgba(COLOR.pupil, 0.9));
-    pupil.addColorStop(1, rgba(COLOR.pupilEdge, 0.7));
+    // Intérieur sombre (sans « donut » clair au milieu), lueur verte seulement contre l'anneau.
+    pupil.addColorStop(0, rgba(COLOR.pupil, 0.9));
+    pupil.addColorStop(0.72, rgba(COLOR.pupil, 0.86));
+    pupil.addColorStop(1, rgba(COLOR.deep, 0.55 + 0.2 * glow + 0.2 * lvl));
     ctx.fillStyle = pupil;
     ctx.beginPath();
     ctx.arc(CX, CY, rc, 0, TAU);
