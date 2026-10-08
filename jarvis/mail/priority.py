@@ -2,7 +2,8 @@
 
 Bruit : lettre d'information ou envoi automatique (en-tête List-Unsubscribe, Precedence: bulk, expéditeur
 « noreply », « newsletter »...), sauf expéditeur important. Important : expéditeur listé ([mail] important_senders),
-mail marqué d'une étoile, ou objet qui contient un mot d'alerte (urgent, facture, rendez-vous, entretien...).
+mail marqué d'une étoile, objet qui contient un mot d'alerte (urgent, facture, rendez-vous, compte fermé...), ou mail
+jugé important par Gmail (hors lettres d'information). Catégories Gmail Promotions et Réseaux sociaux : bruit.
 """
 
 from __future__ import annotations
@@ -17,7 +18,11 @@ NOISE_SENDERS = re.compile(r"(?:^|[._+-])(?:no-?reply|ne-?pas-?repondre|newslett
                            r"notification|notifications|mailer-daemon|bounce)(?:[._+-]|@)", re.IGNORECASE)
 ALERT_WORDS = ("urgent", "important", "facture", "paiement", "echeance", "rendez vous", "entretien", "convocation",
                "relance", "impot", "impots", "banque", "contrat", "resultat", "examen", "livraison", "colis",
-               "action requise", "securite", "mot de passe")
+               "action requise", "securite", "mot de passe",
+               # Comptes : fermeture, blocage, connexion inhabituelle, vérification, double authentification.
+               "compte suspendu", "compte bloque", "sera ferme", "fermeture", "suspension", "nouvelle connexion",
+               "connexion inhabituelle", "code de verification", "verification en deux etapes",
+               "validation en deux etapes", "alerte", "fraude", "remboursement")
 
 
 class MailSorter:
@@ -34,6 +39,9 @@ class MailSorter:
     def priority(self, message: MailMessage) -> str:
         if self._matches(message, self._important) or message.flagged:
             return IMPORTANT
+        labels = set(message.labels)
+        if labels & {"promotions", "social"}:  # classés par Gmail : jamais annoncés
+            return NOISE
         headers = {k.lower(): str(v).lower() for k, v in message.headers.items()}
         automatic = "list-unsubscribe" in headers or headers.get("precedence") in ("bulk", "list", "junk") \
             or bool(NOISE_SENDERS.search(message.sender)) or self._matches(message, self._noise)
@@ -41,4 +49,6 @@ class MailSorter:
         if any(f" {w} " in subject for w in self._alerts):
             # Une facture ou une livraison envoyée par un robot reste importante ; une promotion « urgente » non.
             return NORMAL if automatic and "list-unsubscribe" in headers else IMPORTANT
+        if "important" in labels and "list-unsubscribe" not in headers:  # jugé important par Gmail, hors lettres
+            return IMPORTANT
         return NOISE if automatic else NORMAL

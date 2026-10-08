@@ -448,3 +448,47 @@ def test_latest_mails_are_fetched_by_position_without_listing_the_whole_box():
     calls = FakeImap.instances[0].calls
     assert ("FETCH-SEQ", "3:5", "(UID FLAGS BODY.PEEK[HEADER])") in calls
     assert not any(c[0] == "SEARCH" for c in calls)
+
+
+# --- Classement de Gmail et alertes de compte -----------------------------------------------------------------
+
+@pytest.mark.parametrize("message, expected", [
+    (mail(1, "PayPal", "service@paypal.example", "Votre compte PayPal sera fermé"), IMPORTANT),
+    (mail(1, "Google", "no-reply@accounts.google.example", "Validation en deux étapes activée"), IMPORTANT),
+    (mail(1, "Shop", "promo@shop.example", "Alerte : -50 % ce soir", labels=("promotions",)), NOISE),
+    (mail(1, "Ami", "ami@example.com", "Regarde ça", labels=("social",)), NOISE),
+    (mail(1, "Meta", "noreply@meta.example", "Votre reçu", labels=("important",)), IMPORTANT),
+    (mail(1, "Caev", "info@caev.example", "Lettre n°287", labels=("important",),
+          headers={"List-Unsubscribe": "<x>"}), NOISE),
+])
+def test_gmail_labels_and_account_alerts(message, expected):
+    assert MailSorter().priority(message) == expected
+
+
+def test_listed_senders_stay_important_even_in_promotions():
+    m = mail(1, "Maman", "maman@example.com", "Photos", labels=("social",))
+    assert MailSorter(important_senders=("maman",)).priority(m) == IMPORTANT
+
+
+def test_gmail_labels_and_categories_are_read_without_changing_anything():
+    class Gmail(FakeImap):
+        capabilities = ("IMAP4REV1", "X-GM-EXT-1")
+
+        def uid(self, command, *args):
+            if command == "SEARCH" and args[0] == "X-GM-RAW":
+                self.calls.append((command, *args))
+                return "OK", [b"9" if "promotions" in args[1] else b""]
+            if command == "FETCH":
+                self.calls.append((command, *args))
+                return "OK", [(b'1 (UID 9 FLAGS () X-GM-LABELS ("\\Important" "\\Inbox") BODY[HEADER] {9}',
+                               raw_mail()), b")"]
+            return super().uid(command, *args)
+
+    FakeImap.instances = []
+    provider = ImapSmtpProvider("moi@example.com", "secret", "imap.gmail.com", smtp_factory=FakeSmtp,
+                                imap_factory=lambda host, port, timeout=None: Gmail(host, port, timeout))
+    _, found = provider.unread(5)
+    assert found[0].labels == ("important", "promotions")
+    calls = FakeImap.instances[0].calls
+    assert all("X-GM-LABELS" in c[2] for c in calls if c[0] == "FETCH")
+    assert not any(c[0] in ("STORE", "MOVE", "COPY") for c in calls) and FakeImap.instances[0].readonly

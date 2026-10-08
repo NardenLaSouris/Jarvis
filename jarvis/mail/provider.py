@@ -11,6 +11,7 @@ journalisé ni transmis au LLM.
 from __future__ import annotations
 
 import email
+from dataclasses import replace
 import email.policy
 import imaplib
 import logging
@@ -30,6 +31,8 @@ log = logging.getLogger(__name__)
 MAX_BODY_BYTES = 200_000  # lecture partielle : un mail énorme n'est jamais téléchargé en entier
 MAX_BODY_CHARS = 6000
 FETCH = re.compile(rb"UID (\d+)")
+GMAIL_LABELS = re.compile(rb"X-GM-LABELS \(([^)]*)\)")
+CATEGORIES = ("promotions", "social")  # catégories Gmail jamais annoncées
 FLAGS = re.compile(rb"FLAGS \(([^)]*)\)")
 TAGS = re.compile(r"<(script|style)[^>]*>.*?</\1>|<[^>]+>", re.IGNORECASE | re.DOTALL)
 KEPT_HEADERS = ("List-Unsubscribe", "Precedence", "Auto-Submitted", "X-Priority", "Importance", "Message-ID")
@@ -127,6 +130,7 @@ class ImapSmtpProvider:
                 self._count = None
             if status != "OK":
                 raise MailError(MAIL_UNAVAILABLE, f"Dossier « {self._folder} » introuvable dans la boîte mail.")
+            self._gmail = "X-GM-EXT-1" in getattr(imap, "capabilities", ())
             return imap
         except imaplib.IMAP4.error as exc:
             log.warning("Mail : connexion IMAP refusée (%s)", type(exc).__name__)
@@ -158,7 +162,7 @@ class ImapSmtpProvider:
         count = getattr(self, "_count", None)
         if not count:
             return self._fetch(imap, self._uids(imap, "ALL")[-limit:], full=False)
-        status, data = imap.fetch(f"{max(1, count - limit + 1)}:{count}", "(UID FLAGS BODY.PEEK[HEADER])")
+        status, data = imap.fetch(f"{max(1, count - limit + 1)}:{count}", f"(UID FLAGS{self._extra()} BODY.PEEK[HEADER])")
         if status != "OK":
             raise MailError(MAIL_UNAVAILABLE, "La lecture des mails a échoué.")
         return self._parse(data)
@@ -169,10 +173,28 @@ class ImapSmtpProvider:
         if not uids:
             return []
         part = f"BODY.PEEK[]<0.{MAX_BODY_BYTES}>" if full else "BODY.PEEK[HEADER]"
-        status, data = imap.uid("FETCH", b",".join(uids).decode(), f"(UID FLAGS {part})")
+        status, data = imap.uid("FETCH", b",".join(uids).decode(), f"(UID FLAGS{self._extra()} {part})")
         if status != "OK":
             raise MailError(MAIL_UNAVAILABLE, "La lecture des mails a échoué.")
         return self._parse(data)
+
+    def _extra(self) -> str:
+        return " X-GM-LABELS" if getattr(self, "_gmail", False) else ""
+
+    def _categories(self, imap) -> dict[str, str]:
+        """Gmail : UID des non lus classés Promotions ou Réseaux sociaux (deux recherches, rien n'est modifié)."""
+        found: dict[str, str] = {}
+        if not getattr(self, "_gmail", False):
+            return found
+        for category in CATEGORIES:
+            try:
+                status, data = imap.uid("SEARCH", "X-GM-RAW", f'"category:{category} is:unread"')
+            except Exception:  # noqa: BLE001 - un classement indisponible ne bloque jamais la lecture
+                continue
+            if status == "OK":
+                for uid in (data[0] or b"").split():
+                    found[uid.decode()] = category
+        return found
 
     def _parse(self, data) -> list[MailMessage]:
         messages = []
@@ -183,8 +205,12 @@ class ImapSmtpProvider:
             uid, flags = FETCH.search(head), FLAGS.search(head)
             if uid is None:
                 continue
+            labels = GMAIL_LABELS.search(head)
             try:
-                messages.append(parse_message(uid.group(1).decode(), raw, flags.group(1).decode() if flags else ""))
+                message = parse_message(uid.group(1).decode(), raw, flags.group(1).decode() if flags else "")
+                if labels is not None and b"\\Important" in labels.group(1):
+                    message = replace(message, labels=("important",))
+                messages.append(message)
             except Exception:  # noqa: BLE001 - un mail illisible n'empêche jamais de lire les autres
                 log.warning("Mail : message %s illisible, ignoré", uid.group(1).decode())
         return sorted(messages, key=lambda m: int(m.id), reverse=True)
@@ -214,7 +240,10 @@ class ImapSmtpProvider:
             imap = self._session()
             try:
                 uids = self._uids(imap, "UNSEEN")
-                return len(uids), self._fetch(imap, uids[-max(1, min(limit, self.max_fetch)):], full=False)
+                found = self._fetch(imap, uids[-max(1, min(limit, self.max_fetch)):], full=False)
+                categories = self._categories(imap)
+                found = [replace(m, labels=m.labels + (categories[m.id],)) if m.id in categories else m for m in found]
+                return len(uids), found
             finally:
                 self._close(imap)
 

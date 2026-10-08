@@ -36,6 +36,8 @@ class MailMessage:
     flagged: bool = False
     attachments: tuple[Attachment, ...] = ()
     headers: dict = field(default_factory=dict)  # en-têtes utiles au tri (List-Unsubscribe, Precedence...)
+    # Classement du serveur, s'il en donne un (Gmail) : « important », « promotions », « social »...
+    labels: tuple[str, ...] = ()
 
     @property
     def who(self) -> str:
