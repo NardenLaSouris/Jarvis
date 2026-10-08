@@ -1159,6 +1159,16 @@
   nameEl.id = "name";
   nameEl.textContent = "O.R.I.O.N.";
   document.body.appendChild(nameEl);
+  // Essai de police : ?police=Montserrat&poids=200 (police Google Fonts, ou installée sur la machine).
+  const font = params.get("police");
+  if (font && /^[\w ]{2,40}$/.test(font)) {
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(font)}:wght@200;300;400;500&display=swap`;
+    document.head.appendChild(link);
+    nameEl.style.fontFamily = `"${font}", "Segoe UI", sans-serif`;
+    nameEl.style.fontWeight = /^[1-9]00$/.test(params.get("poids") || "") ? params.get("poids") : "300";
+  }
   setInterval(() => {
     nameEl.style.setProperty("--name-opacity", String(0.55 + 0.45 * clamp01(face.cur.glow)));
   }, 250);
