@@ -696,8 +696,8 @@
   const LAYERS = [
     { key: "axes", speed: 0, dir: 1, react: "outer", gain: 0.004, alpha: 0.9, contract: 0.0, boost: {} },
     { key: "outerRings", speed: 0.02, dir: 1, react: "outer", gain: 0.006, alpha: 0.9, contract: 0.008, boost: {} },
-    { key: "outerArcs", speed: 0.03, dir: -1, react: "outer", gain: 0.01, alpha: 1.0, contract: 0.014, boost: { thinking: 2.6, listening: 1.3 } },
-    { key: "goldRing", speed: 0.022, dir: 1, react: "middle", gain: 0.014, alpha: 0.95, contract: 0.012, boost: { thinking: 2.4 } },
+    { key: "outerArcs", speed: 0.09, dir: -1, react: "outer", gain: 0.01, alpha: 1.0, contract: 0.014, boost: { thinking: 2.6, listening: 1.3 } },
+    { key: "goldRing", speed: 0.07, dir: 1, react: "middle", gain: 0.014, alpha: 0.95, contract: 0.012, boost: { thinking: 2.4 } },
     { key: "ticks", speed: 0.05, dir: -1, react: "middle", gain: 0.016, alpha: 0.8, contract: 0.01, boost: { thinking: 2.6 } },
     { key: "midRings", speed: 0.04, dir: 1, react: "inner", gain: 0.02, alpha: 0.9, contract: 0.0, boost: { listening: 1.6, thinking: 2.2 } },
     { key: "innerRing", speed: 0.12, dir: -1, react: "inner", gain: 0.025, alpha: 0.95, contract: 0.0, boost: { thinking: 3.0, listening: 1.4 } },
@@ -706,7 +706,7 @@
 
   // --- Éléments dynamiques ---------------------------------------------------------------------
 
-  const TRACKS = [0.6, 0.79, 0.905];
+  const TRACKS = [0.52, 0.6, 0.7, 0.79, 0.905, 0.965];
   const comets = [];
   // Points lumineux sur certaines orbites (crème, un doré), comme des satellites.
   const orbitals = [
@@ -719,7 +719,7 @@
   const particles = [];
   const prand = rng(7);
   const CENTER_FREE = 0.4;  // aucune poussière dans le centre : il reste vide
-  for (let i = 0; i < 24; i++) particles.push(newParticle(true));
+  for (let i = 0; i < 80; i++) particles.push(newParticle(true));
 
   function newParticle(anywhere) {
     return {
@@ -727,7 +727,7 @@
       a: prand() * TAU,
       drift: (prand() - 0.5) * 0.08,
       phase: prand() * TAU,
-      freq: 0.2 + prand() * 0.8,
+      freq: 0.3 + prand() * 1.5,
       size: 0.6 + prand() * 1.0,
       fall: 0.4 + prand() * 0.9,
     };
@@ -886,8 +886,8 @@
   // Segments qui glissent le long des orbites (surtout en réflexion).
   function drawComets(dt) {
     const c = face.cur;
-    const wanted = Math.round(c.complexity * 4);
-    if (comets.length < wanted && Math.random() < dt * (0.4 + 2 * c.complexity)) spawnComet();
+    const wanted = Math.round(1 + c.complexity * 9);
+    if (comets.length < wanted && Math.random() < dt * (0.8 + 4 * c.complexity)) spawnComet();
     ctx.save();
     ctx.translate(CX, CY);
     ctx.lineCap = "round";
@@ -905,10 +905,13 @@
         const a0 = a1 - dir * (k.len / steps);
         ctx.beginPath();
         ctx.arc(0, 0, k.r * R, Math.min(a0, a1), Math.max(a0, a1));
-        ctx.lineWidth = Math.max(1, R * 0.0035 * (1 - f * 0.6));
-        ctx.strokeStyle = rgba(s === 0 ? COLOR.white : COLOR.blue, fade * (0.7 - f * 0.65) * (0.35 + 0.65 * c.glow));
+        ctx.lineWidth = Math.max(1.2, R * 0.0045 * (1 - f * 0.6));
+        ctx.strokeStyle = rgba(s === 0 ? COLOR.white : s < 3 ? COLOR.gold : COLOR.blue,
+                               fade * (0.9 - f * 0.8) * (0.45 + 0.55 * c.glow));
         ctx.stroke();
       }
+      // Tête de la traînée : petite étincelle.
+      glowDot(ctx, Math.cos(k.a) * k.r * R, Math.sin(k.a) * k.r * R, R * 0.004, COLOR.gold, fade * (0.5 + 0.5 * c.glow));
     }
     ctx.restore();
   }
@@ -940,8 +943,8 @@
       p.r -= dt * 0.03 * p.fall * c.complexity * c.complexity;
       if (p.r < CENTER_FREE) particles[i] = newParticle(false);
       const tw = 0.5 + 0.5 * Math.sin(t * p.freq * TAU + p.phase);
-      const alpha = (0.05 + 0.3 * tw) * (0.25 + 0.75 * c.complexity) * (0.5 + 0.5 * c.glow);
-      ctx.fillStyle = rgba(COLOR.cyan, alpha);
+      const alpha = (0.1 + 0.6 * tw) * (0.35 + 0.65 * c.complexity) * (0.5 + 0.5 * c.glow);
+      ctx.fillStyle = rgba(tw > 0.92 ? COLOR.white : tw > 0.75 ? COLOR.gold : COLOR.cyan, alpha);
       const size = Math.max(1, p.size * DPR);
       ctx.fillRect(Math.cos(p.a) * p.r * R - size / 2, Math.sin(p.a) * p.r * R - size / 2, size, size);
     }
