@@ -75,6 +75,10 @@ class HouseJournal:
             return Priority.CRITICAL, f"Une fuite d'eau a été détectée{in_room(room)}."
         if kind == "smoke.detected":
             return Priority.CRITICAL, f"De la fumée a été détectée{in_room(room)}."
+        if kind == "mail.received":  # nouveau mail important (jarvis/mail/watch.py) : cité au retour
+            subject = str(p.get("subject") or "")
+            return Priority.IMPORTANT, (f"Nouveau mail de {str(p.get('sender') or 'un expéditeur')[:40]}"
+                                        + (f" : « {subject[:80]} »." if subject else "."))
         if kind == "appliance.finished":
             name = str(p.get("name") or "Un appareil")
             return Priority.IMPORTANT, f"{name[:1].upper()}{name[1:]} a terminé son cycle."

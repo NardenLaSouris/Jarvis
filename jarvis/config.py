@@ -209,6 +209,13 @@ class MailConfig:
     important_senders: tuple = ()
     noise_senders: tuple = ()
     contacts: dict = field(default_factory=dict)  # nom dit -> adresse (seuls destinataires possibles par leur nom)
+    # Annonce des nouveaux mails (jarvis/mail/watch.py) : toutes les watch_minutes (0 : jamais), « important »,
+    # « personnel » (importants et mails de vraies personnes) ou « aucun » ; rien n'est dit pendant les heures calmes.
+    watch_minutes: float = 5.0
+    announce: str = "important"
+    quiet_start: str = "22:30"
+    quiet_end: str = "08:00"
+    seen_path: Path = Path("data/mail_seen.json")
 
 
 @dataclass(frozen=True)

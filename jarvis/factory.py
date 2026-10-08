@@ -358,6 +358,32 @@ def build_mail(cfg: Config):
     return MailBox(provider, MailSorter(m.important_senders, m.noise_senders), m.contacts)
 
 
+def build_mail_watcher(cfg: Config, mailbox, events: EventBus, notifications, presence=None, personality=None):
+    """Annonce des nouveaux mails importants ([mail] watch_minutes, announce) démarrée, ou None."""
+    m = cfg.mail
+    if m.watch_minutes <= 0 or m.announce == "aucun":
+        return None
+    from jarvis.mail.watch import MailWatcher
+    from jarvis.notifications import Notification
+    from jarvis.presence.engine import ARRIVAL_CONFIRMED
+
+    def announce(title: str, text: str) -> None:
+        notifications.notify(Notification(title[:80], text, "mail"))
+
+    def present() -> bool | None:
+        if presence is None:
+            return None
+        house = presence.engine.snapshot()["house"]
+        return None if house == "unknown" else house == "occupied"
+
+    watcher = MailWatcher(mailbox, events, announce, m.seen_path, m.watch_minutes * 60, m.announce, m.quiet_start,
+                          m.quiet_end, present, personality.user_title if personality is not None else "monsieur")
+    events.subscribe(ARRIVAL_CONFIRMED, watcher.on_arrival)
+    watcher.start()
+    log.info("Mails : annonce des nouveaux mails (%s) toutes les %g min", m.announce, m.watch_minutes)
+    return watcher
+
+
 def build_presence_system(cfg: Config, events: EventBus, home=None):
     """Présence à la maison ([presence]) démarrée, ou None si désactivée."""
     if not cfg.presence.enabled:
@@ -373,7 +399,7 @@ def build_presence_system(cfg: Config, events: EventBus, home=None):
 
 
 def build_routines(cfg: Config, tools, notifications, events: EventBus, sink=None, timers=None, calendar=None,
-                   presence=None, personality=None):
+                   presence=None, personality=None, mail_summary=None):
     """Moteur des routines démarré ([routines]), avec sonnerie des réveils et annonces ; outils de réveil ajoutés au
     registre ([alarms]). None sans outils."""
     if tools is None or not cfg.routines.enabled:
@@ -421,7 +447,7 @@ def build_routines(cfg: Config, tools, notifications, events: EventBus, sink=Non
             return f"Bon retour, {name}."
 
         welcome = lambda context: presence.welcome(context, greeting, cfg.presence.absence_summary)  # noqa: E731
-    announcer = Announcer(run_as_owner, today_events, welcome=welcome)
+    announcer = Announcer(run_as_owner, today_events, welcome=welcome, mail_summary=mail_summary)
     engine = RoutineEngine(JsonRoutineStore(cfg.routines.path), tools.registry, run_as_owner, say, events,
                            alarm=alarm, announce=announcer.text)
     if alarm is not None:
@@ -653,10 +679,12 @@ def build_agent(
 
         extra += calendar_tools(calendar)
     mailbox = build_mail(cfg)
+    watcher = None
     if mailbox is not None:
         from jarvis.mail import mail_tools
 
         extra += mail_tools(mailbox)
+        watcher = build_mail_watcher(cfg, mailbox, events, notifications, presence, personality)
     if cfg.tools.enabled:
         extra.append(build_network_tool(cfg, rooms))
     tools = build_tools(cfg, personality, events, timers, weather, devices,
@@ -672,7 +700,8 @@ def build_agent(
             music.on_event(kind)
             if forward is not None:
                 forward(kind, text)
-    routines = build_routines(cfg, tools, notifications, events, sink, timers, calendar, presence, personality)
+    routines = build_routines(cfg, tools, notifications, events, sink, timers, calendar, presence, personality,
+                              mail_summary=watcher.summary if watcher is not None else None)
     api = build_api(cfg, tools, routines, web=web, devices=devices, rooms=rooms, driver=driver, timers=timers,
                     worker=llm if hasattr(llm, "probe") else None, home=home, memory=memory,
                     profiles=build_profiles(cfg), presence=presence)

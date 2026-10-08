@@ -160,6 +160,14 @@ briefing = true
 #   [mail.contacts]
 #   maman = "maman@example.com"
 enabled = false
+# Annonce des nouveaux mails importants (tri déterministe, jamais le LLM) : présent et hors heures calmes, ORION le
+# dit (« lis ce mail » vise alors ce mail) ; absent, le résumé « Bon retour » le cite ; la nuit, le point du jour.
+# watch_minutes = 0 : aucune surveillance. announce = "important", "personnel" (aussi les mails de vraies
+# personnes) ou "aucun".
+watch_minutes = 5.0
+announce = "important"
+quiet_start = "22:30"
+quiet_end = "08:00"
 
 [presence]
 # Présence à la maison (jarvis/presence) : départs et retours confirmés à partir de plusieurs signaux (téléphone,
