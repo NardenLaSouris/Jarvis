@@ -188,7 +188,7 @@ def get(url):
 def test_server_serves_the_face(server):
     face, visual, url = server
     status, kind, body = get(url)
-    assert status == 200 and kind.startswith("text/html") and b"face.js" in body and b"JARVIS</title>" in body
+    assert status == 200 and kind.startswith("text/html") and b"face.js" in body and b"ORION</title>" in body
     import re
 
     visible = re.sub(r"<[^>]+>", "", body.decode().split("<body>", 1)[1])
@@ -511,3 +511,21 @@ def test_a_routine_started_during_an_announcement_ends_in_standby():
     for _ in range(2):
         bus.publish(Event(TOOL_EXECUTED, "tools", {}))
     assert visual.snapshot()["state"] == "standby"
+
+
+def test_orion_face_uses_the_aureon_palette_and_keeps_its_centre_empty():
+    # Refonte ORION : vert forêt, vert secondaire, crème, doré en accent, fond noir profond ; centre vide.
+    import re
+
+    static = ROOT / "jarvis" / "face" / "static"
+    js = (static / "face.js").read_text(encoding="utf-8")
+    day = js.split("    day: {", 1)[1].split("}", 1)[0]
+    for color in ("[15, 61, 46]", "[60, 139, 111]", "[244, 239, 228]", "[201, 164, 92]", '"#0e0e0e"'):
+        assert color in day, color
+    assert "gold: palette.gold || palette.white" in js  # fêtes et couleurs : pas de doré imposé
+    for state in ("standby:", "listening:", "thinking:", "speaking:"):
+        assert state in js
+    assert "fillText" not in js and "drawImage(logo" not in js  # aucun texte ni logo dessiné sur le visage
+    html = (static / "index.html").read_text(encoding="utf-8")
+    assert "<title>ORION</title>" in html and "JARVIS" not in html
+    assert re.search(r"background: #0e0e0e", (static / "face.css").read_text(encoding="utf-8"))

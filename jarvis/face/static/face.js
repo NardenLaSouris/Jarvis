@@ -1,7 +1,8 @@
 /*
- * Visage de JARVIS : rendu canvas piloté uniquement par un état visuel.
+ * Visage d'ORION (univers Aureon) : rendu canvas piloté uniquement par un état visuel. Un système de cercles
+ * concentriques, centre vide : ni texte, ni logo, ni symbole sur le visage.
  *
- *   JarvisFace.setVisualState("standby" | "listening" | "thinking" | "speaking")
+ *   OrionFace (alias JarvisFace).setVisualState("standby" | "listening" | "thinking" | "speaking")
  *   JarvisFace.setAudioLevel(0..1)
  *   JarvisFace.standby()
  *   JarvisFace.setTheme("day" | "night" | "error" | "<couleur>", teinte?)   (couleur : palette tirée de la teinte)
@@ -20,16 +21,18 @@
   const DEBUG = params.has("debug") || DEMO;
 
   const PROFILES = {
-    standby:   { speed: 0.22, glow: 0.40, focus: 0.0, complexity: 0.12, pulseRate: 0.20, pulseDepth: 0.18 },
-    listening: { speed: 0.50, glow: 0.68, focus: 1.0, complexity: 0.30, pulseRate: 0.80, pulseDepth: 0.24 },
-    thinking:  { speed: 1.60, glow: 0.82, focus: 0.4, complexity: 1.00, pulseRate: 1.60, pulseDepth: 0.12 },
-    speaking:  { speed: 0.70, glow: 0.95, focus: 0.6, complexity: 0.45, pulseRate: 0.00, pulseDepth: 0.00 },
+    standby:   { speed: 0.18, glow: 0.32, focus: 0.0, complexity: 0.10, pulseRate: 0.15, pulseDepth: 0.15 },
+    listening: { speed: 0.45, glow: 0.66, focus: 1.0, complexity: 0.30, pulseRate: 0.70, pulseDepth: 0.22 },
+    thinking:  { speed: 1.50, glow: 0.80, focus: 0.4, complexity: 1.00, pulseRate: 1.20, pulseDepth: 0.10 },
+    speaking:  { speed: 0.60, glow: 0.92, focus: 0.6, complexity: 0.40, pulseRate: 0.00, pulseDepth: 0.00 },
   };
 
   const THEMES = {
+    // Charte Aureon : vert forêt (structure), vert secondaire (actif), crème (important), doré (accents rares),
+    // noir profond (fond).
     day: {
-      deep: [12, 42, 110], blue: [34, 118, 255], cyan: [70, 214, 255], white: [214, 244, 255],
-      pupil: [1, 4, 12], pupilEdge: [2, 8, 20], background: ["#061329", "#030a17", "#010308"],
+      deep: [15, 61, 46], blue: [60, 139, 111], cyan: [128, 186, 160], white: [244, 239, 228], gold: [201, 164, 92],
+      pupil: [10, 13, 11], pupilEdge: [14, 16, 15], background: ["#111814", "#0f110f", "#0e0e0e"],
     },
     night: {
       deep: [40, 40, 40], blue: [125, 125, 125], cyan: [205, 205, 205], white: [255, 255, 255],
@@ -112,7 +115,8 @@
     : Number.isFinite(forcedHue) && params.get("theme") ? "teinte"
     : THEMES[params.get("theme")] ? params.get("theme") : null;
   let theme = FORCED_THEME && THEMES[FORCED_THEME] ? FORCED_THEME : "day";
-  const COLOR = { ...THEMES[theme] };
+  // Doré : rôle propre à Aureon ; les autres palettes (fêtes, couleurs) reprennent leur couleur la plus claire.
+  const COLOR = { ...THEMES[theme], gold: THEMES[theme].gold || THEMES[theme].white };
   const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${Math.max(0, Math.min(1, a)).toFixed(3)})`;
   const clamp01 = (v) => Math.max(0, Math.min(1, v));
   const now = () => performance.now() / 1000;
@@ -178,7 +182,7 @@
 
   function applyPalette(name, palette) {
     theme = name;
-    Object.assign(COLOR, palette);
+    Object.assign(COLOR, palette, { gold: palette.gold || palette.white });
     paintPage();
     resize();
     buildLayers();
@@ -450,7 +454,7 @@
     document.querySelector('meta[name="theme-color"]')?.setAttribute("content", COLOR.background[2]);
   }
 
-  window.JarvisFace = {
+  window.OrionFace = window.JarvisFace = {
     setVisualState, setAudioLevel, standby, setTheme, reset: standby,
     get theme() { return theme; },
     get state() { return face.state; },
@@ -499,7 +503,7 @@
   const layers = {};
 
   function offscreen(draw, seed) {
-    const size = Math.ceil(R * 2.1);
+    const size = Math.ceil(R * 2.5);  // axes : au-delà du cercle extérieur
     const c = document.createElement("canvas");
     c.width = c.height = size;
     const g = c.getContext("2d");
@@ -511,7 +515,7 @@
 
   function glowStroke(g, width, color, alpha, blur) {
     g.shadowColor = rgba(color, alpha);
-    g.shadowBlur = blur;
+    g.shadowBlur = blur * GLOW;
     g.lineWidth = width;
     g.strokeStyle = rgba(color, alpha);
     g.stroke();
@@ -523,180 +527,168 @@
     g.arc(0, 0, r, a0, a1);
   }
 
+  // Identité ORION (Aureon) : cercles fins, axes, anneau central crème et or, larges arcs vert forêt. Le centre
+  // reste vide (ni texte, ni logo, ni symbole).
+  const GLOW = 0.5;  // lueur des traits : sobre
+
+  function dots(g, r, count, size, color, alpha, skip = () => false) {
+    g.fillStyle = rgba(color, alpha);
+    for (let i = 0; i < count; i++) {
+      const a = (i / count) * TAU;
+      if (skip(a)) continue;
+      g.beginPath();
+      g.arc(Math.cos(a) * r, Math.sin(a) * r, size, 0, TAU);
+      g.fill();
+    }
+  }
+
   const BUILDERS = {
-    // Graduation extérieure : fines graduations, deux secteurs vides pour casser la symétrie.
-    outerScale(g, rand) {
-      const r = R * 0.965;
-      arc(g, r, 0, TAU);
-      glowStroke(g, Math.max(1, R * 0.0018), COLOR.cyan, 0.28, R * 0.01);
-      for (let i = 0; i < 180; i++) {
-        const deg = i * 2;
-        if ((deg > 38 && deg < 58) || (deg > 214 && deg < 226)) continue;
-        const a = (deg * Math.PI) / 180;
-        const major = i % 5 === 0;
-        const len = major ? R * 0.028 : R * 0.012;
-        g.beginPath();
-        g.moveTo(Math.cos(a) * r, Math.sin(a) * r);
-        g.lineTo(Math.cos(a) * (r - len), Math.sin(a) * (r - len));
-        glowStroke(g, Math.max(1, R * (major ? 0.0028 : 0.0016)), major ? COLOR.white : COLOR.cyan,
-                   major ? 0.55 : 0.3, R * 0.008);
-      }
-      for (const [a0, a1] of [[0.66, 1.0], [3.74, 3.95]]) {
-        arc(g, r + R * 0.018, a0, a1);
-        glowStroke(g, Math.max(1, R * 0.004), COLOR.cyan, 0.5, R * 0.012);
-      }
-    },
-
-    // Anneau extérieur segmenté irrégulier.
-    outerDash(g, rand) {
-      const r = R * 0.905;
-      let a = 0;
-      while (a < TAU - 0.05) {
-        const len = 0.05 + rand() * 0.55;
-        const gap = 0.025 + rand() * 0.12;
-        const end = Math.min(TAU - 0.03, a + len);
-        arc(g, r, a, end);
-        const strong = rand() > 0.72;
-        glowStroke(g, R * (strong ? 0.009 : 0.0035), strong ? COLOR.cyan : COLOR.blue, strong ? 0.6 : 0.35, R * 0.02);
-        a = end + gap;
-      }
-      arc(g, R * 0.875, 0, TAU);
-      glowStroke(g, Math.max(1, R * 0.0015), COLOR.blue, 0.2, 0);
-    },
-
-    // Grand anneau partiel épais (la signature du visage).
-    ringA(g, rand) {
-      const r = R * 0.76;
-      const arcs = [[-0.35, 1.05], [1.3, 2.25], [2.55, 4.35], [4.62, 5.55]];
-      for (const [a0, a1] of arcs) {
-        arc(g, r, a0, a1);
-        glowStroke(g, R * 0.05, COLOR.blue, 0.22, R * 0.04);
-        arc(g, r, a0, a1);
-        glowStroke(g, R * 0.05, COLOR.deep, 0.55, 0);
-        arc(g, r + R * 0.022, a0, a1);
-        glowStroke(g, Math.max(1, R * 0.004), COLOR.cyan, 0.75, R * 0.02);
-        arc(g, r - R * 0.022, a0 + 0.02, a1 - 0.02);
-        glowStroke(g, Math.max(1, R * 0.0025), COLOR.cyan, 0.45, R * 0.012);
-        for (let k = 0; k < 3; k++) {
-          const at = a0 + (a1 - a0) * (0.2 + 0.3 * k) + rand() * 0.05;
-          arc(g, r, at, at + 0.018);
-          glowStroke(g, R * 0.05, COLOR.white, 0.35, R * 0.02);
+    // Axes horizontal et vertical, au-delà du visage, avec leurs points et graduations (fixes).
+    axes(g) {
+      const reach = R * 1.2;
+      g.lineWidth = Math.max(1, R * 0.0016);
+      for (const [dx, dy] of [[1, 0], [0, 1]]) {
+        for (const [from, to] of [[-reach, -R * 0.62], [R * 0.62, reach]]) {
+          const grad = g.createLinearGradient(dx * from, dy * from, dx * to, dy * to);
+          const outward = from < 0;
+          grad.addColorStop(outward ? 0 : 1, rgba(COLOR.gold, 0));
+          grad.addColorStop(outward ? 1 : 0, rgba(COLOR.gold, 0.5));
+          g.strokeStyle = grad;
+          g.beginPath(); g.moveTo(dx * from, dy * from); g.lineTo(dx * to, dy * to); g.stroke();
+        }
+        for (const k of [-1.1, -0.98, -0.83, -0.66, 0.66, 0.83, 0.98, 1.1]) {
+          g.beginPath();
+          g.arc(dx * k * R, dy * k * R, R * (Math.abs(k) > 1 ? 0.005 : 0.007), 0, TAU);
+          g.fillStyle = rgba(Math.abs(k) === 0.83 ? COLOR.white : COLOR.gold, Math.abs(k) > 1 ? 0.55 : 0.8);
+          g.fill();
         }
       }
-      arc(g, R * 0.715, 0, TAU);
-      glowStroke(g, Math.max(1, R * 0.0015), COLOR.cyan, 0.16, 0);
     },
 
-    // Blocs de données : barre segmentée, luminosités variables, un secteur absent.
-    ringB(g, rand) {
-      const r = R * 0.655;
-      const blocks = 84;
-      for (let i = 0; i < blocks; i++) {
-        const a0 = (i / blocks) * TAU;
-        if (a0 > 4.9 && a0 < 5.6) continue;
-        const bright = rand();
-        arc(g, r, a0, a0 + (TAU / blocks) * 0.62);
-        glowStroke(g, R * 0.024, bright > 0.82 ? COLOR.white : COLOR.cyan,
-                   bright > 0.82 ? 0.75 : 0.12 + bright * 0.35, R * 0.012);
-      }
-      arc(g, r + R * 0.028, 0.2, 2.9);
-      glowStroke(g, Math.max(1, R * 0.002), COLOR.cyan, 0.4, R * 0.01);
-      arc(g, r - R * 0.028, 3.3, 6.0);
-      glowStroke(g, Math.max(1, R * 0.002), COLOR.cyan, 0.3, R * 0.01);
-    },
-
-    // Anneaux internes fins.
-    inner1(g) {
-      g.setLineDash([R * 0.012, R * 0.018]);
-      arc(g, R * 0.415, 0, TAU);
-      glowStroke(g, Math.max(1, R * 0.004), COLOR.cyan, 0.55, R * 0.012);
-      g.setLineDash([]);
-    },
-
-    inner2(g, rand) {
-      const r = R * 0.445;
-      for (const [a0, a1] of [[0.1, 1.4], [2.0, 2.6], [3.2, 5.1]]) {
-        arc(g, r, a0, a1);
-        glowStroke(g, Math.max(1, R * 0.0035), COLOR.blue, 0.6, R * 0.015);
-      }
-      for (let i = 0; i < 6; i++) {
-        const a = rand() * TAU;
-        g.beginPath();
-        g.arc(Math.cos(a) * r, Math.sin(a) * r, R * 0.006, 0, TAU);
-        g.fillStyle = rgba(COLOR.white, 0.8);
-        g.shadowColor = rgba(COLOR.cyan, 0.9);
-        g.shadowBlur = R * 0.02;
-        g.fill();
-        g.shadowBlur = 0;
+    // Cercles extérieurs très fins.
+    outerRings(g) {
+      for (const [r, a] of [[1.0, 0.45], [0.965, 0.3]]) {
+        arc(g, R * r, 0, TAU);
+        glowStroke(g, Math.max(1, R * 0.0014), COLOR.blue, a, 0);
       }
     },
 
-    // Arcs serrés autour du noyau, rapides en réflexion.
-    coreArcs(g) {
-      const r = R * 0.345;
-      for (const [a0, a1] of [[0.2, 1.1], [2.3, 2.8], [3.6, 4.9]]) {
-        arc(g, r, a0, a1);
-        glowStroke(g, R * 0.011, COLOR.cyan, 0.8, R * 0.03);
+    // Larges arcs vert forêt (la signature extérieure), aux extrémités adoucies.
+    outerArcs(g) {
+      const r = R * 0.905;
+      for (const [a0, a1] of [[-1.25, -0.42], [2.75, 3.55], [1.75, 2.45], [0.35, 1.05]]) {
+        for (let s = 0; s < 3; s++) {  // trois passes : cœur plus clair, bords qui s'estompent
+          const cut = (2 - s) * 0.03;
+          arc(g, r, a0 + cut, a1 - cut);
+          glowStroke(g, R * 0.046, s === 2 ? COLOR.blue : COLOR.deep, s === 2 ? 0.36 : 0.5, 0);
+        }
       }
     },
 
-    // Iris intérieur pointillé : le centre reste vide mais vivant.
+    // Cercle doré, ouvert sur un côté, point crème à son sommet.
+    goldRing(g) {
+      const r = R * 0.79;
+      arc(g, r, 0, TAU);
+      glowStroke(g, Math.max(1, R * 0.0014), COLOR.blue, 0.4, 0);
+      arc(g, r, -Math.PI / 2 - 0.15, Math.PI * 0.62);
+      glowStroke(g, Math.max(1, R * 0.0026), COLOR.gold, 0.75, R * 0.012);
+      g.beginPath();
+      g.arc(0, -r, R * 0.011, 0, TAU);
+      g.fillStyle = rgba(COLOR.white, 0.9);
+      g.shadowColor = rgba(COLOR.gold, 0.8);
+      g.shadowBlur = R * 0.03 * GLOW;
+      g.fill();
+      g.shadowBlur = 0;
+    },
+
+    // Graduations fines (couronne de petits traits).
+    ticks(g) {
+      const r = R * 0.7;
+      g.lineWidth = Math.max(1, R * 0.0018);
+      g.strokeStyle = rgba(COLOR.white, 0.35);
+      g.beginPath();
+      for (let i = 0; i < 120; i++) {
+        const a = (i / 120) * TAU;
+        if (Math.abs(Math.sin(a * 2)) < 0.04) continue;  // ouverture sur les axes
+        g.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+        g.lineTo(Math.cos(a) * (r + R * 0.014), Math.sin(a) * (r + R * 0.014));
+      }
+      g.stroke();
+    },
+
+    // Cercles fins et cercle pointillé intermédiaires.
+    midRings(g) {
+      for (const [r, a] of [[0.6, 0.5], [0.52, 0.35]]) {
+        arc(g, R * r, 0, TAU);
+        glowStroke(g, Math.max(1, R * 0.0013), COLOR.blue, a, 0);
+      }
+      dots(g, R * 0.565, 96, R * 0.0035, COLOR.white, 0.45);
+    },
+
+    // Anneau vert juste autour de l'anneau central.
+    innerRing(g) {
+      arc(g, R * 0.445, 0, TAU);
+      glowStroke(g, Math.max(1, R * 0.0035), COLOR.blue, 0.55, R * 0.02);
+      arc(g, R * 0.47, 0.3, 2.6);
+      glowStroke(g, Math.max(1, R * 0.0014), COLOR.cyan, 0.35, 0);
+    },
+
+    // Cercle pointillé très fin le plus proche du centre (le centre lui-même reste vide).
     iris(g) {
-      g.setLineDash([R * 0.004, R * 0.014]);
-      arc(g, R * 0.2, 0, TAU);
-      glowStroke(g, Math.max(1, R * 0.003), COLOR.cyan, 0.4, R * 0.01);
-      g.setLineDash([]);
+      dots(g, R * 0.2, 72, R * 0.0022, COLOR.cyan, 0.35);
     },
   };
 
   // Couches pré-rendues : vitesse (rad/s), sens, réaction audio (enveloppe et gain), opacité,
-  // multiplicateurs de vitesse par état (profondeur : chaque couche a son propre rythme).
+  // multiplicateurs de vitesse par état. Les axes restent fixes.
   const LAYERS = [
-    { key: "outerScale", speed: 0.018, dir: 1, react: "outer", gain: 0.010, alpha: 0.75, contract: 0.012, boost: {} },
-    { key: "outerDash", speed: 0.045, dir: -1, react: "outer", gain: 0.018, alpha: 0.85, contract: 0.02, boost: { thinking: 1.4 } },
-    { key: "ringA", speed: 0.085, dir: 1, react: "middle", gain: 0.035, alpha: 0.95, contract: 0.025, boost: { listening: 1.3 } },
-    { key: "ringB", speed: 0.13, dir: -1, react: "middle", gain: 0.03, alpha: 0.9, contract: 0.02, boost: { thinking: 1.8 } },
-    { key: "inner2", speed: 0.22, dir: -1, react: "inner", gain: 0.035, alpha: 0.8, contract: 0.0, boost: { listening: 1.8 } },
-    { key: "inner1", speed: 0.3, dir: 1, react: "inner", gain: 0.05, alpha: 0.85, contract: 0.0, boost: { listening: 2.0, thinking: 1.5 } },
-    { key: "coreArcs", speed: 0.7, dir: 1, react: "core", gain: 0.06, alpha: 1.0, contract: 0.0, boost: { thinking: 2.6, listening: 1.3 } },
-    { key: "iris", speed: 0.1, dir: -1, react: "core", gain: 0.08, alpha: 0.7, contract: 0.0, boost: { thinking: 3 } },
-  ].map((layer, i) => ({ ...layer, angle: i * 1.3, mul: 1 }));
+    { key: "axes", speed: 0, dir: 1, react: "outer", gain: 0.004, alpha: 0.9, contract: 0.0, boost: {} },
+    { key: "outerRings", speed: 0.006, dir: 1, react: "outer", gain: 0.006, alpha: 0.9, contract: 0.008, boost: {} },
+    { key: "outerArcs", speed: 0.03, dir: -1, react: "outer", gain: 0.01, alpha: 1.0, contract: 0.014, boost: { thinking: 2.6, listening: 1.3 } },
+    { key: "goldRing", speed: 0.022, dir: 1, react: "middle", gain: 0.014, alpha: 0.95, contract: 0.012, boost: { thinking: 2.4 } },
+    { key: "ticks", speed: 0.05, dir: -1, react: "middle", gain: 0.016, alpha: 0.8, contract: 0.01, boost: { thinking: 2.6 } },
+    { key: "midRings", speed: 0.04, dir: 1, react: "inner", gain: 0.02, alpha: 0.9, contract: 0.0, boost: { listening: 1.6, thinking: 2.2 } },
+    { key: "innerRing", speed: 0.12, dir: -1, react: "inner", gain: 0.025, alpha: 0.95, contract: 0.0, boost: { thinking: 3.0, listening: 1.4 } },
+    { key: "iris", speed: 0.06, dir: 1, react: "core", gain: 0.03, alpha: 0.8, contract: 0.0, boost: { thinking: 3 } },
+  ].map((layer, i) => ({ ...layer, angle: layer.speed ? i * 1.3 : 0, mul: 1 }));
 
   // --- Éléments dynamiques ---------------------------------------------------------------------
 
-  const TRACKS = [0.58, 0.69, 0.79, 0.845];
+  const TRACKS = [0.6, 0.79, 0.905];
   const comets = [];
+  // Points lumineux sur certaines orbites (crème, un doré), comme des satellites.
   const orbitals = [
-    { r: 0.935, speed: 0.10, shape: "tri", angle: 0.4 },
-    { r: 0.83, speed: -0.17, shape: "dot", angle: 2.1 },
-    { r: 0.615, speed: 0.26, shape: "diamond", angle: 4.0 },
-    { r: 0.985, speed: -0.045, shape: "bracket", angle: 5.2 },
-    { r: 0.52, speed: -0.38, shape: "dot", angle: 1.1 },
+    { r: 0.445, speed: 0.05, shape: "dot", angle: -0.95 },
+    { r: 0.445, speed: 0.05, shape: "dot", angle: 2.05 },
+    { r: 0.36, speed: -0.07, shape: "dot", angle: 0.55 },
+    { r: 0.6, speed: -0.03, shape: "gold", angle: 3.9 },
+    { r: 0.79, speed: 0.02, shape: "small", angle: 0.9 },
   ];
   const particles = [];
   const prand = rng(7);
-  for (let i = 0; i < 90; i++) particles.push(newParticle(true));
+  const CENTER_FREE = 0.4;  // aucune poussière dans le centre : il reste vide
+  for (let i = 0; i < 24; i++) particles.push(newParticle(true));
 
   function newParticle(anywhere) {
     return {
-      r: anywhere ? 0.18 + prand() * 0.86 : 0.95 + prand() * 0.1,
+      r: anywhere ? CENTER_FREE + prand() * 0.6 : 0.95 + prand() * 0.1,
       a: prand() * TAU,
-      drift: (prand() - 0.5) * 0.12,
+      drift: (prand() - 0.5) * 0.08,
       phase: prand() * TAU,
-      freq: 0.4 + prand() * 1.6,
-      size: 0.6 + prand() * 1.6,
+      freq: 0.2 + prand() * 0.8,
+      size: 0.6 + prand() * 1.0,
       fall: 0.4 + prand() * 0.9,
     };
   }
 
   function spawnComet() {
     comets.push({
-      r: TRACKS[Math.floor(Math.random() * TRACKS.length)] + (Math.random() - 0.5) * 0.01,
+      r: TRACKS[Math.floor(Math.random() * TRACKS.length)],
       a: Math.random() * TAU,
-      speed: (0.5 + Math.random() * 1.2) * (Math.random() > 0.5 ? 1 : -1),
-      len: 0.12 + Math.random() * 0.35,
+      speed: (0.3 + Math.random() * 0.6) * (Math.random() > 0.5 ? 1 : -1),
+      len: 0.15 + Math.random() * 0.35,
       life: 0,
-      span: 1.2 + Math.random() * 2.2,
+      span: 1.6 + Math.random() * 2.4,
     });
   }
 
@@ -717,7 +709,7 @@
     canvas.height = H;
     CX = W / 2;
     CY = H / 2;
-    R = Math.min(W, H) * 0.44;
+    R = Math.min(W, H) * 0.36;  // place pour les axes et la ligne de voix
     background = ctx.createRadialGradient(CX, CY, 0, CX, CY, Math.hypot(W, H) / 2);
     background.addColorStop(0, COLOR.background[0]);
     background.addColorStop(0.45, COLOR.background[1]);
@@ -745,7 +737,7 @@
     if (!img || layersR < 1) return;
     const env = face.env[layer.react];
     const scale = (1 + layer.gain * env - layer.contract * face.cur.focus * 0.6) * (R / layersR);
-    const alpha = layer.alpha * (0.35 + 0.65 * face.cur.glow) + env * 0.25;
+    const alpha = layer.alpha * (0.35 + 0.65 * face.cur.glow) + env * 0.15;
     ctx.save();
     ctx.globalAlpha = clamp01(alpha);
     ctx.translate(CX, CY);
@@ -756,84 +748,67 @@
   }
 
   function drawHalo() {
-    const g = ctx.createRadialGradient(CX, CY, R * 0.25, CX, CY, R * 1.2);
-    const a = 0.05 + 0.09 * face.cur.glow + 0.12 * face.env.middle;
-    g.addColorStop(0, rgba(COLOR.blue, a));
-    g.addColorStop(0.5, rgba(COLOR.deep, a * 0.6));
+    const g = ctx.createRadialGradient(CX, CY, R * 0.2, CX, CY, R * 1.1);
+    const a = 0.05 + 0.07 * face.cur.glow + 0.06 * face.env.middle;
+    g.addColorStop(0, rgba(COLOR.deep, a));
+    g.addColorStop(0.6, rgba(COLOR.deep, a * 0.5));
     g.addColorStop(1, rgba(COLOR.deep, 0));
     ctx.fillStyle = g;
-    ctx.fillRect(CX - R * 1.25, CY - R * 1.25, R * 2.5, R * 2.5);
+    ctx.fillRect(CX - R * 1.2, CY - R * 1.2, R * 2.4, R * 2.4);
   }
 
+  // Cercle de points qui s'allument avec l'activité et la voix (jamais un égaliseur).
   function drawInnerTicks(t, angle) {
-    const n = 96;
-    const r0 = R * 0.475;
+    const n = 84;
+    const r0 = R * 0.645;
     const c = face.cur;
     ctx.save();
     ctx.translate(CX, CY);
     ctx.rotate(angle);
-    ctx.lineWidth = Math.max(1, R * 0.004);
-    for (let pass = 0; pass < 2; pass++) {
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * TAU;
+      const wave = 0.5 + 0.5 * Math.sin(i * 0.45 - t * (0.6 + c.speed));
+      const alpha = 0.12 + 0.3 * c.glow * wave + 0.45 * face.env.inner * wave;
+      ctx.fillStyle = rgba(wave > 0.9 ? COLOR.white : COLOR.cyan, alpha);
       ctx.beginPath();
-      for (let i = 0; i < n; i++) {
-        const a = (i / n) * TAU;
-        const wave = 0.5 + 0.5 * Math.sin(i * 1.7 + t * 3.1) * Math.sin(i * 0.61 - t * 1.9);
-        const len = R * (0.014 + 0.016 * c.complexity * wave + 0.075 * face.env.inner * (0.3 + 0.7 * wave));
-        const strong = (i % 8 === 0) === (pass === 1);
-        if (!strong) continue;
-        ctx.moveTo(Math.cos(a) * r0, Math.sin(a) * r0);
-        ctx.lineTo(Math.cos(a) * (r0 + len), Math.sin(a) * (r0 + len));
-      }
-      ctx.strokeStyle = pass === 1
-        ? rgba(COLOR.white, 0.35 + 0.4 * c.glow + 0.3 * face.env.inner)
-        : rgba(COLOR.cyan, 0.18 + 0.3 * c.glow + 0.35 * face.env.inner);
-      ctx.stroke();
+      ctx.arc(Math.cos(a) * r0, Math.sin(a) * r0, Math.max(0.8, R * 0.0035), 0, TAU);
+      ctx.fill();
     }
     ctx.restore();
   }
 
+  // Anneau central crème et or, lumineux, qui respire avec la voix ; à l'intérieur, l'obscurité.
   function drawCore(t) {
     const c = face.cur;
     const pulse = c.pulseDepth * (0.5 + 0.5 * Math.sin(face.pulsePhase));
     const lvl = face.env.core;
-    const rc = R * 0.3 * (1 + 0.06 * pulse + 0.1 * lvl);
+    const rc = R * 0.36 * (1 + 0.02 * pulse + 0.035 * lvl);
     const glow = c.glow;
 
     ctx.globalCompositeOperation = "source-over";
-    const pupil = ctx.createRadialGradient(CX, CY, 0, CX, CY, rc * 0.92);
-    pupil.addColorStop(0, rgba(COLOR.pupil, 0.92));
-    pupil.addColorStop(0.6, rgba(COLOR.pupilEdge, 0.75));
-    pupil.addColorStop(1, rgba(COLOR.pupilEdge, 0));
+    const pupil = ctx.createRadialGradient(CX, CY, 0, CX, CY, rc);
+    pupil.addColorStop(0, rgba(COLOR.deep, 0.06 + 0.05 * glow + 0.06 * lvl));  // à peine éclairé, rien au centre
+    pupil.addColorStop(0.75, rgba(COLOR.pupil, 0.9));
+    pupil.addColorStop(1, rgba(COLOR.pupilEdge, 0.7));
     ctx.fillStyle = pupil;
-    ctx.beginPath();
-    ctx.arc(CX, CY, rc * 0.92, 0, TAU);
-    ctx.fill();
-    ctx.globalCompositeOperation = "lighter";
-
-    const inner = ctx.createRadialGradient(CX, CY, rc * 0.45, CX, CY, rc);
-    inner.addColorStop(0, rgba(COLOR.deep, 0));
-    inner.addColorStop(0.7, rgba(COLOR.blue, 0.03 + 0.06 * glow + 0.12 * lvl));
-    inner.addColorStop(0.92, rgba(COLOR.blue, 0.1 + 0.18 * glow + 0.25 * lvl + 0.3 * pulse));
-    inner.addColorStop(1, rgba(COLOR.cyan, 0.25 + 0.3 * glow + 0.35 * lvl));
-    ctx.fillStyle = inner;
     ctx.beginPath();
     ctx.arc(CX, CY, rc, 0, TAU);
     ctx.fill();
+    ctx.globalCompositeOperation = "lighter";
 
-    const reach = rc * (1.45 + 0.35 * lvl);
-    const bloom = ctx.createRadialGradient(CX, CY, 0, CX, CY, reach);
-    bloom.addColorStop(0, rgba(COLOR.cyan, 0));
-    bloom.addColorStop((rc * 0.97) / reach, rgba(COLOR.cyan, 0));
-    bloom.addColorStop(rc / reach, rgba(COLOR.cyan, 0.16 + 0.22 * glow + 0.35 * lvl + 0.25 * pulse));
-    bloom.addColorStop(1, rgba(COLOR.cyan, 0));
-    ctx.fillStyle = bloom;
+    // Halo vert de part et d'autre de l'anneau.
+    const halo = ctx.createRadialGradient(CX, CY, rc * 0.8, CX, CY, rc * 1.28);
+    halo.addColorStop(0, rgba(COLOR.blue, 0));
+    halo.addColorStop(0.45, rgba(COLOR.blue, 0.1 + 0.12 * glow + 0.16 * lvl + 0.08 * pulse));
+    halo.addColorStop(1, rgba(COLOR.blue, 0));
+    ctx.fillStyle = halo;
     ctx.beginPath();
-    ctx.arc(CX, CY, rc * (1.5 + 0.35 * lvl), 0, TAU);
+    ctx.arc(CX, CY, rc * 1.28, 0, TAU);
     ctx.fill();
 
-    for (const [width, color, alpha] of [[R * 0.028, COLOR.cyan, 0.1 + 0.12 * lvl],
-                                        [R * 0.011, COLOR.cyan, 0.35 + 0.35 * glow],
-                                        [Math.max(1.2, R * 0.0035), COLOR.white, 0.55 + 0.45 * Math.max(glow, lvl)]]) {
+    for (const [width, color, alpha] of [[R * 0.026, COLOR.gold, 0.1 + 0.12 * glow + 0.15 * lvl],
+                                        [R * 0.01, COLOR.gold, 0.5 + 0.35 * glow + 0.2 * lvl],
+                                        [Math.max(1, R * 0.0026), COLOR.white, 0.3 + 0.35 * Math.max(glow, lvl)]]) {
       ctx.beginPath();
       ctx.arc(CX, CY, rc, 0, TAU);
       ctx.lineWidth = width;
@@ -842,10 +817,11 @@
     }
   }
 
+  // Segments qui glissent le long des orbites (surtout en réflexion).
   function drawComets(dt) {
     const c = face.cur;
-    const wanted = Math.round(1 + c.complexity * 11);
-    if (comets.length < wanted && Math.random() < dt * (0.8 + 4 * c.complexity)) spawnComet();
+    const wanted = Math.round(c.complexity * 4);
+    if (comets.length < wanted && Math.random() < dt * (0.4 + 2 * c.complexity)) spawnComet();
     ctx.save();
     ctx.translate(CX, CY);
     ctx.lineCap = "round";
@@ -853,7 +829,7 @@
       const k = comets[i];
       k.life += dt;
       k.a += k.speed * dt * (0.4 + c.speed);
-      const fade = Math.min(1, k.life / 0.4, (k.span - k.life) / 0.5);
+      const fade = Math.min(1, k.life / 0.6, (k.span - k.life) / 0.8);
       if (k.life > k.span) { comets.splice(i, 1); continue; }
       const steps = 6;
       for (let s = 0; s < steps; s++) {
@@ -863,8 +839,8 @@
         const a0 = a1 - dir * (k.len / steps);
         ctx.beginPath();
         ctx.arc(0, 0, k.r * R, Math.min(a0, a1), Math.max(a0, a1));
-        ctx.lineWidth = Math.max(1, R * 0.006 * (1 - f * 0.6));
-        ctx.strokeStyle = rgba(s === 0 ? COLOR.white : COLOR.cyan, fade * (0.85 - f * 0.8) * (0.4 + 0.6 * c.glow));
+        ctx.lineWidth = Math.max(1, R * 0.0035 * (1 - f * 0.6));
+        ctx.strokeStyle = rgba(s === 0 ? COLOR.white : COLOR.blue, fade * (0.7 - f * 0.65) * (0.35 + 0.65 * c.glow));
         ctx.stroke();
       }
     }
@@ -877,21 +853,17 @@
     ctx.translate(CX, CY);
     for (const o of orbitals) {
       o.angle += o.speed * dt * (0.5 + c.speed);
-      const r = o.r * R * (1 - 0.012 * c.focus);
+      const r = o.r * R * (1 - 0.01 * c.focus);
       const x = Math.cos(o.angle) * r, y = Math.sin(o.angle) * r;
-      const s = R * 0.014;
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.rotate(o.angle + Math.PI / 2);
-      ctx.fillStyle = rgba(COLOR.white, 0.55 + 0.4 * c.glow);
-      ctx.strokeStyle = rgba(COLOR.cyan, 0.5 + 0.4 * c.glow);
-      ctx.lineWidth = Math.max(1, R * 0.003);
+      const s = R * (o.shape === "small" ? 0.006 : 0.009);
+      const color = o.shape === "gold" ? COLOR.gold : COLOR.white;
       ctx.beginPath();
-      if (o.shape === "tri") { ctx.moveTo(0, -s); ctx.lineTo(s * 0.8, s * 0.6); ctx.lineTo(-s * 0.8, s * 0.6); ctx.closePath(); ctx.fill(); }
-      else if (o.shape === "diamond") { ctx.moveTo(0, -s); ctx.lineTo(s * 0.6, 0); ctx.lineTo(0, s); ctx.lineTo(-s * 0.6, 0); ctx.closePath(); ctx.stroke(); }
-      else if (o.shape === "bracket") { ctx.moveTo(-s * 1.6, -s * 0.2); ctx.lineTo(-s * 1.6, s * 0.4); ctx.lineTo(s * 1.6, s * 0.4); ctx.lineTo(s * 1.6, -s * 0.2); ctx.stroke(); }
-      else { ctx.arc(0, 0, s * 0.45, 0, TAU); ctx.fill(); }
-      ctx.restore();
+      ctx.arc(x, y, s, 0, TAU);
+      ctx.fillStyle = rgba(color, 0.6 + 0.35 * c.glow);
+      ctx.shadowColor = rgba(COLOR.gold, 0.7);
+      ctx.shadowBlur = R * 0.03 * GLOW;
+      ctx.fill();
+      ctx.shadowBlur = 0;
     }
     ctx.restore();
   }
@@ -904,14 +876,45 @@
     for (let i = 0; i < particles.length; i++) {
       const p = particles[i];
       p.a += p.drift * dt * (0.3 + c.speed);
-      p.r -= dt * 0.045 * p.fall * c.complexity * c.complexity;
-      if (p.r < 0.34) particles[i] = newParticle(false);
+      p.r -= dt * 0.03 * p.fall * c.complexity * c.complexity;
+      if (p.r < CENTER_FREE) particles[i] = newParticle(false);
       const tw = 0.5 + 0.5 * Math.sin(t * p.freq * TAU + p.phase);
-      const alpha = (0.1 + 0.55 * tw) * (0.25 + 0.75 * c.complexity) * (0.5 + 0.5 * c.glow);
-      ctx.fillStyle = rgba(tw > 0.9 ? COLOR.white : COLOR.cyan, alpha);
+      const alpha = (0.05 + 0.3 * tw) * (0.25 + 0.75 * c.complexity) * (0.5 + 0.5 * c.glow);
+      ctx.fillStyle = rgba(COLOR.cyan, alpha);
       const size = Math.max(1, p.size * DPR);
       ctx.fillRect(Math.cos(p.a) * p.r * R - size / 2, Math.sin(p.a) * p.r * R - size / 2, size, size);
     }
+    ctx.restore();
+  }
+
+  // Ligne de voix sous le visage : points fins, quelques traits dorés qui suivent la parole, jamais agressifs.
+  const voiceBars = Array.from({ length: 41 }, (_, i) => ({ h: 0, seed: Math.sin(i * 12.9898) * 43758.5453 % 1 }));
+
+  function drawVoiceLine(t, dt) {
+    const y = CY + R * 1.28;
+    if (y > H - R * 0.05) return;  // écran trop bas : pas de place
+    const c = face.cur;
+    const lvl = Math.max(face.env.core, face.state === "listening" ? 0.15 : 0);
+    const half = R * 0.62, n = voiceBars.length;
+    ctx.save();
+    ctx.lineCap = "round";
+    for (let i = 0; i < n; i++) {
+      const f = i / (n - 1) * 2 - 1;  // -1 .. 1
+      const x = CX + f * half;
+      const shape = Math.pow(1 - Math.abs(f), 1.4);
+      const bar = voiceBars[i];
+      const wiggle = 0.5 + 0.5 * Math.sin(t * (3 + Math.abs(bar.seed) * 5) + i);
+      bar.h = follow(bar.h, lvl * shape * wiggle, 0.08, 0.25, dt);
+      const h = R * (0.006 + 0.11 * bar.h);
+      const strong = i % 4 === 0 || bar.h > 0.25;
+      ctx.strokeStyle = rgba(strong ? COLOR.gold : COLOR.blue, (0.18 + 0.5 * c.glow * shape + 0.4 * bar.h) * (0.4 + 0.6 * shape));
+      ctx.lineWidth = Math.max(1, R * 0.003);
+      ctx.beginPath(); ctx.moveTo(x, y - h); ctx.lineTo(x, y + h); ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.arc(CX, y, R * 0.007, 0, TAU);
+    ctx.fillStyle = rgba(COLOR.white, 0.5 + 0.4 * c.glow);
+    ctx.fill();
     ctx.restore();
   }
 
@@ -922,7 +925,7 @@
   let frames = 0, fpsAt = now(), fps = 0;
 
   function update(t, dt) {
-    const k = 1 - Math.exp(-dt / 0.6);
+    const k = 1 - Math.exp(-dt / 0.9);
     for (const key in face.cur) face.cur[key] += (face.target[key] - face.cur[key]) * k;
     face.pulsePhase += TAU * face.cur.pulseRate * dt;
 
@@ -961,15 +964,14 @@
     }
     ctx.globalCompositeOperation = "lighter";
     drawHalo();
-    for (const layer of LAYERS.slice(0, 4)) drawLayer(layer, t);
-    drawOrbitals(dt);
-    drawComets(dt);
-    drawParticles(t, dt);
-    for (const layer of LAYERS.slice(4, 6)) drawLayer(layer, t);
+    for (const layer of LAYERS.slice(0, 7)) drawLayer(layer, t);
     drawInnerTicks(t, innerAngle);
-    drawLayer(LAYERS[6], t);
     drawCore(t);
     drawLayer(LAYERS[7], t);
+    drawComets(dt);
+    drawParticles(t, dt);
+    drawOrbitals(dt);
+    drawVoiceLine(t, dt);
     ctx.globalCompositeOperation = "source-over";
   }
 
@@ -982,7 +984,7 @@
       update(t, dt);
       render(t, dt);
     } catch (err) {
-      console.error("Visage JARVIS :", err);
+      console.error("Visage ORION :", err);
     }
     frames++;
     if (t - fpsAt >= 0.5) {
@@ -995,7 +997,7 @@
         debugEl.textContent = `${face.state}  ${fps.toFixed(0)} FPS  niveau ${face.env.core.toFixed(2)}` +
           (DEMO ? "\n1 veille · 2 écoute · 3 réflexion · 4 parole · A cycle auto · T jour/nuit · C couleur · R arc-en-ciel"
             + " · N Noël · H Halloween · B anniversaire · Y nouvel an · V Saint-Valentin · P Saint-Patrick"
-            + " · F 14 Juillet · O 1er avril · M 1er mai · W Star Wars (X : saut) · J JARVIS · U rendez-vous" : "");
+            + " · F 14 Juillet · O 1er avril · M 1er mai · W Star Wars (X : saut) · J naissance · U rendez-vous" : "");
       }
     }
     requestAnimationFrame(frame);
@@ -1024,7 +1026,7 @@
         if (data.audio_source === "measured" || data.audio_source === "external") setAudioLevel(data.audio_level);
         face.lastMessage = now();
       } catch (err) {
-        console.warn("Visage JARVIS : message ignoré", err);
+        console.warn("Visage ORION : message ignoré", err);
       }
     };
     setInterval(() => {
