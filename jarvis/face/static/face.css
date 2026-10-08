@@ -150,12 +150,12 @@ body {
   top: 50%;
   transform: translate(-50%, -50%);
   padding-left: 0.3em;  /* compense l'espacement après la dernière lettre */
-  color: #f4efe4;
+  color: rgb(var(--name-color, 244, 239, 228));
   font: 400 2.3vmin/1 "Michroma", "Segoe UI", system-ui, sans-serif;  /* large : tient dans l'anneau à 2,3vmin */
   letter-spacing: 0.3em;
   /* halo doré, plus fort quand ORION parle (--name-glow suit la voix) */
-  text-shadow: 0 0 calc(1.6vmin * var(--name-glow, 1)) rgba(201, 164, 92, 0.9),
-               0 0 0.5vmin rgba(201, 164, 92, 0.85);
+  text-shadow: 0 0 calc(1.6vmin * var(--name-glow, 1)) rgba(var(--name-halo, 201, 164, 92), 0.9),
+               0 0 0.5vmin rgba(var(--name-halo, 201, 164, 92), 0.85);
   white-space: nowrap;
   pointer-events: none;
   opacity: var(--name-opacity, 0.75);

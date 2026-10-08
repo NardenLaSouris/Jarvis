@@ -454,6 +454,9 @@
 
   function paintPage() {
     document.documentElement.style.background = COLOR.background[2];
+    // Nom aux couleurs du thème (crème et or avec Aureon, blanc la nuit, rouge en erreur...).
+    document.documentElement.style.setProperty("--name-color", COLOR.white.join(","));
+    document.documentElement.style.setProperty("--name-halo", COLOR.gold.join(","));
     document.querySelector('meta[name="theme-color"]')?.setAttribute("content", COLOR.background[2]);
   }
 
@@ -624,11 +627,13 @@
     // Larges arcs vert forêt (la signature extérieure), aux extrémités adoucies.
     outerArcs(g) {
       const r = R * 0.905;
-      for (const [a0, a1] of [[-1.25, -0.42], [2.75, 3.55], [1.75, 2.45], [0.35, 1.05]]) {
+      // Deux couleurs en alternance : la seconde couleur des fêtes (rouge du 14 Juillet, vert de Noël...) reste
+      // visible ; avec Aureon, deux verts.
+      for (const [a0, a1, second] of [[-1.25, -0.42, false], [2.75, 3.55, false], [1.75, 2.45, true], [0.35, 1.05, true]]) {
         // Extrémités en fondu (trois passes en escalier se voyaient en 1080p).
         const fade = (k) => { const e = Math.min(1, k / 0.18, (1 - k) / 0.18); return e * e * (3 - 2 * e); };
         gradientArc(g, r, a0, a1, R * 0.046, (k) => [COLOR.deep, 0.55 * fade(k)]);
-        gradientArc(g, r, a0, a1, R * 0.03, (k) => [COLOR.blue, 0.34 * fade(k)]);
+        gradientArc(g, r, a0, a1, R * 0.03, (k) => [second ? COLOR.cyan : COLOR.blue, (second ? 0.3 : 0.34) * fade(k)]);
       }
     },
 
