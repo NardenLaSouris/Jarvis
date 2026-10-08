@@ -135,16 +135,24 @@ body {
   white-space: pre;
 }
 
-/* Essai : nom au centre du cercle (texte séparé du dessin du visage). */
+/* Nom au centre du cercle (texte séparé du dessin du visage), en Michroma (SIL OFL, fichier local : rien à
+   télécharger, fonctionne sans Internet). */
+@font-face {
+  font-family: "Michroma";
+  src: url("michroma.woff2") format("woff2");
+  font-weight: 400;
+  font-display: block;
+}
+
 #name {
   position: fixed;
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  padding-left: 0.42em;  /* compense l'espacement après la dernière lettre */
+  padding-left: 0.3em;  /* compense l'espacement après la dernière lettre */
   color: #f4efe4;
-  font: 200 3vmin/1 "Segoe UI Light", "Segoe UI", system-ui, sans-serif;
-  letter-spacing: 0.42em;
+  font: 400 2vmin/1 "Michroma", "Segoe UI", system-ui, sans-serif;  /* large : tient dans l'anneau à 2vmin */
+  letter-spacing: 0.3em;
   text-shadow: 0 0 1.2vmin rgba(201, 164, 92, 0.55), 0 0 0.3vmin rgba(244, 239, 228, 0.5);
   white-space: nowrap;
   pointer-events: none;

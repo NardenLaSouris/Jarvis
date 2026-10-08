@@ -529,3 +529,13 @@ def test_orion_face_uses_the_aureon_palette_and_keeps_its_centre_empty():
     html = (static / "index.html").read_text(encoding="utf-8")
     assert "<title>ORION</title>" in html and "JARVIS" not in html
     assert re.search(r"background: #0e0e0e", (static / "face.css").read_text(encoding="utf-8"))
+
+
+def test_the_name_font_is_served_locally(server):
+    # Michroma est livrée avec le visage : le nom s'affiche aussi sans Internet.
+    face, visual, url = server
+    status, kind, body = get(url + "michroma.woff2")
+    assert status == 200 and kind == "font/woff2" and body[:4] == b"wOF2"
+    css = get(url + "face.css")[2].decode()
+    assert 'url("michroma.woff2")' in css and '"Michroma"' in css
+    assert (ROOT / "jarvis" / "face" / "static" / "OFL-michroma.txt").exists()  # licence de la police

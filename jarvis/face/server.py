@@ -26,6 +26,7 @@ FILES = {
     "/": ("index.html", "text/html; charset=utf-8"),
     "/index.html": ("index.html", "text/html; charset=utf-8"),
     "/face.css": ("face.css", "text/css; charset=utf-8"),
+    "/michroma.woff2": ("michroma.woff2", "font/woff2"),  # police du nom (SIL OFL, voir OFL-michroma.txt)
     "/face.js": ("face.js", "text/javascript; charset=utf-8"),
 }
 
