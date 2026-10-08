@@ -142,12 +142,15 @@
     env: { core: 0, inner: 0, middle: 0, outer: 0 },
     pulsePhase: 0,
     lastMessage: -1,
+    mix: { listening: 0, thinking: 0, speaking: 0 },  // part de chaque état, lissée (transitions douces)
+    wakeAt: -10,  // réveil : éclat qui parcourt l'arc doré, nom qui apparaît lettre par lettre
   };
 
   function setVisualState(state) {
     const s = String(state || "").toLowerCase();
     if (!PROFILES[s]) return false;
     if (s !== face.state) {
+      if (face.state === "standby") { face.wakeAt = now(); revealName(); }
       face.state = s;
       face.changedAt = now();
       face.target = PROFILES[s];
@@ -649,17 +652,22 @@
 
     // Graduations fines (couronne de petits traits).
     ticks(g) {
+      // Graduations rythmées : une longue toutes les six, trois secteurs vides (moins répétitif).
       const r = R * 0.7;
-      g.lineWidth = Math.max(1, R * 0.0018);
-      g.strokeStyle = rgba(COLOR.white, 0.35);
-      g.beginPath();
-      for (let i = 0; i < 120; i++) {
-        const a = (i / 120) * TAU;
-        if (Math.abs(Math.sin(a * 2)) < 0.04) continue;  // ouverture sur les axes
-        g.moveTo(Math.cos(a) * r, Math.sin(a) * r);
-        g.lineTo(Math.cos(a) * (r + R * 0.014), Math.sin(a) * (r + R * 0.014));
+      for (const major of [false, true]) {
+        g.lineWidth = Math.max(1, R * (major ? 0.0026 : 0.0016));
+        g.strokeStyle = rgba(COLOR.white, major ? 0.5 : 0.28);
+        g.beginPath();
+        for (let i = 0; i < 120; i++) {
+          const a = (i / 120) * TAU;
+          if ((i % 6 === 0) !== major) continue;
+          if ((a > 0.9 && a < 1.5) || (a > 2.9 && a < 3.25) || (a > 4.7 && a < 5.5)) continue;
+          const len = R * (major ? 0.026 : 0.012);
+          g.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+          g.lineTo(Math.cos(a) * (r + len), Math.sin(a) * (r + len));
+        }
+        g.stroke();
       }
-      g.stroke();
     },
 
     // Cercles fins et cercle pointillé intermédiaires.
@@ -671,8 +679,18 @@
           glowStroke(g, Math.max(1, R * 0.0013), COLOR.blue, a, 0);
         }
       }
-      // Pointillé qui s'interrompt sur deux secteurs : sa rotation se voit.
-      dots(g, R * 0.565, 96, R * 0.0035, COLOR.white, 0.45, (a) => (a > 1.2 && a < 1.55) || (a > 4.3 && a < 4.5));
+      // Quelques groupes de points de tailles variées (un anneau entier de points était trop répétitif).
+      const rand = rng(41);
+      for (const [start, count] of [[0.3, 9], [1.9, 5], [3.0, 12], [4.6, 7], [5.6, 4]]) {
+        for (let i = 0; i < count; i++) {
+          const a = start + i * 0.065;
+          const big = rand() > 0.82;
+          g.beginPath();
+          g.arc(Math.cos(a) * R * 0.565, Math.sin(a) * R * 0.565, R * (big ? 0.0048 : 0.0028), 0, TAU);
+          g.fillStyle = rgba(big ? COLOR.gold : COLOR.white, big ? 0.75 : 0.35 + 0.25 * rand());
+          g.fill();
+        }
+      }
     },
 
     // Anneau vert juste autour de l'anneau central.
@@ -694,11 +712,12 @@
   // Couches pré-rendues : vitesse (rad/s), sens, réaction audio (enveloppe et gain), opacité,
   // multiplicateurs de vitesse par état. Les axes restent fixes.
   const LAYERS = [
-    { key: "axes", speed: 0, dir: 1, react: "outer", gain: 0.004, alpha: 0.9, contract: 0.0, boost: {} },
-    { key: "outerRings", speed: 0.02, dir: 1, react: "outer", gain: 0.006, alpha: 0.9, contract: 0.008, boost: {} },
-    { key: "outerArcs", speed: 0.09, dir: -1, react: "outer", gain: 0.01, alpha: 1.0, contract: 0.014, boost: { thinking: 2.6, listening: 1.3 } },
+    // blur (fraction de R) et dim : profondeur, les couches lointaines sont plus floues et plus sombres.
+    { key: "axes", speed: 0, dir: 1, react: "outer", gain: 0.004, alpha: 0.9, contract: 0.0, boost: {}, dim: 0.85 },
+    { key: "outerRings", speed: 0.02, dir: 1, react: "outer", gain: 0.006, alpha: 0.9, contract: 0.008, boost: {}, blur: 0.003, dim: 0.65 },
+    { key: "outerArcs", speed: 0.09, dir: -1, react: "outer", gain: 0.01, alpha: 1.0, contract: 0.014, boost: { thinking: 2.6, listening: 1.3 }, blur: 0.005, dim: 0.8 },
     { key: "goldRing", speed: 0.07, dir: 1, react: "middle", gain: 0.014, alpha: 0.95, contract: 0.012, boost: { thinking: 2.4 } },
-    { key: "ticks", speed: 0.05, dir: -1, react: "middle", gain: 0.016, alpha: 0.8, contract: 0.01, boost: { thinking: 2.6 } },
+    { key: "ticks", speed: 0.05, dir: -1, react: "middle", gain: 0.016, alpha: 0.8, contract: 0.01, boost: { thinking: 2.6 }, blur: 0.0015, dim: 0.85 },
     { key: "midRings", speed: 0.04, dir: 1, react: "inner", gain: 0.02, alpha: 0.9, contract: 0.0, boost: { listening: 1.6, thinking: 2.2 } },
     { key: "innerRing", speed: 0.12, dir: -1, react: "inner", gain: 0.025, alpha: 0.95, contract: 0.0, boost: { thinking: 3.0, listening: 1.4 } },
     { key: "iris", speed: 0.06, dir: 1, react: "core", gain: 0.03, alpha: 0.8, contract: 0.0, boost: { thinking: 3 } },
@@ -748,13 +767,50 @@
 
   let layersR = 0;
 
+  // Version floue (moitié floue, moitié nette : la forme reste lisible) pour les couches lointaines.
+  function blurred(src, px) {
+    const c = document.createElement("canvas");
+    c.width = src.width; c.height = src.height;
+    const g = c.getContext("2d");
+    g.filter = `blur(${px.toFixed(1)}px)`;
+    g.drawImage(src, 0, 0);
+    g.filter = "none";
+    g.globalAlpha = 0.45;
+    g.drawImage(src, 0, 0);
+    return c;
+  }
+
+  // Lueur de l'anneau central (« bloom »), calculée une fois : un anneau doré très flou, ajouté en lumière.
+  let bloom = null;
+  function buildBloom() {
+    const size = Math.ceil(R * 1.3);
+    const c = document.createElement("canvas");
+    c.width = c.height = size;
+    const g = c.getContext("2d");
+    g.filter = `blur(${(R * 0.035).toFixed(1)}px)`;
+    g.beginPath();
+    g.arc(size / 2, size / 2, R * 0.36, 0, TAU);
+    g.lineWidth = R * 0.035;
+    g.strokeStyle = rgba(COLOR.gold, 0.9);
+    g.stroke();
+    bloom = c;
+  }
+
   function buildLayers() {
-    for (const layer of LAYERS) layers[layer.key] = offscreen(BUILDERS[layer.key], layer.key.length * 97 + 13);
+    for (const layer of LAYERS) {
+      const img = offscreen(BUILDERS[layer.key], layer.key.length * 97 + 13);
+      layers[layer.key] = layer.blur ? blurred(img, R * layer.blur) : img;
+    }
+    buildBloom();
     layersR = R;
   }
 
+  // Suréchantillonnage : traits plus fins et plus nets ; abandonné si la machine ne suit pas (< 45 images/s).
+  let supersample = 1.5;
+  const pixelRatio = () => Math.min(2, (window.devicePixelRatio || 1) * supersample);
+
   function resize() {
-    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    DPR = pixelRatio();
     W = Math.max(1, Math.floor(window.innerWidth * DPR));
     H = Math.max(1, Math.floor(window.innerHeight * DPR));
     canvas.width = W;
@@ -771,7 +827,7 @@
   let resizeTimer = 0;
 
   function followWindow() {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = pixelRatio();
     const w = Math.floor(window.innerWidth * dpr), h = Math.floor(window.innerHeight * dpr);
     if (w < 2 || h < 2 || (w === W && h === H)) return;
     resize();
@@ -789,7 +845,8 @@
     if (!img || layersR < 1) return;
     const env = face.env[layer.react];
     const scale = (1 + layer.gain * env - layer.contract * face.cur.focus * 0.6) * (R / layersR);
-    const alpha = layer.alpha * (0.35 + 0.65 * face.cur.glow) + env * 0.15;
+    const listen = layer.key === "axes" ? 0.35 * face.mix.listening : 0;  // écoute : les axes s'éclairent
+    const alpha = (layer.alpha * (0.35 + 0.65 * face.cur.glow) + env * 0.15) * (layer.dim || 1) + listen;
     ctx.save();
     ctx.globalAlpha = clamp01(alpha);
     ctx.translate(CX, CY);
@@ -809,23 +866,34 @@
     ctx.fillRect(CX - R * 1.2, CY - R * 1.2, R * 2.4, R * 2.4);
   }
 
-  // Cercle de points qui s'allument avec l'activité et la voix (jamais un égaliseur).
+  // Points qui s'allument avec l'activité et la voix : répartition irrégulière (tailles, écarts, trous).
+  const innerDots = (() => {
+    const rand = rng(23), list = [];
+    let a = 0;
+    while (a < TAU - 0.05) {
+      const run = 3 + Math.floor(rand() * 9);  // grappes de 3 à 11 points
+      for (let i = 0; i < run && a < TAU - 0.05; i++, a += 0.05 + rand() * 0.04) {
+        list.push({ a, size: rand() > 0.85 ? 1.7 : 0.7 + rand() * 0.5 });
+      }
+      a += 0.15 + rand() * 0.45;  // trou
+    }
+    return list;
+  })();
+
   function drawInnerTicks(t, angle) {
-    const n = 84;
     const r0 = R * 0.645;
     const c = face.cur;
     ctx.save();
     ctx.translate(CX, CY);
     ctx.rotate(angle);
-    for (let i = 0; i < n; i++) {
-      const a = (i / n) * TAU;
+    innerDots.forEach((d, i) => {
       const wave = 0.5 + 0.5 * Math.sin(i * 0.45 - t * (0.6 + c.speed));
       const alpha = 0.12 + 0.3 * c.glow * wave + 0.45 * face.env.inner * wave;
-      ctx.fillStyle = rgba(wave > 0.9 ? COLOR.white : COLOR.cyan, alpha);
+      ctx.fillStyle = rgba(wave > 0.9 || d.size > 1.5 ? COLOR.white : COLOR.cyan, alpha);
       ctx.beginPath();
-      ctx.arc(Math.cos(a) * r0, Math.sin(a) * r0, Math.max(0.8, R * 0.0035), 0, TAU);
+      ctx.arc(Math.cos(d.a) * r0, Math.sin(d.a) * r0, Math.max(0.8, R * 0.0028 * d.size), 0, TAU);
       ctx.fill();
-    }
+    });
     ctx.restore();
   }
 
@@ -837,8 +905,9 @@
     coreSweep += dt * (0.25 + 0.55 * c.speed + 1.2 * face.env.core) * SPIN * 0.6;
     const pulse = c.pulseDepth * (0.5 + 0.5 * Math.sin(face.pulsePhase));
     const lvl = face.env.core;
-    const rc = R * 0.36 * (1 + 0.02 * pulse + 0.035 * lvl);
-    const glow = c.glow;
+    const wake = Math.max(0, 1 - (t - face.wakeAt) / 1.2);  // éclat du réveil, puis retour au calme
+    const rc = R * 0.36 * (1 + 0.02 * pulse + 0.06 * lvl + 0.035 * face.mix.listening);  // s'ouvre à l'écoute
+    const glow = Math.min(1, c.glow + 0.5 * wake);
 
     ctx.globalCompositeOperation = "source-over";
     const pupil = ctx.createRadialGradient(CX, CY, 0, CX, CY, rc);
@@ -862,6 +931,16 @@
     ctx.arc(CX, CY, rc * 1.28, 0, TAU);
     ctx.fill();
 
+    if (bloom) {  // lumière douce de l'anneau doré, plus forte avec la voix et au réveil
+      const k = rc / (R * 0.36);
+      ctx.save();
+      ctx.globalAlpha = clamp01(0.3 + 0.3 * glow + 0.5 * lvl);
+      ctx.translate(CX, CY);
+      ctx.scale(k, k);
+      ctx.drawImage(bloom, -bloom.width / 2, -bloom.height / 2);
+      ctx.restore();
+    }
+
     for (const [width, color, alpha] of [[R * 0.026, COLOR.gold, 0.1 + 0.12 * glow + 0.15 * lvl],
                                         [R * 0.01, COLOR.gold, 0.5 + 0.35 * glow + 0.2 * lvl],
                                         [Math.max(1, R * 0.0026), COLOR.white, 0.3 + 0.35 * Math.max(glow, lvl)]]) {
@@ -881,6 +960,111 @@
       ctx.stroke();
     }
     ctx.lineCap = "butt";
+  }
+
+  // Réveil : les lettres du nom apparaissent une à une, puis le nom reste fixe.
+  function revealName() {
+    if (typeof letters === "undefined") return;
+    letters.forEach((span) => { span.style.transition = "none"; span.style.opacity = "0"; });
+    void nameEl.offsetWidth;  // applique l'opacité nulle avant l'animation
+    letters.forEach((span, i) => {
+      span.style.transition = `opacity 0.45s ease ${(i * 0.07).toFixed(2)}s`;
+      span.style.opacity = "1";
+    });
+  }
+
+  // Le nom suit l'activité ; son halo doré pulse avec la voix.
+  let nameState = "";
+  function updateName(t) {
+    if (typeof nameEl === "undefined") return;
+    const opacity = (0.55 + 0.45 * clamp01(face.cur.glow)).toFixed(2);
+    const glow = (0.6 + 0.4 * clamp01(face.env.core * 2) + 0.3 * Math.max(0, 1 - (t - face.wakeAt) / 1.2)).toFixed(2);
+    const key = opacity + glow;
+    if (key === nameState) return;
+    nameState = key;
+    nameEl.style.setProperty("--name-opacity", opacity);
+    nameEl.style.setProperty("--name-glow", glow);
+  }
+
+  // Écoute : des points remontent les quatre axes, de l'extérieur vers le centre.
+  function drawAxisPulses(t) {
+    const m = face.mix.listening;
+    if (m < 0.02) return;
+    ctx.save();
+    ctx.translate(CX, CY);
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      for (let j = 0; j < 2; j++) {
+        const p = (t * 0.7 + j * 0.5) % 1;
+        const d = R * (1.2 - 0.58 * p);
+        glowDot(ctx, dx * d, dy * d, R * 0.006, COLOR.gold, m * Math.sin(Math.PI * p));
+      }
+    }
+    ctx.restore();
+  }
+
+  // Réflexion : une vague de lumière parcourt les grands arcs puis l'arc doré, en sens opposés.
+  let thinkSweep = 0;
+  function drawThinkWave(dt) {
+    const m = face.mix.thinking;
+    thinkSweep += dt * 2.4;
+    if (m < 0.02) return;
+    ctx.save();
+    ctx.translate(CX, CY);
+    ctx.lineCap = "round";
+    for (const [r, dir, color] of [[0.905, 1, COLOR.blue], [0.79, -1, COLOR.gold]]) {
+      for (let s = 0; s < 12; s++) {
+        const a1 = dir * thinkSweep - dir * s * 0.07, a0 = a1 - dir * 0.07;
+        ctx.beginPath();
+        ctx.arc(0, 0, R * r, Math.min(a0, a1), Math.max(a0, a1));
+        ctx.lineWidth = R * (r > 0.85 ? 0.03 : 0.006) * (1 - s / 14);
+        ctx.strokeStyle = rgba(s === 0 ? COLOR.white : color, m * 0.55 * (1 - s / 12));
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  // Réveil : un éclat fait le tour de l'arc doré en 1,2 s (ORION « s'allume »).
+  function drawWakeFlash(t) {
+    const k = (t - face.wakeAt) / 1.2;
+    if (k < 0 || k > 1) return;
+    const head = -Math.PI / 2 + TAU * (k * k * (3 - 2 * k));
+    ctx.save();
+    ctx.translate(CX, CY);
+    ctx.lineCap = "round";
+    for (let s = 0; s < 16; s++) {
+      const a1 = head - s * 0.08, a0 = a1 - 0.08;
+      ctx.beginPath();
+      ctx.arc(0, 0, R * 0.79, a0, a1);
+      ctx.lineWidth = R * 0.008 * (1 - s / 18);
+      ctx.strokeStyle = rgba(s === 0 ? COLOR.white : COLOR.gold, (1 - k) * (1 - s / 16));
+      ctx.stroke();
+    }
+    glowDot(ctx, Math.cos(head) * R * 0.79, Math.sin(head) * R * 0.79, R * 0.01, COLOR.gold, 1 - k);
+    ctx.restore();
+  }
+
+  // Grain très léger sur le fond : pas de bandes dans les dégradés sombres (aspect « cinéma »).
+  let grain = null;
+  function drawGrain() {
+    if (!grain) {
+      const c = document.createElement("canvas");
+      c.width = c.height = 160;
+      const g = c.getContext("2d");
+      const img = g.createImageData(160, 160);
+      for (let i = 0; i < img.data.length; i += 4) {
+        const v = Math.random() * 255;
+        img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
+        img.data[i + 3] = 255;
+      }
+      g.putImageData(img, 0, 0);
+      grain = ctx.createPattern(c, "repeat");
+    }
+    ctx.save();
+    ctx.globalAlpha = 0.035;
+    ctx.fillStyle = grain;
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
   }
 
   // Segments qui glissent le long des orbites (surtout en réflexion).
@@ -960,6 +1144,8 @@
     const y = CY + R * 1.28;
     if (y > H - R * 0.05) return;  // écran trop bas : pas de place
     const c = face.cur;
+    const shown = clamp01(face.mix.listening + face.mix.speaking + 0.3 * face.mix.thinking);
+    if (shown < 0.01) return;  // veille : pas de ligne
     const lvl = Math.max(face.env.core, face.state === "listening" ? 0.15 : 0);
     const half = R * 0.62, n = voiceBars.length;
     ctx.save();
@@ -973,13 +1159,14 @@
       bar.h = follow(bar.h, lvl * shape * wiggle, 0.08, 0.25, dt);
       const h = R * (0.006 + 0.11 * bar.h);
       const strong = i % 4 === 0 || bar.h > 0.25;
-      ctx.strokeStyle = rgba(strong ? COLOR.gold : COLOR.blue, (0.18 + 0.5 * c.glow * shape + 0.4 * bar.h) * (0.4 + 0.6 * shape));
+      ctx.strokeStyle = rgba(strong ? COLOR.gold : COLOR.blue,
+                             shown * (0.18 + 0.5 * c.glow * shape + 0.4 * bar.h) * (0.4 + 0.6 * shape));
       ctx.lineWidth = Math.max(1, R * 0.003);
       ctx.beginPath(); ctx.moveTo(x, y - h); ctx.lineTo(x, y + h); ctx.stroke();
     }
     ctx.beginPath();
     ctx.arc(CX, y, R * 0.007, 0, TAU);
-    ctx.fillStyle = rgba(COLOR.white, 0.5 + 0.4 * c.glow);
+    ctx.fillStyle = rgba(COLOR.white, shown * (0.5 + 0.4 * c.glow));
     ctx.fill();
     ctx.restore();
   }
@@ -994,6 +1181,8 @@
     const k = 1 - Math.exp(-dt / 0.9);
     for (const key in face.cur) face.cur[key] += (face.target[key] - face.cur[key]) * k;
     face.pulsePhase += TAU * face.cur.pulseRate * dt;
+    const km = 1 - Math.exp(-dt / 0.5);
+    for (const key in face.mix) face.mix[key] += ((face.state === key ? 1 : 0) - face.mix[key]) * km;
 
     let level = 0;
     if (face.state === "speaking") level = t < face.measuredUntil ? face.level : simulatedLevel(t);
@@ -1017,6 +1206,7 @@
     ctx.globalAlpha = 1;
     ctx.fillStyle = background;
     ctx.fillRect(0, 0, W, H);
+    drawGrain();
     if (BEHIND.has(effect)) {
       // Effet derrière le visage (hyperespace) : dessiné dans ce canevas, puis caché par un disque sous le visage.
       paintBehind(ctx, W, H);
@@ -1034,10 +1224,14 @@
     drawInnerTicks(t, innerAngle);
     drawCore(t, dt);
     drawLayer(LAYERS[7], t);
+    drawThinkWave(dt);
     drawComets(dt);
     drawParticles(t, dt);
+    drawAxisPulses(t);
     drawOrbitals(dt);
+    drawWakeFlash(t);
     drawVoiceLine(t, dt);
+    updateName(t);
     ctx.globalCompositeOperation = "source-over";
   }
 
@@ -1057,6 +1251,11 @@
       fps = frames / (t - fpsAt);
       frames = 0;
       fpsAt = t;
+      if (supersample > 1 && t > 5 && fps < 45 && !document.hidden) {  // trop lourd : définition normale
+        supersample = 1;
+        resize();
+        buildLayers();
+      }
       window.JarvisFace.fps = fps;
       if (DEBUG) {
         debugEl.hidden = false;
@@ -1157,7 +1356,12 @@
   // Essai : nom au centre (élément de page, jamais dessiné dans le visage) ; plus lumineux quand ORION est actif.
   const nameEl = document.createElement("div");
   nameEl.id = "name";
-  nameEl.textContent = "O.R.I.O.N.";
+  const letters = [...("O.R.I.O.N.")].map((ch) => {
+    const span = document.createElement("span");
+    span.textContent = ch;
+    nameEl.appendChild(span);
+    return span;
+  });
   document.body.appendChild(nameEl);
   // Essai de police : ?police=Montserrat&poids=200 (police Google Fonts, ou installée sur la machine).
   const font = params.get("police");
@@ -1169,9 +1373,6 @@
     nameEl.style.fontFamily = `"${font}", "Segoe UI", sans-serif`;
     nameEl.style.fontWeight = /^[1-9]00$/.test(params.get("poids") || "") ? params.get("poids") : "300";
   }
-  setInterval(() => {
-    nameEl.style.setProperty("--name-opacity", String(0.55 + 0.45 * clamp01(face.cur.glow)));
-  }, 250);
 
   paintPage();
   resize();
