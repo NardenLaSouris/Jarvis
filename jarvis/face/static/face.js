@@ -542,6 +542,22 @@
     }
   }
 
+  // Point lumineux : halo doré large et doux, anneau de lumière, cœur crème presque blanc.
+  function glowDot(g, x, y, size, color, alpha) {
+    const halo = g.createRadialGradient(x, y, 0, x, y, size * 8);
+    halo.addColorStop(0, rgba(color, 0.9 * alpha));
+    halo.addColorStop(0.18, rgba(color, 0.35 * alpha));
+    halo.addColorStop(0.5, rgba(color, 0.08 * alpha));
+    halo.addColorStop(1, rgba(color, 0));
+    g.fillStyle = halo;
+    g.beginPath(); g.arc(x, y, size * 8, 0, TAU); g.fill();
+    g.fillStyle = rgba(COLOR.white, Math.min(1, alpha * 1.1));
+    g.beginPath(); g.arc(x, y, size, 0, TAU); g.fill();
+  }
+
+  // Couleur entre deux teintes (dégradé de l'arc doré).
+  const mix = (a, b, k) => a.map((v, i) => Math.round(v + (b[i] - v) * k));
+
   const BUILDERS = {
     // Axes horizontal et vertical, au-delà du visage, avec leurs points et graduations (fixes).
     axes(g) {
@@ -557,10 +573,8 @@
           g.beginPath(); g.moveTo(dx * from, dy * from); g.lineTo(dx * to, dy * to); g.stroke();
         }
         for (const k of [-1.1, -0.98, -0.83, -0.66, 0.66, 0.83, 0.98, 1.1]) {
-          g.beginPath();
-          g.arc(dx * k * R, dy * k * R, R * (Math.abs(k) > 1 ? 0.005 : 0.007), 0, TAU);
-          g.fillStyle = rgba(Math.abs(k) === 0.83 ? COLOR.white : COLOR.gold, Math.abs(k) > 1 ? 0.55 : 0.8);
-          g.fill();
+          const far = Math.abs(k) > 1;
+          glowDot(g, dx * k * R, dy * k * R, R * (far ? 0.005 : 0.0068), COLOR.gold, far ? 0.7 : 1);
         }
       }
     },
@@ -598,15 +612,21 @@
       const r = R * 0.79;
       arc(g, r, 0, TAU);
       glowStroke(g, Math.max(1, R * 0.0014), COLOR.blue, 0.4, 0);
-      arc(g, r, -Math.PI / 2 - 0.15, Math.PI * 0.62);
-      glowStroke(g, Math.max(1, R * 0.0026), COLOR.gold, 0.75, R * 0.012);
-      g.beginPath();
-      g.arc(0, -r, R * 0.011, 0, TAU);
-      g.fillStyle = rgba(COLOR.white, 0.9);
-      g.shadowColor = rgba(COLOR.gold, 0.8);
-      g.shadowBlur = R * 0.03 * GLOW;
-      g.fill();
-      g.shadowBlur = 0;
+      // Arc en dégradé : crème brillant en tête, doré, puis il s'efface vers le vert (comme la référence).
+      const a0 = -Math.PI / 2 - 0.35, span = Math.PI * 1.45, n = 120;
+      for (let pass = 0; pass < 2; pass++) {
+        for (let i = 0; i < n; i++) {
+          const k = i / n;
+          const rise = Math.min(1, k / 0.12);
+          const light = rise * rise * (3 - 2 * rise) * Math.pow(1 - k, 1.3);  // montée rapide, longue extinction
+          const color = k < 0.25 ? mix(COLOR.white, COLOR.gold, k / 0.25) : mix(COLOR.gold, COLOR.blue, (k - 0.25) / 0.75);
+          arc(g, r, a0 + span * k, a0 + span * (k + 1 / n) + 0.004);
+          g.lineWidth = pass === 0 ? R * 0.016 : Math.max(1, R * 0.0032);
+          g.strokeStyle = rgba(color, pass === 0 ? 0.24 * light : light);
+          g.stroke();
+        }
+      }
+      glowDot(g, 0, -r, R * 0.012, COLOR.gold, 1);
     },
 
     // Graduations fines (couronne de petits traits).
@@ -882,15 +902,10 @@
       o.angle += o.speed * dt * (0.5 + c.speed);
       const r = o.r * R * (1 - 0.01 * c.focus);
       const x = Math.cos(o.angle) * r, y = Math.sin(o.angle) * r;
-      const s = R * (o.shape === "small" ? 0.006 : 0.009);
-      const color = o.shape === "gold" ? COLOR.gold : COLOR.white;
-      ctx.beginPath();
-      ctx.arc(x, y, s, 0, TAU);
-      ctx.fillStyle = rgba(color, 0.6 + 0.35 * c.glow);
-      ctx.shadowColor = rgba(COLOR.gold, 0.7);
-      ctx.shadowBlur = R * 0.03 * GLOW;
-      ctx.fill();
-      ctx.shadowBlur = 0;
+      const s = R * (o.shape === "small" ? 0.008 : 0.012);
+      const twinkle = 0.85 + 0.15 * Math.sin(now() * 2.3 + o.r * 40);
+      glowDot(ctx, x, y, s * 0.8, o.shape === "gold" ? COLOR.gold : mix(COLOR.white, COLOR.gold, 0.35),
+              (0.7 + 0.3 * c.glow) * twinkle);
     }
     ctx.restore();
   }
