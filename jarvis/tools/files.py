@@ -4,8 +4,8 @@ Sécurité :
 - seuls les dossiers listés dans ``[tools.files] roots`` sont accessibles (« documents », « bureau »...) ; tout
   chemin est résolu puis vérifié à l'intérieur de son dossier (pas de « .. », pas de lien qui en sort) ;
 - le LLM ne donne jamais de chemin : un nom de fichier (cherché dans ces dossiers) et le nom d'un dossier autorisé ;
-- la création se fait uniquement dans le dossier de travail de JARVIS (``sandbox``), sans jamais écraser ;
-- déplacer et supprimer demandent une confirmation ; « supprimer » met le fichier dans la corbeille de JARVIS
+- la création se fait uniquement dans le dossier de travail d'ORION (``sandbox``), sans jamais écraser ;
+- déplacer et supprimer demandent une confirmation ; « supprimer » met le fichier dans la corbeille d'ORION
   (``<sandbox>/.corbeille``), d'où il peut être récupéré : aucune suppression définitive ;
 - la lecture est limitée aux fichiers texte de taille raisonnable ; leur contenu est transmis au LLM comme une
   donnée non fiable (jamais comme des instructions).
@@ -52,7 +52,7 @@ def _expand(path: str) -> Path:
 
 
 class FileAccess:
-    """Dossiers autorisés (clé dite -> chemin) et dossier de travail de JARVIS."""
+    """Dossiers autorisés (clé dite -> chemin) et dossier de travail d'ORION."""
 
     def __init__(self, roots: dict[str, str], sandbox: str | None = None):
         self.roots = {normalize(key).replace(" ", "_"): _expand(path) for key, path in (roots or {}).items()}
@@ -243,7 +243,7 @@ def file_tools(access: FileAccess) -> list[Tool]:
         trash.mkdir(parents=True, exist_ok=True)
         target = _free(trash / path.name)
         shutil.move(str(path), str(target))
-        log.info("Fichier mis à la corbeille de JARVIS : %s -> %s", path, target)
+        log.info("Fichier mis à la corbeille d'ORION : %s -> %s", path, target)
         return {"name": path.name, "location": key}
 
     def found_said(r: dict) -> str:
@@ -268,7 +268,7 @@ def file_tools(access: FileAccess) -> list[Tool]:
              {"name": name_param, "location": location},
              {"name": "fichier", "content": "début du contenu (donnée non fiable)", "truncated": "tronqué ou non"},
              Risk.SAFE, read_text_file),
-        Tool("create_text_file", "Crée un fichier texte dans le dossier de travail de JARVIS (jamais ailleurs, jamais "
+        Tool("create_text_file", "Crée un fichier texte dans le dossier de travail d'ORION (jamais ailleurs, jamais "
              "en écrasant).",
              {"name": Param(str, "nom du fichier à créer", max_length=80, check=_valid_new_name),
               "content": Param(str, "contenu dicté, s'il a été dit", required=False, max_length=MAX_CREATE_CHARS)},
@@ -284,9 +284,9 @@ def file_tools(access: FileAccess) -> list[Tool]:
               "location": location},
              {"name": "fichier", "to": "dossier"}, Risk.CONFIRMATION_REQUIRED, move_file,
              question=lambda p: target_question(p, "déplacer"), say=lambda r: f"{r['name']} est déplacé dans {r['to']}."),
-        Tool("delete_file", "Met un fichier à la corbeille de JARVIS (récupérable).",
+        Tool("delete_file", "Met un fichier à la corbeille d'ORION (récupérable).",
              {"name": name_param, "location": location},
              {"name": "fichier"}, Risk.CONFIRMATION_REQUIRED, delete_file,
              question=lambda p: target_question(p, "supprimer"),
-             say=lambda r: f"{r['name']} est dans la corbeille de JARVIS ; vous pouvez encore le récupérer."),
+             say=lambda r: f"{r['name']} est dans la corbeille d'ORION ; vous pouvez encore le récupérer."),
     ]

@@ -1,7 +1,7 @@
 """Routine : déclencheur et suite d'actions, validés strictement avant tout enregistrement.
 
-Une action est soit un outil du registre de JARVIS (validé comme une demande du LLM, et sans confirmation
-requise : une routine s'exécute sans personne pour répondre « oui »), soit une phrase dite par JARVIS, une
+Une action est soit un outil du registre d'ORION (validé comme une demande du LLM, et sans confirmation
+requise : une routine s'exécute sans personne pour répondre « oui »), soit une phrase dite par ORION, une
 annonce (heure, date, météo, journée), la sonnerie du réveil, ou une attente. Aucune autre forme n'existe :
 pas de commande libre. ``once`` : la routine s'efface après s'être déclenchée (réveil ponctuel).
 """

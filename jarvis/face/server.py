@@ -1,7 +1,7 @@
 """Petit serveur local du visage : sert la page et diffuse l'état visuel (Server-Sent Events).
 
-Lecture seule : aucune commande ne peut être envoyée à JARVIS par cette interface.
-Bibliothèque standard uniquement ; si le port est pris, JARVIS continue sans visage.
+Lecture seule : aucune commande ne peut être envoyée à ORION par cette interface.
+Bibliothèque standard uniquement ; si le port est pris, ORION continue sans visage.
 """
 
 from __future__ import annotations
@@ -56,7 +56,7 @@ class ExclusiveServer(ThreadingHTTPServer):
     allow_reuse_address = sys.platform != "win32"
     daemon_threads = True
     # File d'attente des connexions : 5 par défaut ; au-delà, des connexions étaient réinitialisées dès une vingtaine
-    # de clients simultanés (JARVIS Control, visages, routines). Mesuré lors du test de charge.
+    # de clients simultanés (ORION Control, visages, routines). Mesuré lors du test de charge.
     request_queue_size = 128
 
     def server_bind(self):
@@ -94,7 +94,7 @@ class FaceServer:
         try:
             self._httpd = ExclusiveServer((self._host, self._port), self._handler())
         except OSError as exc:
-            log.warning("Visage indisponible (%s:%s) : %s. JARVIS continue sans interface.", self._host, self._port, exc)
+            log.warning("Visage indisponible (%s:%s) : %s. ORION continue sans interface.", self._host, self._port, exc)
             return None
         threading.Thread(target=self._httpd.serve_forever, name="visage", daemon=True).start()
         return self.url
@@ -114,7 +114,7 @@ class FaceServer:
         greeting = season.get("greeting", "")
         age = jarvis_age(now.date(), self._born)
         if base == "naissancejarvis" and age:
-            greeting = f"Joyeux anniversaire JARVIS : {age} an{'s' if age > 1 else ''}"
+            greeting = f"Joyeux anniversaire ORION : {age} an{'s' if age > 1 else ''}"
         # En erreur : thème rouge ; la page revient d'elle-même au thème de base quand l'erreur cesse. Pour une
         # couleur choisie, la page construit la palette à partir de sa teinte (« hue ») ; pour une fête, des
         # teintes qui alternent (« hues »), un message (« greeting ») et un effet animé (« effect »).

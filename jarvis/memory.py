@@ -1,4 +1,4 @@
-"""Mémoire persistante explicite : ce que l'utilisateur demande à JARVIS de retenir, et rien d'autre.
+"""Mémoire persistante explicite : ce que l'utilisateur demande à ORION de retenir, et rien d'autre.
 
 - « Retiens que je préfère la lumière à 40 %. » -> fait enregistré (outil remember) ;
 - « Que sais-tu de moi ? », « Quelle est ma couleur préférée ? » -> rappel (outil recall, ou le LLM qui reçoit
@@ -108,7 +108,7 @@ class MemoryStore:
 
 
 def said_back(text: str) -> str:
-    """Fait redit par JARVIS : « je préfère le bleu » -> « vous préférez le bleu »."""
+    """Fait redit par ORION : « je préfère le bleu » -> « vous préférez le bleu »."""
     text = second_person(re.sub(r"\b[jJ]['’](?=\w)", "je ", text))
     text = re.sub(r"\bvous (vous )?(appelle)\b", r"vous \1appelez", text)
     irregular = {"suis": "êtes", "ai": "avez", "vais": "allez", "fais": "faites", "veux": "voulez", "peux": "pouvez",
@@ -173,7 +173,7 @@ def memory_tools(store: MemoryStore, user: Callable[[], str] = lambda: "owner") 
                             max_length=MAX_TEXT, evidence=_grounded_fact)},
              {"fact": "fait retenu", "new": "nouveau ou déjà connu"}, Risk.SAFE, remember,
              say=lambda r: (f"C'est noté : {r['fact']}." if r["new"] else f"Je le savais déjà : {r['fact']}.")),
-        Tool("recall", "Dit ce que JARVIS a retenu sur l'utilisateur (tout, ou sur un sujet).",
+        Tool("recall", "Dit ce qu'ORION a retenu sur l'utilisateur (tout, ou sur un sujet).",
              {"topic": Param(str, "sujet, s'il est précisé", required=False, max_length=80)},
              {"facts": "faits retenus"}, Risk.SAFE, recall, say=recall_said),
         Tool("forget", "Oublie une information retenue (ou « tout »).",

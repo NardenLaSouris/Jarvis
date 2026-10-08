@@ -25,10 +25,10 @@ tar -xf "$env:USERPROFILE\jarvis_agent.tar"
 Remove-Item "$env:USERPROFILE\jarvis_agent.tar"
 $action = New-ScheduledTaskAction -Execute "$dir\.venv\Scripts\pythonw.exe" -Argument "-m jarvis.winagent --log-file data\winagent.log" -WorkingDirectory $dir
 $principal = New-ScheduledTaskPrincipal -UserId ([System.Security.Principal.WindowsIdentity]::GetCurrent().Name) -LogonType Interactive
-Register-ScheduledTask -TaskName "JARVIS Agent relance" -Action $action -Principal $principal -Force | Out-Null
-Start-ScheduledTask -TaskName "JARVIS Agent relance"
+Register-ScheduledTask -TaskName "ORION Agent relance" -Action $action -Principal $principal -Force | Out-Null
+Start-ScheduledTask -TaskName "ORION Agent relance"
 Start-Sleep -Seconds 6
-Unregister-ScheduledTask -TaskName "JARVIS Agent relance" -Confirm:$false
+Unregister-ScheduledTask -TaskName "ORION Agent relance" -Confirm:$false
 if (Get-NetTCPConnection -State Listen -LocalPort 8765 -ErrorAction SilentlyContinue) { "agent relancé" } else { "ÉCHEC : l'agent n'écoute pas" }
 PS
 encoded="$(printf '%s' "$script" | iconv -f UTF-8 -t UTF-16LE | base64 -w0)"

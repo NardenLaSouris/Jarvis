@@ -105,7 +105,7 @@ class TuyaDriver:
 
     def _call(self, room: Room, action: Callable[[object], object]):
         """Une seule commande à la fois par ampoule (sa connexion n'est pas partagée entre fils : la voix, une
-        routine et le tableau de bord de JARVIS Control peuvent la viser en même temps) ; un second essai sur
+        routine et le tableau de bord d'ORION Control peuvent la viser en même temps) ; un second essai sur
         une erreur passagère."""
         with self._locks.setdefault(room.key, threading.Lock()):
             for attempt in (1, 2):

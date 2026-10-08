@@ -1,7 +1,7 @@
 """Accès à la boîte mail : IMAP (lecture, tri, déplacement) et SMTP (envoi), bibliothèque standard seulement.
 
 La lecture ne change jamais l'état de la boîte : dossier ouvert en lecture seule et contenu lu avec BODY.PEEK
-(un mail lu par JARVIS reste « non lu »). Marquer lu, archiver, supprimer (vers la corbeille), envoyer et répondre
+(un mail lu par ORION reste « non lu »). Marquer lu, archiver, supprimer (vers la corbeille), envoyer et répondre
 sont des opérations à part, appelées seulement après confirmation (voir jarvis/mail/tools.py).
 
 Le mot de passe (mot de passe d'application de préférence) vient de .env (MAIL_PASSWORD) ; il n'est jamais

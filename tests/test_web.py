@@ -505,6 +505,6 @@ def test_web_test_command(capsys):
     assert web_test(cfg, "Combien coûte une RTX 3060 actuellement ?", llm=llm, web=WebResearch(MockProvider(results))) == 0
     out = capsys.readouterr().out
     assert "ledenicheur.fr" in out and results[0].url in out
-    assert out.strip().endswith("JARVIS : Environ 279 euros, d'après Le Dénicheur.")
+    assert out.strip().endswith("ORION : Environ 279 euros, d'après Le Dénicheur.")
     assert web_test(cfg, "Quelle version ?", llm=llm, web=WebResearch(MockProvider(error="injoignable"))) == 1
     assert web_test(replace(cfg, web=replace(cfg.web, enabled=False)), "Quelle version ?") == 2

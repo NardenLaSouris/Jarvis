@@ -1,6 +1,6 @@
 """Confirmation d'une action par l'utilisateur, gérée par le Core.
 
-La question est posée par JARVIS (formulée par l'outil, pas par le LLM) ; la réponse est comparée à
+La question est posée par ORION (formulée par l'outil, pas par le LLM) ; la réponse est comparée à
 des listes fixes de « oui » et de « non ». Toute autre phrase annule la demande en attente.
 """
 

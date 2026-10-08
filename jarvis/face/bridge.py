@@ -1,4 +1,4 @@
-"""Branchement du visage sur JARVIS, sans toucher au pipeline vocal.
+"""Branchement du visage sur ORION, sans toucher au pipeline vocal.
 
 - ``FaceBridge.on_event`` : se branche sur le rappel d'événements existant de l'agent ;
 - ``MeteredSink`` : enveloppe la sortie audio pour mesurer ce qui est réellement joué.
@@ -50,7 +50,7 @@ class FaceBridge:
     def __init__(self, visual: VisualState, forward: Callable[[str, str], None] | None = None):
         self.visual = visual
         self._forward = forward
-        # Outils lancés hors conversation (routine, JARVIS Control) pendant la veille : le visage revient en veille
+        # Outils lancés hors conversation (routine, ORION Control) pendant la veille : le visage revient en veille
         # à la fin, au lieu de rester « en réflexion » jusqu'à la prochaine conversation.
         self._background = 0
         self._conversing = False  # entre le wake word et le retour en veille

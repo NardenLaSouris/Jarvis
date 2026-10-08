@@ -1,18 +1,18 @@
-# Lecteur Spotify de JARVIS (librespot) : appareil Spotify Connect « JARVIS » dont le son est relayé comme la voix.
+# Lecteur Spotify d'ORION (librespot) : appareil Spotify Connect « ORION » dont le son est relayé comme la voix.
 # Construction sans droits administrateur (Docker) :
 #   docker run --rm -v "$HOME/librespot-build:/out" rust:1-bookworm cargo install librespot --locked
 #     (suite de la même commande) --no-default-features --features with-libmdns,native-tls --root /out/root
 #   cp ~/librespot-build/root/bin/librespot ~/.local/bin/
 # Connexion (une fois) : librespot --enable-oauth --oauth-port 5588 --cache ~/.cache/librespot (tunnel SSH -L 5588).
 # Puis : cp deploy/jarvis-librespot.service ~/.config/systemd/user/ && systemctl --user enable --now jarvis-librespot
-# et [spotify] device = "JARVIS" dans config.local.toml.
+# et [spotify] device = "ORION" dans config.local.toml.
 
 [Unit]
-Description=JARVIS - lecteur Spotify (librespot, appareil « JARVIS »)
+Description=ORION - lecteur Spotify (librespot, appareil « ORION »)
 After=network-online.target jarvis.service
 
 [Service]
-ExecStart=%h/.local/bin/librespot --name JARVIS --device-type speaker --cache %h/.cache/librespot --disable-discovery --disable-audio-cache --backend pipe --device /opt/jarvis/data/music.fifo --format S16 --bitrate 320 --initial-volume 100
+ExecStart=%h/.local/bin/librespot --name ORION --device-type speaker --cache %h/.cache/librespot --disable-discovery --disable-audio-cache --backend pipe --device /opt/jarvis/data/music.fifo --format S16 --bitrate 320 --initial-volume 100
 Restart=always
 RestartSec=5
 

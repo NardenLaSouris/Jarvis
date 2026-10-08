@@ -1,6 +1,6 @@
-"""État visuel de JARVIS : ce que le visage graphique affiche, indépendamment de son rendu.
+"""État visuel d'ORION : ce que le visage graphique affiche, indépendamment de son rendu.
 
-Le reste de JARVIS écrit ici (état, niveau audio) ; le serveur du visage ne fait que lire.
+Le reste d'ORION écrit ici (état, niveau audio) ; le serveur du visage ne fait que lire.
 """
 
 from __future__ import annotations
@@ -78,7 +78,7 @@ class VisualState:
     """État du visage : ``state``, ``audio_level``, ``activity`` et ``transition`` (s depuis le dernier changement).
 
     ``speaking`` posé par la lecture audio revient tout seul à l'état précédent quand le son se termine,
-    si aucun événement de JARVIS n'a changé l'état entre-temps.
+    si aucun événement d'ORION n'a changé l'état entre-temps.
     """
 
     def __init__(self, audio: AudioActivity | None = None, clock: Callable[[], float] = time.monotonic):

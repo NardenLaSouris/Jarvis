@@ -40,7 +40,7 @@ def load_agent_config(path: str | Path, env_file: str | Path) -> AgentConfig:
     face_port = _port(face.get("port", 8765)) if face.get("open_on_connect", False) else None
     ips = raw.get("allowed_ips", [])
     if not isinstance(ips, list) or not ips:
-        raise ValueError("allowed_ips doit lister au moins une adresse IP (celle du Core JARVIS).")
+        raise ValueError("allowed_ips doit lister au moins une adresse IP (celle du Core ORION).")
     try:
         allowed = frozenset(str(ipaddress.ip_address(ip)) for ip in ips)
     except ValueError as exc:

@@ -1,6 +1,6 @@
-"""Couleur du visage de JARVIS, choisie à la voix (« mets ton visage en vert ») ou dans JARVIS Control.
+"""Couleur du visage d'ORION, choisie à la voix (« mets ton visage en vert ») ou dans ORION Control.
 
-« auto » : bleu le jour, noir et blanc la nuit ([face] night_start / night_end). Une couleur choisie s'applique
+« auto » : Aureon le jour, noir et blanc la nuit ([face] night_start / night_end). Une couleur choisie s'applique
 jour et nuit, jusqu'au retour à « auto » ; le rouge d'erreur passe toujours devant. Le choix est enregistré
 (``data/face_theme.json``) et lu par le serveur du visage : tous les écrans prennent la même couleur.
 La page construit la palette à partir de la teinte (0-360) envoyée par le serveur ; « arcenciel » la fait tourner.
@@ -50,8 +50,8 @@ SEASONS = {
         "effect": "hyperspace"
     },
     "naissancejarvis": {
-        "palette": "naissancejarvis", "label": "anniversaire de JARVIS", "hues": [205, 44],
-        "greeting": "Joyeux anniversaire JARVIS", "effect": "sparkle"
+        "palette": "naissancejarvis", "label": "anniversaire d'ORION", "hues": [205, 44],
+        "greeting": "Joyeux anniversaire ORION", "effect": "sparkle"
     },
     "saintpatrick": {
         "palette": "saintpatrick", "label": "Saint-Patrick", "hues": [130, 155], "greeting": "Joyeuse Saint-Patrick",
@@ -79,15 +79,16 @@ SEASONS = {
         "label": "anniversaire", "hues": "rainbow", "greeting": "Joyeux anniversaire !", "effect": "confetti"
     },
 }
-# day : le bleu d'origine (réglé à la main) ; night : noir et blanc ;
+# day : vert forêt, crème et or d'Aureon ; night : noir et blanc ;
 # arcenciel : toutes les couleurs à tour de rôle.
 THEMES = ("auto", "day", "night", "arcenciel", *COLORS, *SEASONS)
-LABELS = {"auto": "automatique (bleu le jour, noir et blanc la nuit, fêtes)", "day": "bleu",
+LABELS = {"auto": "automatique (Aureon le jour, noir et blanc la nuit, fêtes)", "day": "Aureon (vert et or)",
           "night": "noir et blanc", "arcenciel": "arc-en-ciel", "emeraude": "émeraude",
           **{k: f"thème {v['label']}" if k != "anniversaire" else "thème anniversaire" for k, v in SEASONS.items()}}
 SAID = {
     "automatique": "auto", "normal": "auto", "normale": "auto", "habituel": "auto", "habituelle": "auto",
-    "par defaut": "auto", "d origine": "auto", "bleu": "day", "noir et blanc": "night", "blanc": "night",
+    "par defaut": "auto", "d origine": "auto", "bleu": "azur", "aureon": "day", "vert et or": "day",
+    "noir et blanc": "night", "blanc": "night",
     "gris": "night", "nuit": "night", "arc en ciel": "arcenciel", "toutes les couleurs": "arcenciel",
     "multicolore": "arcenciel", "dore": "or", "doree": "or", "pourpre": "violet", "mauve": "violet",
     "fuchsia": "magenta", "rose bonbon": "rose", "bleu ciel": "azur", "bleu clair": "azur", "bleu fonce": "indigo",
@@ -129,7 +130,7 @@ def parse_birthday(value: str) -> tuple[int, int] | None:
 
 
 def parse_born(value: str) -> date | None:
-    """« 2026-10-02 » (premier démarrage de JARVIS) -> date ; vide -> None."""
+    """« 2026-10-02 » (premier démarrage d'ORION) -> date ; vide -> None."""
     if not value:
         return None
     try:
@@ -139,7 +140,7 @@ def parse_born(value: str) -> date | None:
 
 
 def jarvis_age(day: date, born: date | None) -> int | None:
-    """Âge de JARVIS le jour anniversaire de son premier démarrage (1 an et plus), sinon None."""
+    """Âge d'ORION le jour anniversaire de son premier démarrage (1 an et plus), sinon None."""
     if born is None or (day.month, day.day) != (born.month, born.day) or day.year <= born.year:
         return None
     return day.year - born.year
@@ -147,7 +148,7 @@ def jarvis_age(day: date, born: date | None) -> int | None:
 
 def season_of(day: date, birthday: tuple[int, int] | None = None, born: date | None = None) -> str | None:
     """Fête du jour (prise d'elle-même par le visage en « auto »), ou None. Votre anniversaire passe avant tout,
-    puis celui de JARVIS (premier démarrage)."""
+    puis celui d'ORION (premier démarrage)."""
     md = (day.month, day.day)
     if birthday is not None and md == birthday:
         return "anniversaire"
@@ -226,7 +227,7 @@ def face_theme_tool(store: FaceThemeStore):
         return f"Je passe en {r['label']}."
 
     return Tool("set_face_theme",
-                "Change la couleur du visage de JARVIS (auto : bleu le jour, noir et blanc la nuit).",
+                "Change la couleur du visage d'ORION (auto : Aureon le jour, noir et blanc la nuit).",
                 {"theme": Param(str, "couleur dite (auto pour revenir aux couleurs habituelles)", choices=THEMES,
                                 evidence=lambda value, text: said_theme(text) == value)},
                 {"theme": "couleur", "label": "nom dit"}, Risk.SAFE, run, say=say)

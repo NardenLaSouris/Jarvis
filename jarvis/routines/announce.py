@@ -1,4 +1,4 @@
-"""Annonces des routines : heure, date, météo, ou résumé de la journée, construits par les outils de JARVIS."""
+"""Annonces des routines : heure, date, météo, ou résumé de la journée, construits par les outils d'ORION."""
 
 from __future__ import annotations
 

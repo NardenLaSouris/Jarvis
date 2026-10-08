@@ -42,7 +42,7 @@ WEATHER_DAYS = {"demain": "tomorrow", "apres demain": "day_after_tomorrow", "auj
 
 
 class ConversationContext:
-    def __init__(self, registry: ToolRegistry, assistant_name: str = "JARVIS"):
+    def __init__(self, registry: ToolRegistry, assistant_name: str = "ORION"):
         self._registry = registry
         self._quick = QuickPlanner(registry)
         self._name = normalize(assistant_name)

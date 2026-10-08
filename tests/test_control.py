@@ -83,7 +83,7 @@ def test_bridge_serves_the_interface_without_key_but_never_the_api(bridge):
     port = bridge._httpd.server_address[1]
     with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=5) as response:
         page = response.read().decode()
-        assert "JARVIS Control" in page and "default-src 'self'" in response.headers["Content-Security-Policy"]
+        assert "ORION Control" in page and "default-src 'self'" in response.headers["Content-Security-Policy"]
     assert call(bridge, "GET", "/status", key="")[0] == 403
     assert call(bridge, "GET", "/status", key="mauvaise")[0] == 403
     assert call(bridge, "GET", "/status", host="evil.example:80")[0] == 403
@@ -147,15 +147,15 @@ def test_autostart_shortcut_is_created_with_fixed_arguments(monkeypatch, tmp_pat
     import jarvis.control.app as app
 
     calls = []
-    monkeypatch.setattr(app, "STARTUP_LINK", tmp_path / "JARVIS Control.lnk")
+    monkeypatch.setattr(app, "STARTUP_LINK", tmp_path / "ORION Control.lnk")
     monkeypatch.setattr(app.subprocess, "run", lambda argv, **kw: calls.append((argv, kw["env"])))
     app.set_autostart(True)
     argv, env = calls[0]
     assert argv[:2] == ["powershell", "-NoProfile"] and "--hidden" in argv[-1] and "$env:JC_LINK" in argv[-1]
-    assert env["JC_LINK"] == str(tmp_path / "JARVIS Control.lnk") and env["JC_TARGET"].endswith("pythonw.exe")
-    (tmp_path / "JARVIS Control.lnk").write_text("x")
+    assert env["JC_LINK"] == str(tmp_path / "ORION Control.lnk") and env["JC_TARGET"].endswith("pythonw.exe")
+    (tmp_path / "ORION Control.lnk").write_text("x")
     app.set_autostart(False)
-    assert not (tmp_path / "JARVIS Control.lnk").exists()
+    assert not (tmp_path / "ORION Control.lnk").exists()
 
 
 def test_face_colour_is_read_through_the_bridge(bridge):

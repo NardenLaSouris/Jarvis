@@ -1,7 +1,7 @@
 """Source et sortie audio basées sur des fichiers WAV (tests et diagnostic).
 
 Permettent d'exécuter le pipeline complet sans micro : l'audio d'entrée est lu
-depuis un WAV, et ce que JARVIS prononce est enregistré au lieu d'être joué.
+depuis un WAV, et ce qu'ORION prononce est enregistré au lieu d'être joué.
 """
 
 from __future__ import annotations
@@ -53,12 +53,12 @@ class ArraySource:
         return frame
 
     def flush(self) -> None:
-        # Le temps d'un fichier ne s'écoule pas pendant que JARVIS parle : rien à ignorer.
+        # Le temps d'un fichier ne s'écoule pas pendant qu'ORION parle : rien à ignorer.
         pass
 
 
 class RecordingSink:
-    """Conserve tout ce que JARVIS prononce (et peut l'écrire dans des WAV)."""
+    """Conserve tout ce qu'ORION prononce (et peut l'écrire dans des WAV)."""
 
     def __init__(self, output_dir: Path | None = None):
         self.output_dir = output_dir

@@ -1,4 +1,4 @@
-# Service utilisateur systemd du Core JARVIS (mini-PC Linux), sans droits administrateur :
+# Service utilisateur systemd du Core ORION (mini-PC Linux), sans droits administrateur :
 #   mkdir -p ~/.config/systemd/user && cp deploy/jarvis.service ~/.config/systemd/user/
 #   systemctl --user daemon-reload && systemctl --user enable --now jarvis
 #   journalctl --user -u jarvis -f                     # journal en direct
@@ -7,7 +7,7 @@
 # Le dépôt est supposé dans /opt/jarvis (sinon, adapter WorkingDirectory et ExecStart).
 
 [Unit]
-Description=JARVIS, assistant vocal (Core)
+Description=ORION, assistant vocal (Core)
 After=network-online.target
 
 [Service]

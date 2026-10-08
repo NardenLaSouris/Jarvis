@@ -180,7 +180,7 @@ def planner_prompt(registry: ToolRegistry) -> str:
                      "telle qu'elle a été dite ; un rappel (« rappelle-moi ») reste create_reminder.")
     if registry.exists("remember"):
         rules.append("- remember : seulement si l'utilisateur demande explicitement de retenir ou de se souvenir de "
-                     "quelque chose ; fact reprend ses mots, sans « retiens que ». recall : ce que JARVIS sait de lui. "
+                     "quelque chose ; fact reprend ses mots, sans « retiens que ». recall : ce qu'ORION sait de lui. "
                      "forget : oublier (topic = ses mots, ou « tout »).")
     if registry.exists("unmute_volume"):
         rules.append("- unmute_volume : remettre, réactiver ou rallumer le son (après une coupure).")
@@ -204,7 +204,7 @@ def planner_prompt(registry: ToolRegistry) -> str:
         f"\n« {text} » -> " + json.dumps({"type": "tool_calls", "calls": [
             {"tool": tool, "parameters": params, "segment": segment} for tool, params, segment in calls]},
             ensure_ascii=False) for text, calls in multi)
-    return f"""Vous êtes le module de décision d'action de l'assistant vocal JARVIS. Vous ne répondez pas à
+    return f"""Vous êtes le module de décision d'action de l'assistant vocal ORION. Vous ne répondez pas à
 l'utilisateur : vous indiquez seulement si sa demande correspond à l'un de ces outils.
 
 Outils disponibles :

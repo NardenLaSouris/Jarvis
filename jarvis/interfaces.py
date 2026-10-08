@@ -21,7 +21,7 @@ class AudioSource(Protocol):
         """Bloc suivant (int16, ``frame_samples`` échantillons) ou None si la source est épuisée."""
 
     def flush(self) -> None:
-        """Ignore l'audio capturé pendant que JARVIS parlait ou réfléchissait."""
+        """Ignore l'audio capturé pendant qu'ORION parlait ou réfléchissait."""
 
 
 class AudioSink(Protocol):

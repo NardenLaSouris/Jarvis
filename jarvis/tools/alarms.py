@@ -1,7 +1,7 @@
 """Réveils par la voix (« réveille-moi à 7 h 30 », « quels réveils ? », « annule mon réveil »).
 
 Un réveil est une routine ponctuelle (``once``) : sonnerie, puis, si ``briefing``, l'annonce de la journée.
-Il est enregistré avec les routines (il survit à un redémarrage) et visible dans JARVIS Control.
+Il est enregistré avec les routines (il survit à un redémarrage) et visible dans ORION Control.
 """
 
 from __future__ import annotations

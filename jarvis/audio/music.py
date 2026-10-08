@@ -1,10 +1,10 @@
-"""Musique Spotify jouée comme la voix de JARVIS : librespot (appareil Spotify Connect « JARVIS » sur le Core) écrit
+"""Musique Spotify jouée comme la voix d'ORION : librespot (appareil Spotify Connect « ORION » sur le Core) écrit
 le son dans un tube nommé ; ``MusicRelay`` le lit et l'envoie à l'agent du PC (``/audio/music``), qui le joue à côté
 de la voix sur la même sortie.
 
 - PCM int16 stéréo 44,1 kHz, morceaux de 100 ms ; l'agent bloque l'envoi quand sa file est pleine, ce qui cale la
   lecture du tube (et donc librespot) sur le temps réel ;
-- la musique baisse pendant une conversation et pendant que JARVIS parle (``DuckingSink``), puis remonte ;
+- la musique baisse pendant une conversation et pendant qu'ORION parle (``DuckingSink``), puis remonte ;
 - « pause » vide aussitôt la file de l'agent (``stop``).
 """
 
@@ -86,7 +86,7 @@ class MusicRelay:
         self._apply()
 
     def speaking(self, seconds: float) -> None:
-        """JARVIS va parler ``seconds`` secondes (réponse, annonce) : musique baissée jusqu'à la fin."""
+        """ORION va parler ``seconds`` secondes (réponse, annonce) : musique baissée jusqu'à la fin."""
         with self._lock:
             self._speaking_until = max(self._speaking_until, time.monotonic()) + seconds + self._restore_after
             if self._timer is not None:

@@ -1,4 +1,4 @@
-"""Cœur de JARVIS : la boucle veille -> écoute -> réflexion -> réponse.
+"""Cœur d'ORION : la boucle veille -> écoute -> réflexion -> réponse.
 
 L'agent ne connaît que les interfaces de ``jarvis.interfaces`` ; il ignore quels
 moteurs (openWakeWord, Whisper, Ollama, NeuTTS...) sont utilisés.
@@ -33,7 +33,7 @@ from jarvis.tools.request import MALFORMED_MESSAGES
 from jarvis.tools.planner import plan, tool_request
 from jarvis.tools.quick import quick_plan
 from jarvis.weather.cities import mentioned_city
-from jarvis.web.research import web_request, without_name
+from jarvis.web.research import names_pattern, web_request, without_name
 
 log = logging.getLogger(__name__)
 
@@ -96,7 +96,7 @@ class WakeTrigger:
 
 
 class WakeWatcher:
-    """Pendant que JARVIS réfléchit ou parle : écoute le micro et appelle ``on_wake`` si le wake word est dit."""
+    """Pendant qu'ORION réfléchit ou parle : écoute le micro et appelle ``on_wake`` si le wake word est dit."""
 
     def __init__(self, source: AudioSource, detector: WakeWordDetector, threshold: float,
                  on_wake: Callable[[float], None], patience: int = 1):
@@ -146,11 +146,11 @@ def without_urls(text: str) -> str:
 YOURS = re.compile(r"\b([Mm]on) (minuteur|rappel|ordinateur|PC)\b")
 
 
-def polish_web_sentence(sentence: str, question: str, first: bool, assistant_name: str = "JARVIS") -> str:
-    """Phrase d'une réponse Web ou d'outil prête à dire : sans URL, sans « JARVIS : » en tête, et sans la
+def polish_web_sentence(sentence: str, question: str, first: bool, assistant_name: str = "ORION") -> str:
+    """Phrase d'une réponse Web ou d'outil prête à dire : sans URL, sans « ORION : » en tête, et sans la
     question répétée en guise de première phrase ("" si la phrase est à taire)."""
     sentence = without_urls(sentence)
-    sentence = re.sub(rf"^\s*{re.escape(assistant_name)}\s*[:.,]\s*", "", sentence, flags=re.IGNORECASE)
+    sentence = re.sub(rf"^\s*{names_pattern(assistant_name)}\s*[:.,]\s*", "", sentence, flags=re.IGNORECASE)
     if first and normalize(sentence) == normalize(without_name(question, assistant_name)):
         return ""
     return YOURS.sub(lambda m: ("Votre" if m.group(1)[0].isupper() else "votre") + " " + m.group(2), sentence)
@@ -260,7 +260,7 @@ class Agent:
         self._acks = [tts.synthesize(text) for text in settings.acknowledgements]
 
     def close(self) -> None:
-        """Arrête les services de fond (minuteurs...) ; JARVIS peut alors quitter proprement."""
+        """Arrête les services de fond (minuteurs...) ; ORION peut alors quitter proprement."""
         for service in self._services:
             try:
                 service.stop()
@@ -800,7 +800,7 @@ class Agent:
             self._event("alarm", "Réveil arrêté")
 
     def _interrupt(self, score: float) -> None:
-        """Wake word dit pendant la réponse : elle est abandonnée et le son coupé ; JARVIS écoute la suite."""
+        """Wake word dit pendant la réponse : elle est abandonnée et le son coupé ; ORION écoute la suite."""
         self._interrupted = True
         self._event("wake", f"Interruption (score {score:.2f})")
         self._pipeline.cancel()

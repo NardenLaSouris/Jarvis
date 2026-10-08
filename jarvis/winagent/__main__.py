@@ -28,7 +28,7 @@ def pc_actions(settings: dict) -> ToolRegistry:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="jarvis.winagent", description="Agent Windows de JARVIS")
+    parser = argparse.ArgumentParser(prog="jarvis.winagent", description="Agent Windows d'ORION")
     parser.add_argument("--config", default=str(ROOT / "windows_agent.toml"), help="fichier de réglages")
     parser.add_argument("--env", default=str(ROOT / ".env"), help="fichier contenant JARVIS_AGENT_TOKEN")
     parser.add_argument("--log-file", help="journal dans ce fichier plutôt qu'à l'écran (lancement sans fenêtre)")
@@ -56,7 +56,7 @@ def main(argv: list[str] | None = None) -> int:
     except OSError as exc:
         return fail(f"Impossible d'écouter sur {config.host}:{config.port} : {exc}", 1)
     host, port = server.address
-    logging.info("Agent JARVIS Windows à l'écoute sur %s:%s (IP autorisées : %s ; actions : %s)", host, port,
+    logging.info("Agent ORION Windows à l'écoute sur %s:%s (IP autorisées : %s ; actions : %s)", host, port,
                  ", ".join(sorted(config.allowed_ips)), ", ".join(t.name for t in server.actions.list()) or "aucune")
     try:
         while True:

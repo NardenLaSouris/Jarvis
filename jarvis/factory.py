@@ -56,8 +56,9 @@ def build_wake_verifier(cfg: Config):
     from jarvis.wakeword.verify import WakeVerifier
 
     try:
-        return WakeVerifier(cfg.wake_word.verify_model, cfg.stt.download_root, cfg.assistant.language)
-    except Exception as exc:  # JARVIS fonctionne sans : la détection seule, comme avant
+        return WakeVerifier(cfg.wake_word.verify_model, cfg.stt.download_root, cfg.assistant.language,
+                            cfg.wake_word.phrase)
+    except Exception as exc:  # ORION fonctionne sans : la détection seule, comme avant
         log.warning("Vérification du wake word indisponible (%s) : détection seule", exc)
         return None
 
@@ -104,9 +105,11 @@ def allowed_apps(cfg: Config) -> dict:
     return load_applications(t.applications)
 
 
-def vocabulary_hint(cfg: Config, personality_name: str = "JARVIS") -> str:
-    """Phrases données à Whisper pour orienter la transcription vers le vocabulaire de JARVIS : son nom, les
-    applications autorisées et les commandes activées (minuteurs, rappels, recherche, météo et ville par défaut)."""
+def vocabulary_hint(cfg: Config, personality_name: str = "") -> str:
+    """Phrases données à Whisper pour orienter la transcription vers le vocabulaire d'ORION : le mot de réveil (ce
+    que l'on dit vraiment), les applications autorisées et les commandes activées (minuteurs, rappels, recherche,
+    météo et ville par défaut)."""
+    personality_name = personality_name or cfg.wake_word.phrase
     labels = [a.label for a in allowed_apps(cfg).values()]
     verbs = ("ouvre", "ferme", "lance", "quitte")
     commands = ", ".join(f"{verbs[i % len(verbs)]} {label}" for i, label in enumerate(labels))
@@ -150,7 +153,8 @@ def build_corrector(cfg: Config, personality):
     verbs = {"ouvre": ("ouvre", "ouvrir", "lance", "lancer", "demarre", "demarrer", "ouvre moi", "lance moi"),
              "ferme": ("ferme", "fermer", "quitte", "quitter", "ferme moi")}
     objects = {alias: key for key, app in apps.items() for alias in (key, *app.app.aliases)}
-    return CommandCorrector(verbs, objects, ignored=(personality.assistant_name, personality.user_title),
+    return CommandCorrector(verbs, objects, ignored=(personality.assistant_name, *personality.former_names,
+                                                     personality.user_title),
                             rewrite=personality.canonical)
 
 
@@ -172,7 +176,7 @@ def build_web(cfg: Config):
 
 
 def build_events(cfg: Config) -> EventBus:
-    """Bus d'événements de JARVIS, avec le journal d'activité s'il est activé."""
+    """Bus d'événements d'ORION, avec le journal d'activité s'il est activé."""
     bus = EventBus()
     if cfg.activity.enabled:
         from jarvis.activity import ActivityLog, JsonlActivityStore
@@ -288,7 +292,7 @@ def build_spotify(cfg: Config):
         import subprocess
 
         service = cfg.spotify.player_service
-        # Commande fixe (aucun texte venu d'une demande) : relance du lecteur de JARVIS, service de l'utilisateur.
+        # Commande fixe (aucun texte venu d'une demande) : relance du lecteur d'ORION, service de l'utilisateur.
         client.revive = lambda: subprocess.run(["systemctl", "--user", "restart", service], check=True, timeout=20,
                                                capture_output=True)
     if not client.configured:
@@ -433,7 +437,7 @@ def build_routines(cfg: Config, tools, notifications, events: EventBus, sink=Non
         engine.attach_events(events)
         has_welcome = any(r.trigger["type"] == "event" and r.trigger["event"] == "arrival" for r in engine.routines())
         if cfg.presence.welcome_routine and presence.first_start and not has_welcome:
-            # Première mise en service : la routine « Bon retour » (modifiable ou supprimable dans JARVIS Control).
+            # Première mise en service : la routine « Bon retour » (modifiable ou supprimable dans ORION Control).
             engine.create({"name": "Bon retour", "description": "Accueil au retour confirmé, avec le résumé de "
                            "l'absence.", "trigger": {"type": "event", "event": "arrival"},
                            "actions": [{"type": "announce", "what": "welcome"}]})
@@ -451,7 +455,7 @@ def _person(profiles, user: str, personality) -> str:
 
 def build_api(cfg: Config, tools, routines, *, web=None, devices=None, rooms=None, driver=None, timers=None,
               worker=None, home=None, memory=None, profiles=None, presence=None):
-    """API d'administration démarrée ([api], pour JARVIS Control), ou None si désactivée."""
+    """API d'administration démarrée ([api], pour ORION Control), ou None si désactivée."""
     if not cfg.api.enabled:
         return None
     from jarvis.activity import JsonlActivityStore
@@ -496,7 +500,8 @@ def build_tools(cfg: Config, personality, events: EventBus | None = None, timers
     for tool in tools:
         registry.register(tool)
     confirmations = ConfirmationManager(personality.confirm_yes, personality.confirm_no,
-                                        ignored=(personality.assistant_name, personality.user_title))
+                                        ignored=(personality.assistant_name, *personality.former_names,
+                                                 personality.user_title))
     profiles = build_profiles(cfg)
     owner = next(u.id for u in profiles.users() if u.role == "owner")
     return ToolCore(registry, PermissionManager(profiles=profiles), confirmations, timeout=cfg.tools.timeout,
@@ -511,7 +516,7 @@ def build_profiles(cfg: Config):
 
 
 def prime_llm(llm: LanguageModel, router: IntentRouter, registry=None) -> threading.Thread | None:
-    """Prépare en arrière-plan les prompts de conversation et de choix d'outil : JARVIS écoute tout de suite,
+    """Prépare en arrière-plan les prompts de conversation et de choix d'outil : ORION écoute tout de suite,
     et la première vraie demande ne paie plus leur lecture (jusqu'à 2 minutes sur un processeur sans GPU)."""
     prime = getattr(llm, "prime", None)
     if prime is None:
@@ -594,7 +599,7 @@ def build_agent(
     llm = build_llm(cfg)
     try:
         llm.warm_up()
-    except Exception as exc:  # JARVIS démarre quand même et le signalera à l'usage.
+    except Exception as exc:  # ORION démarre quand même et le signalera à l'usage.
         log.warning("Préchargement du LLM impossible : %s", exc)
 
     personality = load_personality(cfg.assistant.personality)

@@ -102,7 +102,7 @@ def test_identity_reply_is_short_and_distinct_from_capabilities():
     r = router()
     for _ in range(6):
         reply = r.route("Qui es-tu ?").reply
-        assert len(reply.split()) <= 12 and "JARVIS" in reply, reply
+        assert len(reply.split()) <= 12 and "ORION" in reply, reply
         assert "converser" not in reply and "Jules" not in reply
     assert "converser" in r.route("Que peux-tu faire ?").reply
 
@@ -139,7 +139,7 @@ def test_critical_commands_come_first():
 
 def test_predefined_responses_are_rendered():
     r = router()
-    assert r.route("Comment tu t'appelles ?").reply.split(",")[0] in ("Je suis JARVIS", "JARVIS")
+    assert r.route("Comment tu t'appelles ?").reply.startswith(("Je suis ORION", "Je m'appelle ORION"))
     assert r.route("Qui t'a créé ?").reply.startswith(("Vous", "C'est vous"))
     capabilities = r.route("Que peux-tu faire ?").reply
     assert "converser" in capabilities
@@ -244,7 +244,7 @@ def test_mission_conversation_sequence():
     assert r.route("Moi ça va.").label == "predefined:user_doing_well"
     assert r.route("Quelle est la capitale de la France ?").label == "llm"
     identity = r.route("Qui es-tu ?")
-    assert identity.label == "predefined:identity" and "JARVIS" in identity.reply
+    assert identity.label == "predefined:identity" and "ORION" in identity.reply
 
 
 def test_user_answer_is_only_understood_right_after_how_are_you():
@@ -288,7 +288,7 @@ def test_title_used_at_most_once_in_llm_replies():
 
 def test_prompt_describes_personality_capabilities_and_forbids_fake_actions():
     prompt = router().system_prompt()
-    for expected in ("Nom de l'assistant : JARVIS", "Utilisateur principal : la personne qui vous parle", "Forme d'adresse : « monsieur »",
+    for expected in ("Nom de l'assistant : ORION", "Utilisateur principal : la personne qui vous parle", "Forme d'adresse : « monsieur »",
                      "Langue : français", "ne le tutoyez jamais", "aucune", "domotique", "aucun outil n'a été exécuté",
                      "jamais qu'une action est faite", "au plus une", "Ne commencez jamais par une salutation",
                      "« Léonard de Vinci. »", "C'est le début de l'échange"):

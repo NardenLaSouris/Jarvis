@@ -1,4 +1,4 @@
-"""État de JARVIS pour l'API d'administration : services, appareils, lumières, échéances, routines.
+"""État d'ORION pour l'API d'administration : services, appareils, lumières, échéances, routines.
 
 Chaque vérification réseau a un délai court et toutes partent en parallèle : l'état répond en quelques
 secondes au pire, même si une machine est éteinte.

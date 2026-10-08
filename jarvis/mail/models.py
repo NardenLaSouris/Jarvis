@@ -1,4 +1,4 @@
-"""Message reçu, tel que JARVIS le manipule (en-têtes décodés, texte brut, pièces jointes décrites, jamais ouvertes)."""
+"""Message reçu, tel qu'ORION le manipule (en-têtes décodés, texte brut, pièces jointes décrites, jamais ouvertes)."""
 
 from __future__ import annotations
 

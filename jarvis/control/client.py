@@ -1,4 +1,4 @@
-"""Client de l'API d'administration du Core (jarvis.api) pour JARVIS Control. Le jeton ne quitte jamais ce client."""
+"""Client de l'API d'administration du Core (jarvis.api) pour ORION Control. Le jeton ne quitte jamais ce client."""
 
 from __future__ import annotations
 

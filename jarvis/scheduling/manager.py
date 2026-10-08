@@ -80,7 +80,7 @@ class MemoryScheduleStore:
 
 class JsonScheduleStore(MemoryScheduleStore):
     """Minuteurs et rappels en cours enregistrés dans un fichier JSON (écriture atomique) : ils survivent à un
-    redémarrage de JARVIS. Seules les échéances actives sont gardées."""
+    redémarrage d'ORION. Seules les échéances actives sont gardées."""
 
     def __init__(self, path: Path) -> None:
         super().__init__()

@@ -2,7 +2,7 @@
 
     fragments du LLM -> SentenceBuffer -> file de phrases -> thread TTS -> file audio -> AudioSink
 
-JARVIS commence à parler dès que la première phrase complète est disponible, pendant
+ORION commence à parler dès que la première phrase complète est disponible, pendant
 que le LLM génère la suite et que le TTS synthétise les phrases suivantes. Les files
 garantissent l'ordre : chaque phrase est synthétisée puis jouée une seule fois, l'une
 après l'autre, sans superposition.
@@ -125,7 +125,7 @@ class SpeechStats:
 
 
 class SpeechPipeline:
-    """Fait parler JARVIS phrase par phrase, avec synthèse et lecture en parallèle de la génération."""
+    """Fait parler ORION phrase par phrase, avec synthèse et lecture en parallèle de la génération."""
 
     def __init__(self, tts: TextToSpeech, sink: AudioSink, stream_audio: bool = False, merge_under: int = 0):
         self._tts = tts

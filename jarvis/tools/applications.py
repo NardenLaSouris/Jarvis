@@ -1,6 +1,6 @@
 """Outils applications : ouvrir, fermer, lister les applications autorisées, ouvrir une page Web.
 
-Le LLM ne fournit qu'un identifiant logique (« discord »). JARVIS le résout lui-même vers un
+Le LLM ne fournit qu'un identifiant logique (« discord »). ORION le résout lui-même vers un
 exécutable (config, registre « App Paths », emplacements habituels, paquet du Microsoft Store) et
 vers des noms de processus connus. Jamais de shell, de chemin, de PID ni d'argument venant du LLM.
 """

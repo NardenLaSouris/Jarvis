@@ -1,4 +1,4 @@
-"""Journal d'activité : les événements importants de JARVIS, conservés localement.
+"""Journal d'activité : les événements importants d'ORION, conservés localement.
 
 Stockage JSONL (une ligne JSON par événement, ajout seul) derrière une petite interface ``ActivityStore`` :
 un autre stockage (SQLite...) pourra le remplacer sans toucher au reste.

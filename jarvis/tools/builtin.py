@@ -1,4 +1,4 @@
-"""Assemblage des outils intégrés de JARVIS, selon la section ``[tools]`` de config.toml.
+"""Assemblage des outils intégrés d'ORION, selon la section ``[tools]`` de config.toml.
 
 - système (``system.py``) : get_time, get_date, system_info, lock_pc ;
 - applications (``applications.py``) : open_application, close_application, list_running_applications, open_url ;

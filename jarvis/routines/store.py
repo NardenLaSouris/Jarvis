@@ -17,7 +17,7 @@ class JsonRoutineStore:
         self.path = Path(path)
 
     def load(self) -> list[dict]:
-        # Fichier abîmé : mis de côté (jamais écrasé) et JARVIS démarre quand même, sans routines.
+        # Fichier abîmé : mis de côté (jamais écrasé) et ORION démarre quand même, sans routines.
         return [item for item in load_json_list(self.path, "Routines") if isinstance(item, dict)]
 
     def save(self, routines: list[dict]) -> None:

@@ -1,7 +1,7 @@
-"""Musique jouée sur le PC par l'agent, à côté de la voix de JARVIS (même sortie audio, flux séparé).
+"""Musique jouée sur le PC par l'agent, à côté de la voix d'ORION (même sortie audio, flux séparé).
 
 Le Core envoie de la musique PCM int16 stéréo (Spotify, via librespot sur le Core) par petits morceaux ;
-l'agent les met en file et un flux PortAudio en rappel (callback) les joue sans jamais bloquer. Quand JARVIS écoute
+l'agent les met en file et un flux PortAudio en rappel (callback) les joue sans jamais bloquer. Quand ORION écoute
 ou parle, la musique est baissée (``duck``), puis remise au niveau. La file est bornée : quand elle est pleine,
 l'envoi du Core attend, ce qui cale la lecture sur le temps réel.
 """

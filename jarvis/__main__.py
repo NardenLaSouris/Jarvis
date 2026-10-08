@@ -15,15 +15,15 @@ STT_TEST_SECONDS = 9.0
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(prog="jarvis", description="Assistant vocal JARVIS")
+    parser = argparse.ArgumentParser(prog="jarvis", description="Assistant vocal ORION")
     parser.add_argument("--config", default=str(ROOT / "config.toml"), help="fichier de configuration")
     parser.add_argument("--list-devices", action="store_true", help="liste les périphériques audio et quitte")
     parser.add_argument("--choose-audio", action="store_true",
-                        help="choisit le micro et la sortie de JARVIS (sans changer ceux de Windows) et l'enregistre")
+                        help="choisit le micro et la sortie d'ORION (sans changer ceux de Windows) et l'enregistre")
     parser.add_argument("--wake-test", action="store_true",
                         help="affiche en direct le score du wake word pour régler le seuil")
     parser.add_argument("--tts-test", metavar="TEXTE",
-                        help="synthétise TEXTE avec la voix de JARVIS, le joue sur la sortie audio configurée et quitte")
+                        help="synthétise TEXTE avec la voix d'ORION, le joue sur la sortie audio configurée et quitte")
     parser.add_argument("--stt-test", metavar="WAV", nargs="?", const="",
                         help="diagnostic STT : GPU/CUDA, device et type de calcul utilisés, temps de chargement "
                              "et de transcription (WAV facultatif, sinon extrait de tests/fixtures/scenario.wav)")
@@ -38,16 +38,16 @@ def main() -> int:
     parser.add_argument("--spotify-login", action="store_true",
                         help="relie Spotify (une fois) : autorisation PKCE, jeton dans data/spotify_token.json")
     parser.add_argument("--simulate", nargs="+", metavar="CAPTEUR",
-                        help="simule un capteur de la maison sur le JARVIS en service : « door open », « door close », "
+                        help="simule un capteur de la maison sur ORION en service : « door open », « door close », "
                              "« presence home », « presence away », « motion detected », « status »")
     parser.add_argument("--wake-report", action="store_true",
                         help="bilan des réveils capturés (vrais, sans suite, écartés) et effet d'un autre seuil")
     parser.add_argument("--memory", action="store_true",
-                        help="affiche ce que JARVIS a retenu (mémoire explicite, data/memory.json) et quitte")
+                        help="affiche ce qu'ORION a retenu (mémoire explicite, data/memory.json) et quitte")
     parser.add_argument("--web-test", metavar="QUESTION",
-                        help="recherche Web sans micro ni voix : route, sources, temps et réponse de JARVIS "
+                        help="recherche Web sans micro ni voix : route, sources, temps et réponse d'ORION "
                              "(-v affiche aussi les données transmises au LLM)")
-    parser.add_argument("--no-face", action="store_true", help="lance JARVIS sans le visage graphique")
+    parser.add_argument("--no-face", action="store_true", help="lance ORION sans le visage graphique")
     parser.add_argument("--face-demo", action="store_true",
                         help="affiche le visage et fait défiler ses états (parole avec la vraie voix), sans micro")
     parser.add_argument("--input-wav", type=Path, help="simule le micro avec un fichier WAV (diagnostic)")
@@ -154,7 +154,7 @@ def choose_audio(config_path: Path, ask=input, devices=None) -> int:
     text = config_path.read_text(encoding="utf-8")
     for kind, key, label in (("input", "input_device", "Micro"), ("output", "output_device", "Sortie audio")):
         current = re.search(rf'^{key}\s*=\s*"([^"]*)"', text, re.MULTILINE)
-        print(f"\n{label} de JARVIS (actuel : {current.group(1) if current and current.group(1) else 'celui de Windows'})")
+        print(f"\n{label} d'ORION (actuel : {current.group(1) if current and current.group(1) else 'celui de Windows'})")
         print("  0. Celui de Windows (suit le périphérique par défaut)")
         for i, (_, name) in enumerate(devices[kind], 1):
             print(f"  {i}. {name}")
@@ -168,7 +168,7 @@ def choose_audio(config_path: Path, ask=input, devices=None) -> int:
         text = re.sub(rf'^({key}\s*=\s*)"[^"]*"', lambda m, value=value: f'{m.group(1)}"{value}"', text, count=1, flags=re.MULTILINE)
         print(f"-> {value or 'celui de Windows'}")
     config_path.write_text(text, encoding="utf-8")
-    print(f"\nEnregistré dans {config_path.name}. Relancez JARVIS pour l'utiliser.")
+    print(f"\nEnregistré dans {config_path.name}. Relancez ORION pour l'utiliser.")
     return 0
 
 
@@ -184,7 +184,7 @@ def show_activity(cfg, limit: int) -> int:
 
 
 def simulate(cfg, words: list[str]) -> int:
-    """Simulateur des capteurs : envoie le signal au JARVIS en service (API d'administration, sur cette machine),
+    """Simulateur des capteurs : envoie le signal à ORION en service (API d'administration, sur cette machine),
     qui le traite exactement comme celui d'un vrai capteur. « status » : état de présence et journal récent."""
     import json
     import urllib.error
@@ -220,7 +220,7 @@ def simulate(cfg, words: list[str]) -> int:
         print(f"Refusé ({exc.code}) : {json.loads(exc.read() or b'{}').get('message') or exc.reason}")
         return 1
     except OSError as exc:
-        print(f"JARVIS ne répond pas sur {url} : {exc}")
+        print(f"ORION ne répond pas sur {url} : {exc}")
         return 1
     presence = data if status else data["presence"]
     if not status:
@@ -246,7 +246,7 @@ def show_memory(cfg) -> int:
 
 
 def start_face(cfg, force: bool = False):
-    """Démarre le visage graphique ; None s'il est désactivé ou indisponible (JARVIS continue en vocal)."""
+    """Démarre le visage graphique ; None s'il est désactivé ou indisponible (ORION continue en vocal)."""
     if not (cfg.face.enabled or force):
         return None
     try:
@@ -264,7 +264,7 @@ def start_face(cfg, force: bool = False):
                          birthday=parse_birthday(cfg.face.birthday),
                          born=parse_born(cfg.face.jarvis_birthday)).start()
     except Exception:
-        logging.getLogger(__name__).warning("Visage indisponible, JARVIS continue en vocal.", exc_info=True)
+        logging.getLogger(__name__).warning("Visage indisponible, ORION continue en vocal.", exc_info=True)
         return None
     if url is None:
         return None
@@ -347,13 +347,13 @@ def web_test(cfg, question: str, llm=None, web=None) -> int:
              len(context.pages))
     if context.error:
         log.error("Recherche impossible : %s", context.error)
-        print(f"\nJARVIS : {router.phrase('web_unavailable')}")
+        print(f"\nORION : {router.phrase('web_unavailable')}")
         return 1
     for source in context.sources:
         date = f" ({source['published_at']})" if source["published_at"] else ""
         print(f"  [{source['position']}] {source['source']}{date} — {source['title']}\n      {source['url']}")
     if not context.found:
-        print(f"\nJARVIS : {router.phrase('web_no_results')}")
+        print(f"\nORION : {router.phrase('web_no_results')}")
         return 0
 
     llm = llm or build_llm(cfg)
@@ -369,7 +369,7 @@ def web_test(cfg, question: str, llm=None, web=None) -> int:
         if sentence:
             spoken.append(sentence)
     log.info("LLM : %.2f s", time.perf_counter() - started)
-    print(f"\nJARVIS : {' '.join(spoken)}")
+    print(f"\nORION : {' '.join(spoken)}")
     return 0
 
 

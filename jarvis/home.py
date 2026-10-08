@@ -1,8 +1,8 @@
-"""État centralisé de la maison : ce que JARVIS sait réellement des appareils connus.
+"""État centralisé de la maison : ce qu'ORION sait réellement des appareils connus.
 
 Chaque valeur est rangée sous un chemin (« lights.chambre.power ») avec son heure et sa provenance :
 ``confirmed`` vaut True quand elle vient d'une lecture de l'appareil (ou de son accusé de réception), False quand
-elle n'est que la commande envoyée. JARVIS répond ainsi « est-ce que la lumière est allumée ? » d'après une
+elle n'est que la commande envoyée. ORION répond ainsi « est-ce que la lumière est allumée ? » d'après une
 lecture réelle, et l'API d'administration montre l'état connu sans interroger chaque appareil.
 """
 

@@ -61,7 +61,7 @@ def test_clean_for_speech_strips_markdown():
 
 def test_prompt_mentions_unavailable_features():
     prompt = build_system_prompt(load_personality(ROOT / "personality.toml"), CapabilityRegistry())
-    assert "JARVIS" in prompt and "PAS ENCORE disponible" in prompt and "domotique" in prompt
+    assert "ORION" in prompt and "PAS ENCORE disponible" in prompt and "domotique" in prompt
 
 
 class FakeWake:

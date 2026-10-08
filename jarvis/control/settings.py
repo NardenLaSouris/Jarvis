@@ -1,4 +1,4 @@
-"""Paramètres de JARVIS Control (%APPDATA%\\JARVIS Control) ; le jeton est rangé à part et jamais renvoyé à l'interface.
+"""Paramètres d'ORION Control (%APPDATA%\\ORION Control) ; le jeton est rangé à part et jamais renvoyé à l'interface.
 
 Sans jeton enregistré, celui du dépôt est utilisé (JARVIS_AGENT_TOKEN dans .env, le même que pour l'agent).
 """
@@ -16,13 +16,22 @@ from jarvis.config import secret
 log = logging.getLogger(__name__)
 
 REPO_ENV = Path(__file__).resolve().parents[2] / ".env"
-# Thèmes du visage de JARVIS (jour bleu, nuit noir et blanc, rouge comme le visage en erreur ; « auto » : nuit de 22 h à 7 h comme le visage),
+# Thèmes du visage d'ORION (jour bleu, nuit noir et blanc, rouge comme le visage en erreur ; « auto » : nuit de 22 h à 7 h comme le visage),
 # plus les thèmes génériques.
 THEMES = ("auto", "visage", "jarvis", "nuit", "rouge", "system", "dark", "light")
 
 
 def app_dir() -> Path:
-    return Path(os.environ.get("APPDATA") or Path.home()) / "JARVIS Control"
+    base = Path(os.environ.get("APPDATA") or Path.home())
+    folder, legacy = base / "ORION Control", base / "JARVIS Control"
+    if not folder.exists() and legacy.is_dir():  # réglages et journal de JARVIS Control repris tels quels
+        try:
+            import shutil
+
+            shutil.copytree(legacy, folder)
+        except OSError:
+            pass
+    return folder
 
 
 @dataclass

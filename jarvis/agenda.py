@@ -508,7 +508,7 @@ def calendar_tools(calendar: Calendar) -> list[Tool]:
               "day": day_param, "duration": duration},
              {"title": "événement", "when": "date"}, Risk.SAFE, add_event,
              say=lambda r: f"C'est noté dans votre calendrier : {r['when']}."),
-        Tool("delete_event", "Supprime un événement ajouté au calendrier par JARVIS.",
+        Tool("delete_event", "Supprime un événement ajouté au calendrier par ORION.",
              {"title": Param(str, "intitulé de l'événement à supprimer", max_length=120)},
              {"title": "événement"}, Risk.CONFIRMATION_REQUIRED, delete_event,
              question=lambda p: f"Voulez-vous vraiment supprimer l'événement « {p['title']} » ?",

@@ -1,5 +1,5 @@
 /*
- * JARVIS Control : interface. Toutes les demandes passent par le pont local (/bridge), qui seul parle au Core.
+ * ORION Control : interface. Toutes les demandes passent par le pont local (/bridge), qui seul parle au Core.
  * Aucun texte venu du Core n'est inséré comme HTML : le DOM est construit élément par élément.
  */
 (() => {
@@ -23,7 +23,7 @@
   const ANNOUNCE = { time: "L'heure", date: "La date", weather: "La météo", day: "La journée (date, météo, programme)",
     welcome: "Bon retour (et résumé de l'absence)" };
   const EVENTS = { arrival: "Retour à la maison confirmé", departure: "Départ de la maison confirmé" };
-  const ACTION_TYPES = [["tool", "Action"], ["say", "JARVIS dit"], ["announce", "Annoncer"], ["alarm", "Réveil (sonnerie)"],
+  const ACTION_TYPES = [["tool", "Action"], ["say", "ORION dit"], ["announce", "Annoncer"], ["alarm", "Réveil (sonnerie)"],
     ["wait", "Attendre"]];
   const PARAM_LABELS = {
     room: "Pièce", device: "Appareil", brightness: "Luminosité (%)", color: "Couleur", temperature: "Kelvins",
@@ -60,7 +60,7 @@
       headers: { "X-Control-Key": KEY, "Content-Type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
-    if (!response.ok) throw new Error(response.status === 403 ? "Session expirée : rouvrez JARVIS Control." : `Erreur ${response.status}`);
+    if (!response.ok) throw new Error(response.status === 403 ? "Session expirée : rouvrez ORION Control." : `Erreur ${response.status}`);
     const data = await response.json();
     if (!data.ok) throw new Error(data.error);
     return data.data;
@@ -112,7 +112,7 @@
   }
 
   function actionText(action) {
-    if (action.type === "say") return `JARVIS dit « ${action.text} »`;
+    if (action.type === "say") return `ORION dit « ${action.text} »`;
     if (action.type === "wait") return `Attendre ${action.seconds} s`;
     if (action.type === "alarm") return "Sonnerie du réveil";
     if (action.type === "announce") return `Annoncer : ${ANNOUNCE[action.what].toLowerCase()}`;
@@ -136,7 +136,7 @@
     view.replaceChildren(
       el("h1", {}, "Tableau de bord"),
       el("div", { class: "grid" },
-        el("div", { class: "card" }, el("h3", {}, "JARVIS"), el("div", { class: "big" }, dot(true), "Opérationnel"),
+        el("div", { class: "card" }, el("h3", {}, "ORION"), el("div", { class: "big" }, dot(true), "Opérationnel"),
           el("div", { class: "muted small" }, `Démarré depuis ${Math.round(status.core.uptime_s / 60)} min`)),
         el("div", { class: "card" }, el("h3", {}, "LLM"),
           el("div", { class: "big" }, dot(llm.online), llm.model || "—"),
@@ -244,9 +244,9 @@
         if (action.type === "say") {
           body = el("label", { class: "field" }, "Phrase", el("input", { type: "text", maxlength: 200, value: action.text, oninput: (e) => { action.text = e.target.value; } }));
         } else if (action.type === "alarm") {
-          body = el("div", { class: "muted small" }, "Joue la sonnerie jusqu'à « Jarvis » ou « arrête » (durée maximale réglée dans le Core).");
+          body = el("div", { class: "muted small" }, "Joue la sonnerie jusqu'à « Orion » ou « arrête » (durée maximale réglée dans le Core).");
         } else if (action.type === "announce") {
-          body = el("label", { class: "field" }, "JARVIS annonce", el("select", { onchange: (e) => { action.what = e.target.value; } },
+          body = el("label", { class: "field" }, "ORION annonce", el("select", { onchange: (e) => { action.what = e.target.value; } },
             Object.entries(ANNOUNCE).map(([v, t]) => el("option", { value: v, selected: action.what === v }, t))));
         } else if (action.type === "wait") {
           body = el("label", { class: "field" }, "Secondes", el("input", { type: "number", min: 1, max: 600, value: action.seconds, oninput: (e) => { action.seconds = Number(e.target.value); } }));
@@ -285,7 +285,7 @@
           el("div", { class: "row" },
             el("button", { class: "btn", onclick: () => { draft.actions.push(newAction("tool", catalog)); render(); } }, "+ Action"),
             el("button", { class: "btn", onclick: () => { draft.actions.push(newAction("wait")); render(); } }, "+ Attente"),
-            el("button", { class: "btn", onclick: () => { draft.actions.push(newAction("say")); render(); } }, "+ JARVIS dit"),
+            el("button", { class: "btn", onclick: () => { draft.actions.push(newAction("say")); render(); } }, "+ ORION dit"),
             el("button", { class: "btn", onclick: () => { draft.actions.push(newAction("announce")); render(); } }, "+ Annonce"),
             el("button", { class: "btn", onclick: () => { draft.actions.push(newAction("alarm")); render(); } }, "+ Réveil"))));
     };
@@ -347,7 +347,7 @@
       el("h3", {}, "Ordinateurs"),
       el("div", { class: "grid" }, pcs.map((d) => el("div", { class: "card" },
         el("h2", {}, d.kind === "core" ? dot(null) : dot(d.online), cap(d.name), d.default ? el("span", { class: "chip" }, "par défaut") : null),
-        el("div", { class: "muted small" }, d.kind === "core" ? "Core JARVIS · aucune action autorisée" : `PC · ${d.address} · ${d.online ? "agent connecté" : "agent injoignable"}`),
+        el("div", { class: "muted small" }, d.kind === "core" ? "Core ORION · aucune action autorisée" : `PC · ${d.address} · ${d.online ? "agent connecté" : "agent injoignable"}`),
         el("div", { style: "margin-top:8px" }, d.features.map((f) => el("span", { class: "chip" }, f))),
         d.aliases.length ? el("div", { class: "muted small", style: "margin-top:6px" }, "Alias : ", d.aliases.join(", ")) : null))),
       el("h3", { style: "margin-top:22px" }, "Lumières"),
@@ -397,10 +397,10 @@
     const themes = (state.face && state.face.themes) || [];
     if (!themes.length) return el("div", { class: "muted small" }, "Visage indisponible sur le Core.");
     for (const t of themes) {
-      const special = { auto: "linear-gradient(135deg, #46d6ff 50%, #e8e8e8 50%)", day: "radial-gradient(circle, #46d6ff, #0c2a5c)",
+      const special = { auto: "linear-gradient(135deg, #3c8b6f 50%, #e8e8e8 50%)", day: "radial-gradient(circle, #c9a45c, #0f3d2e)",
         night: "radial-gradient(circle, #f2f2f2, #262626)",
         arcenciel: "conic-gradient(red, orange, yellow, lime, cyan, blue, magenta, red)" }[t.id];
-      const tone = (h) => (h === "night" ? "#e8e8e8" : h === "day" ? "#46d6ff" : `hsl(${h} 100% 60%)`);
+      const tone = (h) => (h === "night" ? "#e8e8e8" : h === "day" ? "#5fae8f" : `hsl(${h} 100% 60%)`);
       const color = special
         || (t.hues === "rainbow" ? "conic-gradient(red, orange, yellow, lime, cyan, blue, magenta, red)"
           : Array.isArray(t.hues) ? `linear-gradient(135deg, ${t.hues.map(tone).join(", ")})`
@@ -430,13 +430,13 @@
           field("Nom du PC", el("input", { type: "text", maxlength: 40, value: form.pc_name, oninput: (e) => { form.pc_name = e.target.value; } })),
           field("Thème", el("select", { onchange: (e) => { form.theme = e.target.value; applyTheme(form.theme); } },
             THEMES.map(([v, t]) => el("option", { value: v, selected: form.theme === v }, t)))),
-          field("Couleur du visage de JARVIS (aussi à la voix : « mets ton visage en vert »)", faceColors()),
+          field("Couleur du visage d'ORION (aussi à la voix : « mets ton visage en vert »)", faceColors()),
           field("Rafraîchissement (s)", el("input", { type: "number", min: 5, max: 3600, value: form.refresh_seconds, oninput: (e) => { form.refresh_seconds = Number(e.target.value); } }))),
         el("div", { class: "list", style: "margin-top:14px" },
           check("autostart", "Démarrer avec Windows (dans la zone de notification)"),
           check("notifications", "Notifications"),
           check("auto_connect", "Connexion automatique au Core")),
-        el("div", { class: "row", style: "margin-top:16px" }, el("div", { class: "grow muted small" }, "Ctrl+Shift+J ouvre ou masque JARVIS Control."),
+        el("div", { class: "row", style: "margin-top:16px" }, el("div", { class: "grow muted small" }, "Ctrl+Shift+O ouvre ou masque ORION Control."),
           el("button", { class: "btn primary", onclick: async () => {
             const body = { ...form };
             if (!body.token) delete body.token;
@@ -451,9 +451,9 @@
 
   const VIEWS = { dashboard, routines, devices, history: historyView, settings: settingsView };
 
-  const THEMES = [["auto", "JARVIS automatique (nuit de 22 h à 7 h)"],
-    ["visage", "Comme le visage de JARVIS (sa couleur du moment)"], ["jarvis", "JARVIS (jour)"],
-    ["nuit", "JARVIS nuit (noir et blanc)"], ["rouge", "JARVIS rouge"], ["system", "Système"], ["dark", "Sombre"],
+  const THEMES = [["auto", "ORION automatique (nuit de 22 h à 7 h)"],
+    ["visage", "Comme le visage d'ORION (sa couleur du moment)"], ["jarvis", "ORION (jour)"],
+    ["nuit", "ORION nuit (noir et blanc)"], ["rouge", "ORION rouge"], ["system", "Système"], ["dark", "Sombre"],
     ["light", "Clair"]];
   const FACE_THEMES = ["jarvis", "nuit", "rouge", "teinte"];
   let rainbowHue = 0, partyStep = 0;

@@ -24,7 +24,7 @@ SKIPPED_TAGS = {"script", "style", "noscript", "template", "svg", "math", "ifram
                 "canvas", "head", "nav", "footer", "header", "aside", "form", "button", "select"}
 BLOCK_TAGS = {"p", "div", "br", "li", "tr", "h1", "h2", "h3", "h4", "h5", "h6", "section", "article",
               "blockquote", "pre", "td", "th", "dd", "dt", "table", "ul", "ol"}
-USER_AGENT = "Mozilla/5.0 (compatible; JARVIS-assistant/1.0)"
+USER_AGENT = "Mozilla/5.0 (compatible; ORION-assistant/1.0)"
 MIN_LINE_CHARS = 25
 
 

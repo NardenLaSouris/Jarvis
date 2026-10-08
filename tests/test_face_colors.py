@@ -32,7 +32,7 @@ def core_with_colors(tmp_path):
 
 @pytest.mark.parametrize("text, theme", [
     ("Mets ton visage en vert", "vert"), ("Passe en arc-en-ciel", "arcenciel"), ("Change de couleur, violet", "violet"),
-    ("Habille-toi en rose", "rose"), ("Mets ton thème en noir et blanc", "night"), ("Mets ton visage en bleu", "day"),
+    ("Habille-toi en rose", "rose"), ("Mets ton thème en noir et blanc", "night"), ("Mets ton visage en bleu", "azur"), ("Mets ton thème Aureon", "day"),
     ("Mets ton visage en bleu ciel", "azur"), ("Remets ta couleur normale", "auto"), ("Mets ton visage en doré", "or"),
 ])
 def test_colours_said_by_voice(tmp_path, text, theme):
@@ -167,7 +167,7 @@ def test_jarvis_birthday_greeting_counts_the_years(tmp_path):
 
     server = FaceServer(VisualState(), clock=lambda: datetime(2028, 10, 2, 9, 0),
                         themes=FaceThemeStore(tmp_path / "t.json"), born=date(2026, 10, 2))
-    assert server.payload()["greeting"] == "Joyeux anniversaire JARVIS : 2 ans"
+    assert server.payload()["greeting"] == "Joyeux anniversaire ORION : 2 ans"
     js = (ROOT / "jarvis" / "face" / "static" / "face.js").read_text(encoding="utf-8")
     assert all(effect in js for effect in ('"fish"', '"lily"', '"hyperspace"'))
 

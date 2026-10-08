@@ -1,6 +1,6 @@
-"""Outils mail pour JARVIS.
+"""Outils mail pour ORION.
 
-Lecture, recherche, tri et résumé : SAFE (rien ne change dans la boîte, un mail lu par JARVIS reste non lu).
+Lecture, recherche, tri et résumé : SAFE (rien ne change dans la boîte, un mail lu par ORION reste non lu).
 Marquer lu, archiver, supprimer (vers la corbeille), envoyer, répondre : CONFIRMATION_REQUIRED, la question nomme
 le mail visé (expéditeur et objet) ou le destinataire. Aucune pièce jointe n'est jamais ouverte ni transmise.
 
@@ -52,7 +52,7 @@ def _position(text: str) -> int | None:
 
 
 class MailBox:
-    """Boîte mail vue par JARVIS : fournisseur, tri, et la dernière liste dite (pour « le deuxième »)."""
+    """Boîte mail vue par ORION : fournisseur, tri, et la dernière liste dite (pour « le deuxième »)."""
 
     def __init__(self, provider, sorter: MailSorter | None = None, contacts: dict[str, str] | None = None,
                  clock=datetime.now):
@@ -224,7 +224,7 @@ def mail_tools(box: MailBox) -> list[Tool]:
 
     def send_mail(to: str, body: str, subject: str = "") -> dict:
         address = box.recipient(to)
-        box.provider.send(address, subject.strip() or "Message de JARVIS", _body(body))
+        box.provider.send(address, subject.strip() or "Message d'ORION", _body(body))
         log.info("Mail envoyé (destinataire confirmé)")
         return {"to": to, "subject": subject}
 

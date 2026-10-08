@@ -1,4 +1,4 @@
-"""JARVIS Control : fenêtre (WebView2), icône dans la zone de notification, raccourci Ctrl+Shift+J.
+"""ORION Control : fenêtre (WebView2), icône dans la zone de notification, raccourci Ctrl+Shift+O.
 
   pythonw -m jarvis.control            # ouvre l'interface
   pythonw -m jarvis.control --hidden   # démarre dans la zone de notification (démarrage automatique)
@@ -22,17 +22,18 @@ from jarvis.control.settings import SettingsStore, app_dir
 log = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parents[2]
-TITLE = "JARVIS Control"
+TITLE = "ORION Control"
 STARTUP_LINK = Path(os.environ.get("APPDATA", "")) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup" / \
-    "JARVIS Control.lnk"
+    "ORION Control.lnk"
 MOD_CONTROL, MOD_SHIFT, MOD_NOREPEAT, WM_HOTKEY, WM_QUIT = 0x2, 0x4, 0x4000, 0x312, 0x12
 SHORTCUT = ("$s = (New-Object -ComObject WScript.Shell).CreateShortcut($env:JC_LINK); $s.TargetPath = $env:JC_TARGET; "
             "$s.Arguments = '-m jarvis.control --hidden'; $s.WorkingDirectory = $env:JC_DIR; "
-            "$s.Description = 'JARVIS Control'; $s.Save()")
+            "$s.Description = 'ORION Control'; $s.Save()")
 
 
 def set_autostart(enabled: bool) -> None:
     """Raccourci dans le dossier Démarrage de l'utilisateur (aucun droit administrateur)."""
+    STARTUP_LINK.with_name("JARVIS Control.lnk").unlink(missing_ok=True)  # ancien nom : jamais deux démarrages
     if not enabled:
         STARTUP_LINK.unlink(missing_ok=True)
         return
@@ -43,12 +44,12 @@ def set_autostart(enabled: bool) -> None:
 
 
 def single_instance() -> bool:
-    ctypes.windll.kernel32.CreateMutexW(None, False, "Local\\JARVISControl")
+    ctypes.windll.kernel32.CreateMutexW(None, False, "Local\\ORIONControl")
     return ctypes.windll.kernel32.GetLastError() != 183
 
 
 class Hotkey(threading.Thread):
-    """Ctrl+Shift+J, global : appelle ``action`` depuis son propre fil (boucle de messages Windows)."""
+    """Ctrl+Shift+O, global : appelle ``action`` depuis son propre fil (boucle de messages Windows)."""
 
     def __init__(self, action):
         super().__init__(name="raccourci", daemon=True)
@@ -58,8 +59,8 @@ class Hotkey(threading.Thread):
     def run(self) -> None:
         user32 = ctypes.windll.user32
         self._thread_id = ctypes.windll.kernel32.GetCurrentThreadId()
-        if not user32.RegisterHotKey(None, 1, MOD_CONTROL | MOD_SHIFT | MOD_NOREPEAT, ord("J")):
-            log.warning("Ctrl+Shift+J déjà utilisé par un autre programme")
+        if not user32.RegisterHotKey(None, 1, MOD_CONTROL | MOD_SHIFT | MOD_NOREPEAT, ord("O")):
+            log.warning("Ctrl+Shift+O déjà utilisé par un autre programme")
             return
         message = wintypes.MSG()
         while user32.GetMessageW(ctypes.byref(message), None, 0, 0) > 0:
@@ -77,8 +78,9 @@ def tray_image():
 
     image = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
-    draw.ellipse((4, 4, 60, 60), fill=(8, 14, 26, 255), outline=(70, 214, 255, 255), width=5)
-    draw.ellipse((22, 22, 42, 42), fill=(70, 214, 255, 255))
+    # Le visage d'ORION en miniature : disque noir, cercle vert, anneau doré, centre vide.
+    draw.ellipse((2, 2, 62, 62), fill=(14, 14, 14, 255), outline=(60, 139, 111, 255), width=3)
+    draw.ellipse((15, 15, 49, 49), outline=(201, 164, 92, 255), width=5)
     return image
 
 
@@ -125,8 +127,8 @@ class ControlApp:
     def run(self) -> None:
         import pystray
 
-        menu = pystray.Menu(pystray.MenuItem("Ouvrir / masquer (Ctrl+Shift+J)", self.toggle, default=True),
-                            pystray.MenuItem("Quitter JARVIS Control", self.quit))
+        menu = pystray.Menu(pystray.MenuItem("Ouvrir / masquer (Ctrl+Shift+O)", self.toggle, default=True),
+                            pystray.MenuItem("Quitter ORION Control", self.quit))
         self.tray = pystray.Icon("jarvis-control", tray_image(), TITLE, menu)
         self.tray.run_detached()
         self.hotkey.start()
@@ -142,11 +144,11 @@ def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, filename=folder / "control.log", encoding="utf-8",
                         format="%(asctime)s %(levelname)s %(name)s : %(message)s")
     if not single_instance():
-        ctypes.windll.user32.MessageBoxW(None, "JARVIS Control est déjà ouvert : Ctrl+Shift+J ou l'icône près de "
+        ctypes.windll.user32.MessageBoxW(None, "ORION Control est déjà ouvert : Ctrl+Shift+O ou l'icône près de "
                                                "l'horloge.", TITLE, 0x40)
         return 0
     bridge = Bridge(SettingsStore(folder), set_autostart)
     bridge.start()
-    log.info("JARVIS Control démarré (Core : %s)", bridge.settings.core_url)
+    log.info("ORION Control démarré (Core : %s)", bridge.settings.core_url)
     ControlApp(bridge, args.hidden).run()
     return 0

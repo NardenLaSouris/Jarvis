@@ -1,6 +1,16 @@
-# JARVIS V2 — assistant vocal local
+# ORION V2 — assistant vocal local (univers Aureon)
 
-« Jarvis » → « Oui, monsieur ? » → demande → transcription → outil ou LLM → réponse vocale
+ORION (anciennement JARVIS) : même assistant, nouvelle identité. Le nom, la voix, le visage (vert forêt, crème et or
+d'Aureon), ORION Control et la documentation disent « ORION ». Restent « jarvis » les identifiants techniques, pour ne
+casser aucune machine déjà installée : paquet Python (`python -m jarvis`), service systemd `jarvis`, dossier
+`/opt/jarvis`, variables `JARVIS_AGENT_TOKEN` et `JARVIS_CALENDAR_ICS`. « Jarvis » reste compris comme ancien nom
+(`former_names` dans `personality.toml`).
+
+**Mot de réveil** : « Orion » (modèle `models/openwakeword/orion_fr.onnx`, spécification
+`wakeword_training/specs/orion_fr.toml`). Tant que ce modèle n'est pas entraîné et validé, le réveil reste
+« Jarvis » (`[wake_word] model` et `phrase`). La seconde vérification Whisper suit le mot configuré.
+
+« Orion » → « Oui, monsieur ? » → demande → transcription → outil ou LLM → réponse vocale
 → quelques secondes d'écoute pour une relance → retour en veille.
 
 Tout tourne en local, sur trois machines du réseau :
@@ -9,7 +19,7 @@ Tout tourne en local, sur trois machines du réseau :
 |---|---|
 | Mini-PC (Core, Linux, sans GPU) | `python -m jarvis` (service systemd utilisateur) : wake word, STT (faster-whisper sur processeur), routage, outils, Piper, routines, mémoire, API d'administration (8766), visage (8765), LLM de secours (Ollama local), SearXNG (Docker, 127.0.0.1:8080) |
 | Katana (RTX 4070) | worker LLM : Ollama `qwen2.5:7b` sur GPU (11434, pare-feu : Core seulement) ; agent Windows |
-| PC principal | terminal audio (micro et voix relayés par l'agent Windows, 8765) ; actions sur le PC ; JARVIS Control |
+| PC principal | terminal audio (micro et voix relayés par l'agent Windows, 8765) ; actions sur le PC ; ORION Control |
 
 Le LLM ne fait que proposer : tout passe par le Core des outils (validation, permissions par profil,
 confirmation, exécution, journal). Aucun shell, aucune commande libre.
@@ -42,12 +52,12 @@ confirmation, exécution, journal). Aucun shell, aucune commande libre.
   prochain »), une date (« le 12 », « 2 janvier »), prochains, recherche, créneaux libres (aussi « jeudi
   après-midi »), ajout, suppression ; calendrier local + lecture d'un .ics ou d'une adresse iCal secrète (Google, Outlook).
 - **Fichiers** (sur le PC, par l'agent) : recherche, lecture de texte, création dans un dossier de travail,
-  copie ; déplacement et suppression avec confirmation, suppression récupérable (corbeille de JARVIS).
-- **Musique** : touches multimédia du PC ; Spotify par son API Web (après `--spotify-login`), joué par JARVIS
-  lui-même : librespot sur le Core (appareil « JARVIS », `deploy/jarvis-librespot.service`), son relayé vers le PC
-  comme la voix, baissé pendant que JARVIS écoute ou parle ; « est-ce que la musique joue ? » lu sur Spotify
-  (`spotify_status`). Si l'appareil « JARVIS » disparaît (librespot perd sa session après des heures
-  d'inactivité), JARVIS relance le service `[spotify] player_service` puis joue.
+  copie ; déplacement et suppression avec confirmation, suppression récupérable (corbeille d'ORION).
+- **Musique** : touches multimédia du PC ; Spotify par son API Web (après `--spotify-login`), joué par ORION
+  lui-même : librespot sur le Core (appareil « ORION », `deploy/jarvis-librespot.service`), son relayé vers le PC
+  comme la voix, baissé pendant qu'ORION écoute ou parle ; « est-ce que la musique joue ? » lu sur Spotify
+  (`spotify_status`). Si l'appareil « ORION » disparaît (librespot perd sa session après des heures
+  d'inactivité), ORION relance le service `[spotify] player_service` puis joue.
 - **Profils et terminaux** (`jarvis/profiles.py`) : rôles owner, adult, child, guest ; terminal → pièce et
   utilisateur ; par défaut un propriétaire, comportement inchangé.
 - **Mails** (`jarvis/mail`, voir « Mails » plus bas) : lecture, tri, recherche, résumé sans rien marquer lu ;
@@ -58,7 +68,7 @@ confirmation, exécution, journal). Aucun shell, aucune commande libre.
 - **Diagnostics** : `python -m jarvis --health`, `--diagnostics`, `--benchmark` (non destructifs).
 - **Tests silencieux** : garde-fous contre tout son, navigateur, ampoule ou touche réels (`tests/conftest.py`).
 - **Données abîmées** (`jarvis/persist.py`) : un `data/*.json` illisible (routines, souvenirs, échéances,
-  calendrier local) est renommé `<nom>.illisible-<date>` — jamais écrasé ni supprimé — et JARVIS démarre à vide.
+  calendrier local) est renommé `<nom>.illisible-<date>` — jamais écrasé ni supprimé — et ORION démarre à vide.
 - **Garde-fous du choix d'outil** : une action doit être nommée par la demande (une lumière par un mot de
   l'éclairage ou une pièce, ouvrir par « ouvre / lance »…) ; une vraie question n'appelle que des outils de
   lecture ; une demande de rappel n'exécute jamais son contenu ; les réponses du LLM qui prétendent avoir agi
@@ -109,7 +119,7 @@ python3 -m venv .venv
 
 Sous Windows : `python -m venv .venv`, puis `.venv\Scripts\...` à la place de `.venv/bin/...`.
 
-Sur le mini-PC, JARVIS tourne en service utilisateur systemd (démarrage automatique, relance en cas
+Sur le mini-PC, ORION tourne en service utilisateur systemd (démarrage automatique, relance en cas
 d'arrêt inattendu) : voir l'en-tête de `deploy/jarvis.service` pour l'installer ;
 `systemctl --user restart jarvis` après une mise à jour, `journalctl --user -u jarvis -f` pour le journal.
 
@@ -120,12 +130,12 @@ python -m jarvis                    # lancement normal
 python -m jarvis --list-devices     # périphériques audio (pour [audio] input_device / output_device)
 python -m jarvis --wake-test        # affiche en direct le score du wake word pour régler le seuil
 python -m jarvis --input-wav f.wav --output-dir out/   # simule le micro avec un fichier
-python -m jarvis --tts-test "Bonjour monsieur."        # voix de JARVIS sur la sortie audio configurée
+python -m jarvis --tts-test "Bonjour monsieur."        # voix d'ORION sur la sortie audio configurée
 ```
 
 ## Réponse en flux (LLM → TTS → audio)
 
-JARVIS commence à parler dès que la première phrase de la réponse est prête, pendant qu'Ollama
+ORION commence à parler dès que la première phrase de la réponse est prête, pendant qu'Ollama
 génère la suite (`jarvis/streaming.py`) :
 
 ```
@@ -212,8 +222,8 @@ python tests/test_personality.py
 
 ## Outils (V2) : contrôle du PC
 
-JARVIS agit sur le PC via des outils explicitement enregistrés, jamais via un shell. Le LLM ne fait que
-proposer un appel structuré ; JARVIS le valide, applique le niveau de risque de l'outil et rapporte le
+ORION agit sur le PC via des outils explicitement enregistrés, jamais via un shell. Le LLM ne fait que
+proposer un appel structuré ; ORION le valide, applique le niveau de risque de l'outil et rapporte le
 résultat réel (état relu après l'action).
 
 | Outil | Rôle | Risque |
@@ -244,7 +254,7 @@ demande -> routeur -> LLM : appel JSON contraint par le schéma de chaque outil 
 - Un nombre (volume) proposé par le LLM doit figurer dans la demande : « monte un peu le son » ne règle rien.
 - `confirm = true` peut ajouter une confirmation à un outil SAFE ; la confirmation d'un outil qui l'exige
   ne peut pas être retirée.
-- JARVIS n'annonce une action réussie que si l'outil a réellement réussi (sinon : message d'erreur).
+- ORION n'annonce une action réussie que si l'outil a réellement réussi (sinon : message d'erreur).
 - Chaque exécution est journalisée (`outil {...}` : outil, paramètres, décision, confirmation, succès, durée).
 - Transcription : Whisper reçoit le vocabulaire attendu (`[stt] vocabulary_hint`), puis
   `jarvis/stt/correction.py` corrige une commande courte mal entendue (« ou vos teams » -> « ouvre steam »).
@@ -261,10 +271,10 @@ minuteur », « Quels rappels sont prévus ? » : outils SAFE `create_timer`, `c
 
 - Le LLM transmet la durée telle qu'elle a été dite ; `jarvis/scheduling/durations.py` la convertit
   (« 1 heure 30 », « une demi-heure », « trois quarts d'heure »...) et vérifie qu'elle figure dans la demande.
-- `TimerManager` (`jarvis/scheduling/`) : un seul fil pour toutes les échéances, arrêté avec JARVIS ;
+- `TimerManager` (`jarvis/scheduling/`) : un seul fil pour toutes les échéances, arrêté avec ORION ;
   publie `timer.created / cancelled / finished` et `reminder.*` sur le bus (journal d'activité inclus).
 - À l'échéance, une notification est créée (phrase `timer_finished` / `reminder_finished` de
-  `personality.toml`, sans LLM) et JARVIS la prononce dès qu'il est libre, en veille comme en conversation.
+  `personality.toml`, sans LLM) et ORION la prononce dès qu'il est libre, en veille comme en conversation.
 
 ### Météo
 
@@ -281,7 +291,7 @@ afternoon / evening / day), dates calculées sur l'horloge du système.
   ou placée exactement avec `latitude` / `longitude`). `temperature_unit` : `celsius` (défaut) ou `fahrenheit`.
 - Cache : `current_cache_minutes` (temps actuel) et `forecast_cache_minutes` (prévisions) ; une donnée périmée
   est retirée et redemandée au fournisseur. Aucune clé ni variable d'environnement n'est nécessaire.
-- Si la météo est indisponible, JARVIS le dit simplement (jamais de météo inventée) ; « cherche / recherche
+- Si la météo est indisponible, ORION le dit simplement (jamais de météo inventée) ; « cherche / recherche
   la météo » passe par la recherche Web.
 
 ```bash
@@ -297,7 +307,7 @@ source, priorité LOW / NORMAL / HIGH) -> NotificationManager -> canaux actifs q
 
 `jarvis/notifications/` : les fonctionnalités publient seulement leurs événements ; `EventNotifications`
 les traduit en notifications, `NotificationManager` les remet aux canaux (un canal en panne est journalisé
-sans bloquer les autres). Le canal vocal les prononce une à une avec le TTS de JARVIS. Un futur canal
+sans bloquer les autres). Le canal vocal les prononce une à une avec le TTS d'ORION. Un futur canal
 (bureau, téléphone...) hérite de `NotificationChannel` (`send`, `start`, `stop`, priorité minimale) et
 s'enregistre auprès du gestionnaire. Événements : `notification.created / sent / failed` (journal
 d'activité) et `notification.started / finished`. `[notifications] voice_enabled = false` coupe les annonces.
@@ -308,7 +318,7 @@ d'activité) et `notification.started / finished`. `[notifications] voice_enable
 Les composants communiquent par un bus d'événements interne (`jarvis/events.py`) : `publish(Event)`,
 `subscribe(type, handler)` (ou `"*"` pour tout recevoir), désabonnement. Un événement a un `type`
 (`domaine.action`), une `source`, un `payload` et un horodatage ; un abonné en erreur est journalisé
-sans bloquer les autres ni JARVIS.
+sans bloquer les autres ni ORION.
 
 Chaque demande d'outil publie `tool.started` puis `tool.executed` ou `tool.failed` (outil, étape,
 décision, confirmation, erreur, durée, paramètres nettoyés ; jamais le résultat brut). Le visage écoute
@@ -323,23 +333,23 @@ python -m jarvis --activity        # [14:32:01] tool.executed — open_applicati
 
 Lancer `python -m jarvis`, puis dire « Jarvis… » avant chaque phrase et vérifier :
 
-1. « Ouvre Discord » : Discord s'ouvre, JARVIS le confirme (sans question).
+1. « Ouvre Discord » : Discord s'ouvre, ORION le confirme (sans question).
 2. « Ouvre YouTube » : la page s'ouvre dans le navigateur par défaut.
 3. « Mets le volume à 30 % » : le volume Windows passe à 30 (icône du son).
 4. « Coupe le son », puis « Remets le son » : le son est coupé puis rétabli.
 5. « Donne-moi les informations de cette machine » : processeur, mémoire, carte graphique réels.
-6. « Ferme Discord » : JARVIS demande « Voulez-vous que je ferme Discord ? » ; « Oui » : Discord se ferme
+6. « Ferme Discord » : ORION demande « Voulez-vous que je ferme Discord ? » ; « Oui » : Discord se ferme
    (« Non » : rien ne se passe).
-7. « Verrouille le PC » : JARVIS demande confirmation ; « Oui » : l'écran de verrouillage s'affiche.
+7. « Verrouille le PC » : ORION demande confirmation ; « Oui » : l'écran de verrouillage s'affiche.
 
 Dans le terminal, chaque action laisse une ligne `outil {...}` avec son résultat.
 
 ## Visage graphique
 
-Au lancement, JARVIS ouvre son visage animé dans le navigateur (`http://127.0.0.1:8765/`) : anneaux
+Au lancement, ORION ouvre son visage animé dans le navigateur (`http://127.0.0.1:8765/`) : anneaux
 holographiques dessinés en direct (canvas, HTML/CSS/JS sans dépendance), qui suivent son état.
 
-| JARVIS | Visage |
+| ORION | Visage |
 |---|---|
 | en veille (`sleep`) | STANDBY : rotations lentes, faible lumière, pulsation lente du noyau |
 | wake word, écoute, STT | LISTENING : plus lumineux, anneaux internes plus rapides, pulsation régulière |
@@ -347,12 +357,12 @@ holographiques dessinés en direct (canvas, HTML/CSS/JS sans dépendance), qui s
 | lecture audio | SPEAKING : noyau et anneaux réagissent au niveau réel de la voix |
 
 Le niveau audio est mesuré sur les échantillons réellement envoyés au haut-parleur (`MeteredSink`),
-sans toucher à Piper. Le visage est non critique : port pris, page fermée ou erreur, JARVIS
+sans toucher à Piper. Le visage est non critique : port pris, page fermée ou erreur, ORION
 continue en vocal. Réglages dans `[face]` de `config.toml` (`host = "0.0.0.0"` pour une tablette
 ou un écran mural du réseau local).
 
 ```bash
-python -m jarvis                  # JARVIS + visage
+python -m jarvis                  # ORION + visage
 python -m jarvis --no-face        # sans visage
 python -m jarvis --face-demo      # défilement des états, parole avec la vraie voix
 ```
@@ -373,15 +383,15 @@ quand le Core se connecte (`[face] open_on_connect` de `windows_agent.toml`).
 
 « Réveille-moi à 7 h 30 », « mets un réveil demain à 6 heures », « quels réveils ? », « annule mon réveil » :
 la sonnerie joue `[alarms] sound` (votre fichier MP3, WAV ou FLAC, à copier dans `data/` du Core ; une sonnerie
-de secours sinon) jusqu'à ce que vous disiez « Jarvis » ou « arrête », puis JARVIS annonce la journée (date,
+de secours sinon) jusqu'à ce que vous disiez « Jarvis » ou « arrête », puis ORION annonce la journée (date,
 météo, rappels, réveils et routines du jour). Un réveil par la voix sonne une fois ; les réveils récurrents se
-créent dans JARVIS Control (routine avec l'action « Réveil »). Les routines peuvent aussi « Annoncer » l'heure,
+créent dans ORION Control (routine avec l'action « Réveil »). Les routines peuvent aussi « Annoncer » l'heure,
 la date, la météo ou la journée.
 
-Dire « Jarvis » pendant que JARVIS parle l'interrompt (`[assistant] barge_in`) ; « arrête », « tais-toi »,
+Dire « Jarvis » pendant qu'ORION parle l'interrompt (`[assistant] barge_in`) ; « arrête », « tais-toi »,
 « ta gueule »... le renvoient en veille.
 
-## JARVIS Control (application Windows)
+## ORION Control (application Windows)
 
 Interface de contrôle et de configuration : tableau de bord (Core, LLM, agents, recherche, lumières, routines,
 minuteurs, dernière activité), routines (création, modification, activation, duplication, test, suppression),
@@ -400,11 +410,11 @@ confirmation requise ; aucune commande libre. Le jeton reste dans le processus P
 
 Côté Core (mini-PC) : `[api] enabled = true` et `allowed_ips = ["<IP du PC>"]` dans `config.local.toml`,
 puis ouvrir le port au seul PC : `sudo ufw allow from <IP du PC> to any port 8766 proto tcp`.
-Paramètres de l'application et journal : `%APPDATA%\JARVIS Control`.
+Paramètres de l'application et journal : `%APPDATA%\ORION Control`.
 
 ## Présence à la maison (arrivées, départs, « Bon retour »)
 
-`jarvis/presence/` : JARVIS sait qui est à la maison et confirme un départ ou un retour à partir de **plusieurs
+`jarvis/presence/` : ORION sait qui est à la maison et confirme un départ ou un retour à partir de **plusieurs
 signaux** (téléphone, porte d'entrée, mouvement), jamais d'une porte seule. Sortir les poubelles ou récupérer un
 colis ne déclenche ni « départ » ni « Bon retour ».
 
@@ -418,7 +428,7 @@ colis ne déclenche ni « départ » ni « Bon retour ».
   être occupée sans que vous soyez « rentré ».
 - **Journal de la maison** (`data/house_journal.jsonl`) : priorités CRITICAL (fuite, fumée), IMPORTANT (appareil
   terminé, porte restée ouverte, mouvement pendant l'absence), NORMAL ; mouvements et signaux techniques ignorés.
-- **Routine « Bon retour »** (créée à la première mise en service, modifiable dans JARVIS Control) : déclencheur
+- **Routine « Bon retour »** (créée à la première mise en service, modifiable dans ORION Control) : déclencheur
   « Événement de la maison : retour confirmé », annonce « Bon retour, monsieur. » et le résumé de l'absence
   (l'important seulement, sinon « Rien de particulier pendant votre absence. »).
 - **Simulateur** (sans matériel ; même chemin qu'un vrai capteur, par l'API d'administration : ajouter
@@ -444,7 +454,7 @@ Module `jarvis/mail` en IMAP/SMTP (bibliothèque standard), désactivé tant que
 - **Sans confirmation** (rien ne change dans la boîte) : `check_mail` (« ai-je des mails ? », importants d'abord,
   lettres d'information comptées à part), `list_mail`, `search_mail` (« cherche les mails de la banque »),
   `read_mail` et `summarize_mail` (« lis le deuxième », « résume ce mail »). Le dossier est ouvert en lecture seule
-  et lu avec `BODY.PEEK` : un mail lu par JARVIS reste **non lu**.
+  et lu avec `BODY.PEEK` : un mail lu par ORION reste **non lu**.
 - **Toujours confirmées** (la question nomme l'expéditeur et l'objet, ou le destinataire et le texte) :
   `mark_mail_read`, `archive_mail`, `delete_mail` (vers la corbeille, récupérable), `send_mail`, `reply_mail`.
   Jamais d'envoi, de suppression ni de transfert automatique ; aucune pièce jointe n'est ouverte ni envoyée.
@@ -482,11 +492,11 @@ lecture, détente, nuit, travail, réveil ; `[lights.scenes.<nom>]` pour en modi
 temperature ou color). Groupes : `[lights.groups.<nom>]` (name, rooms, aliases). « Est-ce que la lumière de la
 chambre est allumée ? » : `light_status`, lu sur l'ampoule. Une pièce nommée sans lumière configurée est signalée
 au lieu d'allumer toute la maison. Plusieurs ampoules sont commandées en parallèle ; si l'une ne répond pas, les
-autres sont réglées et JARVIS le dit.
+autres sont réglées et ORION le dit.
 
 ## Agent Windows (contrôle et audio du PC à distance)
 
-Quand le Core JARVIS tourne sur le mini-PC, le PC Windows peut exécuter des actions à sa demande via
+Quand le Core ORION tourne sur le mini-PC, le PC Windows peut exécuter des actions à sa demande via
 un petit agent HTTP du réseau local (`jarvis/winagent/`). Il n'expose que des actions explicitement
 enregistrées, validées comme les outils du Core : aucune commande libre, aucun shell.
 
@@ -528,7 +538,7 @@ powershell -ExecutionPolicy Bypass -File scripts\install_winagent_startup.ps1 -R
 Ouvrir le port uniquement pour le Core (PowerShell administrateur, une seule fois) :
 
 ```powershell
-New-NetFirewallRule -DisplayName "JARVIS Agent (TCP 8765)" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8765 -RemoteAddress 192.168.1.91 -Profile Private,Domain
+New-NetFirewallRule -DisplayName "ORION Agent (TCP 8765)" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8765 -RemoteAddress 192.168.1.91 -Profile Private,Domain
 ```
 
 La règle vaut pour les réseaux « Privé » ou « Domaine » : si la connexion Windows est en « Public »,
@@ -536,10 +546,10 @@ passez-la en « Privé » (Paramètres > Réseau) plutôt que d'élargir la règ
 
 Test depuis le mini-PC : `curl http://192.168.1.128:8765/health`.
 
-**Audio du PC, JARVIS sur le mini-PC.** Dans le `config.toml` du mini-PC :
-`[audio] remote = "http://192.168.1.128:8765"` (et `JARVIS_AGENT_TOKEN` dans son `.env`). JARVIS
+**Audio du PC, ORION sur le mini-PC.** Dans le `config.toml` du mini-PC :
+`[audio] remote = "http://192.168.1.128:8765"` (et `JARVIS_AGENT_TOKEN` dans son `.env`). ORION
 écoute alors le micro du PC et lui parle, à la place des périphériques locaux. Si le PC est éteint
-ou l'agent arrêté, JARVIS attend et se reconnecte seul ; la voix qui ne peut être jouée est ignorée,
+ou l'agent arrêté, ORION attend et se reconnecte seul ; la voix qui ne peut être jouée est ignorée,
 sans erreur. Le flux micro (~256 kbit/s) circule en clair sur le réseau local, réservé au Core.
 
 Le visage écoute aussi sur 8765 (en local) : sur un même PC, l'agent et un Core avec visage
@@ -564,7 +574,7 @@ STT -> routeur (web.search) -> SearXNG -> résultats structurés -> sélection d
 - Tout contenu Web est traité comme une donnée non fiable, encadré par des balises et jamais placé
   dans le prompt système : une page qui dit « ignore tes instructions » n'est qu'un texte trouvé.
 - Les URL ne sont jamais lues à voix haute ; les sources restent disponibles (`agent.last_sources`).
-- SearXNG injoignable, aucun résultat, `[web] enabled = false` : JARVIS le dit simplement ou garde
+- SearXNG injoignable, aucun résultat, `[web] enabled = false` : ORION le dit simplement ou garde
   son comportement habituel.
 
 Configuration dans `[web]` de `config.toml`. L'instance SearXNG doit autoriser le format JSON
@@ -604,12 +614,12 @@ python -m jarvis --stt-test phrase.wav       # sur un enregistrement
 
 Sans GPU NVIDIA, ou si CUDA échoue, le STT bascule automatiquement sur
 `fallback_device` / `fallback_compute_type` (CPU / int8) et l'indique dans les logs.
-Au démarrage, JARVIS affiche `STT device`, `STT compute type` et `STT model`.
+Au démarrage, ORION affiche `STT device`, `STT compute type` et `STT model`.
 
 ## Choisir la voix Piper
 
 Pour comparer plusieurs voix Piper à l'oreille, avec exactement le même chemin TTS → sortie audio
-que JARVIS :
+qu'ORION :
 
 ```bash
 python -m jarvis --tts-voices-test                                   # candidats par défaut
@@ -690,7 +700,7 @@ l'appareil. Chaque agent a ses réglages propres dans `windows_agent.local.toml`
 
 **LLM sur une autre machine.** `[llm] host` peut viser un worker GPU du réseau (Ollama écoutant sur le LAN),
 avec `fallback_host` / `fallback_model` pour un LLM de secours (par exemple Ollama en local) : avant chaque
-appel, JARVIS vérifie en moins d'une seconde que le worker répond, sinon il bascule aussitôt sur le secours
+appel, ORION vérifie en moins d'une seconde que le worker répond, sinon il bascule aussitôt sur le secours
 et retente le worker 30 s plus tard. Les deux sont préchargés au lancement.
 
 - `[llm] model` : modèle Ollama ; sur CPU seul, préférer un 3-4B.
@@ -753,7 +763,7 @@ changez `phrase`, `model` et `threshold`.
 
 ### Entraîner un wake word
 
-Les outils sont dans `wakeword_training/` et ne servent pas à l'exécution de JARVIS.
+Les outils sont dans `wakeword_training/` et ne servent pas à l'exécution d'ORION.
 Chaque mot est décrit par un fichier TOML (`wakeword_training/specs/jarvis_fr.toml`) :
 - voix à utiliser ;
 - graphies du mot ;
@@ -844,7 +854,7 @@ au seuil 0,5.
   - La détection sur **votre** voix n'est donc pas garantie. Vérifiez-la avec `--wake-test` ;
     si elle est insuffisante, enregistrez vos échantillons (ci-dessus) et réentraînez :
     c'est le levier le plus efficace.
-- **La détection à distance est faible au seuil retenu** (46 % en simulation). Si JARVIS est
+- **La détection à distance est faible au seuil retenu** (46 % en simulation). Si ORION est
   loin de vous, baissez le seuil, par exemple à 0,8, en acceptant davantage de fausses alertes.
 - La distance au micro et le bruit sont simulés, pas enregistrés dans votre pièce.
 - **La vérification Whisper est lente sur CPU** (~5 s par clip). Si une carte NVIDIA est
@@ -861,7 +871,7 @@ au seuil 0,5.
 python -m jarvis --health        # chaque composant en quelques secondes (code 1 si un indispensable échoue)
 python -m jarvis --diagnostics   # + configuration, outils et risques, derniers échecs
 python -m jarvis --benchmark     # wake word, STT, LLM, choix d'outil, outils, voix (rien n'est joué)
-python -m jarvis --memory        # ce que JARVIS a retenu
+python -m jarvis --memory        # ce qu'ORION a retenu
 python -m jarvis --spotify-login # relier Spotify (une fois)
 ```
 
@@ -890,4 +900,4 @@ Les fichiers de référence sont régénérables :
 - Spotify : application sur developer.spotify.com (retour `http://127.0.0.1:8888/callback`),
   `SPOTIFY_CLIENT_ID` dans `.env`, puis `python -m jarvis --spotify-login` (compte Premium).
 - Agenda existant : adresse iCal secrète dans `.env` (`JARVIS_CALENDAR_ICS=...`).
-- Profils : `[users]` et `[terminals]` dans `config.local.toml` si plusieurs personnes utilisent JARVIS.
+- Profils : `[users]` et `[terminals]` dans `config.local.toml` si plusieurs personnes utilisent ORION.

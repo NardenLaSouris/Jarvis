@@ -1,7 +1,7 @@
-"""Audio d'un autre PC via son agent JARVIS (jarvis.winagent) : micro distant et sortie distante.
+"""Audio d'un autre PC via son agent ORION (jarvis.winagent) : micro distant et sortie distante.
 
 Mêmes contrats que le micro et le haut-parleur locaux. Si l'agent est injoignable (PC éteint, agent
-arrêté), la source attend et se reconnecte seule ; la sortie ignore l'audio sans faire tomber JARVIS.
+arrêté), la source attend et se reconnecte seule ; la sortie ignore l'audio sans faire tomber ORION.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ log = logging.getLogger(__name__)
 
 
 class FrameQueue(queue.Queue):
-    """Blocs audio en attente. Plein (JARVIS occupé à réfléchir ou à parler) : le bloc le plus ancien est oublié,
+    """Blocs audio en attente. Plein (ORION occupé à réfléchir ou à parler) : le bloc le plus ancien est oublié,
     avec un seul message tant que le débordement dure."""
 
     def __init__(self, maxsize: int, label: str):

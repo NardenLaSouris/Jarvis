@@ -40,6 +40,21 @@ def test_lookalike_words_are_not_taken_for_jarvis(text):
     assert not heard_wake(text)
 
 
+HEARD_ORION = ["Orion.", "Orion !", "Oryon ?", "Aurion.", "O'Rion !", "Bon, Orion, allume la lumière", "Orillon."]
+HEARD_NOT_ORION = ["Nous aurions dû partir.", "Aurions-nous le temps ?", "Marion arrive.", "Horizon.", "Oreille.",
+                   "Avion.", "Oriane.", "Orange.", "Champion.", "Jarvis.", "", "Merci d'avoir regardé cette vidéo !"]
+
+
+@pytest.mark.parametrize("text", HEARD_ORION)
+def test_orion_is_recognised_in_its_transcriptions(text):
+    assert heard_wake(text, "Orion")
+
+
+@pytest.mark.parametrize("text", HEARD_NOT_ORION)
+def test_lookalike_words_are_not_taken_for_orion(text):
+    assert not heard_wake(text, "Orion")
+
+
 class Verifier:
     def __init__(self, *answers):
         self.answers, self.calls = list(answers), 0

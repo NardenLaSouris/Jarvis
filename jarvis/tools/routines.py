@@ -1,6 +1,6 @@
 """Routines par la voix : les lister, en lancer une, en supprimer une (avec confirmation).
 
-La création passe par JARVIS Control ou par une phrase programmée (« Tous les jours à 21 h, ... », voir
+La création passe par ORION Control ou par une phrase programmée (« Tous les jours à 21 h, ... », voir
 jarvis.scheduling.actions). Le nom d'une routine est retrouvé par ses mots ; plusieurs correspondances -> question.
 """
 

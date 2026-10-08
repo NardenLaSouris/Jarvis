@@ -1,5 +1,5 @@
 """Canal vocal : les notifications attendent dans une file (FIFO) et sont prononcées une à une par le TTS
-existant de JARVIS, au moment où l'agent est libre (jamais par-dessus une réponse ou une autre notification).
+existant d'ORION, au moment où l'agent est libre (jamais par-dessus une réponse ou une autre notification).
 """
 
 from __future__ import annotations
@@ -68,7 +68,7 @@ class VoiceNotificationChannel(NotificationChannel):
             dropped = list(self._queue)
             self._queue.clear()
         for notification in dropped:
-            publish(self._events, NOTIFICATION_FAILED, notification, self.name, "arrêt de JARVIS")
+            publish(self._events, NOTIFICATION_FAILED, notification, self.name, "arrêt d'ORION")
         if dropped:
             log.info("%d notification(s) vocale(s) abandonnée(s) à l'arrêt", len(dropped))
 

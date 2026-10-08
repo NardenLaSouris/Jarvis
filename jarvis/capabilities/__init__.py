@@ -1,11 +1,11 @@
-"""Point d'extension des capacités (outils) de JARVIS.
+"""Point d'extension des capacités (outils) d'ORION.
 
-Une capacité est une action que JARVIS sait réellement exécuter (domotique,
+Une capacité est une action qu'ORION sait réellement exécuter (domotique,
 musique, météo...). Chaque capacité vivra dans son propre module et sera
 enregistrée dans le registre. Le routeur d'intentions lui propose chaque
 demande ; le prompt système décrit au LLM ce qui est disponible.
 
-En V1, aucune capacité n'est enregistrée : JARVIS ne fait que converser.
+En V1, aucune capacité n'est enregistrée : ORION ne fait que converser.
 """
 
 from __future__ import annotations

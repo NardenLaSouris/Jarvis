@@ -162,7 +162,8 @@ def make_core(settings=None, launcher=None, opener=None, processes=None, volume=
                               volume=volume or FakeVolume(), locker=locker or Locker(), open_wait=0.3, close_wait=0.3):
         registry.register(tool)
     confirmations = ConfirmationManager(PERSONALITY.confirm_yes, PERSONALITY.confirm_no,
-                                        ignored=(PERSONALITY.assistant_name, PERSONALITY.user_title))
+                                        ignored=(PERSONALITY.assistant_name, *PERSONALITY.former_names,
+                                                 PERSONALITY.user_title))
     return ToolCore(registry, PermissionManager(), confirmations, timeout=timeout)
 
 

@@ -1,4 +1,4 @@
-"""État du réseau de JARVIS : worker LLM, agents des PC, ampoules, Internet (outil network_status, lecture seule).
+"""État du réseau d'ORION : worker LLM, agents des PC, ampoules, Internet (outil network_status, lecture seule).
 
 Chaque vérification est une connexion TCP courte, toutes en parallèle : la réponse arrive en une ou deux secondes
 même si une machine est éteinte. Rien n'est modifié.

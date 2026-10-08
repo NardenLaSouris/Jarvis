@@ -1,4 +1,4 @@
-"""Serveur HTTP de l'agent Windows : le Core JARVIS y demande des actions explicitement enregistrées
+"""Serveur HTTP de l'agent Windows : le Core ORION y demande des actions explicitement enregistrées
 et y relaie l'audio du PC.
 
 - Toute requête d'une IP non autorisée est refusée (403), avant toute autre vérification.

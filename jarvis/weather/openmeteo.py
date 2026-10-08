@@ -1,7 +1,7 @@
 """Fournisseur Open-Meteo (https://open-meteo.com) : sans clé API, recherche de ville intégrée.
 
 Usage gratuit non commercial (domotique personnelle incluse), données sous licence CC-BY 4.0.
-Adresses fixes ; seuls des paramètres construits par JARVIS sont envoyés. Les réponses sont des
+Adresses fixes ; seuls des paramètres construits par ORION sont envoyés. Les réponses sont des
 données non fiables : seuls les champs attendus sont lus, et leurs types et unités sont vérifiés.
 """
 
@@ -58,7 +58,7 @@ class OpenMeteoProvider:
         self.temperature_symbol = TEMPERATURE_UNITS[temperature_unit]
         self._units = {"temperature_unit": temperature_unit, "wind_speed_unit": "kmh", "precipitation_unit": "mm"}
         self._expected = {"temperature_2m": self.temperature_symbol, "wind_speed_10m": "km/h", "precipitation": "mm"}
-        self._client = client or httpx.Client(headers={"User-Agent": "JARVIS-assistant/1.0"})
+        self._client = client or httpx.Client(headers={"User-Agent": "ORION-assistant/1.0"})
         self._timeout = timeout
         self._country = country.upper()
         self._language = language

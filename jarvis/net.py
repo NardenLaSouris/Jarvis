@@ -1,4 +1,4 @@
-"""Briques HTTP communes aux petits serveurs de JARVIS (agent Windows, API du Core) : IP du client, jeton
+"""Briques HTTP communes aux petits serveurs d'ORION (agent Windows, API du Core) : IP du client, jeton
 partagé comparé à temps constant, réponses JSON."""
 
 from __future__ import annotations

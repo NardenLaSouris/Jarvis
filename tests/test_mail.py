@@ -272,7 +272,7 @@ def test_send_goes_only_to_a_said_address_or_known_contact():
     pending = core.submit({"tool": "send_mail", "parameters": {"to": "maman", "body": "J'arrive à 19 h."}})
     assert pending.status == "confirm" and "maman@example.com" in pending.question and provider.sent == []
     core.answer("oui")
-    assert provider.sent == [{"to": "maman@example.com", "subject": "Message de JARVIS", "body": "J'arrive à 19 h.",
+    assert provider.sent == [{"to": "maman@example.com", "subject": "Message d'ORION", "body": "J'arrive à 19 h.",
                               "reply_to": None}]
     unknown = core.submit({"tool": "send_mail", "parameters": {"to": "tonton", "body": "Salut"}})
     assert unknown.status == "confirm"

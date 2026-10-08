@@ -146,7 +146,7 @@ class SpotifyClient:
     def __init__(self, client_id: str, token_path: Path, http: Callable = _default_http, timeout: float = 6.0,
                  clock: Callable[[], float] = time.time, device: str = ""):
         self._client_id = client_id
-        self.device = device  # appareil préféré (« JARVIS » : librespot sur le Core)
+        self.device = device  # appareil préféré (« ORION » : librespot sur le Core)
         self.catalog: SpotifyCatalog | None = None
         self._path = Path(token_path)
         self._http, self._timeout, self._clock = http, timeout, clock
@@ -257,7 +257,7 @@ class SpotifyClient:
             return {}
 
     def _device(self) -> str | None:
-        """Appareil préféré (« JARVIS ») s'il est configuré et présent, sinon l'appareil actif, sinon le premier
+        """Appareil préféré (« ORION ») s'il est configuré et présent, sinon l'appareil actif, sinon le premier
         disponible (la lecture y est transférée)."""
         devices = self.call("GET", "/me/player/devices").get("devices", [])
         preferred = self._preferred(devices)
@@ -279,7 +279,7 @@ class SpotifyClient:
         return next((d for d in devices if self.device and d.get("name", "").lower() == self.device.lower()), None)
 
     def _revived(self, devices: list[dict]) -> list[dict]:
-        """Appareil « JARVIS » absent alors que le lecteur est censé tourner : il est relancé, puis attendu."""
+        """Appareil « ORION » absent alors que le lecteur est censé tourner : il est relancé, puis attendu."""
         log.warning("Spotify : appareil %s introuvable, relance du lecteur", self.device)
         try:
             self.revive()
@@ -425,7 +425,7 @@ def spotify_tools(client: SpotifyClient, on_pause: Callable[[], None] | None = N
         def run() -> dict:
             client.call(method, path, query)
             if on_pause is not None and path.endswith(("/pause", "/next", "/previous")):
-                on_pause()  # musique relayée par JARVIS : la file de l'agent est vidée aussitôt
+                on_pause()  # musique relayée par ORION : la file de l'agent est vidée aussitôt
             return {"message": message}
         return run
 

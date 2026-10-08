@@ -3,7 +3,7 @@
 Elles pilotent le lecteur actif (application Spotify, navigateur, VLC...) sans compte ni autorisation : c'est
 l'équivalent des touches du clavier. Sous Windows, ``keybd_event`` (user32) ; sous Linux, ``playerctl`` s'il est
 installé. Avec des appareils configurés, ces outils s'exécutent sur le PC visé par son agent.
-La touche lecture/pause bascule : sans retour du lecteur, JARVIS dit « lecture/pause » et non « en pause ».
+La touche lecture/pause bascule : sans retour du lecteur, ORION dit « lecture/pause » et non « en pause ».
 """
 
 from __future__ import annotations

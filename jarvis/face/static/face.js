@@ -7,7 +7,7 @@
  *   JarvisFace.standby()
  *   JarvisFace.setTheme("day" | "night" | "error" | "<couleur>", teinte?)   (couleur : palette tirée de la teinte)
  *
- * Connecté à JARVIS par /events (Server-Sent Events). Sans connexion : veille.
+ * Connecté à ORION par /events (Server-Sent Events). Sans connexion : veille.
  * Le thème (jour en couleur, nuit en noir et blanc, ou la couleur choisie à la voix) vient du Core, sauf
  * ?theme=day|night|<teinte 0-360>|arcenciel.
  * ?demo=1 : démonstration autonome (touches 1-4, A = cycle auto, T = thème). ?debug=1 : état et FPS.
@@ -75,7 +75,7 @@
       deep: [5, 55, 75], blue: [20, 165, 205], cyan: [255, 145, 45], white: [220, 250, 255],
       pupil: [0, 2, 4], pupilEdge: [2, 6, 10], background: ["#04161e", "#020b10", "#000305"],
     },
-    naissancejarvis: {  // le bleu de JARVIS et l'or
+    naissancejarvis: {  // le bleu d'ORION et l'or
       deep: [12, 42, 110], blue: [34, 118, 255], cyan: [70, 214, 255], white: [255, 200, 80],
       pupil: [1, 4, 12], pupilEdge: [2, 8, 20], background: ["#061329", "#030a17", "#010308"],
     },
@@ -1274,7 +1274,7 @@
     requestAnimationFrame(frame);
   }
 
-  // --- Connexion à JARVIS ----------------------------------------------------------------------
+  // --- Connexion à ORION ----------------------------------------------------------------------
 
   function connect() {
     if (DEMO || location.protocol === "file:" || !("EventSource" in window)) return;
@@ -1333,7 +1333,7 @@
                         o: ["poissonavril", [188, 28], "Poisson d'avril !", "fish", "poissonavril"],
                         m: ["muguet", [130, "night"], "Joyeux 1er mai", "lily", "muguet"],
                         w: ["starwars", [53, "night"], "", "hyperspace", "starwars"],
-                        j: ["naissancejarvis", [205, 44], "Joyeux anniversaire JARVIS : 1 an", "sparkle", "naissancejarvis"] };
+                        j: ["naissancejarvis", [205, 44], "Joyeux anniversaire ORION : 1 an", "sparkle", "naissancejarvis"] };
       if ((event.key === "x" || event.key === "X") && effect === "hyperspace") {  // démo : sauter maintenant
         hyperJumpAt = now();
       }

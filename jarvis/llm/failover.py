@@ -6,13 +6,13 @@
 - OFFLINE : injoignable (machine éteinte, réseau, service arrêté).
 
 Avant chaque appel, une connexion TCP courte (``connect_timeout``) vérifie que le worker répond : s'il est éteint,
-JARVIS ne reste pas bloqué et passe aussitôt en mode dégradé. Tant qu'il est hors ligne, il n'est plus sollicité ;
+ORION ne reste pas bloqué et passe aussitôt en mode dégradé. Tant qu'il est hors ligne, il n'est plus sollicité ;
 une sonde de fond le reteste toutes les ``probe_interval`` secondes et le reprend dès qu'il revient (reconnexion
 automatique, sans attendre une demande).
 
 Mode dégradé : la conversation passe au LLM local avec un prompt court (``compact_system``) — le prompt complet
 prendrait plus d'une minute sur processeur — et le choix d'outil n'est pas confié au LLM local (``json_fallback``) :
-JARVIS utilise alors ses commandes déterministes (voir jarvis.tools.quick).
+ORION utilise alors ses commandes déterministes (voir jarvis.tools.quick).
 """
 
 from __future__ import annotations
@@ -119,7 +119,7 @@ class FailoverLLM:
 
     @property
     def degraded(self) -> bool:
-        """Vrai quand le worker n'est pas utilisable maintenant : JARVIS doit éviter ce qui exige le LLM principal."""
+        """Vrai quand le worker n'est pas utilisable maintenant : ORION doit éviter ce qui exige le LLM principal."""
         return self._state == OFFLINE or self._down_since is not None
 
     @property
@@ -366,7 +366,7 @@ class FailoverLLM:
         while not self._stopping.wait(self._probe_interval):
             try:
                 self.probe()
-            except Exception:  # la sonde ne doit jamais arrêter JARVIS
+            except Exception:  # la sonde ne doit jamais arrêter ORION
                 log.exception("Sonde du worker LLM en erreur")
 
     def _each(self, label: str, primary_action, fallback_action) -> None:

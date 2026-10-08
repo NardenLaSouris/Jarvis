@@ -1,16 +1,16 @@
-# Configuration centrale de JARVIS.
+# Configuration centrale d'ORION.
 # Les chemins relatifs sont résolus par rapport au dossier de ce fichier.
 
 [assistant]
 language = "fr"
 # Personnalité : nom, titre de l'utilisateur, ton, phrases et réponses prédéfinies.
 personality = "personality.toml"
-# Durée (s) pendant laquelle JARVIS reste à l'écoute après une réponse,
+# Durée (s) pendant laquelle ORION reste à l'écoute après une réponse,
 # sans qu'il soit nécessaire de répéter le wake word.
 conversation_timeout = 8.0
 # Nombre maximal d'échanges conservés dans le contexte d'une conversation.
 max_history_turns = 6
-# Dire le wake word pendant que JARVIS réfléchit ou parle l'interrompt (son coupé), puis il écoute la suite.
+# Dire le wake word pendant qu'ORION réfléchit ou parle l'interrompt (son coupé), puis il écoute la suite.
 barge_in = true
 
 [wake_word]
@@ -59,7 +59,7 @@ fallback_compute_type = "int8"
 # (« ou vos teams ») sont ensuite corrigées si elles ressemblent nettement à une commande connue.
 vocabulary_hint = true
 # Confiance minimale de la transcription (moyenne des log-probabilités de Whisper, la confiance de chaque
-# phrase est dans le journal) pour une question confiée au LLM ; en dessous, JARVIS demande de répéter au lieu
+# phrase est dans le journal) pour une question confiée au LLM ; en dessous, ORION demande de répéter au lieu
 # de répondre à une phrase probablement mal entendue. -99 : jamais.
 min_confidence = -1.0
 
@@ -92,7 +92,7 @@ codec = "neuphonic/neucodec-onnx-decoder"
 # Voix clonée : WAV de 3 à 15 s + transcription exacte dans le .txt du même nom.
 voice = "models/neutts/voices/bernard.wav"
 # Orthographe prononcée par NeuTTS (mot entier, sans tenir compte des majuscules).
-pronunciations = { Jarvis = "Jarvisse" }
+pronunciations = { Jarvis = "Jarvisse", Orion = "Oryon" }  # « Orion » écrit tel quel est lu « orient »
 
 [llm]
 backend = "ollama"
@@ -130,7 +130,7 @@ enabled = false
 timeout = 3.0
 
 [routines]
-# Routines créées dans JARVIS Control (déclencheur, puis outils sans confirmation, phrases, attentes).
+# Routines créées dans ORION Control (déclencheur, puis outils sans confirmation, phrases, attentes).
 enabled = true
 path = "data/routines.json"
 
@@ -138,7 +138,7 @@ path = "data/routines.json"
 # Réveils (« réveille-moi à 7 h 30 », ou une routine avec l'action « Réveil ») : la sonnerie joue ce fichier
 # (MP3, WAV, FLAC..., le vôtre : non versionné) en boucle jusqu'à « Jarvis » ou « arrête », au plus max_minutes ;
 # sonnerie de secours si le fichier manque. volume : niveau (%) imposé avant de sonner (0 : inchangé).
-# briefing : après un réveil par la voix, JARVIS annonce la journée (date, météo, rappels, réveils, routines).
+# briefing : après un réveil par la voix, ORION annonce la journée (date, météo, rappels, réveils, routines).
 enabled = true
 sound = "data/alarm.mp3"
 max_minutes = 5.0
@@ -189,8 +189,8 @@ journal_path = "data/house_journal.jsonl"
 journal_max_kb = 1000
 
 [api]
-# API d'administration pour JARVIS Control (HTTP, réseau local). Jeton : JARVIS_AGENT_TOKEN dans .env.
-# Seules les IP listées y accèdent (celle du PC qui exécute JARVIS Control).
+# API d'administration pour ORION Control (HTTP, réseau local). Jeton : JARVIS_AGENT_TOKEN dans .env.
+# Seules les IP listées y accèdent (celle du PC qui exécute ORION Control).
 enabled = false
 host = "0.0.0.0"
 port = 8766
@@ -198,7 +198,7 @@ allowed_ips = []
 
 [web]
 # Recherche Web pour les questions d'actualité (prix, versions, nouvelles...), via une instance
-# SearXNG auto-hébergée (format json activé). Si le service est injoignable, JARVIS le dit simplement.
+# SearXNG auto-hébergée (format json activé). Si le service est injoignable, ORION le dit simplement.
 enabled = true
 provider = "searxng"
 base_url = "http://127.0.0.1:8080"
@@ -209,8 +209,8 @@ fetch_pages = 1         # pages lues en entier pour compléter les extraits (0 =
 max_page_bytes = 1000000
 
 [tools]
-# Outils : JARVIS agit sur le PC via des outils enregistrés, jamais via un shell. Le LLM propose un outil,
-# JARVIS valide, applique le niveau de risque de l'outil (SAFE : exécuté ; à confirmer : question ;
+# Outils : ORION agit sur le PC via des outils enregistrés, jamais via un shell. Le LLM propose un outil,
+# ORION valide, applique le niveau de risque de l'outil (SAFE : exécuté ; à confirmer : question ;
 # RESTRICTED : refusé) et rapporte le résultat réel. Chaque outil : enabled = true/false.
 # confirm = true ajoute une confirmation à un outil SAFE ; elle ne peut jamais être retirée à un outil
 # qui l'exige (fermer une application, verrouiller le PC).
@@ -220,7 +220,7 @@ timeout = 15.0          # délai maximal d'exécution d'un outil (s)
 # le LLM : réponse plus rapide. Elles le sont toujours en mode dégradé (worker LLM hors ligne).
 fast_path = true
 
-# Appareils du réseau : JARVIS agit sur un PC via l'agent qui y tourne (python -m jarvis.winagent), jamais sur
+# Appareils du réseau : ORION agit sur un PC via l'agent qui y tourne (python -m jarvis.winagent), jamais sur
 # la machine du Core. L'appareil visé vient des mots de la demande (alias, le plus long l'emporte), sinon
 # celui marqué default. Sans url : appareil interdit (toute action y est refusée). Vide : le Core agit sur sa
 # propre machine. Exemple (à mettre dans config.local.toml) :
@@ -273,10 +273,10 @@ enabled = true          # confirmation obligatoire
 [tools.files]
 enabled = false
 # roots = { documents = "~/Documents", bureau = "~/Desktop", telechargements = "~/Downloads" }
-# sandbox = "~/JARVIS"
+# sandbox = "~/ORION"
 
-# Applications que JARVIS peut ouvrir, fermer et surveiller : seule cette liste fait foi.
-# Les applications du catalogue de JARVIS sont trouvées automatiquement (registre Windows,
+# Applications qu'ORION peut ouvrir, fermer et surveiller : seule cette liste fait foi.
+# Les applications du catalogue d'ORION sont trouvées automatiquement (registre Windows,
 # emplacements habituels, Microsoft Store) ; executable = "..." impose un chemin.
 # Application hors catalogue : executable (chemin absolu) et process (nom du processus) requis, ex. :
 # [tools.applications.obs]
@@ -344,15 +344,15 @@ day_end = "20:00"
 # .env, puis python -m jarvis --spotify-login. Compte Premium nécessaire. Sans cela : touches multimédia du PC.
 enabled = true
 token_path = "data/spotify_token.json"
-# Lecture par JARVIS lui-même : librespot sur le Core (deploy/jarvis-librespot.service) devient l'appareil Spotify
-# « device », son son est relayé vers la sortie de la voix ([audio] remote) et baisse quand JARVIS écoute ou parle.
+# Lecture par ORION lui-même : librespot sur le Core (deploy/jarvis-librespot.service) devient l'appareil Spotify
+# « device », son son est relayé vers la sortie de la voix ([audio] remote) et baisse quand ORION écoute ou parle.
 # Vide : la musique joue sur un appareil Spotify existant (application du PC, téléphone).
 device = ""
-# Avec device : service du lecteur, relancé par JARVIS si l'appareil a disparu (librespot perd parfois sa session
+# Avec device : service du lecteur, relancé par ORION si l'appareil a disparu (librespot perd parfois sa session
 # Spotify Connect après des heures d'inactivité, tout en continuant de tourner).
 player_service = "jarvis-librespot"
 pipe = "data/music.fifo"
-duck_percent = 15       # niveau de la musique (%) pendant que JARVIS écoute ou parle
+duck_percent = 15       # niveau de la musique (%) pendant qu'ORION écoute ou parle
 
 # Profils et terminaux (facultatif ; par défaut : un propriétaire et le terminal « main » de [audio] remote).
 # Rôles : owner (tout), adult (tout sauf effacer toute la mémoire), child (infos, lumières, musique, minuteurs,
@@ -370,7 +370,7 @@ duck_percent = 15       # niveau de la musique (%) pendant que JARVIS écoute ou
 # user = "monsieur"
 
 [notifications]
-# Annonces de JARVIS (fin de minuteur, rappel...). false : plus d'annonce vocale ; les événements
+# Annonces d'ORION (fin de minuteur, rappel...). false : plus d'annonce vocale ; les événements
 # et le journal d'activité continuent.
 voice_enabled = true
 
@@ -383,7 +383,7 @@ max_kb = 1024           # au-delà, le fichier est archivé en activity.1.jsonl
 
 [face]
 # Visage graphique animé (page Web locale). Non critique : si le port est pris ou la page fermée,
-# JARVIS continue en vocal. host = "0.0.0.0" pour l'afficher sur tous les appareils du réseau local
+# ORION continue en vocal. host = "0.0.0.0" pour l'afficher sur tous les appareils du réseau local
 # (http://<ip du Core>:8765/) ; l'agent Windows l'ouvre alors seul sur le PC.
 enabled = true
 host = "127.0.0.1"
@@ -393,25 +393,25 @@ open_browser = true     # ouvre la page dans le navigateur au lancement (inutile
 night_start = "22:00"
 night_end = "07:00"
 # Couleur du visage choisie à la voix (« mets ton visage en vert », « en arc-en-ciel », « remets ta couleur
-# normale ») ou dans JARVIS Control : rouge, orange, or, jaune, vert, émeraude, turquoise, cyan, azur, bleu,
+# normale ») ou dans ORION Control : rouge, orange, or, jaune, vert, émeraude, turquoise, cyan, azur, bleu,
 # indigo, violet, magenta, rose... Elle remplace bleu le jour / noir et blanc la nuit jusqu'au retour à « auto ».
 theme_path = "data/face_theme.json"
 # En automatique, thèmes de fête aux bonnes dates : Nouvel an (31/12-1/1), Saint-Valentin, Saint-Patrick, Pâques
 # (samedi-lundi), fête de la musique, 14 Juillet, Halloween (29-31/10), Noël (20-26/12) et votre anniversaire.
 seasons = true
 birthday = ""           # « MM-JJ », à mettre dans config.local.toml (ex. "07-14")
-jarvis_birthday = ""    # premier démarrage de JARVIS, « AAAA-MM-JJ » : son anniversaire chaque année
+jarvis_birthday = ""    # premier démarrage d'ORION, « AAAA-MM-JJ » : son anniversaire chaque année
 # Aussi : 1er avril (poissons), 1er mai (muguet), 4 mai (Star Wars, hyperespace).
 
 [audio]
 sample_rate = 16000
 # Taille d'un bloc audio : 1280 échantillons = 80 ms (attendu par openWakeWord).
 frame_samples = 1280
-# Micro et sortie de JARVIS, indépendants de ceux de Windows. Pour choisir dans une liste :
+# Micro et sortie d'ORION, indépendants de ceux de Windows. Pour choisir dans une liste :
 #   python -m jarvis --choose-audio
 input_device = "Microphone (Voicemod Virtual Au, MME"       # vide = périphérique par défaut de Windows ; sinon nom partiel ou index
 output_device = "Chat (2- TC-HELICON GoXLR), MME"
-# Micro et sortie d'un autre PC via son agent JARVIS (python -m jarvis.winagent), par exemple
+# Micro et sortie d'un autre PC via son agent ORION (python -m jarvis.winagent), par exemple
 # "http://192.168.1.128:8765" : remplace input_device et output_device. Jeton : JARVIS_AGENT_TOKEN dans .env.
 remote = ""
 # Délai max (s) pour commencer à parler après "Oui, monsieur ?".

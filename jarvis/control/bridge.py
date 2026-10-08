@@ -1,4 +1,4 @@
-"""Pont local de JARVIS Control : sert l'interface et relaie ses demandes au Core.
+"""Pont local d'ORION Control : sert l'interface et relaie ses demandes au Core.
 
 N'écoute que sur 127.0.0.1. Chaque appel /bridge/* exige la clé de session (aléatoire à chaque lancement,
 transmise à la fenêtre seulement) et l'hôte 127.0.0.1 : ni un autre site ouvert dans un navigateur ni un autre
@@ -163,6 +163,6 @@ class Bridge:
                     self._error(404, "not_found")
                 except Exception:
                     log.exception("Pont : erreur sur %s %s", method, parts.path)
-                    self._json(200, {"ok": False, "error": "Erreur interne de JARVIS Control (voir le journal)."})
+                    self._json(200, {"ok": False, "error": "Erreur interne d'ORION Control (voir le journal)."})
 
         return Handler

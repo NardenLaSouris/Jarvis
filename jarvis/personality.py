@@ -28,7 +28,7 @@ SECOND_PERSON = {"ma": "votre", "mon": "votre", "mes": "vos", "moi": "vous", "me
 
 
 def second_person(text: str) -> str:
-    """Phrase de l'utilisateur redite par JARVIS : « appeler ma mère » -> « appeler votre mère »."""
+    """Phrase de l'utilisateur redite par ORION : « appeler ma mère » -> « appeler votre mère »."""
     text = re.sub(r"\b[mM]['’](?=\w)", "vous ", text)
     return re.sub(r"\b(\w+)\b", lambda m: SECOND_PERSON.get(m.group(1).lower(), m.group(1)), text)
 
@@ -76,7 +76,9 @@ class Intent:
 
 @dataclass(frozen=True)
 class Personality:
-    assistant_name: str = "JARVIS"
+    assistant_name: str = "ORION"
+    # Anciens noms encore reconnus (dits avant une commande, « Oui Jarvis », retirés comme le nom actuel).
+    former_names: tuple[str, ...] = ()
     user_name: str = ""
     user_title: str = "monsieur"
     language: str = "fr"
@@ -100,7 +102,7 @@ class Personality:
     confirm_no: tuple[str, ...] = ()
 
     def without_user_name(self, text: str) -> str:
-        """Retire le prénom de l'utilisateur d'une réponse : JARVIS ne le prononce jamais."""
+        """Retire le prénom de l'utilisateur d'une réponse : ORION ne le prononce jamais."""
         if not self.user_name:
             return text
         text = re.sub(rf"[,\s]*\b{re.escape(self.user_name)}\b", "", text, flags=re.IGNORECASE)
@@ -157,9 +159,10 @@ def load_personality(path: str | Path) -> Personality:
             words = words.replace(f" {source} ", f" {target} ")
         return " ".join(words.split())
 
-    names = {"user_name": p.get("user_name", ""), "assistant_name": p.get("assistant_name", "JARVIS")}
+    names = {"user_name": p.get("user_name", ""), "assistant_name": p.get("assistant_name", "ORION")}
     ignored = tuple(normalize(w) for w in matching.get("ignored", []))
-    ignored += (normalize(p.get("assistant_name", "JARVIS")), normalize(p.get("user_title", "monsieur")))
+    ignored += (normalize(p.get("assistant_name", "ORION")), normalize(p.get("user_title", "monsieur")),
+                *(normalize(n) for n in p.get("former_names", [])))
     intents = tuple(
         Intent(
             name=name,
@@ -182,7 +185,8 @@ def load_personality(path: str | Path) -> Personality:
         for name, spec in raw.get("intents", {}).items()
     )
     return Personality(
-        assistant_name=p.get("assistant_name", "JARVIS"),
+        assistant_name=p.get("assistant_name", "ORION"),
+        former_names=tuple(p.get("former_names", [])),
         user_name=p.get("user_name", ""),
         user_title=p.get("user_title", "monsieur"),
         language=p.get("language", "fr"),

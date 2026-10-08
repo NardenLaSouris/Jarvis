@@ -1,4 +1,4 @@
-"""Détection de la machine sur laquelle tourne JARVIS."""
+"""Détection de la machine sur laquelle tourne ORION."""
 
 from __future__ import annotations
 

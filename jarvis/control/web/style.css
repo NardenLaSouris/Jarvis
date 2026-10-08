@@ -1,12 +1,13 @@
+/* Charte Aureon : vert forêt, vert secondaire, crème, doré en accent, noir profond. */
 :root {
-  --bg: #0b0f17;
-  --panel: #121826;
-  --panel-2: #182033;
-  --line: #24304a;
-  --text: #e6edf7;
-  --muted: #8a97ad;
-  --accent: #46d6ff;
-  --accent-2: #2276ff;
+  --bg: #0e0e0e;
+  --panel: #151816;
+  --panel-2: #1b211e;
+  --line: #2a3530;
+  --text: #f4efe4;
+  --muted: #9aa69f;
+  --accent: #5fae8f;
+  --accent-2: #c9a45c;
   --ok: #3ddc97;
   --warn: #ffb547;
   --err: #ff5d6c;
@@ -21,8 +22,8 @@
   --line: #d6deea;
   --text: #142033;
   --muted: #5d6b80;
-  --accent: #0a84c6;
-  --accent-2: #2457d6;
+  --accent: #2f7a5f;
+  --accent-2: #a8843e;
   color-scheme: light;
 }
 
@@ -34,25 +35,25 @@
     --line: #d6deea;
     --text: #142033;
     --muted: #5d6b80;
-    --accent: #0a84c6;
-    --accent-2: #2457d6;
+    --accent: #2f7a5f;
+    --accent-2: #a8843e;
     color-scheme: light;
   }
 }
 
-/* --- Thèmes du visage de JARVIS ---------------------------------------------------------------- */
+/* --- Thèmes du visage d'ORION ---------------------------------------------------------------- */
 
-:root[data-theme="jarvis"] {
-  --bg: #030a17;
-  --panel: rgba(8, 26, 58, 0.62);
-  --panel-2: rgba(18, 52, 104, 0.5);
-  --line: rgba(70, 214, 255, 0.2);
-  --text: #d6f4ff;
-  --muted: #6f9cc4;
-  --accent: #46d6ff;
-  --accent-2: #2276ff;
-  --glow: rgba(70, 214, 255, 0.28);
-  --backdrop: radial-gradient(ellipse at 60% 45%, #0c2a5c 0%, #061329 38%, #030a17 70%, #010308 100%);
+:root[data-theme="jarvis"] {  /* « ORION (jour) » : le visage d'ORION, vert forêt et or */
+  --bg: #0b100e;
+  --panel: rgba(15, 61, 46, 0.32);
+  --panel-2: rgba(60, 139, 111, 0.16);
+  --line: rgba(201, 164, 92, 0.22);
+  --text: #f4efe4;
+  --muted: #9fb3a8;
+  --accent: #5fae8f;
+  --accent-2: #c9a45c;
+  --glow: rgba(201, 164, 92, 0.25);
+  --backdrop: radial-gradient(ellipse at 60% 45%, #143a2b 0%, #0e1d17 38%, #0b0f0d 70%, #0e0e0e 100%);
   color-scheme: dark;
 }
 
@@ -406,8 +407,8 @@ nav .themes button {
   cursor: pointer;
   box-shadow: none;
 }
-nav .themes button[data-theme="auto"] { background: linear-gradient(135deg, #46d6ff 50%, #e8e8e8 50%); }
-nav .themes button[data-theme="jarvis"] { background: radial-gradient(circle, #46d6ff, #0c2a5c); }
+nav .themes button[data-theme="auto"] { background: linear-gradient(135deg, #3c8b6f 50%, #e8e8e8 50%); }
+nav .themes button[data-theme="jarvis"] { background: radial-gradient(circle, #c9a45c, #0f3d2e); }
 nav .themes button[data-theme="nuit"] { background: radial-gradient(circle, #f2f2f2, #262626); }
 nav .themes button[data-theme="rouge"] { background: radial-gradient(circle, #ff6e64, #4a0a0e); }
 nav .themes button:hover { transform: scale(1.12); }

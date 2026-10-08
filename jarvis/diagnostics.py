@@ -197,7 +197,7 @@ def print_checks(checks: list[Check]) -> int:
 
 
 def health(cfg) -> int:
-    print(f"JARVIS — état ({platform.node()}, {time.strftime('%Y-%m-%d %H:%M')})\n")
+    print(f"ORION — état ({platform.node()}, {time.strftime('%Y-%m-%d %H:%M')})\n")
     return print_checks(run_health(cfg))
 
 
@@ -322,7 +322,7 @@ def benchmark(cfg, runs: int = 3) -> int:
     results.append(("TTS (phrase de 4 s, non jouée)", f"{seconds:.2f} s (facteur temps réel {seconds / (len(wav) / sr):.2f})"))
 
     hostname = socket.gethostname()
-    print(f"JARVIS — mesures ({hostname}, médiane de {runs} essais, rien n'est joué ni actionné)\n")
+    print(f"ORION — mesures ({hostname}, médiane de {runs} essais, rien n'est joué ni actionné)\n")
     width = max(len(name) for name, _ in results)
     for name, value in results:
         print(f"  {name:<{width}}  {value}")

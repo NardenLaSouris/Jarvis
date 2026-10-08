@@ -163,7 +163,7 @@ class CalendarConfig:
 class SpotifyConfig:
     enabled: bool = True
     token_path: Path = Path("data/spotify_token.json")
-    # Lecture par JARVIS lui-même (librespot sur le Core, appareil Spotify Connect « device »), relayée vers la sortie
+    # Lecture par ORION lui-même (librespot sur le Core, appareil Spotify Connect « device »), relayée vers la sortie
     # de la voix ([audio] remote) ; vide = la musique joue sur un appareil Spotify existant (PC, téléphone).
     device: str = ""
     # Service utilisateur systemd du lecteur (librespot), relancé si l'appareil « device » a disparu de Spotify
@@ -272,12 +272,12 @@ class FaceConfig:
     open_browser: bool = True
     night_start: str = "22:00"
     night_end: str = "07:00"
-    # Couleur choisie à la voix ou dans JARVIS Control (jarvis/face/themes.py).
+    # Couleur choisie à la voix ou dans ORION Control (jarvis/face/themes.py).
     theme_path: Path = Path("data/face_theme.json")
     # Thèmes de fête en « auto » (Noël, Halloween, Pâques...) ; birthday : « MM-JJ » pour le thème anniversaire.
     seasons: bool = True
     birthday: str = ""
-    # Premier démarrage de JARVIS (« AAAA-MM-JJ ») : son anniversaire chaque année.
+    # Premier démarrage d'ORION (« AAAA-MM-JJ ») : son anniversaire chaque année.
     jarvis_birthday: str = ""
 
 

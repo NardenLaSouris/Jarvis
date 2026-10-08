@@ -239,7 +239,7 @@ def test_voice_queue_limit_and_stop():
     assert voice.pending() == 2 and recorder.types().count("notification.failed") == 1
     manager.stop()
     assert voice.pending() == 0 and recorder.types().count("notification.failed") == 3
-    assert recorder.events[-1].payload["error"] == "arrêt de JARVIS"
+    assert recorder.events[-1].payload["error"] == "arrêt d'ORION"
     assert manager.notify(note()) == [] and voice.pending() == 0
     voice.start()
     assert manager.notify(note()) == ["voice"]

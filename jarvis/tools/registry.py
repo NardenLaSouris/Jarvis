@@ -1,4 +1,4 @@
-"""Registre central des outils : seule source de vérité sur ce que JARVIS sait faire."""
+"""Registre central des outils : seule source de vérité sur ce qu'ORION sait faire."""
 
 from __future__ import annotations
 

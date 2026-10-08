@@ -1,10 +1,10 @@
-# Agent Windows de JARVIS (python -m jarvis.winagent). Le jeton partagé n'est jamais ici :
+# Agent Windows d'ORION (python -m jarvis.winagent). Le jeton partagé n'est jamais ici :
 # JARVIS_AGENT_TOKEN dans l'environnement ou dans .env (non versionné), identique côté Core.
 
 [agent]
 host = "0.0.0.0"
 port = 8765
-# Seules ces adresses peuvent joindre l'agent (le Core JARVIS) ; toute autre reçoit 403.
+# Seules ces adresses peuvent joindre l'agent (le Core ORION) ; toute autre reçoit 403.
 allowed_ips = ["192.168.1.91"]
 
 # Micro et sortie du PC relayés au Core (vide = périphériques par défaut de Windows ; sinon nom partiel
@@ -13,12 +13,12 @@ allowed_ips = ["192.168.1.91"]
 input_device = "Microphone (Voicemod Virtual Au, MME"
 output_device = "Music (2- TC-HELICON GoXLR), MME"
 
-# Fichiers accessibles à JARVIS sur ce PC (outils find_files, read_text_file, create_text_file, copy_file, move_file,
-# delete_file) : seulement ces dossiers ; créations dans sandbox ; « supprimer » = corbeille de JARVIS (récupérable).
+# Fichiers accessibles à ORION sur ce PC (outils find_files, read_text_file, create_text_file, copy_file, move_file,
+# delete_file) : seulement ces dossiers ; créations dans sandbox ; « supprimer » = corbeille d'ORION (récupérable).
 [tools.files]
 enabled = true
 roots = { documents = "~/Documents", bureau = "~/Desktop", telechargements = "~/Downloads" }
-sandbox = "~/JARVIS"
+sandbox = "~/ORION"
 
 # Visage du Core : ouvert dans le navigateur du PC quand le Core se connecte (rouvert seulement
 # après plus de 5 min sans connexion). Le Core doit l'exposer sur le réseau ([face] host = "0.0.0.0").

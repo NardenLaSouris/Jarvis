@@ -195,7 +195,7 @@ def test_agent_exposes_only_pc_actions():
 def test_routes_are_unchanged_by_devices(machines):
     pc, laptop = machines
     spoken, events = converse(["Quelle heure est-il ?"], PlannerLLM(), devices_for(pc.url, laptop.url))
-    assert routes(events) == ["tool:time"] and PERSONALITY.assistant_name == "JARVIS"
+    assert routes(events) == ["tool:time"] and PERSONALITY.assistant_name == "ORION"
 
 
 # --- Agents défaillants (session red team) ---------------------------------------------------------

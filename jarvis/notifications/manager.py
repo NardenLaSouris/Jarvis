@@ -1,7 +1,7 @@
 """Gestionnaire de notifications : remet chaque notification aux canaux qui l'acceptent.
 
 Il ignore d'où viennent les notifications (minuteur, rappel...) ; un canal en erreur est journalisé
-sans empêcher les autres canaux ni JARVIS de continuer.
+sans empêcher les autres canaux ni ORION de continuer.
 """
 
 from __future__ import annotations

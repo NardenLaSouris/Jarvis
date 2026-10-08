@@ -1,4 +1,4 @@
-"""Bus d'événements interne : les composants de JARVIS publient et écoutent sans se connaître.
+"""Bus d'événements interne : les composants d'ORION publient et écoutent sans se connaître.
 
 Livraison synchrone, dans l'ordre d'abonnement. Un abonné qui échoue est journalisé et ignoré :
 la publication ne lève jamais d'exception et les autres abonnés sont tout de même servis.

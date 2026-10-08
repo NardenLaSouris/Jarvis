@@ -36,13 +36,21 @@ _CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f\u200b-\u200f\u2028-\u202e\u2066-
 _MARKERS = re.compile(r"<{2,}|>{2,}")
 
 
-def without_name(text: str, assistant_name: str = "JARVIS") -> str:
-    """« Jarvis, combien coûte... » -> « Combien coûte... »."""
-    rest = re.sub(rf"^\s*{re.escape(assistant_name)}\b[\s,.!]*", "", text, flags=re.IGNORECASE)
+# Ancien nom de l'assistant, encore dit en tête de phrase pendant la transition (« Jarvis, combien coûte... »).
+FORMER_NAMES = ("JARVIS",)
+
+
+def names_pattern(assistant_name: str) -> str:
+    return "(?:" + "|".join(re.escape(n) for n in (assistant_name, *FORMER_NAMES)) + ")"
+
+
+def without_name(text: str, assistant_name: str = "ORION") -> str:
+    """« Orion, combien coûte... » (ou « Jarvis, ... ») -> « Combien coûte... »."""
+    rest = re.sub(rf"^\s*{names_pattern(assistant_name)}\b[\s,.!]*", "", text, flags=re.IGNORECASE)
     return rest[:1].upper() + rest[1:] if rest else text
 
 
-def search_query(text: str, assistant_name: str = "JARVIS") -> str:
+def search_query(text: str, assistant_name: str = "ORION") -> str:
     """Requête envoyée au moteur, à partir de la demande orale (« Jarvis, cherche-moi X » -> « X »)."""
     query = _WHERE.sub("", _REQUEST.sub("", without_name(text, assistant_name)))
     return query.strip(" \t?!.,;:«»\"'") or text.strip()
@@ -123,14 +131,14 @@ class WebContext:
         return "\n".join(lines)
 
 
-def web_request(user_text: str, context: WebContext, assistant_name: str = "JARVIS") -> str:
+def web_request(user_text: str, context: WebContext, assistant_name: str = "ORION") -> str:
     """Message utilisateur envoyé au LLM : les données Web d'abord, puis la vraie demande."""
     return f"{context.for_llm()}\n\n{without_name(user_text, assistant_name)}"
 
 
 class WebResearch:
     def __init__(self, provider: WebSearchProvider, max_results: int = 5, fetch_pages: int = 1,
-                 context_results: int = 3, assistant_name: str = "JARVIS"):
+                 context_results: int = 3, assistant_name: str = "ORION"):
         self.provider = provider
         self._max_results = max_results
         self._fetch_pages = fetch_pages

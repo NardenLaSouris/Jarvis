@@ -1,8 +1,8 @@
-"""Lecture prudente des fichiers JSON de JARVIS (routines, mémoire, échéances, calendrier local).
+"""Lecture prudente des fichiers JSON d'ORION (routines, mémoire, échéances, calendrier local).
 
 Un fichier illisible (contenu abîmé, coupure pendant une écriture) ou d'une forme inattendue n'empêche jamais
-JARVIS de démarrer, et n'est jamais écrasé par l'enregistrement suivant : il est mis de côté sous
-« <nom>.illisible-<date> » (à réparer ou supprimer à la main) et JARVIS repart d'une liste vide.
+ORION de démarrer, et n'est jamais écrasé par l'enregistrement suivant : il est mis de côté sous
+« <nom>.illisible-<date> » (à réparer ou supprimer à la main) et ORION repart d'une liste vide.
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ def set_aside(path: Path, what: str, reason: object) -> Path | None:
     except OSError as exc:
         log.error("%s illisibles (%s) : %s ; mise de côté impossible (%s)", what, path, reason, exc)
         return None
-    log.error("%s illisibles (%s) : %s ; fichier mis de côté : %s, JARVIS repart à vide", what, path, reason,
+    log.error("%s illisibles (%s) : %s ; fichier mis de côté : %s, ORION repart à vide", what, path, reason,
               target.name)
     return target
 

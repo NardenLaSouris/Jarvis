@@ -1,4 +1,4 @@
-"""Appareils du réseau : JARVIS agit sur un PC via l'agent qui y tourne (jarvis.winagent), jamais sur le Core.
+"""Appareils du réseau : ORION agit sur un PC via l'agent qui y tourne (jarvis.winagent), jamais sur le Core.
 
 Chaque appareil a un nom dit à voix haute, l'adresse de son agent et des alias (« mon pc portable »). Un
 appareil sans adresse est interdit (le mini-PC du Core) : toute action y est refusée avant confirmation.

@@ -1,4 +1,4 @@
-"""Système d'outils de JARVIS : le LLM propose, le Core valide, décide, fait confirmer et exécute."""
+"""Système d'outils d'ORION : le LLM propose, le Core valide, décide, fait confirmer et exécute."""
 
 from jarvis.tools.base import Param, Risk, Tool, ToolError, ToolRequest, ToolResult
 from jarvis.tools.builtin import builtin_tools

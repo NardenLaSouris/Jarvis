@@ -1,4 +1,4 @@
-"""Interface d'un fournisseur météo : JARVIS ne dépend que d'elle, jamais du format d'une API."""
+"""Interface d'un fournisseur météo : ORION ne dépend que d'elle, jamais du format d'une API."""
 
 from __future__ import annotations
 

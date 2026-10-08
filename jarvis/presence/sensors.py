@@ -1,7 +1,7 @@
 """Capteurs de la maison : définitions, événements normalisés et pilotes (« drivers »).
 
 Le moteur de présence (jarvis/presence/engine.py) et le journal ne connaissent que des événements normalisés,
-publiés sur le bus d'événements de JARVIS :
+publiés sur le bus d'événements d'ORION :
 
     door.open / door.closed            porte (``entrance`` : porte d'entrée de la maison)
     motion.detected                    mouvement dans une pièce

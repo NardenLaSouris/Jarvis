@@ -1,7 +1,7 @@
 """Moteur des routines : déclenchement (heure, intervalle, à la demande) et exécution pas à pas.
 
 Les outils passent par le ToolCore (registre, validation, permissions) ; une phrase passe par les
-notifications vocales (JARVIS la dit dès qu'il est libre). Chaque étape publie un événement : l'historique
+notifications vocales (ORION la dit dès qu'il est libre). Chaque étape publie un événement : l'historique
 est le journal d'activité. Une étape en échec arrête la routine.
 """
 
@@ -21,7 +21,7 @@ from jarvis.tools import DONE, ToolRegistry
 
 log = logging.getLogger(__name__)
 
-MAX_LATE = 600  # une action à date précise manquée de plus de 10 minutes (JARVIS arrêté) n'est plus exécutée
+MAX_LATE = 600  # une action à date précise manquée de plus de 10 minutes (ORION arrêté) n'est plus exécutée
 WEEKDAYS = ("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche")
 ANNOUNCE_LABELS = {"time": "l'heure", "date": "la date", "weather": "la météo", "day": "la journée",
                    "welcome": "le retour (bon retour et résumé de l'absence)"}
@@ -282,7 +282,7 @@ class RoutineEngine:
                         self._interval_from[routine.id] = monotonic
                         due.append((routine.id, "interval"))
             self._fired = {key for key in self._fired if key[1][:10] >= now.strftime("%Y-%m-%d")}
-            for routine in expired:  # JARVIS était arrêté à l'heure prévue : action trop ancienne, abandonnée
+            for routine in expired:  # ORION était arrêté à l'heure prévue : action trop ancienne, abandonnée
                 log.warning("Routine « %s » prévue le %s non exécutée (trop tard) : supprimée", routine.name,
                             routine.trigger["at"])
                 del self._routines[routine.id]

@@ -1,3 +1,3 @@
-"""JARVIS — assistant vocal personnel local."""
+"""ORION — assistant vocal personnel local."""
 
 __version__ = "0.1.0"

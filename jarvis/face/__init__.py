@@ -1,4 +1,4 @@
-"""Visage graphique animé de JARVIS : état visuel, branchement non critique et serveur local."""
+"""Visage graphique animé d'ORION : état visuel, branchement non critique et serveur local."""
 
 from jarvis.face.bridge import FaceBridge, MeteredSink
 from jarvis.face.server import FaceServer

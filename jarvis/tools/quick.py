@@ -2,7 +2,7 @@
 météo, verrouillage.
 
 Deux usages :
-- mode dégradé : le worker LLM (Katana) est hors ligne, JARVIS exécute quand même les commandes simples ;
+- mode dégradé : le worker LLM (Katana) est hors ligne, ORION exécute quand même les commandes simples ;
 - raccourci (``[tools] fast_path``) : une commande sans ambiguïté évite le choix d'outil par le LLM (~0,5 à 1 s).
 
 ``quick_plan`` rend exactement ce que rendrait le planificateur du LLM (un ``tool_call``, ou ``tool_calls`` pour

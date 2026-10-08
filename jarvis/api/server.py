@@ -1,4 +1,4 @@
-"""API d'administration du Core (JARVIS Control) : HTTP sur le réseau local, IP autorisées et jeton partagé.
+"""API d'administration du Core (ORION Control) : HTTP sur le réseau local, IP autorisées et jeton partagé.
 
 Toutes les actions passent par le Core : routines (moteur des routines) et outils (ToolCore : registre,
 validation, permissions). Seuls les outils sans confirmation sont exécutables ici ; aucune commande libre.

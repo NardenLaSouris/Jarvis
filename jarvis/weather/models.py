@@ -1,4 +1,4 @@
-"""Données météo internes à JARVIS, indépendantes du fournisseur.
+"""Données météo internes à ORION, indépendantes du fournisseur.
 
 Unités : températures dans l'unité configurée (°C par défaut), vent en km/h, précipitations en mm,
 probabilité de pluie en %.
