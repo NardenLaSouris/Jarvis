@@ -42,7 +42,7 @@ WAKE_WORDS = re.compile(r"\b(?:orion|oryon|aurion|jarvis|jervis|djarvis)\b", re.
 def spoken(text: str, limit: int) -> str:
     """Texte d'un mail prêt à être dit : sans lien, sans mot de réveil, sans caractère de contrôle, tronqué."""
     text = WAKE_WORDS.sub("", URL.sub("", str(text)))
-    text = " ".join(re.sub(r"[\x00-\x1f«»\"]", " ", text).split())
+    text = " ".join(re.sub(r"[\x00-\x1f«»\"]", " ", text).split()).strip(" ,;:.-")
     if len(text) > limit:
         text = text[:limit].rsplit(" ", 1)[0] + "…"
     return text

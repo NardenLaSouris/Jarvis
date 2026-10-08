@@ -358,6 +358,26 @@ def build_mail(cfg: Config):
     return MailBox(provider, MailSorter(m.important_senders, m.noise_senders), m.contacts)
 
 
+def build_event_announcer(cfg: Config, calendar, notifications, presence=None, personality=None):
+    """Annonce des rendez-vous ([calendar] announce_minutes avant) démarrée, ou None."""
+    if cfg.calendar.announce_minutes <= 0:
+        return None
+    from jarvis.agenda_watch import EventAnnouncer
+    from jarvis.notifications import Notification
+
+    def present() -> bool | None:
+        if presence is None:
+            return None
+        house = presence.engine.snapshot()["house"]
+        return None if house == "unknown" else house == "occupied"
+
+    announcer = EventAnnouncer(calendar, lambda title, text: notifications.notify(Notification(title, text, "calendar")),
+                               cfg.calendar.announce_minutes, present,
+                               personality.user_title if personality is not None else "monsieur")
+    announcer.start()
+    return announcer
+
+
 def build_mail_watcher(cfg: Config, mailbox, events: EventBus, notifications, presence=None, personality=None):
     """Annonce des nouveaux mails importants ([mail] watch_minutes, announce) démarrée, ou None."""
     m = cfg.mail
@@ -679,6 +699,7 @@ def build_agent(
         from jarvis.agenda import calendar_tools
 
         extra += calendar_tools(calendar)
+        build_event_announcer(cfg, calendar, notifications, presence, personality)
     mailbox = build_mail(cfg)
     watcher = None
     if mailbox is not None:

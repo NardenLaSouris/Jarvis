@@ -345,6 +345,9 @@ path = "data/calendar.json"
 ics = ""
 day_start = "08:00"     # créneaux libres cherchés entre ces heures
 day_end = "20:00"
+# Rendez-vous annoncé à voix haute ce nombre de minutes avant (« Monsieur, dentiste dans 15 minutes. ») ; rien
+# quand la maison est vide. 0 : jamais.
+announce_minutes = 15.0
 
 [spotify]
 # Spotify par son API Web (lecture d'un titre, d'une playlist, d'un artiste ; pause, suivant, volume). Une fois :

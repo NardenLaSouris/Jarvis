@@ -157,6 +157,7 @@ class CalendarConfig:
     ics: str = ""
     day_start: str = "08:00"
     day_end: str = "20:00"
+    announce_minutes: float = 15.0  # rendez-vous annoncé ce nombre de minutes avant (0 : jamais)
 
 
 @dataclass(frozen=True)
