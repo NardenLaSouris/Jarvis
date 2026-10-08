@@ -146,6 +146,19 @@ def without_urls(text: str) -> str:
 YOURS = re.compile(r"\b([Mm]on) (minuteur|rappel|ordinateur|PC)\b")
 
 
+# Acceptation seule (« oui », « vas-y ») ou demande de lecture explicite ; jamais « dis-moi la météo ».
+AGREE_ALONE = {"oui", "ouais", "vas y", "allez", "d accord", "ok", "okay", "oui vas y", "oui merci", "volontiers",
+               "je veux bien", "oui je veux bien"}
+AGREE_START = re.compile(r"^(?:oui )?(?:lis|lit|lire|resume|qu est ce qu il dit|qu est ce qu elle dit|"
+                         r"qu est ce que ca dit|de quoi ca parle|c est quoi ce mail|il dit quoi)(?: |$)")
+
+
+def agrees(text: str) -> bool:
+    """« Oui », « lis-le », « qu'est-ce qu'il dit ? » : acceptation de la suite proposée par une annonce."""
+    norm = re.sub(r"^(?:(?:orion|jarvis|monsieur|euh|bon|alors|eh|he)\s+)+", "", normalize(text)).strip()
+    return norm in AGREE_ALONE or bool(AGREE_START.match(norm))
+
+
 def polish_web_sentence(sentence: str, question: str, first: bool, assistant_name: str = "ORION") -> str:
     """Phrase d'une réponse Web ou d'outil prête à dire : sans URL, sans « ORION : » en tête, et sans la
     question répétée en guise de première phrase ("" si la phrase est à taire)."""
@@ -253,6 +266,7 @@ class Agent:
         self._place: str | None = None
         self._corrector = corrector
         self._notifications = notifications
+        self._follow_up: dict | None = None  # suite proposée par une annonce (écoute sans mot de réveil)
         self._services = services
         self.last_sources: list[dict] = []
         self._pipeline = SpeechPipeline(tts, sink, stream_audio, merge_under)
@@ -272,6 +286,10 @@ class Agent:
         if self._notifications is None:
             return False
         return self._notifications.deliver(self._say_notification) > 0
+
+    def _take_follow_up(self) -> dict | None:
+        take = getattr(self._notifications, "take_follow_up", None)
+        return take() if take is not None else None
 
     def _say_notification(self, text: str) -> None:
         self._event("notification", text)
@@ -303,6 +321,12 @@ class Agent:
             if self._deliver_notifications():
                 self._wake_word.reset()
                 trigger.reset()
+                offer = self._take_follow_up()
+                if offer is not None:  # « nouveau mail... » : ORION écoute la réponse sans qu'on redise son nom
+                    self._follow_up = offer
+                    self._wake_capture = None
+                    self._event("wake", "Écoute après l'annonce")
+                    return True
                 continue
             if trigger.update(self._wake_word.process(frame)):
                 if self._since_rejection is not None and self._since_rejection < WAKE_SAME_SOUND:
@@ -353,7 +377,9 @@ class Agent:
         """Conversation ouverte par le wake word ; True si au moins une demande a été comprise."""
         understood = False
         self._router.start_conversation()
-        self._play(*random.choice(self._acks))
+        offer, self._follow_up = self._follow_up, None
+        if offer is None:
+            self._play(*random.choice(self._acks))
         history: list[Message] = []
         self._place = None
         # Rien ne passe d'une conversation à l'autre (« Et demain ? » reprenait la météo de Lyon de la précédente).
@@ -363,7 +389,7 @@ class Agent:
             self._tools.set_user(self.request_context.user_id)
         if self._context is not None:
             self._context.clear()
-        timeout = self.settings.listen_timeout
+        timeout = self.settings.conversation_timeout if offer is not None else self.settings.listen_timeout
         while True:
             self._deliver_notifications()
             self._event("listening", f"À l'écoute ({timeout:.0f} s)")
@@ -393,7 +419,15 @@ class Agent:
 
             outcome = self._tools.answer(text) if self._tools is not None else None
             rest, self._after_confirmation = self._after_confirmation, None
-            if outcome is not None:
+            accepted_offer, offer = offer, None  # l'offre ne vaut que pour la première phrase
+            accepted = accepted_offer is not None and agrees(text)
+            if accepted and outcome is None:
+                latency["route"] = "tool:annonce"
+                self._event("routing", latency["route"])
+                data = {"type": "tool_call", "tool": accepted_offer["tool"],
+                        "parameters": dict(accepted_offer.get("parameters") or {})}
+                reply, end = self._run_call(history, text, data, latency), False
+            elif outcome is not None:
                 latency["route"] = "tool:confirmation"
                 self._event("routing", latency["route"])
                 reply, end = self._after_tool(history, text, outcome, latency), False

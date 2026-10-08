@@ -28,6 +28,7 @@ class VoiceNotificationChannel(NotificationChannel):
         self._queue: deque[Notification] = deque()
         self._lock = threading.Lock()
         self._open = True
+        self._follow_up: dict | None = None  # suite proposée par la dernière annonce dite (« lis-le »)
 
     def send(self, notification: Notification) -> None:
         with self._lock:
@@ -53,10 +54,17 @@ class VoiceNotificationChannel(NotificationChannel):
                 publish(self._events, NOTIFICATION_FAILED, notification, self.name, str(exc)[:200] or type(exc).__name__)
             else:
                 publish(self._events, NOTIFICATION_SENT, notification, self.name)
+                offer = notification.metadata.get("follow_up")
+                self._follow_up = dict(offer) if isinstance(offer, dict) else None
             finally:
                 publish(self._events, NOTIFICATION_FINISHED, notification, self.name)
             delivered += 1
         return delivered
+
+    def take_follow_up(self) -> dict | None:
+        """Suite proposée par la dernière annonce (outil à lancer si l'utilisateur acquiesce), une seule fois."""
+        offer, self._follow_up = self._follow_up, None
+        return offer
 
     def start(self) -> None:
         with self._lock:

@@ -27,7 +27,8 @@ def setup(tmp_path, present=True, clock=DAY, level="important"):
     box = MailBox(provider, MailSorter())
     bus, said, published = EventBus(), [], []
     bus.subscribe(MAIL_RECEIVED, published.append)
-    watcher = MailWatcher(box, bus, lambda title, text: said.append(text), tmp_path / "seen.json", level=level,
+    watcher = MailWatcher(box, bus, lambda title, text, offer=None: said.append(text), tmp_path / "seen.json",
+                          level=level,
                           present=lambda: present, clock=lambda: clock)
     watcher.check()  # premier passage : l'existant devient « vu »
     return provider, box, watcher, said, published
@@ -124,3 +125,40 @@ def test_watcher_is_built_only_when_mails_are_configured():
 
     off = replace(cfg, mail=replace(cfg.mail, announce="aucun"))
     assert build_mail_watcher(off, None, EventBus(), None) is None
+
+
+# --- Écoute après l'annonce : « lis-le » sans redire le mot de réveil ---------------------------------------
+
+import pytest  # noqa: E402
+
+from jarvis.agent import agrees  # noqa: E402
+
+
+@pytest.mark.parametrize("text, expected", [
+    ("Oui", True), ("Lis-le", True), ("Orion, lis-le moi", True), ("Qu'est-ce qu'il dit ?", True),
+    ("Oui, vas-y", True), ("Résume-le", True), ("D'accord", True),
+    ("Dis-moi la météo", False), ("C'est quoi la météo ?", False), ("Non merci", False), ("Allume la chambre", False),
+])
+def test_accepting_the_offer_of_an_announcement(text, expected):
+    assert agrees(text) is expected
+
+
+def test_after_a_mail_announcement_orion_listens_and_reads_it():
+    from jarvis.notifications import Notification
+    from jarvis.notifications.voice import VoiceNotificationChannel
+    from test_mail import mail_core
+    from test_tools import PlannerLLM, run_agent
+
+    core, provider, box = mail_core()
+    provider.messages.append(mail(7, "Banque", "conseiller@banque.example", "Votre facture d'octobre",
+                                  "Votre facture de 42 euros est disponible."))
+    box.remember([provider.get("7")])
+    voice = VoiceNotificationChannel()
+    voice.send(Notification("Nouveau mail", "Monsieur, nouveau mail important de Banque.", "mail",
+                            metadata={"follow_up": {"tool": "read_mail", "parameters": {}}}))
+    llm = PlannerLLM(reply="La banque vous informe que votre facture de 42 euros est disponible.")
+    spoken, events = run_agent(["Lis-le"], llm, core, notifications=voice)
+    assert ("wake", "Écoute après l'annonce") in events
+    assert ("routing", "tool:annonce") in events and llm.planned == []  # sans choix d'outil par le LLM
+    assert spoken[-1] == "La banque vous informe que votre facture de 42 euros est disponible."
+    assert provider.get("7").unread  # lu à voix haute, pas marqué lu

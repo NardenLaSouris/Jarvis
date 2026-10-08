@@ -367,8 +367,9 @@ def build_mail_watcher(cfg: Config, mailbox, events: EventBus, notifications, pr
     from jarvis.notifications import Notification
     from jarvis.presence.engine import ARRIVAL_CONFIRMED
 
-    def announce(title: str, text: str) -> None:
-        notifications.notify(Notification(title[:80], text, "mail"))
+    def announce(title: str, text: str, follow_up: dict | None = None) -> None:
+        notifications.notify(Notification(title[:80], text, "mail",
+                                          metadata={"follow_up": follow_up} if follow_up else {}))
 
     def present() -> bool | None:
         if presence is None:

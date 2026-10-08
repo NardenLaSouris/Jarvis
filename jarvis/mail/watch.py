@@ -58,7 +58,7 @@ def in_quiet_hours(now: datetime, start: str, end: str) -> bool:
 
 
 class MailWatcher:
-    def __init__(self, box, events: EventBus | None, announce: Callable[[str, str], None], state_path: Path,
+    def __init__(self, box, events: EventBus | None, announce: Callable[[str, str, dict], None], state_path: Path,
                  interval: float = 300.0, level: str = "important", quiet_start: str = "22:30",
                  quiet_end: str = "08:00", present: Callable[[], bool | None] | None = None,
                  title: str = "monsieur", clock: Callable[[], datetime] = datetime.now):
@@ -129,7 +129,9 @@ class MailWatcher:
             log.info("Mails : %d retenu(s), annonce différée (%s)", len(kept), "nuit" if quiet else "absence")
             return
         self.box.remember(kept)  # « lis ce mail », « lis le deuxième » visent les mails annoncés
-        self._announce("Nouveau mail", self.sentence(kept))
+        # Après l'annonce, ORION écoute : « oui », « lis-le » lisent le mail (le premier s'il y en a plusieurs).
+        offer = {"tool": "read_mail", "parameters": {} if len(kept) == 1 else {"position": 1}}
+        self._announce("Nouveau mail", self.sentence(kept), offer)
 
     def sentence(self, kept: list[MailMessage]) -> str:
         kind = "important" if self.level == "important" else ""
