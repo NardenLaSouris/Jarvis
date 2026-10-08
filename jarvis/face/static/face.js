@@ -632,8 +632,8 @@
       for (const [a0, a1, second] of [[-1.25, -0.42, false], [2.75, 3.55, false], [1.75, 2.45, true], [0.35, 1.05, true]]) {
         // Extrémités en fondu (trois passes en escalier se voyaient en 1080p).
         const fade = (k) => { const e = Math.min(1, k / 0.18, (1 - k) / 0.18); return e * e * (3 - 2 * e); };
-        gradientArc(g, r, a0, a1, R * 0.046, (k) => [COLOR.deep, 0.55 * fade(k)]);
-        gradientArc(g, r, a0, a1, R * 0.03, (k) => [second ? COLOR.cyan : COLOR.blue, (second ? 0.3 : 0.34) * fade(k)]);
+        gradientArc(g, r, a0, a1, R * 0.046, (k) => second ? [COLOR.cyan, 0.24 * fade(k)] : [COLOR.deep, 0.55 * fade(k)]);
+        gradientArc(g, r, a0, a1, R * 0.03, (k) => [second ? COLOR.cyan : COLOR.blue, (second ? 0.36 : 0.34) * fade(k)]);
       }
     },
 
