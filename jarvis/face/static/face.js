@@ -530,6 +530,7 @@
   // Identité ORION (Aureon) : cercles fins, axes, anneau central crème et or, larges arcs vert forêt. Le centre
   // reste vide (ni texte, ni logo, ni symbole).
   const GLOW = 0.5;  // lueur des traits : sobre
+  const SPIN = 2.5;  // rythme global des rotations (anneaux, satellites, reflet)
 
   function dots(g, r, count, size, color, alpha, skip = () => false) {
     g.fillStyle = rgba(color, alpha);
@@ -816,7 +817,7 @@
 
   function drawCore(t, dt = 1 / 60) {
     const c = face.cur;
-    coreSweep += dt * (0.25 + 0.55 * c.speed + 1.2 * face.env.core);
+    coreSweep += dt * (0.25 + 0.55 * c.speed + 1.2 * face.env.core) * SPIN * 0.6;
     const pulse = c.pulseDepth * (0.5 + 0.5 * Math.sin(face.pulsePhase));
     const lvl = face.env.core;
     const rc = R * 0.36 * (1 + 0.02 * pulse + 0.035 * lvl);
@@ -899,7 +900,7 @@
     ctx.save();
     ctx.translate(CX, CY);
     for (const o of orbitals) {
-      o.angle += o.speed * dt * (0.5 + c.speed);
+      o.angle += o.speed * dt * (0.5 + c.speed) * SPIN;
       const r = o.r * R * (1 - 0.01 * c.focus);
       const x = Math.cos(o.angle) * r, y = Math.sin(o.angle) * r;
       const s = R * (o.shape === "small" ? 0.008 : 0.012);
@@ -983,9 +984,9 @@
     for (const layer of LAYERS) {
       const target = layer.boost[face.state] || 1;
       layer.mul += (target - layer.mul) * k;
-      layer.angle += dt * layer.speed * layer.dir * face.cur.speed * layer.mul;
+      layer.angle += dt * layer.speed * layer.dir * face.cur.speed * layer.mul * SPIN;
     }
-    innerAngle += dt * 0.12 * face.cur.speed * (face.state === "listening" ? 1.6 : 1);
+    innerAngle += dt * 0.12 * face.cur.speed * (face.state === "listening" ? 1.6 : 1) * SPIN;
   }
 
   function render(t, dt) {
