@@ -134,3 +134,20 @@ body {
   pointer-events: none;
   white-space: pre;
 }
+
+/* Essai : nom au centre du cercle (texte séparé du dessin du visage). */
+#name {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding-left: 0.42em;  /* compense l'espacement après la dernière lettre */
+  color: #f4efe4;
+  font: 200 3vmin/1 "Segoe UI Light", "Segoe UI", system-ui, sans-serif;
+  letter-spacing: 0.42em;
+  text-shadow: 0 0 1.2vmin rgba(201, 164, 92, 0.55), 0 0 0.3vmin rgba(244, 239, 228, 0.5);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: var(--name-opacity, 0.75);
+  transition: opacity 0.9s ease;
+}

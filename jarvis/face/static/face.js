@@ -1154,6 +1154,15 @@
     };
   }
 
+  // Essai : nom au centre (élément de page, jamais dessiné dans le visage) ; plus lumineux quand ORION est actif.
+  const nameEl = document.createElement("div");
+  nameEl.id = "name";
+  nameEl.textContent = "O.R.I.O.N.";
+  document.body.appendChild(nameEl);
+  setInterval(() => {
+    nameEl.style.setProperty("--name-opacity", String(0.55 + 0.45 * clamp01(face.cur.glow)));
+  }, 250);
+
   paintPage();
   resize();
   buildLayers();
