@@ -557,6 +557,27 @@
     g.beginPath(); g.arc(x, y, size, 0, TAU); g.fill();
   }
 
+  // Arc d'un seul trait dont la couleur et l'opacité varient le long de l'arc (dégradé conique) : des petits
+  // morceaux juxtaposés se chevauchaient et dessinaient des rayures en 1080p. ``at(k)`` -> [couleur, opacité].
+  function gradientArc(g, r, a0, a1, width, at, steps = 24) {
+    arc(g, r, a0, a1);
+    g.lineWidth = width;
+    if (!g.createConicGradient) {  // navigateur ancien : couleur du milieu
+      const [color, alpha] = at(0.5);
+      g.strokeStyle = rgba(color, alpha);
+    } else {
+      const grad = g.createConicGradient(a0, 0, 0);
+      const f = (a1 - a0) / TAU;
+      for (let i = 0; i <= steps; i++) {
+        const [color, alpha] = at(i / steps);
+        grad.addColorStop(Math.min(1, (i / steps) * f), rgba(color, alpha));
+      }
+      if (f < 1) grad.addColorStop(Math.min(1, f + 0.001), rgba(at(1)[0], 0));
+      g.strokeStyle = grad;
+    }
+    g.stroke();
+  }
+
   // Couleur entre deux teintes (dégradé de l'arc doré).
   const mix = (a, b, k) => a.map((v, i) => Math.round(v + (b[i] - v) * k));
 
@@ -602,15 +623,9 @@
       const r = R * 0.905;
       for (const [a0, a1] of [[-1.25, -0.42], [2.75, 3.55], [1.75, 2.45], [0.35, 1.05]]) {
         // Extrémités en fondu (trois passes en escalier se voyaient en 1080p).
-        const n = 60;
-        for (let i = 0; i < n; i++) {
-          const k = i / n, edge = Math.min(1, k / 0.18, (1 - k) / 0.18);
-          const fade = edge * edge * (3 - 2 * edge);
-          arc(g, r, a0 + (a1 - a0) * k, a0 + (a1 - a0) * (k + 1 / n) + 0.003);
-          glowStroke(g, R * 0.046, COLOR.deep, 0.55 * fade, 0);
-          arc(g, r, a0 + (a1 - a0) * k, a0 + (a1 - a0) * (k + 1 / n) + 0.003);
-          glowStroke(g, R * 0.03, COLOR.blue, 0.34 * fade, 0);
-        }
+        const fade = (k) => { const e = Math.min(1, k / 0.18, (1 - k) / 0.18); return e * e * (3 - 2 * e); };
+        gradientArc(g, r, a0, a1, R * 0.046, (k) => [COLOR.deep, 0.55 * fade(k)]);
+        gradientArc(g, r, a0, a1, R * 0.03, (k) => [COLOR.blue, 0.34 * fade(k)]);
       }
     },
 
@@ -620,19 +635,15 @@
       arc(g, r, 0, TAU);
       glowStroke(g, Math.max(1, R * 0.0014), COLOR.blue, 0.4, 0);
       // Arc en dégradé : crème brillant en tête, doré, puis il s'efface vers le vert (comme la référence).
-      const a0 = -Math.PI / 2 - 0.35, span = Math.PI * 1.45, n = 120;
-      for (let pass = 0; pass < 2; pass++) {
-        for (let i = 0; i < n; i++) {
-          const k = i / n;
-          const rise = Math.min(1, k / 0.12);
-          const light = rise * rise * (3 - 2 * rise) * Math.pow(1 - k, 1.3);  // montée rapide, longue extinction
-          const color = k < 0.25 ? mix(COLOR.white, COLOR.gold, k / 0.25) : mix(COLOR.gold, COLOR.blue, (k - 0.25) / 0.75);
-          arc(g, r, a0 + span * k, a0 + span * (k + 1 / n) + 0.004);
-          g.lineWidth = pass === 0 ? R * 0.016 : Math.max(1, R * 0.0032);
-          g.strokeStyle = rgba(color, pass === 0 ? 0.24 * light : light);
-          g.stroke();
-        }
-      }
+      const a0 = -Math.PI / 2 - 0.35, span = Math.PI * 1.45;
+      const golden = (k, strength) => {
+        const rise = Math.min(1, k / 0.12);
+        const light = rise * rise * (3 - 2 * rise) * Math.pow(1 - k, 1.3);  // montée rapide, longue extinction
+        const color = k < 0.25 ? mix(COLOR.white, COLOR.gold, k / 0.25) : mix(COLOR.gold, COLOR.blue, (k - 0.25) / 0.75);
+        return [color, strength * light];
+      };
+      gradientArc(g, r, a0, a0 + span, R * 0.016, (k) => golden(k, 0.24), 32);
+      gradientArc(g, r, a0, a0 + span, Math.max(1.5, R * 0.0032), (k) => golden(k, 1), 32);
       glowDot(g, 0, -r, R * 0.012, COLOR.gold, 1);
     },
 
