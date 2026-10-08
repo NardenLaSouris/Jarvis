@@ -1010,14 +1010,15 @@
     if (m < 0.02) return;
     ctx.save();
     ctx.translate(CX, CY);
-    ctx.lineCap = "round";
-    for (const [r, dir, color] of [[0.905, 1, COLOR.blue], [0.79, -1, COLOR.gold]]) {
-      for (let s = 0; s < 12; s++) {
-        const a1 = dir * thinkSweep - dir * s * 0.07, a0 = a1 - dir * 0.07;
+    ctx.lineCap = "butt";
+    for (const [r, dir, color] of [[0.905, 1, COLOR.cyan], [0.79, -1, COLOR.gold]]) {
+      // Traînée fine et continue (une bande épaisse découpée en blocs faisait « barre de chargement »).
+      for (let s = 0; s < 28; s++) {
+        const a1 = dir * thinkSweep - dir * s * 0.035, a0 = a1 - dir * 0.037;
         ctx.beginPath();
         ctx.arc(0, 0, R * r, Math.min(a0, a1), Math.max(a0, a1));
-        ctx.lineWidth = R * (r > 0.85 ? 0.03 : 0.006) * (1 - s / 14);
-        ctx.strokeStyle = rgba(s === 0 ? COLOR.white : color, m * 0.55 * (1 - s / 12));
+        ctx.lineWidth = Math.max(1, R * 0.006 * (1 - s / 32));
+        ctx.strokeStyle = rgba(s < 2 ? COLOR.white : color, m * 0.7 * Math.pow(1 - s / 28, 1.5));
         ctx.stroke();
       }
     }
