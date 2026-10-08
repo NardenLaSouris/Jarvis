@@ -131,6 +131,10 @@ class FakeImap:
             return ("OK" if self.move_ok else "NO"), [b""]
         return "OK", [b""]
 
+    def fetch(self, numbers, parts):
+        self.calls.append(("FETCH-SEQ", numbers, parts))
+        return self.uid("FETCH", numbers, parts)
+
     def expunge(self):
         self.calls.append(("EXPUNGE",))
 
@@ -184,8 +188,8 @@ def test_changes_open_the_folder_for_writing_and_delete_goes_to_the_trash():
     provider.archive("9")
     assert [i.readonly for i in FakeImap.instances] == [False, False, False]
     assert FakeImap.instances[0].calls[-1] == ("STORE", "9", "+FLAGS", "(\\Seen)")
-    assert FakeImap.instances[1].calls[-1] == ("MOVE", "9", "Trash")
-    assert FakeImap.instances[2].calls[-1] == ("MOVE", "9", "Archive")
+    assert FakeImap.instances[1].calls[-1] == ("MOVE", "9", '"Trash"')
+    assert FakeImap.instances[2].calls[-1] == ("MOVE", "9", '"Archive"')
 
 
 def test_without_move_the_message_is_copied_then_removed_from_the_inbox():
@@ -414,3 +418,33 @@ def test_explicit_search_of_a_local_thing_goes_to_the_tools(text, expected):
                           tools=("get_time", "check_mail", "find_files", "search_events"))
     route = router.route(text)
     assert route.source == expected
+
+
+def test_gmail_folders_with_brackets_are_quoted():
+    # Gmail : « [Gmail]/Corbeille » n'est pas un nom IMAP valide sans guillemets.
+    assert ImapSmtpProvider._quoted("[Gmail]/Corbeille") == '"[Gmail]/Corbeille"'
+    assert ImapSmtpProvider._quoted('a"b') == '"a\\"b"'
+
+
+def test_lists_fetch_headers_only_and_search_runs_on_the_server():
+    # Gmail réel : 45 s pour « ai-je des mails ? » en téléchargeant les contenus.
+    provider = imap_provider()
+    count, found = provider.unread(5)
+    assert count == 2 and [m.id for m in found] == ["9"]
+    assert len(FakeImap.instances) == 1  # une seule connexion
+    fetches = [c for c in FakeImap.instances[0].calls if c[0] == "FETCH"]
+    assert fetches and all("BODY.PEEK[HEADER]" in c[2] for c in fetches)
+    provider.search("facture banque", 5)
+    searches = [c for c in FakeImap.instances[-1].calls if c[0] == "SEARCH"]
+    assert [c[1:] for c in searches] == [("CHARSET", "UTF-8", "TEXT")] * 2
+    provider.get("9")
+    assert "BODY.PEEK[]<0." in [c for c in FakeImap.instances[-1].calls if c[0] == "FETCH"][0][2]
+
+
+def test_latest_mails_are_fetched_by_position_without_listing_the_whole_box():
+    # Gmail réel : « SEARCH ALL » sur une boîte chargée prenait 9 s.
+    provider = imap_provider()
+    provider.recent(3)
+    calls = FakeImap.instances[0].calls
+    assert ("FETCH-SEQ", "3:5", "(UID FLAGS BODY.PEEK[HEADER])") in calls
+    assert not any(c[0] == "SEARCH" for c in calls)

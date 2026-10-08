@@ -40,6 +40,10 @@ class MailProvider(Protocol):
 
     def recent(self, limit: int, unread_only: bool = False) -> list[MailMessage]: ...
 
+    def unread(self, limit: int) -> tuple[int, list[MailMessage]]: ...
+
+    def search(self, query: str, limit: int) -> list[MailMessage]: ...
+
     def get(self, message_id: str) -> MailMessage: ...
 
     def mark_read(self, message_id: str) -> None: ...
@@ -116,7 +120,11 @@ class ImapSmtpProvider:
         try:
             imap = self._imap_factory(self._imap_host, self._imap_port, timeout=self._timeout)
             imap.login(self._user, self._password)
-            status, _ = imap.select(self._quoted(self._folder), readonly=readonly)
+            status, data = imap.select(self._quoted(self._folder), readonly=readonly)
+            try:
+                self._count = int((data or [b"0"])[0] or 0)
+            except (TypeError, ValueError):
+                self._count = None
             if status != "OK":
                 raise MailError(MAIL_UNAVAILABLE, f"Dossier « {self._folder} » introuvable dans la boîte mail.")
             return imap
@@ -129,7 +137,8 @@ class ImapSmtpProvider:
 
     @staticmethod
     def _quoted(folder: str) -> str:
-        return f'"{folder}"' if " " in folder else folder
+        # Toujours entre guillemets : « [Gmail]/Corbeille » (crochets) n'est pas un nom IMAP valide sans eux.
+        return '"' + folder.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
     @staticmethod
     def _close(imap) -> None:
@@ -144,12 +153,28 @@ class ImapSmtpProvider:
             raise MailError(MAIL_UNAVAILABLE, "La recherche dans la boîte mail a échoué.")
         return (data[0] or b"").split()
 
-    def _fetch(self, imap, uids: list[bytes]) -> list[MailMessage]:
-        if not uids:
-            return []
-        status, data = imap.uid("FETCH", b",".join(uids).decode(), f"(UID FLAGS BODY.PEEK[]<0.{MAX_BODY_BYTES}>)")
+    def _latest(self, imap, limit: int) -> list[MailMessage]:
+        """Les ``limit`` derniers mails par leur position (« SEARCH ALL » : 9 s sur une boîte Gmail chargée)."""
+        count = getattr(self, "_count", None)
+        if not count:
+            return self._fetch(imap, self._uids(imap, "ALL")[-limit:], full=False)
+        status, data = imap.fetch(f"{max(1, count - limit + 1)}:{count}", "(UID FLAGS BODY.PEEK[HEADER])")
         if status != "OK":
             raise MailError(MAIL_UNAVAILABLE, "La lecture des mails a échoué.")
+        return self._parse(data)
+
+    def _fetch(self, imap, uids: list[bytes], full: bool = True) -> list[MailMessage]:
+        """``full=False`` : en-têtes seuls (listes, tri) ; le contenu n'est téléchargé que pour lire un mail
+        (45 s mesurées sur Gmail pour « ai-je des mails ? » en téléchargeant les contenus)."""
+        if not uids:
+            return []
+        part = f"BODY.PEEK[]<0.{MAX_BODY_BYTES}>" if full else "BODY.PEEK[HEADER]"
+        status, data = imap.uid("FETCH", b",".join(uids).decode(), f"(UID FLAGS {part})")
+        if status != "OK":
+            raise MailError(MAIL_UNAVAILABLE, "La lecture des mails a échoué.")
+        return self._parse(data)
+
+    def _parse(self, data) -> list[MailMessage]:
         messages = []
         for item in data:
             if not isinstance(item, tuple) or len(item) < 2:
@@ -176,8 +201,42 @@ class ImapSmtpProvider:
         with self._lock:
             imap = self._session()
             try:
-                uids = self._uids(imap, "UNSEEN" if unread_only else "ALL")
-                return self._fetch(imap, uids[-max(1, min(limit, self.max_fetch)):])
+                limit = max(1, min(limit, self.max_fetch))
+                if not unread_only:
+                    return self._latest(imap, limit)
+                return self._fetch(imap, self._uids(imap, "UNSEEN")[-limit:], full=False)
+            finally:
+                self._close(imap)
+
+    def unread(self, limit: int) -> tuple[int, list[MailMessage]]:
+        """Nombre de non lus et les plus récents, en une seule connexion."""
+        with self._lock:
+            imap = self._session()
+            try:
+                uids = self._uids(imap, "UNSEEN")
+                return len(uids), self._fetch(imap, uids[-max(1, min(limit, self.max_fetch)):], full=False)
+            finally:
+                self._close(imap)
+
+    def search(self, query: str, limit: int) -> list[MailMessage]:
+        """Recherche faite par le serveur (expéditeur, objet, contenu), mot par mot : rien n'est téléchargé
+        avant d'avoir trouvé."""
+        words = [w for w in query.split() if len(w) > 1][:4]
+        if not words:
+            return []
+        with self._lock:
+            imap = self._session()
+            try:
+                found: set[bytes] | None = None
+                for word in words:
+                    imap.literal = word.encode("utf-8")
+                    status, data = imap.uid("SEARCH", "CHARSET", "UTF-8", "TEXT")
+                    if status != "OK":
+                        raise MailError(MAIL_UNAVAILABLE, "La recherche dans la boîte mail a échoué.")
+                    uids = set((data[0] or b"").split())
+                    found = uids if found is None else found & uids
+                ordered = sorted(found or (), key=int)
+                return self._fetch(imap, ordered[-max(1, min(limit, self.max_fetch)):], full=False)
             finally:
                 self._close(imap)
 
@@ -257,6 +316,17 @@ class MemoryMailProvider:
     def recent(self, limit: int, unread_only: bool = False) -> list[MailMessage]:
         found = [m for m in self.messages if m.unread or not unread_only]
         return sorted(found, key=lambda m: int(m.id), reverse=True)[:limit]
+
+    def unread(self, limit: int) -> tuple[int, list[MailMessage]]:
+        return self.unread_count(), self.recent(limit, unread_only=True)
+
+    def search(self, query: str, limit: int) -> list[MailMessage]:
+        from jarvis.personality import normalize
+
+        words = [w for w in normalize(query).split() if len(w) > 1]
+        found = [m for m in self.recent(len(self.messages))
+                 if words and all(w in normalize(f"{m.sender_name} {m.sender} {m.subject} {m.body}") for w in words)]
+        return found[:limit]
 
     def get(self, message_id: str) -> MailMessage:
         for m in self.messages:

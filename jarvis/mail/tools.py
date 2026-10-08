@@ -137,8 +137,7 @@ def mail_tools(box: MailBox) -> list[Tool]:
     position = Param(int, "rang du mail dans la dernière liste", required=False, hidden=True, resolve=_position)
 
     def check_mail() -> dict:
-        unread = box.provider.recent(MAX_LIST, unread_only=True)
-        total = box.provider.unread_count()
+        total, unread = box.provider.unread(MAX_LIST)
         priorities = [box.sorter.priority(m) for m in unread]
         # Importants d'abord ; « le premier » désigne ensuite le premier mail dit, jamais une lettre d'information.
         kept = [m for p, m in sorted(zip(priorities, unread), key=lambda pm: pm[0] != IMPORTANT) if p != NOISE]
@@ -175,15 +174,9 @@ def mail_tools(box: MailBox) -> list[Tool]:
         return "Voici : " + " ; ".join(items) + "." + more
 
     def search_mail(query: str) -> dict:
-        words = [w for w in normalize(query).split() if len(w) > 1]
-        if not words:
+        if not [w for w in normalize(query).split() if len(w) > 1]:
             raise ToolError(INVALID_PARAMETERS, "Que dois-je chercher dans vos mails ?")
-        found = []
-        for m in box.provider.recent(box.provider.max_fetch):
-            haystack = normalize(f"{m.sender_name} {m.sender} {m.subject} {m.body[:2000]}")
-            if all(w in haystack for w in words):
-                found.append(m)
-        found = found[:MAX_LIST]
+        found = sorted(box.provider.search(query, MAX_LIST), key=lambda m: int(m.id), reverse=True)
         box.remember(found)
         return {"query": query, "count": len(found), "mails": [box.describe(m) for m in found]}
 
