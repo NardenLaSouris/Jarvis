@@ -567,9 +567,17 @@
 
     // Cercles extérieurs très fins.
     outerRings(g) {
-      for (const [r, a] of [[1.0, 0.45], [0.965, 0.3]]) {
-        arc(g, R * r, 0, TAU);
-        glowStroke(g, Math.max(1, R * 0.0014), COLOR.blue, a, 0);
+      for (const [a0, a1] of [[0.15, 2.0], [2.12, 4.3], [4.45, 6.1]]) {
+        arc(g, R, a0, a1);
+        glowStroke(g, Math.max(1, R * 0.0014), COLOR.blue, 0.45, 0);
+      }
+      for (const [a0, a1] of [[0.6, 1.5], [2.6, 3.0], [3.4, 5.2], [5.5, 5.9]]) {
+        arc(g, R * 0.965, a0, a1);
+        glowStroke(g, Math.max(1, R * 0.0014), COLOR.blue, 0.32, 0);
+      }
+      for (const a of [2.06, 4.37]) {  // repères crème dans les ouvertures
+        g.beginPath(); g.arc(Math.cos(a) * R, Math.sin(a) * R, R * 0.0045, 0, TAU);
+        g.fillStyle = rgba(COLOR.white, 0.6); g.fill();
       }
     },
 
@@ -618,24 +626,30 @@
 
     // Cercles fins et cercle pointillé intermédiaires.
     midRings(g) {
-      for (const [r, a] of [[0.6, 0.5], [0.52, 0.35]]) {
-        arc(g, R * r, 0, TAU);
-        glowStroke(g, Math.max(1, R * 0.0013), COLOR.blue, a, 0);
+      for (const [r, a, arcs] of [[0.6, 0.5, [[0.1, 1.9], [2.1, 3.3], [3.5, 6.0]]],
+                                   [0.52, 0.35, [[0.9, 2.8], [3.1, 5.0], [5.25, 6.95]]]]) {
+        for (const [a0, a1] of arcs) {
+          arc(g, R * r, a0, a1);
+          glowStroke(g, Math.max(1, R * 0.0013), COLOR.blue, a, 0);
+        }
       }
-      dots(g, R * 0.565, 96, R * 0.0035, COLOR.white, 0.45);
+      // Pointillé qui s'interrompt sur deux secteurs : sa rotation se voit.
+      dots(g, R * 0.565, 96, R * 0.0035, COLOR.white, 0.45, (a) => (a > 1.2 && a < 1.55) || (a > 4.3 && a < 4.5));
     },
 
     // Anneau vert juste autour de l'anneau central.
     innerRing(g) {
-      arc(g, R * 0.445, 0, TAU);
-      glowStroke(g, Math.max(1, R * 0.0035), COLOR.blue, 0.55, R * 0.02);
+      for (const [a0, a1] of [[0.0, 2.7], [2.9, 5.0], [5.15, 6.2]]) {
+        arc(g, R * 0.445, a0, a1);
+        glowStroke(g, Math.max(1, R * 0.0035), COLOR.blue, 0.55, R * 0.02);
+      }
       arc(g, R * 0.47, 0.3, 2.6);
       glowStroke(g, Math.max(1, R * 0.0014), COLOR.cyan, 0.35, 0);
     },
 
     // Cercle pointillé très fin le plus proche du centre (le centre lui-même reste vide).
     iris(g) {
-      dots(g, R * 0.2, 72, R * 0.0022, COLOR.cyan, 0.35);
+      dots(g, R * 0.2, 72, R * 0.0022, COLOR.cyan, 0.35, (a) => a > 2.4 && a < 3.0);
     },
   };
 
@@ -643,7 +657,7 @@
   // multiplicateurs de vitesse par état. Les axes restent fixes.
   const LAYERS = [
     { key: "axes", speed: 0, dir: 1, react: "outer", gain: 0.004, alpha: 0.9, contract: 0.0, boost: {} },
-    { key: "outerRings", speed: 0.006, dir: 1, react: "outer", gain: 0.006, alpha: 0.9, contract: 0.008, boost: {} },
+    { key: "outerRings", speed: 0.02, dir: 1, react: "outer", gain: 0.006, alpha: 0.9, contract: 0.008, boost: {} },
     { key: "outerArcs", speed: 0.03, dir: -1, react: "outer", gain: 0.01, alpha: 1.0, contract: 0.014, boost: { thinking: 2.6, listening: 1.3 } },
     { key: "goldRing", speed: 0.022, dir: 1, react: "middle", gain: 0.014, alpha: 0.95, contract: 0.012, boost: { thinking: 2.4 } },
     { key: "ticks", speed: 0.05, dir: -1, react: "middle", gain: 0.016, alpha: 0.8, contract: 0.01, boost: { thinking: 2.6 } },
@@ -778,8 +792,11 @@
   }
 
   // Anneau central crème et or, lumineux, qui respire avec la voix ; à l'intérieur, l'obscurité.
-  function drawCore(t) {
+  let coreSweep = 0;
+
+  function drawCore(t, dt = 1 / 60) {
     const c = face.cur;
+    coreSweep += dt * (0.25 + 0.55 * c.speed + 1.2 * face.env.core);
     const pulse = c.pulseDepth * (0.5 + 0.5 * Math.sin(face.pulsePhase));
     const lvl = face.env.core;
     const rc = R * 0.36 * (1 + 0.02 * pulse + 0.035 * lvl);
@@ -815,6 +832,16 @@
       ctx.strokeStyle = rgba(color, alpha);
       ctx.stroke();
     }
+    ctx.lineCap = "round";
+    for (let s = 0; s < 8; s++) {  // reflet : tête crème, traîne dorée qui s'efface
+      const a1 = coreSweep - s * 0.09, a0 = a1 - 0.09;
+      ctx.beginPath();
+      ctx.arc(CX, CY, rc, a0, a1);
+      ctx.lineWidth = Math.max(1, R * 0.006 * (1 - s / 10));
+      ctx.strokeStyle = rgba(s === 0 ? COLOR.white : COLOR.gold, (0.5 + 0.4 * glow) * (1 - s / 8));
+      ctx.stroke();
+    }
+    ctx.lineCap = "butt";
   }
 
   // Segments qui glissent le long des orbites (surtout en réflexion).
@@ -966,7 +993,7 @@
     drawHalo();
     for (const layer of LAYERS.slice(0, 7)) drawLayer(layer, t);
     drawInnerTicks(t, innerAngle);
-    drawCore(t);
+    drawCore(t, dt);
     drawLayer(LAYERS[7], t);
     drawComets(dt);
     drawParticles(t, dt);
