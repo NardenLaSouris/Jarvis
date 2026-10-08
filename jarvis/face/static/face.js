@@ -943,10 +943,12 @@
       p.r -= dt * 0.03 * p.fall * c.complexity * c.complexity;
       if (p.r < CENTER_FREE) particles[i] = newParticle(false);
       const tw = 0.5 + 0.5 * Math.sin(t * p.freq * TAU + p.phase);
-      const alpha = (0.1 + 0.6 * tw) * (0.35 + 0.65 * c.complexity) * (0.5 + 0.5 * c.glow);
+      const alpha = (0.12 + 0.75 * tw) * (0.6 + 0.4 * c.complexity) * (0.6 + 0.4 * c.glow);
       ctx.fillStyle = rgba(tw > 0.92 ? COLOR.white : tw > 0.75 ? COLOR.gold : COLOR.cyan, alpha);
-      const size = Math.max(1, p.size * DPR);
-      ctx.fillRect(Math.cos(p.a) * p.r * R - size / 2, Math.sin(p.a) * p.r * R - size / 2, size, size);
+      const size = Math.max(1.5, p.size * DPR * Math.max(1, R / 260));  // visibles aussi en 1080p
+      const x = Math.cos(p.a) * p.r * R, y = Math.sin(p.a) * p.r * R;
+      if (tw > 0.88) glowDot(ctx, x, y, size * 0.6, COLOR.gold, alpha);  // éclat : petit halo
+      else ctx.fillRect(x - size / 2, y - size / 2, size, size);
     }
     ctx.restore();
   }
