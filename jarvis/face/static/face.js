@@ -719,7 +719,7 @@
   const particles = [];
   const prand = rng(7);
   const CENTER_FREE = 0.4;  // aucune poussière dans le centre : il reste vide
-  for (let i = 0; i < 80; i++) particles.push(newParticle(true));
+  // Pas de poussières scintillantes sur ORION (essayées puis retirées : trop chargé).
 
   function newParticle(anywhere) {
     return {
