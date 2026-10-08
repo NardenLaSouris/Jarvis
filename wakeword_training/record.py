@@ -1,4 +1,4 @@
-"""Enregistrement d'échantillons réels avec le micro configuré pour JARVIS.
+"""Enregistrement d'échantillons réels avec le micro configuré pour ORION.
 
 Trois séries, rangées dans data/wakeword/<name>/real/ :
   positive/ : le wake word, à différentes distances et intonations ;
@@ -44,7 +44,7 @@ def run(spec: Spec, kind: str, count: int) -> None:
     phrase = spec.phrase
     try:
         if kind == "positive":
-            print(f"Dites « {phrase} » naturellement, comme pour appeler JARVIS, après avoir appuyé sur Entrée.\n"
+            print(f"Dites « {phrase} » naturellement, comme pour appeler ORION, après avoir appuyé sur Entrée.\n"
                   "Variez l'intonation et la vitesse ; déplacez-vous quand c'est indiqué.")
             for i in range(count):
                 where = DISTANCES[min(i * len(DISTANCES) // count, len(DISTANCES) - 1)]

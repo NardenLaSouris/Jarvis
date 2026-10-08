@@ -1,0 +1,108 @@
+# Spécification d'entraînement du wake word « Orion » (prononciation française /ɔʁjɔ̃/).
+# Même démarche que jarvis_fr.toml : voix Piper, mot en fin de phrase, vérification Whisper, mots pièges.
+#   python -m wakeword_training all --spec wakeword_training/specs/orion_fr.toml
+
+name = "orion_fr"       # -> models/openwakeword/orion_fr.onnx
+phrase = "Orion"
+
+[voices]
+files = [
+    "fr_FR-mls-medium",      # 125 locuteurs (hommes et femmes)
+    "fr_FR-siwis-medium",    # femme
+    "fr_FR-tom-medium",      # homme
+    "fr_FR-gilles-low",      # homme
+    "fr_FR-upmc-medium",     # 2 locuteurs (femme, homme)
+]
+test_voices = ["fr_FR-tom-medium", "fr_FR-upmc-medium:1"]
+test_speaker_fraction = 0.15
+
+# Synthèse Piper : débit (length_scale), articulation (noise_scale : plus haut = plus relâchée) et rythme
+# (noise_w_scale) tirés au hasard dans ces plages. Larges : « Orion » dit vite, lentement, à moitié articulé.
+[synthesis]
+length_scale = [0.7, 1.4]
+noise_scale = [0.3, 0.9]
+noise_w_scale = [0.4, 1.0]
+
+[positives]
+# Le wake word est toujours le DERNIER mot prononcé. « Orion » est lu correctement par les voix françaises ;
+# quelques graphies variées aident les voix les moins stables.
+texts = [
+    "Orion", "Orion.", "Orion !", "Orion ?", "Oryon", "Oryon !", "Orion...",
+]
+prefixes = ["", "", "", "", "", "Euh, ", "Bon, ", "Dis, ", "Hé, ", "Alors, ", "Oui, ", "Dis-moi "]
+carriers = [
+    "Bonjour, je voulais simplement te demander quelque chose, {w}.",
+    "Il est tard et je voudrais que tu m'écoutes un instant, {w} !",
+    "Dis-moi franchement ce que tu en penses maintenant, {w} ?",
+    "J'ai une petite question à te poser ce matin, {w}.",
+    "Est-ce que tu peux m'aider avec quelque chose, {w} ?",
+    "Je rentre à la maison dans une heure environ, {w}.",
+    "Attends, j'ai encore une chose à te dire, {w} !",
+    "Tu m'entends bien depuis l'autre pièce, {w} ?",
+]
+# Transcriptions acceptées : orion, oryon, aurion, o'rion, orillon (Whisper), en fin de clip.
+verify_pattern = "(?:o|au)\\W?r[iy]+\\W?[oa]n"
+# Détection maximale : deux fois plus d'exemples que pour « Jarvis ».
+clips_per_speaker = 4
+min_clips_per_voice = 450
+
+[negatives]
+# Mots proches par le son : les plus importants contre les faux positifs. Pas d'homophones exacts
+# (« aurions », « aurons » se prononcent comme « Orion ») : ils apprendraient au modèle à rejeter le vrai mot ;
+# c'est la vérification Whisper, qui lit le contexte (« nous aurions »), qui les écarte.
+hard = [
+    "Horizon", "Orient", "Oreillon", "Oreille", "Orage", "Orange", "Origine", "Oral", "Aurore", "Oriane",
+    "Orléans", "Marion", "Dorian", "Brian", "Ryan", "Lion", "Rayon", "Au rayon", "Avion", "Camion",
+    "Région", "Opinion", "Oignon", "Million", "Union", "Fusion", "Nation", "Collision", "Ion",
+    "On y va", "Au lion", "Arion", "Orphéon", "Champion", "Accordéon", "Caméléon", "Raison", "Poison",
+    "Maison", "Horloge", "Bonjour Marion", "Le rayon", "Mon avion",
+]
+phrases = [
+    "Bonjour", "Bonsoir", "Merci", "Ça marche", "D'accord", "Salut", "À plus tard", "Bonne nuit",
+    "J'ai besoin de quelque chose", "J'avais prévu de partir", "J'arrive dans deux minutes",
+    "Tu peux me passer le sel ?", "On mange à quelle heure ce soir ?", "Il fait vraiment froid dehors",
+    "Je vais prendre une douche", "Où est-ce que j'ai mis mes clés ?", "Le film commence à neuf heures",
+    "Tu as vu le match hier ?", "Il faut racheter du pain", "Je travaille demain matin",
+    "Qu'est-ce qu'on regarde ce soir ?", "Ferme la porte s'il te plaît", "Les enfants sont couchés",
+    "J'ai reçu un message de ta mère", "On part en vacances en juillet", "Le café est prêt",
+    "Je n'ai pas bien dormi", "Il pleut depuis ce matin", "La réunion est reportée à jeudi",
+    "Tu veux un verre d'eau ?", "C'est l'heure du dîner", "J'ai oublié mon téléphone",
+    "Le chat a encore renversé son bol", "Tu as pensé à appeler le garagiste ?",
+    "Je reviens tout de suite", "Il reste des pâtes d'hier", "On se voit samedi",
+    "Monte le son un peu", "Baisse le chauffage", "Quelle heure est-il ?", "Je suis fatigué",
+    "C'est une bonne idée", "Pas de problème", "Attends une seconde", "Regarde par la fenêtre",
+    "Allô, oui, je t'écoute", "Je ne sais pas trop", "Viens voir ça", "On y va",
+    "Ça sent bon dans la cuisine", "Il y a quelqu'un à la porte", "Tu as fini tes devoirs ?",
+    "Le train a du retard", "Je passe à la boulangerie", "Mets la table s'il te plaît",
+    "Les informations de vingt heures", "Et maintenant, la météo", "Place à la publicité",
+    "Merci d'avoir regardé cette vidéo", "Abonnez-vous à la chaîne", "Voici le programme de la soirée",
+    "Il était une fois un petit garçon", "Nous sommes en direct de Paris", "Le score est de deux à un",
+    "L'avion part à midi", "Marion arrive ce soir", "Regarde l'horizon", "L'orage approche",
+]
+clips_per_speaker = 12
+hard_fraction = 0.7
+
+[augmentation]
+# Orienté détection : beaucoup de copies de chaque « Orion », souvent de loin et dans le bruit.
+copies_per_positive = 12
+copies_per_negative = 1
+copies_per_hard_negative = 3
+snr_db = [0.0, 30.0]
+clean_probability = 0.15
+far_probability = 0.6
+pitch_factor = [0.8, 1.25]
+
+[training]
+external_negatives = "data/wakeword/negatives/validation_set_features.npy"
+external_negatives_train_fraction = 0.7
+hidden_units = 96
+epochs = 60
+learning_rate = 0.001
+# Moins sévère que pour « Jarvis » : la vérification Whisper écarte ensuite les faux réveils.
+negative_weight = 3.5
+hard_negative_weight = 2.5
+
+[evaluation]
+# Seuil choisi pour détecter le plus possible (vérification Whisper derrière).
+max_false_activations_per_hour = 2.0
+max_hard_negative_trigger_rate = 0.08

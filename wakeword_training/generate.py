@@ -31,6 +31,8 @@ SR = 16000
 MAX_ATTEMPTS = 3            # candidats synthétisés au plus par positif demandé
 TASK_SIZE = 25              # clips par tâche (les voix à un locuteur sont réparties sur plusieurs processus)
 WHISPER_THREADS = 2
+# Plages de synthèse Piper ([synthesis] de la spécification) ; valeurs par défaut si absentes (modèle « Jarvis »).
+SYNTHESIS: dict | None = None
 _voices: dict[str, object] = {}
 _whisper = None
 
@@ -104,11 +106,12 @@ def _render(voice, speaker: int, text: str, target: str | None, context_s: float
     """Synthétise ``text`` ; si ``target`` est donné, ne garde que ce mot final (+ contexte)."""
     from piper import SynthesisConfig
 
+    ranges = SYNTHESIS or {}
     config = SynthesisConfig(
         speaker_id=speaker if voice.config.num_speakers > 1 else None,
-        length_scale=rng.uniform(0.85, 1.25),
-        noise_scale=rng.uniform(0.25, 0.5),
-        noise_w_scale=rng.uniform(0.3, 0.6),
+        length_scale=rng.uniform(*ranges.get("length_scale", (0.85, 1.25))),  # débit
+        noise_scale=rng.uniform(*ranges.get("noise_scale", (0.25, 0.5))),     # articulation (plus haut : relâchée)
+        noise_w_scale=rng.uniform(*ranges.get("noise_w_scale", (0.3, 0.6))),  # rythme et intonation
     )
     chunks = list(voice.synthesize(text, config, include_alignments=target is not None))
     if not chunks:
@@ -137,6 +140,8 @@ def _render(voice, speaker: int, text: str, target: str | None, context_s: float
 def _generate_task(task: tuple) -> list[dict]:
     """Une tâche = un lot de positifs OU de négatifs pour un locuteur (reprise possible)."""
     voice_name, speaker, part, kind, split, count, spec_raw, out_dir = task
+    global SYNTHESIS
+    SYNTHESIS = spec_raw.get("synthesis")
     tag = f"{voice_name}_{speaker}_{kind}{part}"
     done = Path(out_dir) / "tasks" / f"{tag}.json"
     if done.exists():  # reprise : tâche déjà traitée
