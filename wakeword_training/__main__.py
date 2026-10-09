@@ -48,13 +48,13 @@ def download(spec: Spec) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(prog="wakeword_training")
     parser.add_argument("step", choices=["download", "generate", "features", "train", "evaluate", "all", "record",
-                                         "import-captures"])
+                                         "import-captures", "e2e"])
     parser.add_argument("kind", nargs="?", help="pour record : positive, negative ou ambient ; pour import-captures : "
                                                 "dossier des captures (data/wakeword/captures par défaut)")
     parser.add_argument("--spec", default=str(Path(__file__).parent / "specs" / "jarvis_fr.toml"))
     parser.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) // 2))
     parser.add_argument("--count", type=int, help="pour record : nombre de prises (ou secondes pour ambient)")
-    parser.add_argument("--model", type=Path, help="pour evaluate : autre modèle à mesurer (ex. hey_jarvis)")
+    parser.add_argument("--model", type=Path, help="pour evaluate et e2e : autre modèle à mesurer (ex. hey_jarvis)")
     args = parser.parse_args()
     spec = load_spec(args.spec)
 
@@ -62,6 +62,12 @@ def main() -> int:
         from wakeword_training import captures
 
         captures.run(spec, Path(args.kind) if args.kind else Path("data/wakeword/captures"))
+        return 0
+
+    if args.step == "e2e":  # banc de bout en bout, silencieux (seuil, patience, vérification Whisper)
+        from wakeword_training import e2e
+
+        e2e.run(spec, args.workers, model=args.model)
         return 0
 
     if args.step == "record":
