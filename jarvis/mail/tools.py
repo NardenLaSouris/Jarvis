@@ -140,7 +140,7 @@ def mail_tools(box: MailBox) -> list[Tool]:
         total, unread = box.provider.unread(MAX_LIST)
         priorities = [box.sorter.priority(m) for m in unread]
         # Importants d'abord ; « le premier » désigne ensuite le premier mail dit, jamais une lettre d'information.
-        kept = [m for p, m in sorted(zip(priorities, unread), key=lambda pm: pm[0] != IMPORTANT) if p != NOISE]
+        kept = [m for p, m in sorted(zip(priorities, unread, strict=True), key=lambda pm: pm[0] != IMPORTANT) if p != NOISE]
         box.remember(kept[:5])
         return {"unread": total, "important": priorities.count(IMPORTANT), "noise": priorities.count(NOISE),
                 "mails": [box.describe(m) for m in kept[:5]]}

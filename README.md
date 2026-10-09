@@ -814,9 +814,17 @@ Relevé sur trois jours : environ un réveil sur deux sans aucune demande ensuit
 - **Moteur :** openWakeWord (inférence ONNX locale, `jarvis/wakeword/openwakeword.py`).
   Deux étages : un extracteur générique (spectrogramme mel → embeddings, commun à tous
   les mots) et un petit **classifieur propre au mot**.
-- **Modèle :** `models/openwakeword/jarvis_fr.onnx`, un classifieur entraîné dans ce dépôt
-  pour « Jarvis » **prononcé à la française**. Il est versionné avec le projet ; ses
-  mesures détaillées sont dans `models/openwakeword/jarvis_fr.json`.
+- **Modèle :** `models/openwakeword/orion_fr.onnx`, un classifieur entraîné dans ce dépôt
+  pour « Orion » (voix Piper et 23 voix neuronales Edge, de loin, dans le bruit, mal articulé).
+  Il est versionné avec le projet ; ses mesures sont dans `models/openwakeword/orion_fr.json`
+  (évaluation) et `orion_fr_e2e.json` (banc de bout en bout). L'ancien modèle
+  `jarvis_fr.onnx` reste disponible.
+- **Vérification :** un déclenchement est relu par Whisper « base » sur les 2 dernières
+  secondes, dont 0,32 s écoutées après le déclenchement pour entendre le mot en entier ; un
+  réveil franc (`sure_score`, `sure_patience`) est accepté sans elle, car Whisper reconnaît
+  mal une voix lointaine. Un mot écarté à tort se rattrape en le redisant dans les 8 s.
+- **Banc silencieux :** `python -m wakeword_training e2e --spec wakeword_training/specs/orion_fr.toml`
+  (voix de test jamais vues, bruit, distance, mots pièges, faux réveils par heure ; aucun son joué).
 - Le modèle pré-entraîné `hey_jarvis` d'openWakeWord ne convient pas : il a appris la
   prononciation anglaise de « hey jarvis ». En français, les scores plafonnent autour de 0,1.
 
@@ -826,7 +834,7 @@ Relevé sur trois jours : environ un réveil sur deux sans aucune demande ensuit
 python -m jarvis --wake-test
 ```
 
-L'outil affiche en direct le score, le seuil et chaque détection. Prononcez « Jarvis »
+L'outil affiche en direct le score, le seuil et chaque détection. Prononcez « Orion »
 plusieurs fois, près du micro puis plus loin, et parlez normalement entre deux essais
 pour vérifier qu'il ne se déclenche pas.
 
@@ -836,9 +844,9 @@ Le code ne contient aucune référence au mot : tout passe par `config.toml`.
 
 ```toml
 [wake_word]
-phrase = "Jarvis"                              # mot affiché
-model = "models/openwakeword/jarvis_fr.onnx"   # classifieur de ce mot
-threshold = 0.5                                # issu de l'évaluation (voir jarvis_fr.json)
+phrase = "Orion"                               # mot affiché (et entendu par la vérification)
+model = "models/openwakeword/orion_fr.onnx"    # classifieur de ce mot
+threshold = 0.5                                # choisi par le banc de bout en bout (orion_fr_e2e.json)
 ```
 
 Pour un autre mot, entraînez un nouveau classifieur (voir la section suivante), puis
@@ -847,7 +855,7 @@ changez `phrase`, `model` et `threshold`.
 ### Entraîner un wake word
 
 Les outils sont dans `wakeword_training/` et ne servent pas à l'exécution d'ORION.
-Chaque mot est décrit par un fichier TOML (`wakeword_training/specs/jarvis_fr.toml`) :
+Chaque mot est décrit par un fichier TOML (`wakeword_training/specs/orion_fr.toml`, ou `jarvis_fr.toml`) :
 - voix à utiliser ;
 - graphies du mot ;
 - phrases porteuses ;

@@ -118,3 +118,18 @@ clé privée, jetons GitHub, Hugging Face, AWS, clés `sk-`, secrets d'ORION aff
 **En attente de validation** : durcissement du compte système (compte dédié sans sudo/docker/lxd, code en lecture
 seule, service systemd durci) : procédure prête dans `docs/durcissement_systeme.md`, non appliquée (demande sudo et
 touche au service actif).
+
+## Chantier 7 — Qualité et maintenabilité
+
+**Mesuré**
+- Analyse statique (`ruff`, règles E, F, W, B, lignes de 120) : aucune erreur F (import inutilisé, nom indéfini) ;
+  109 lignes de plus de 120 caractères (laissées : reformatage sans gain, hors périmètre « pas de refonte ») ;
+  7 alertes B, toutes sans effet ; les 3 du code d'ORION corrigées (valeur en double dans `context.FILLERS`,
+  variable de boucle inutilisée dans `scheduling/manager.py`, `zip(strict=True)` dans `mail/tools.py`).
+- Couverture des tests (`coverage`, suite complète) : **86 %** des 13 252 instructions. Non couverts : modules liés
+  au matériel ou à l'interface graphique (`audio/devices.py`, `control/app.py`, `hardware.py`, 0 %) ; assemblage et
+  ligne de commande (`factory.py` 39 %, `__main__.py` 42 %, `diagnostics.py` 43 %), testés surtout indirectement.
+- Documentation : section « Wake word » du README remise à jour (modèle « Orion », vérification, réveil franc, banc).
+
+**Recommandation** : un `pyproject.toml` avec la configuration de ruff pour figer ces règles (non ajouté : choix
+d'outillage à valider).

@@ -22,8 +22,9 @@ from jarvis.tools.registry import ToolRegistry
 MAX_WORDS = 6
 LEADS = re.compile(r"^(?:(?:non|non non|plutot|pardon|en fait|mais|et|et puis|alors|euh|ah|oui|ok|d accord)\s+)+")
 FILLERS = {"dans", "le", "la", "les", "l", "de", "du", "des", "a", "au", "aux", "en", "pour", "sur", "s", "il", "te",
-           "plait", "stp", "svp", "jarvis", "monsieur", "ma", "mon", "mes", "notre", "celle", "celle de", "ci", "mets", "met", "mettez", "aussi", "plutot", "lumiere",
-           "lumieres", "lampe", "pourcent", "pour", "cent", "mode", "ambiance", "scene", "et", "puis"}
+           "plait", "stp", "svp", "jarvis", "monsieur", "ma", "mon", "mes", "notre", "celle", "celle de", "ci",
+           "mets", "met", "mettez", "aussi", "plutot", "lumiere", "lumieres", "lampe", "pourcent", "cent", "mode",
+           "ambiance", "scene", "et", "puis"}
 LIGHTS = ("light_on", "light_off", "light_toggle", "set_brightness", "set_color", "set_color_temperature",
           "set_scene", "light_status")
 SOUND = ("set_volume", "mute_volume", "unmute_volume")

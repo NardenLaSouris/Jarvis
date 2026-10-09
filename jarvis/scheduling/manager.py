@@ -152,7 +152,7 @@ class TimerManager:
         now = self._clock()
         with self._lock:
             restored = [i for kind in self._numbers for i in self._store.items(kind) if i.status is Status.ACTIVE]
-            for kind, counter in list(self._numbers.items()):
+            for kind in list(self._numbers):
                 ids = [int(i.id) for i in restored if i.kind == kind and i.id.isdigit()]
                 self._numbers[kind] = itertools.count(max(ids, default=0) + 1)
         late = []
