@@ -63,3 +63,39 @@ son ») reste différée ; valeurs et domaine restent vérifiés sur la phrase e
 **Limites (mesuré)** : les 2 échecs restants viennent du modèle (rappel avec le délai dans `time`, ambiance proposée
 pour un minuteur ; écartés par les vérifications) ou d'une interprétation acceptable (`spotify_volume` pour « baisse
 le son » pendant la musique).
+
+## Chantier 5 — Performances
+
+**Mesures de référence (mesuré, journal du service, 64 réponses)** : fin de parole -> début de la réponse 4,3 à
+4,8 s, dont transcription ~3 s (Whisper small sur le processeur du mini : chantier STT séparé), attente de silence
+0,95 s, outil ~0,4 s, première phrase de la voix 0,3 à 0,5 s, premier jeton du LLM ~0,45 s (médiane), choix d'outil
+1,2 à 1,7 s.
+
+**Découverte (mesuré)** : le prompt du choix d'outil fait 7 304 jetons ; le contexte d'Ollama était de 4 096 :
+Ollama n'en gardait que 2 050, sans avertissement (outils, règles ou exemples perdus) et ne pouvait jamais le garder
+en cache (relu en 0,75 à 0,9 s à chaque appel). C'était le cas en production depuis l'ajout des outils.
+
+**Correctifs**
+- `[llm] num_ctx = 8192` (`jarvis/llm/ollama.py`, `factory.py`) pour le modèle principal ; le secours (processeur
+  du mini) garde son réglage.
+- Katana : variables d'environnement **utilisateur** (pas de droits administrateur) `OLLAMA_NUM_PARALLEL=2` (un
+  emplacement de cache pour la conversation, un pour le choix d'outil, qui sinon s'évinçaient : +3 s par
+  alternance), `OLLAMA_FLASH_ATTENTION=1` et `OLLAMA_KV_CACHE_TYPE=q8_0` (cache moitié moins gros : sans lui, le
+  modèle débordait sur le processeur, 7,6 Go pour 8 Go de carte, génération ~25 jetons/s au lieu de 46).
+  Retour arrière : supprimer ces trois variables utilisateur et relancer la tâche « JARVIS Ollama ».
+- `jarvis/llm/failover.py` : délai propre aux appels JSON (`json_timeout`, double du délai du premier jeton) : la
+  réponse JSON n'arrive qu'une fois complète, un premier appel à froid (8 à 10 s) n'est plus pris pour un worker gelé.
+
+**Résultats (mesuré)**
+| | avant | après |
+|---|---|---|
+| choix d'outil (à chaud) | 1,2 à 1,7 s, prompt tronqué | 0,63 à 0,71 s, prompt complet |
+| lecture du prompt de conversation | relu après chaque choix d'outil | 0,03 s (en cache) |
+| mémoire vidéo (huihui 8B) | 5,38 Go | 6,06 Go, entièrement sur la carte |
+| compréhension, jeu de dev | 43/45 | 44/45 |
+| compréhension, jeu de test (3e passe) | 37/44 | 41/44 |
+| actions enchaînées (multi.json) | 10/12 | 11/12 |
+
+**Limites** : premier appel après un redémarrage d'Ollama lent (8 à 10 s) si une demande arrive avant la fin du
+préchauffage ; le jeu de test a désormais servi trois fois (mesures, pas réglage) : un nouveau jeu vierge serait
+nécessaire pour une mesure indépendante.

@@ -34,7 +34,7 @@ def build_llm(cfg: Config) -> LanguageModel:
 
         c = cfg.llm
         think = {"true": True, "false": False}.get(str(c.think).strip().lower())
-        llm = OllamaLLM(c.host, c.model, c.temperature, c.max_tokens, c.keep_alive, c.timeout, think)
+        llm = OllamaLLM(c.host, c.model, c.temperature, c.max_tokens, c.keep_alive, c.timeout, think, c.num_ctx)
         if not c.fallback_host:
             return llm
         from jarvis.llm.failover import FailoverLLM

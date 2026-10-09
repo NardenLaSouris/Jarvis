@@ -85,7 +85,7 @@ class FailoverLLM:
                  reachable: Callable[[str], bool] = tcp_reachable, clock: Callable[[], float] = time.monotonic,
                  *, slow_after: float = 8.0, probe_interval: float = 10.0, json_fallback: bool = False,
                  compact_system: Callable[[], str] | None = None, first_token_timeout: float = 10.0,
-                 waiting_notice: str = ""):
+                 waiting_notice: str = "", json_timeout: float | None = None):
         self._primary, self._fallback = primary, fallback
         self._url = primary_url
         self._retry_after = retry_after
@@ -93,6 +93,9 @@ class FailoverLLM:
         self._clock = clock
         self._slow_after = slow_after
         self._first_token_timeout = first_token_timeout
+        # Choix d'outil : la réponse JSON n'arrive qu'une fois complète (prompt de 7 000 jetons lu, puis génération) :
+        # un premier appel à froid prend 8 à 10 s sans que le worker soit gelé. Délai propre, double par défaut.
+        self._json_timeout = json_timeout or 2 * first_token_timeout
         # Dit dès qu'un worker gelé est abandonné : le secours (CPU) met encore une dizaine de secondes à répondre,
         # 22 s de silence mesurées sinon.
         self._waiting_notice = waiting_notice
@@ -161,8 +164,10 @@ class FailoverLLM:
 
     def chat_json(self, messages: list[Message], schema: dict) -> dict:
         # Choix d'outil : réponse courte, attendue d'un bloc ; un worker gelé ne bloque pas la demande 20 s.
-        return self._call(lambda llm, msgs: self._within(lambda: llm.chat_json(msgs, schema), llm), messages,
-                          fallback=self._json_fallback)
+        def bounded(llm, msgs):
+            return self._within(lambda: llm.chat_json(msgs, schema), llm, self._json_timeout)
+
+        return self._call(bounded, messages, fallback=self._json_fallback)
 
     def stream(self, messages: list[Message]) -> Iterator[str]:
         """Bascule sur le secours si le principal échoue avant le premier fragment (jamais au milieu d'une phrase)."""
@@ -187,8 +192,10 @@ class FailoverLLM:
         self._last = self._fallback
         yield from self._fallback_call(lambda llm, msgs: llm.stream(msgs), messages, stream=True)
 
-    def _within(self, action, llm):
-        """Appel du worker principal borné à ``first_token_timeout`` (le secours garde son propre délai)."""
+    def _within(self, action, llm, timeout: float | None = None):
+        """Appel du worker principal borné à ``timeout`` (``first_token_timeout`` par défaut ; le secours garde son
+        propre délai)."""
+        timeout = timeout or self._first_token_timeout
         if llm is not self._primary:
             return action()
         box: queue.Queue = queue.Queue()
@@ -201,9 +208,9 @@ class FailoverLLM:
 
         threading.Thread(target=run, name="llm-json", daemon=True).start()
         try:
-            kind, value = box.get(timeout=self._first_token_timeout)
+            kind, value = box.get(timeout=timeout)
         except queue.Empty:
-            raise FirstTokenTimeout(f"aucune réponse en {self._first_token_timeout:.0f} s") from None
+            raise FirstTokenTimeout(f"aucune réponse en {timeout:.0f} s") from None
         if kind == "error":
             raise value
         return value

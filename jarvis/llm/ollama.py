@@ -47,10 +47,13 @@ class OllamaLLM:
         keep_alive: str = "30m",
         timeout: float = 120.0,
         think: bool | None = None,
+        num_ctx: int | None = None,
     ):
         self._url = host.rstrip("/")
         self._model = model
         self._options = {"temperature": temperature, "num_predict": max_tokens}
+        if num_ctx:  # contexte du modèle : trop court, Ollama tronque les longs prompts (planificateur) sans le dire
+            self._options["num_ctx"] = int(num_ctx)
         self._keep_alive = keep_alive
         self._timeout = timeout
         self._think = think

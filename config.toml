@@ -137,6 +137,9 @@ think = ""
 # demandes dangereuses pour tous, réponse de soutien (3114) en cas de détresse, contenu adulte refusé aux profils
 # enfant et invité. "auto" : actif seulement si trusted = false ; "on" ; "off".
 guard = "auto"
+# Contexte du modèle principal (jetons). Le prompt du choix d'outil fait environ 7 000 jetons : à 4 096 (défaut
+# d'Ollama), il était tronqué sans avertissement. 8 192 : environ 0,6 Go de mémoire vidéo en plus pour un 8B.
+num_ctx = 8192
 # Avec un secours (worker distant) : état du worker ONLINE / DEGRADED / OFFLINE (journal, API, --health).
 # timeout ci-dessus = attente maximale entre deux morceaux de réponse ; avec un worker GPU, 20 s suffisent.
 connect_timeout = 1.0   # vérification TCP avant chaque appel (s) : un worker éteint est détecté aussitôt

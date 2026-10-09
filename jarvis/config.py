@@ -85,6 +85,9 @@ class LLMConfig:
     think: str = ""
     # Garde-fou de ce que dit le modèle (jarvis/llm/guard.py) : "auto" (actif si trusted = false), "on" ou "off".
     guard: str = "auto"
+    # Contexte du modèle principal (jetons) : le prompt du planificateur en fait environ 7 000 ; à 4 096 (défaut
+    # d'Ollama), il était tronqué sans avertissement (outils et règles perdus) et jamais gardé en cache. 0 : défaut.
+    num_ctx: int = 8192
     # Worker distant (fallback_host renseigné) : connexion de vérification, délai du secours, sonde, lenteur.
     connect_timeout: float = 1.0
     fallback_timeout: float = 30.0
