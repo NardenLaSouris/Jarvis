@@ -170,3 +170,57 @@ def test_verification_hears_the_end_of_the_word_and_the_request_keeps_it():
     tail = int(WAKE_TAIL * rate) // frame * frame
     assert heard["verify"][-tail:].max() == 7777 and 30000 in heard["verify"]
     assert heard["request"][: frame * 2].tolist().count(7777) >= frame
+
+
+def run_burst(frames, verifier, sure_score):
+    from jarvis.agent import Agent, AgentSettings
+    from jarvis.audio.endpointing import EndpointerSettings, UtteranceRecorder
+    from jarvis.audio.files import ArraySource, RecordingSink
+    from jarvis.capabilities import CapabilityRegistry
+    from jarvis.personality import load_personality
+    from jarvis.router import IntentRouter
+
+    rate, frame = 16000, 1280
+    request = (5000 * np.sin(np.arange(rate) / rate * 2 * np.pi * 300)).astype(np.int16)
+    audio = np.concatenate([np.zeros(frame * 12, np.int16), np.full(frame * frames, 30000, np.int16), request,
+                            np.zeros(3 * rate, np.int16)])
+    heard = []
+
+    class Wake:
+        def process(self, f):
+            return 0.97 if f.max() > 20000 else 0.0
+
+        def reset(self):
+            pass
+
+    class Stt:
+        def transcribe(self, clip, r):
+            heard.append(clip)
+            return "Merci"
+
+    class Llm:
+        def chat(self, messages):
+            return "Je vous en prie."
+
+    class Tts:
+        def synthesize(self, text):
+            return np.zeros(10, np.int16), rate
+
+    source = ArraySource(audio, rate, frame)
+    router = IntentRouter(load_personality(ROOT / "personality.toml"), CapabilityRegistry())
+    settings = AgentSettings("ORION", "Orion", 0.5, ("Oui, monsieur ?",), 2.0, 1.0, 4, wake_patience=2,
+                             wake_sure_score=sure_score, wake_sure_patience=4)
+    Agent(settings, source, RecordingSink(), Wake(), UtteranceRecorder(source, EndpointerSettings()), Stt(), Llm(),
+          Tts(), router, lambda kind, text: None, wake_verifier=verifier).run()
+    return heard
+
+
+def test_a_sure_wake_skips_the_whisper_check():
+    verifier = Verifier((False, "Au revoir."))
+    assert run_burst(5, verifier, 0.95) and verifier.calls == 0
+
+
+def test_a_short_or_weaker_wake_is_still_checked():
+    for frames, sure_score in ((3, 0.95), (6, 0.99), (6, 0.0)):
+        verifier = Verifier((False, "Au revoir."))
+        assert run_burst(frames, verifier, sure_score) == [] and verifier.calls == 1

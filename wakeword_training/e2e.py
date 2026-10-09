@@ -30,9 +30,31 @@ from wakeword_training.evaluate import REFRACTORY_FRAMES, _detector, _stream_sco
 from wakeword_training.features import make_scene
 from wakeword_training.spec import DATA, MODELS_DIR, ROOT, Spec
 
-THRESHOLDS = (0.3, 0.4, 0.5, 0.55, 0.6, 0.65, 0.7, 0.8, 0.9)
-PATIENCES = (1, 2, 3)
-GRID = [(t, p) for t in THRESHOLDS for p in PATIENCES]
+# Réglages : déclenchement (seuil/patience) vérifié par Whisper, sauf réveil « franc » (score ≥ sure pendant
+# sure_patience images, au plus tard à la fin de l'écoute qui suit le déclenchement) accepté d'emblée ; « seul s/q » :
+# sans vérification du tout.
+LOW = ((0.3, 2), (0.4, 2), (0.5, 2), (0.5, 3), (0.6, 2))
+SURE = (None, (0.9, 3), (0.95, 3), (0.95, 4), (0.98, 4), (0.98, 5), (0.99, 5))
+GRID = [(low, sure) for low in LOW for sure in SURE] + [(None, sure) for sure in SURE if sure]
+
+
+def setting_key(low, sure) -> str:
+    if low is None:
+        return f"seul {sure[0]}/{sure[1]}"
+    return f"{low[0]}/{low[1]}" + (f"+{sure[0]}/{sure[1]}" if sure else "")
+
+
+def _tail_frames() -> int:
+    from jarvis.agent import WAKE_TAIL
+
+    return int(np.ceil(WAKE_TAIL * SR / FRAME_SAMPLES))
+
+
+def _sure(scores: np.ndarray, sure, start: int, k: int, tail: int) -> bool:
+    if sure is None:
+        return False
+    j = first_trigger(scores, sure[0], sure[1], start)
+    return j is not None and j <= k + tail
 WINDOW = int(2.0 * SR)  # audio relu par la vérification (WAKE_WINDOW d'ORION)
 CONDITIONS = {
     "calme": {"clean_probability": 1.0, "far_probability": 0.0, "snr_db": [20.0, 30.0], "pitch_factor": [1.0, 1.0]},
@@ -98,6 +120,7 @@ def _scene_task(task: tuple) -> list[dict]:
     model, phrase, items, condition, babble, seed, kind = task
     rng = np.random.default_rng(seed)
     detector, noise = _detector(Path(model)), _noise(babble, rng)
+    tail = _tail_frames()
     out = []
     for item in items:
         clip = read_wav(Path(item))[0] if isinstance(item, str) else np.asarray(item, dtype=np.int16)
@@ -107,16 +130,18 @@ def _scene_task(task: tuple) -> list[dict]:
         lo = max(0, start // FRAME_SAMPLES - 3) if kind == "pos" else 0
         cache: dict[int, tuple[bool, str]] = {}
         result = {"peak": float(scores[lo:].max()) if len(scores) > lo else 0.0, "grid": {}}
-        for t, p in GRID:
-            k = first_trigger(scores, t, p, lo)
+        for low, sure in GRID:
+            k = first_trigger(scores, *(low or sure), lo)
             if k is not None and kind == "pos" and k * FRAME_SAMPLES > end + SR:  # trop tard : pas ce mot
                 k = None
             if k is None:
-                result["grid"][f"{t}/{p}"] = (False, False)
-                continue
-            if k not in cache:
-                cache[k] = _verify(audio, k, phrase)
-            result["grid"][f"{t}/{p}"] = (True, cache[k][0])
+                result["grid"][setting_key(low, sure)] = (False, False)
+            elif low is None or _sure(scores, sure, lo, k, tail):
+                result["grid"][setting_key(low, sure)] = (True, True)
+            else:
+                if k not in cache:
+                    cache[k] = _verify(audio, k, phrase)
+                result["grid"][setting_key(low, sure)] = (True, cache[k][0])
         out.append(result)
     return out
 
@@ -130,14 +155,20 @@ def _stream_task(task: tuple) -> dict:
     audio = np.concatenate([make_scene(read_wav(Path(p))[0], rng, noise, aug)[0] for p in paths])
     detector.reset()
     scores = _stream_scores(detector, audio)
+    tail = _tail_frames()
     cache: dict[int, bool] = {}
     counts = {}
-    for t, p in GRID:
-        ks = all_triggers(scores, t, p)
+    for low, sure in GRID:
+        ks = all_triggers(scores, *(low or sure))
+        kept = 0
         for k in ks:
+            if low is None or _sure(scores, sure, max(0, k - 50), k, tail):
+                kept += 1
+                continue
             if k not in cache:
                 cache[k] = _verify(audio, k, phrase)[0]
-        counts[f"{t}/{p}"] = (len(ks), sum(cache[k] for k in ks))
+            kept += cache[k]
+        counts[setting_key(low, sure)] = (len(ks), kept)
     return {"seconds": len(audio) / SR, "counts": counts}
 
 
@@ -155,11 +186,13 @@ def _trap_clips(spec: Spec, voices: list[tuple[str, int]], per_voice: int = 3) -
     return clips
 
 
-def run(spec: Spec, workers: int, model: Path | None = None, out: Path | None = None) -> dict:
+def run(spec: Spec, workers: int, model: Path | None = None, out: Path | None = None, limit: int | None = None) -> dict:
     model = model or MODELS_DIR / f"{spec.name}.onnx"
     rows = json.loads((spec.clips_dir / "manifest.json").read_text(encoding="utf-8"))
     test = [r for r in rows if r["split"] == "test"]
     pos = [r["path"] for r in test if r["label"] == "pos"]
+    if limit and len(pos) > limit:
+        pos = random.Random(2).sample(pos, limit)
     hard = [r["path"] for r in test if r["label"] == "neg" and r.get("hard")]
     ordinary = [r["path"] for r in test if r["label"] == "neg" and not r.get("hard")]
     babble = random.Random(1).sample([r["path"] for r in rows if r["label"] == "neg" and r["split"] == "train"
@@ -194,8 +227,8 @@ def run(spec: Spec, workers: int, model: Path | None = None, out: Path | None = 
 
     hours = sum(s["seconds"] for s in stream_res) / 3600
     report = {"model": model.name, "phrase": spec.phrase, "hours_ordinary": round(hours, 2), "grid": {}}
-    for t, p in GRID:
-        key = f"{t}/{p}"
+    for low, sure in GRID:
+        key = setting_key(low, sure)
         entry = {"detection": {}, "detection_model_only": {}}
         for (kind, condition), res in results.items():
             n = len(res) or 1
@@ -225,10 +258,10 @@ def run(spec: Spec, workers: int, model: Path | None = None, out: Path | None = 
     out = out or spec.workdir / "e2e.json"
     out.write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
 
-    print(f"\n{'réglage':9} " + " ".join(f"{c[:11]:>11}" for c in CONDITIONS) + "   pièges  phrases  FA/h")
+    print(f"\n{'réglage':16} " + " ".join(f"{c[:11]:>11}" for c in CONDITIONS) + "   pièges  phrases  FA/h")
     for key, e in report["grid"].items():
         mark = " <- recommandé" if key == report["recommended"] else ""
-        print(f"{key:9} " + " ".join(f"{e['detection'][c]:11.0%}" for c in CONDITIONS)
+        print(f"{key:16} " + " ".join(f"{e['detection'][c]:11.0%}" for c in CONDITIONS)
               + f"  {max([*e.get('false_wakes_hard', {}).values(), 0]):6.0%}"
               + f"  {max([*e.get('false_wakes_trap', {}).values(), 0]):7.0%}"
               + f"  {e['false_wakes_per_hour']:5.2f}{mark}")

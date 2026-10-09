@@ -52,6 +52,8 @@ class AgentSettings:
     barge_in: bool = False
     min_confidence: float | None = None
     wake_patience: int = 1
+    wake_sure_score: float = 0.0
+    wake_sure_patience: int = 3
 
 
 WAKE_WINDOW = 2.0  # secondes d'audio gardées avant la détection (vérification, captures)
@@ -316,6 +318,7 @@ class Agent:
         recent: deque = deque(maxlen=max(1, round(WAKE_WINDOW * rate / max(1, getattr(self._source, "frame_samples",
                                                                                        1280)))))
         frame_seconds = getattr(self._source, "frame_samples", 1280) / rate
+        sure_run = 0
         while (frame := self._source.read()) is not None:
             recent.append(frame)
             if self._since_rejection is not None:
@@ -332,13 +335,17 @@ class Agent:
                     self._event("wake", "Écoute après l'annonce")
                     return True
                 continue
-            if trigger.update(self._wake_word.process(frame)):
+            score = self._wake_word.process(frame)
+            sure_run = self._sure_run(sure_run, score)
+            if trigger.update(score):
                 if self._since_rejection is not None and self._since_rejection < WAKE_SAME_SOUND:
                     trigger.reset()  # fin du même son que celui qui vient d'être écarté
                     continue
-                tail = self._read_tail(frame_seconds)
+                tail, sure_run = self._read_tail(frame_seconds, sure_run)
                 recent.extend(tail)
-                if not self._wake_confirmed(np.concatenate(recent), rate, trigger):
+                sure = sure_run >= self.settings.wake_sure_patience
+                sure_run = 0
+                if not self._wake_confirmed(np.concatenate(recent), rate, trigger, sure):
                     self._wake_word.reset()
                     trigger.reset()
                     recent.clear()
@@ -349,20 +356,33 @@ class Agent:
                 return True
         return False
 
-    def _read_tail(self, frame_seconds: float) -> list[np.ndarray]:
+    def _sure_run(self, run: int, score: float) -> int:
+        """Images consécutives au-dessus de sure_score (la plus longue série est gardée une fois la patience atteinte)."""
+        sure = self.settings.wake_sure_score
+        if sure <= 0:
+            return 0
+        if run >= self.settings.wake_sure_patience:
+            return run
+        return run + 1 if score >= sure else 0
+
+    def _read_tail(self, frame_seconds: float, sure_run: int) -> tuple[list[np.ndarray], int]:
         tail: list[np.ndarray] = []
         if self._wake_verifier is None:
-            return tail
+            return tail, sure_run
         while len(tail) * frame_seconds < WAKE_TAIL - 1e-9 and (frame := self._source.read()) is not None:
             tail.append(frame)
-        return tail
+            sure_run = self._sure_run(sure_run, self._wake_word.process(frame))
+        return tail, sure_run
 
-    def _wake_confirmed(self, audio: np.ndarray, rate: int, trigger: WakeTrigger) -> bool:
-        """Seconde vérification (« Jarvis » bien entendu dans l'audio du déclenchement) ; un second appel peu après
-        un rejet est accepté sans elle (le « Jarvis » écarté à tort se rattrape en le redisant)."""
+    def _wake_confirmed(self, audio: np.ndarray, rate: int, trigger: WakeTrigger, sure: bool = False) -> bool:
+        """Seconde vérification (« Jarvis » bien entendu dans l'audio du déclenchement) ; un réveil franc (``sure``)
+        et un second appel peu après un rejet sont acceptés sans elle (le mot écarté à tort se rattrape en le
+        redisant)."""
         meta = {"score": round(trigger.peak, 3), "frames": trigger.run, "threshold": self.settings.wake_threshold}
         retry = self._since_rejection is not None
-        if self._wake_verifier is not None and not retry:
+        if sure and self._wake_verifier is not None:
+            meta["sure"] = True
+        elif self._wake_verifier is not None and not retry:
             started = time.perf_counter()
             try:
                 confirmed, heard = self._wake_verifier.check(audio, rate)

@@ -30,6 +30,10 @@ class WakeWordConfig:
     # entendu dans l'audio du déclenchement.
     verify: bool = False
     verify_model: str = "tiny"
+    # Réveil franc (score ≥ sure_score pendant sure_patience images, déclenchement compris ou juste après) : accepté
+    # sans la vérification, qui reconnaît mal une voix lointaine ou noyée. 0 : toujours vérifier.
+    sure_score: float = 0.0
+    sure_patience: int = 3
     # Audio et issue de chaque réveil (jarvis/wakeword/captures.py) ; captures_keep = 0 : aucune capture.
     captures: Path = Path("data/wakeword/captures")
     captures_keep: int = 300

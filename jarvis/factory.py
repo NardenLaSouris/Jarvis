@@ -776,6 +776,8 @@ def build_agent(
         wake_phrase=ww.phrase,
         wake_threshold=ww.threshold,
         wake_patience=ww.patience,
+        wake_sure_score=ww.sure_score,
+        wake_sure_patience=ww.sure_patience,
         acknowledgements=router.wake_phrases(),
         listen_timeout=a.listen_timeout,
         conversation_timeout=cfg.assistant.conversation_timeout,

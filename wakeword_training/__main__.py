@@ -53,7 +53,8 @@ def main() -> int:
                                                 "dossier des captures (data/wakeword/captures par défaut)")
     parser.add_argument("--spec", default=str(Path(__file__).parent / "specs" / "jarvis_fr.toml"))
     parser.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) // 2))
-    parser.add_argument("--count", type=int, help="pour record : nombre de prises (ou secondes pour ambient)")
+    parser.add_argument("--count", type=int, help="pour record : nombre de prises (ou secondes pour ambient) ; "
+                                                 "pour e2e : nombre maximal de « positifs » par condition")
     parser.add_argument("--model", type=Path, help="pour evaluate et e2e : autre modèle à mesurer (ex. hey_jarvis)")
     args = parser.parse_args()
     spec = load_spec(args.spec)
@@ -67,7 +68,7 @@ def main() -> int:
     if args.step == "e2e":  # banc de bout en bout, silencieux (seuil, patience, vérification Whisper)
         from wakeword_training import e2e
 
-        e2e.run(spec, args.workers, model=args.model)
+        e2e.run(spec, args.workers, model=args.model, limit=args.count)
         return 0
 
     if args.step == "record":
