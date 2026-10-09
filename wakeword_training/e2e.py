@@ -84,7 +84,7 @@ def _verify(audio: np.ndarray, frame: int, phrase: str) -> tuple[bool, str]:
         from jarvis.wakeword.verify import WakeVerifier
 
         model = load_config(ROOT / "config.toml", local=False).wake_word.verify_model
-        _verifier = WakeVerifier(model, MODELS_DIR.parent / "whisper", "fr", phrase)
+        _verifier = WakeVerifier(model, MODELS_DIR.parent / "whisper", "fr", phrase, threads=1)
     end = min(len(audio), (frame + 1) * FRAME_SAMPLES + int(WAKE_TAIL * SR))
     return _verifier.check(audio[max(0, end - WINDOW) : end], SR)
 

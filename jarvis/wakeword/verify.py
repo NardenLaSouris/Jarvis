@@ -46,16 +46,17 @@ def heard_wake(text: str, phrase: str = "Jarvis") -> bool:
 
 class WakeVerifier:
     def __init__(self, model: str = "tiny", download_root: Path | None = None, language: str = "fr",
-                 phrase: str = "Jarvis"):
+                 phrase: str = "Jarvis", threads: int = 0):
         from faster_whisper import WhisperModel
 
         root = str(download_root) if download_root else None
         started = time.perf_counter()
         try:
             self._model = WhisperModel(model, device="cpu", compute_type="int8", download_root=root,
-                                       local_files_only=True)
+                                       local_files_only=True, cpu_threads=threads)
         except Exception:
-            self._model = WhisperModel(model, device="cpu", compute_type="int8", download_root=root)
+            self._model = WhisperModel(model, device="cpu", compute_type="int8", download_root=root,
+                                       cpu_threads=threads)
         self._language = language
         self._phrase = phrase
         self.check(np.zeros(16000, dtype=np.int16), 16000)  # premier calcul (lent) fait au démarrage
