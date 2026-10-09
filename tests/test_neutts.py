@@ -176,5 +176,5 @@ def test_default_engine_is_piper_with_jarvis_pronounced_with_s():
     from jarvis.factory import build_tts
 
     tts = build_tts(load_config(ROOT / "config.toml", local=False))
-    assert type(tts).__name__ == "PiperTTS"
+    assert type(tts).__name__ == "ProcessedTTS" and type(tts._tts).__name__ == "PiperTTS"
     assert "ʒaʁvˈis" in tts.phonemes("Je suis Jarvis.")

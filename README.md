@@ -649,6 +649,15 @@ voice = "models/piper/fr_FR-upmc-medium.onnx"
 speaker = "pierre"          # vide pour une voix à un seul locuteur
 ```
 
+Voix par défaut : `fr_FR-siwis-medium` (femme, CC-BY 4.0), la plus intelligible et la plus rapide des voix
+féminines mesurées sur le mini-PC (0,1 s de calcul par seconde de voix, contre 0,17 s pour `fr_FR-tom-medium`).
+
+**Signature synthétique.** `[tts.effect]` applique en mémoire, à chaque phrase, une chaîne légère en numpy :
+coupe des graves sourds, clarté (`presence_db`), brillance (`air_db`), texture électronique discrète
+(`shimmer`, `shimmer_ms` : léger écho de moins d'une milliseconde), compression douce et limite de crête.
+Coût mesuré : ~2 ms par seconde de voix, intelligibilité Whisper inchangée. `enabled = false` rend la voix
+d'origine ; si le traitement échoue, la phrase est jouée sans effet.
+
 Voix françaises Piper disponibles :
 
 | voix | locuteurs | remarques |

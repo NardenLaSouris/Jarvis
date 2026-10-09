@@ -59,6 +59,7 @@ class TTSConfig:
     stream_audio: bool = False
     merge_under: int = 0
     neutts: dict = field(default_factory=dict)
+    effect: dict = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

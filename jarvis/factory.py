@@ -79,6 +79,12 @@ def build_wake_word(cfg: Config) -> WakeWordDetector:
 
 
 def build_tts(cfg: Config) -> TextToSpeech:
+    from jarvis.audio.voicefx import with_effect
+
+    return with_effect(_build_engine(cfg), cfg.tts.effect)
+
+
+def _build_engine(cfg: Config) -> TextToSpeech:
     t = cfg.tts
     if t.engine == "piper":
         from jarvis.tts.piper import PiperTTS

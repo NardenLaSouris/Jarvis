@@ -68,7 +68,7 @@ min_confidence = -1.0
 # voix plus naturelle mais ~1,2 fois plus lente que le temps réel sur le CPU ; voir [tts.neutts]).
 engine = "piper"
 # Voix Piper (https://huggingface.co/rhasspy/piper-voices). Le .onnx.json doit être à côté.
-voice = "models/piper/fr_FR-tom-medium.onnx"
+voice = "models/piper/fr_FR-siwis-medium.onnx"
 # Locuteur des voix multi-locuteurs (ex. "pierre" pour fr_FR-upmc-medium) ; vide sinon.
 speaker = ""
 length_scale = 1.0      # > 1 = plus lent
@@ -78,6 +78,21 @@ stream_audio = false
 # Une phrase de moins de N caractères est synthétisée avec la suivante, pour éviter un silence
 # quand le moteur est lent (utile avec NeuTTS : 40). 0 : désactivé.
 merge_under = 0
+
+[tts.effect]
+# Signature synthétique discrète appliquée en mémoire à chaque phrase (~2 ms par seconde de voix sur le mini).
+# enabled = false : voix d'origine. En cas d'erreur du traitement, la voix d'origine est jouée.
+enabled = true
+low_cut_hz = 90.0         # coupe le grave sourd sous cette fréquence
+presence_db = 2.0         # clarté de la voix autour de presence_hz
+presence_hz = 3500.0
+air_db = 2.5              # brillance au-dessus de air_hz
+air_hz = 8000.0
+shimmer = 0.2             # texture électronique (0 = aucune, 0,35 = nettement métallique)
+shimmer_ms = 0.8          # timbre de cette texture (0,5 à 2 ms)
+compression_ratio = 2.5   # 1 = sans compression
+threshold_db = -20.0
+peak_db = -1.0            # crête maximale
 
 [tts.pronunciations]
 # Mot = phonèmes espeak (IPA) imposés à Piper. espeak lit « Jarvis » /ʒaʁvˈi/
