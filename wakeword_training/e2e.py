@@ -1,7 +1,7 @@
 """Banc de bout en bout du mot de réveil, silencieux (fichiers seulement, rien n'est joué ni enregistré).
 
 Comme ORION en service : détecteur openWakeWord image par image (80 ms), seuil et nombre d'images consécutives
-(« patience »), puis seconde vérification Whisper « tiny » sur les 2 dernières secondes. Voix de test jamais vues à
+(« patience »), WAKE_TAIL écouté en plus, puis seconde vérification Whisper (verify_model) sur 2 secondes. Voix de test jamais vues à
 l'entraînement, dans des conditions plus dures que l'évaluation de l'entraînement :
 
   - positifs : calme, bruit, bruit fort (0-5 dB), distance, loin et bruité, voix très variées (hauteur, débit) ;
@@ -28,7 +28,7 @@ from jarvis.wakeword.openwakeword import FRAME_SAMPLES
 from wakeword_training.augment import SR, NoiseBank
 from wakeword_training.evaluate import REFRACTORY_FRAMES, _detector, _stream_scores
 from wakeword_training.features import make_scene
-from wakeword_training.spec import DATA, MODELS_DIR, Spec
+from wakeword_training.spec import DATA, MODELS_DIR, ROOT, Spec
 
 THRESHOLDS = (0.3, 0.4, 0.5, 0.55, 0.6, 0.65, 0.7, 0.8, 0.9)
 PATIENCES = (1, 2, 3)
@@ -75,12 +75,17 @@ _verifier = None
 
 
 def _verify(audio: np.ndarray, frame: int, phrase: str) -> tuple[bool, str]:
+    """Comme ORION : WAKE_TAIL d'audio écouté après le déclenchement, puis le modèle de [wake_word] verify_model."""
     global _verifier
+    from jarvis.agent import WAKE_TAIL
+
     if _verifier is None:
+        from jarvis.config import load_config
         from jarvis.wakeword.verify import WakeVerifier
 
-        _verifier = WakeVerifier("tiny", MODELS_DIR.parent / "whisper", "fr", phrase)
-    end = (frame + 1) * FRAME_SAMPLES
+        model = load_config(ROOT / "config.toml", local=False).wake_word.verify_model
+        _verifier = WakeVerifier(model, MODELS_DIR.parent / "whisper", "fr", phrase)
+    end = min(len(audio), (frame + 1) * FRAME_SAMPLES + int(WAKE_TAIL * SR))
     return _verifier.check(audio[max(0, end - WINDOW) : end], SR)
 
 

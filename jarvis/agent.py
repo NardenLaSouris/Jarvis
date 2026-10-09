@@ -55,6 +55,9 @@ class AgentSettings:
 
 
 WAKE_WINDOW = 2.0  # secondes d'audio gardées avant la détection (vérification, captures)
+# Audio écouté après le déclenchement avant la vérification : le détecteur réagit pendant le mot (« Ori... »), Whisper
+# doit entendre « Orion » en entier. Ces blocs sont ensuite rendus à l'enregistrement de la demande.
+WAKE_TAIL = 0.32
 # Après un rejet : un pic dans la seconde qui suit est le même son (le score reste haut quelques images) et est
 # ignoré ; un nouvel appel entre 1 et 8 s plus tard est accepté sans vérification (« Jarvis » redit).
 WAKE_SAME_SOUND = 1.0
@@ -260,6 +263,7 @@ class Agent:
         self._wake_captures = wake_captures
         self._wake_capture: Path | None = None
         self._since_rejection: float | None = None  # secondes d'audio écoutées depuis le dernier rejet
+        self._lead: list[np.ndarray] = []  # audio lu après le mot de réveil, début de la demande
         # Actions restantes d'une demande enchaînée arrêtée sur une confirmation (« ferme Chrome et ouvre le
         # bloc-notes ») : (demande, actions, paramètres précédents), reprises si la confirmation est acceptée.
         self._after_confirmation: tuple[str, list[dict], dict] | None = None
@@ -332,15 +336,26 @@ class Agent:
                 if self._since_rejection is not None and self._since_rejection < WAKE_SAME_SOUND:
                     trigger.reset()  # fin du même son que celui qui vient d'être écarté
                     continue
+                tail = self._read_tail(frame_seconds)
+                recent.extend(tail)
                 if not self._wake_confirmed(np.concatenate(recent), rate, trigger):
                     self._wake_word.reset()
                     trigger.reset()
                     recent.clear()
                     continue
+                self._lead = tail
                 self._event("wake", f"Wake word détecté ({trigger.detail})")
                 self._stop_alarm()
                 return True
         return False
+
+    def _read_tail(self, frame_seconds: float) -> list[np.ndarray]:
+        tail: list[np.ndarray] = []
+        if self._wake_verifier is None:
+            return tail
+        while len(tail) * frame_seconds < WAKE_TAIL - 1e-9 and (frame := self._source.read()) is not None:
+            tail.append(frame)
+        return tail
 
     def _wake_confirmed(self, audio: np.ndarray, rate: int, trigger: WakeTrigger) -> bool:
         """Seconde vérification (« Jarvis » bien entendu dans l'audio du déclenchement) ; un second appel peu après
@@ -393,7 +408,8 @@ class Agent:
         while True:
             self._deliver_notifications()
             self._event("listening", f"À l'écoute ({timeout:.0f} s)")
-            audio = self._recorder.record(start_timeout=timeout)
+            lead, self._lead = self._lead, []
+            audio = self._recorder.record(start_timeout=timeout, lead=lead)
             if audio is None:
                 break
             timeout = self.settings.conversation_timeout

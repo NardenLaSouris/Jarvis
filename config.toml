@@ -32,11 +32,13 @@ threshold = 0.55
 # un faux pic (bruit, voix d'un jeu) une ou deux. 2 : moitié moins de faux déclenchements, presque sans perte
 # (essai sur 960 enregistrements, octobre 2026). Le journal note les pics non retenus pour affiner.
 patience = 2
-# Seconde vérification : un petit Whisper (« tiny », 0,4 s sur le mini-PC) relit les 2 dernières secondes et la
-# conversation ne s'ouvre que s'il y entend « Jarvis » (« service », « j'arrive », voix de jeu : écartés). Un
-# « Jarvis » écarté à tort se rattrape en le redisant dans les 8 secondes (accepté sans vérification).
+# Seconde vérification : un petit Whisper relit les 2 dernières secondes (dont 0,32 s écoutées après le déclenchement,
+# pour entendre le mot en entier) et la conversation ne s'ouvre que s'il y entend le mot de réveil. « base » (0,85 s sur
+# le mini-PC, en partie pendant que l'on parle) : 78 % des « Orion » de test confirmés contre 34 % pour « tiny »,
+# 1 % de mots pièges acceptés pour les deux (octobre 2026). Un mot écarté à tort se rattrape en le redisant dans les
+# 8 secondes (accepté sans vérification).
 verify = true
-verify_model = "tiny"
+verify_model = "base"
 # Audio et issue de chaque réveil (demande ou non) : python -m jarvis --wake-report pour choisir le seuil,
 # python -m wakeword_training import-captures pour réentraîner avec. 0 : aucune capture.
 captures = "data/wakeword/captures"

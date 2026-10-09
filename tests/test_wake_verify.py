@@ -119,3 +119,54 @@ def test_captures_feed_the_training_set(tmp_path):
     assert run(spec, source) == {"positive": 1, "negative": 2, "skipped": 1}
     assert run(spec, source)["negative"] == 0  # déjà importés
     assert json.loads(next(source.glob("*.json")).read_text(encoding="utf-8"))["outcome"]
+
+
+def test_verification_hears_the_end_of_the_word_and_the_request_keeps_it():
+    from jarvis.agent import WAKE_TAIL, Agent, AgentSettings
+    from jarvis.audio.endpointing import EndpointerSettings, UtteranceRecorder
+    from jarvis.audio.files import ArraySource, RecordingSink
+    from jarvis.capabilities import CapabilityRegistry
+    from jarvis.personality import load_personality
+    from jarvis.router import IntentRouter
+
+    rate, frame = 16000, 1280
+    silence = np.zeros(frame * 12, np.int16)
+    burst = np.full(frame, 30000, np.int16)
+    request = (5000 * np.sin(np.arange(rate) / rate * 2 * np.pi * 300)).astype(np.int16)
+    request[: frame * 2] = 7777
+    audio = np.concatenate([silence, burst, request, np.zeros(3 * rate, np.int16)])
+    heard = {}
+
+    class Wake:
+        def process(self, f):
+            return 1.0 if f.max() > 20000 else 0.0
+
+        def reset(self):
+            pass
+
+    class Check:
+        def check(self, clip, r):
+            heard["verify"] = clip
+            return True, "Orion"
+
+    class Stt:
+        def transcribe(self, clip, r):
+            heard.setdefault("request", clip)
+            return "Merci"
+
+    class Llm:
+        def chat(self, messages):
+            return "Je vous en prie."
+
+    class Tts:
+        def synthesize(self, text):
+            return np.zeros(10, np.int16), rate
+
+    source = ArraySource(audio, rate, frame)
+    router = IntentRouter(load_personality(ROOT / "personality.toml"), CapabilityRegistry())
+    settings = AgentSettings("ORION", "Orion", 0.5, ("Oui, monsieur ?",), 2.0, 1.0, 4)
+    Agent(settings, source, RecordingSink(), Wake(), UtteranceRecorder(source, EndpointerSettings()), Stt(), Llm(),
+          Tts(), router, lambda kind, text: None, wake_verifier=Check()).run()
+    tail = int(WAKE_TAIL * rate) // frame * frame
+    assert heard["verify"][-tail:].max() == 7777 and 30000 in heard["verify"]
+    assert heard["request"][: frame * 2].tolist().count(7777) >= frame

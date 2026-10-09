@@ -42,15 +42,17 @@ class UtteranceRecorder:
     def _threshold(self) -> float:
         return max(self._s.min_rms, self._noise * self._s.speech_to_noise_ratio)
 
-    def record(self, start_timeout: float) -> np.ndarray | None:
-        """Retourne la phrase prononcée, ou None si personne n'a parlé à temps."""
+    def record(self, start_timeout: float, lead: list[np.ndarray] | None = None) -> np.ndarray | None:
+        """Retourne la phrase prononcée, ou None si personne n'a parlé à temps. ``lead`` : blocs déjà lus (juste
+        après le mot de réveil), traités avant ceux de la source."""
+        pending = list(lead or [])
         pre_roll: list[np.ndarray] = []
         loud_run = 0
         waited = 0.0
 
         # 1. Attente du début de la parole.
         while True:
-            frame = self._source.read()
+            frame = pending.pop(0) if pending else self._source.read()
             if frame is None:
                 return None
             level = rms(frame)
@@ -72,7 +74,7 @@ class UtteranceRecorder:
         frames = list(pre_roll)
         silence = 0.0
         while silence < self._s.end_of_speech_silence and len(frames) * self._frame_s < self._s.max_utterance:
-            frame = self._source.read()
+            frame = pending.pop(0) if pending else self._source.read()
             if frame is None:
                 break
             frames.append(frame)
