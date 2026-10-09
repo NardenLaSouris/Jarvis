@@ -99,3 +99,22 @@ en cache (relu en 0,75 à 0,9 s à chaque appel). C'était le cas en production 
 **Limites** : premier appel après un redémarrage d'Ollama lent (8 à 10 s) si une demande arrive avant la fin du
 préchauffage ; le jeu de test a désormais servi trois fois (mesures, pas réglage) : un nouveau jeu vierge serait
 nécessaire pour une mesure indépendante.
+
+## Chantier 6 — Audit de sécurité
+
+**Mesuré**
+- Secrets : `.env` en 600 ; aucune des 5 valeurs du `.env` dans 14 jours de journal ; aucune dans l'historique Git
+  (vérifié le 9 octobre) ; `config.local.toml` (adresse mail) passé de 644 à 600.
+- Ports ouverts sur le réseau : 22 (SSH), 8765 (visage : GET seulement, état d'affichage sans transcription),
+  8766 (API d'administration : jeton Bearer et liste d'adresses). Ollama (11434) et SearXNG (8080) : locaux.
+  Pare-feu ufw actif (règles non lisibles sans sudo : non vérifiées).
+- Dépendances de production (42 paquets) : `pip-audit` (base OSV) : aucune vulnérabilité connue.
+- Autorité du Core et injections : voir `README.md` (« Autorité du Core et politiques Cedar ») et
+  `tests/test_policy.py`, `tests/test_guard.py`.
+
+**Ajouté** : `tests/test_security_hygiene.py` (`.env` et `*.local.toml` ignorés par Git ; aucun motif de secret —
+clé privée, jetons GitHub, Hugging Face, AWS, clés `sk-`, secrets d'ORION affectés en clair — dans les fichiers suivis).
+
+**En attente de validation** : durcissement du compte système (compte dédié sans sudo/docker/lxd, code en lecture
+seule, service systemd durci) : procédure prête dans `docs/durcissement_systeme.md`, non appliquée (demande sudo et
+touche au service actif).
