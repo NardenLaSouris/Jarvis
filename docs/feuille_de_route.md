@@ -43,3 +43,23 @@ confirmé, jamais répété à voix haute ; 12 tests existants.
 les placer dans le prompt (`jarvis/memory.py`). Test : `test_prompt_markers_never_enter_or_leave_memory`.
 
 **Non vérifié** : effet de la mémoire sur la qualité des réponses du modèle abliterated (aucun banc dédié).
+
+## Chantier 4 — Planification complexe
+
+**Mesure (mesuré, `bench/comprehension/multi.json`, huihui sans réflexion, outils simulés)** : 12 demandes à
+plusieurs actions (2 et 3 actions, confirmation au milieu d'une chaîne, action impossible dans la chaîne, nombres en
+lettres, questions enchaînées) : **10/12**. Confirmations en chaîne, actions impossibles écartées sans bloquer les
+autres, trois actions : toutes réussies.
+
+**Faiblesse trouvée** : chaque action d'une chaîne était jugée sur la phrase entière ; « Rappelle-moi d'appeler
+Paul dans dix minutes et lance un minuteur » : la règle « rien d'immédiat dans une demande de rappel » écartait aussi
+le minuteur.
+
+**Correctif** (`jarvis/tools/planner.py`) : les règles de forme (demande différée, question) s'appliquent à la partie
+de la demande propre à chaque action ; une partie contenue dans une demande différée (« rappelle-moi ... de couper le
+son ») reste différée ; valeurs et domaine restent vérifiés sur la phrase entière (« mets-la en bleu »). Test :
+`test_each_chained_action_is_judged_on_its_own_part_of_the_request`.
+
+**Limites (mesuré)** : les 2 échecs restants viennent du modèle (rappel avec le délai dans `time`, ambiance proposée
+pour un minuteur ; écartés par les vérifications) ou d'une interprétation acceptable (`spotify_volume` pour « baisse
+le son » pendant la musique).

@@ -1,0 +1,17 @@
+{
+ "about": "Planification complexe (chantier 4) : demandes à plusieurs actions, confirmation au milieu, action impossible dans la chaîne.",
+ "cases": [
+  {"id": "m01", "tag": "deux", "turns": [["Allume la lumière de la chambre et mets le volume à 20", "tools:light_on,set_volume"]]},
+  {"id": "m02", "tag": "deux", "turns": [["Coupe le son puis éteins la lumière de l'entrée", "tools:mute_volume,light_off"]]},
+  {"id": "m03", "tag": "trois", "turns": [["Allume la chambre, mets-la en bleu et monte le son à 40", "tools:light_on,set_color,set_volume"]]},
+  {"id": "m04", "tag": "trois", "turns": [["Éteins l'entrée, allume la chambre à 30 % et lance un minuteur de 5 minutes", "tools:light_off,light_on,create_timer"]]},
+  {"id": "m05", "tag": "confirmation", "turns": [["Verrouille le PC et éteins la lumière de la chambre", "confirm:lock_pc | tools:lock_pc,light_off"], ["Oui", "tool:lock_pc | tool:light_off"]]},
+  {"id": "m06", "tag": "confirmation", "turns": [["Ferme Steam et mets le volume à 10", "confirm:close_application | tools:close_application,set_volume"], ["Non", "none | tool:set_volume"]]},
+  {"id": "m07", "tag": "impossible", "turns": [["Éteins la lumière et éteins l'ordinateur", "tool:light_off"]]},
+  {"id": "m08", "tag": "impossible", "turns": [["Mets le volume à 30 et formate le disque", "tool:set_volume"]]},
+  {"id": "m09", "tag": "nombres", "turns": [["Mets la chambre à cinquante pour cent et le son à vingt", "tools:set_brightness,set_volume | tools:light_on,set_volume"]]},
+  {"id": "m10", "tag": "rappel", "turns": [["Rappelle-moi d'appeler Paul dans dix minutes et lance un minuteur de trois minutes", "tools:create_reminder,create_timer"]]},
+  {"id": "m11", "tag": "question", "turns": [["Quelle heure est-il et quel temps fait-il à Paris ?", "tools:get_time,get_weather | tool:get_time | tool:get_weather"]]},
+  {"id": "m12", "tag": "musique", "turns": [["Mets en pause et baisse le son à 15", "tools:media_play_pause,set_volume | tools:spotify_pause,set_volume"]]}
+ ]
+}

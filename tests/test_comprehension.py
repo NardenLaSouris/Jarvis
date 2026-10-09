@@ -165,3 +165,25 @@ def test_an_existing_feature_is_not_announced_unavailable_by_the_router():
     llm = PlannerLLM({"type": "tool_call", "tool": "list_timers", "parameters": {}})
     spoken, events = run_agent(["Est-ce que j'ai encore des minuteurs ?"], llm, timer_core())
     assert not any("disponible" in s for s in spoken)
+
+
+def test_each_chained_action_is_judged_on_its_own_part_of_the_request():
+    from jarvis.tools.base import Param, Risk, Tool
+
+    core = make_core()
+    for name, params in (("create_reminder", {"delay": Param(str, "délai"), "message": Param(str, "message")}),
+                         ("create_timer", {"duration": Param(str, "durée")})):
+        core.registry.register(Tool(name, "test", params, {}, Risk.SAFE, lambda **p: {}))
+    text = "Rappelle-moi d'appeler Paul dans dix minutes et lance un minuteur de trois minutes"
+    data = plan(PlannerLLM({"type": "tool_calls", "calls": [
+        {"tool": "create_reminder", "parameters": {"delay": "dix minutes", "message": "appeler Paul"},
+         "segment": "Rappelle-moi d'appeler Paul dans dix minutes"},
+        {"tool": "create_timer", "parameters": {"duration": "trois minutes"}, "segment": "lance un minuteur de trois minutes"}]}),
+        text, core.registry)
+    assert data is not None and [c["tool"] for c in data["calls"]] == ["create_reminder", "create_timer"]
+    deferred = plan(PlannerLLM({"type": "tool_calls", "calls": [
+        {"tool": "create_reminder", "parameters": {"delay": "dix minutes", "message": "couper le son"},
+         "segment": "Rappelle-moi dans dix minutes de couper le son"},
+        {"tool": "mute_volume", "parameters": {}, "segment": "couper le son"}]}),
+        "Rappelle-moi dans dix minutes de couper le son", core.registry)
+    assert deferred is not None and deferred.get("tool", "") == "create_reminder"

@@ -314,11 +314,18 @@ def plan(llm, text: str, registry: ToolRegistry, previous: str = "", report: dic
 def _several(calls: list, text: str, registry: ToolRegistry) -> dict | None:
     """Plusieurs actions : chacune vérifiée comme un appel seul ; ``segment`` gardé s'il vient bien de la demande."""
     kept, said = [], normalize(text)
+    deferred = [normalize(str(c.get("segment") or "")) for c in calls
+                if isinstance(c, dict) and _deferred(str(c.get("segment") or ""))]
     for call in calls:
         if not isinstance(call, dict):
             continue
+        part = normalize(str(call.get("segment") or ""))
+        clause = str(call.get("segment")) if part and part in said else None
+        if clause and any(part in d and part != d for d in deferred):  # « rappelle-moi ... de couper le son »
+            clause = None
+        # « Rappelle-moi d'appeler Paul dans 10 minutes et lance un minuteur » : le minuteur, lui, est pour maintenant.
         grounded = _grounded({"type": "tool_call", "tool": call.get("tool"), "parameters": call.get("parameters")},
-                             text, registry)
+                             text, registry, clause)
         if grounded is None:
             log.info("Action écartée : valeur absente de la demande (%s)", call)
             continue
@@ -416,7 +423,7 @@ def _named(tool: str, text: str, registry: ToolRegistry | None = None) -> bool:
     return words is None or any(f" {w} " in norm for w in words)
 
 
-def _grounded(data: dict, text: str, registry: ToolRegistry) -> dict | None:
+def _grounded(data: dict, text: str, registry: ToolRegistry, clause: str | None = None) -> dict | None:
     """Les nombres et les valeurs à justifier (durées...) doivent venir de la demande : le LLM n'invente rien.
 
     Un nombre absent de la demande dans un paramètre facultatif est retiré (« allume l'entrée » proposé avec
@@ -426,14 +433,15 @@ def _grounded(data: dict, text: str, registry: ToolRegistry) -> dict | None:
     if not _named(data["tool"], text, registry):
         log.info("Action écartée : « %s » n'est pas demandée (%s)", data["tool"], text[:80])
         return None
-    if _question(text) and not data["tool"].startswith(READ_ONLY_TOOLS):
+    clause = clause or text  # partie de la demande qui concerne cette action (demandes enchaînées)
+    if _question(clause) and not data["tool"].startswith(READ_ONLY_TOOLS):
         # « Est-ce que la musique joue ? » : une question ne déclenche jamais une action (lecture/pause du PC).
         log.info("Action écartée : « %s » pour une question (%s)", data["tool"], text[:80])
         return None
     if quoted(text) and not data["tool"].startswith(READ_ONLY_TOOLS):
         log.info("Action écartée : « %s » dans une phrase à lire ou répéter (%s)", data["tool"], text[:80])
         return None
-    if _deferred(text) and not data["tool"].startswith(DEFERRED_TOOLS):
+    if _deferred(clause) and not data["tool"].startswith(DEFERRED_TOOLS):
         # « Rappelle-moi d'éteindre la chambre » : à rappeler plus tard, jamais à exécuter maintenant.
         log.info("Action écartée : « %s » dans une demande de rappel (%s)", data["tool"], text[:80])
         return None

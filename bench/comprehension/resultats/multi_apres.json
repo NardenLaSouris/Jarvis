@@ -1,0 +1,472 @@
+{
+ "summary": {
+  "model": "huihui_ai/qwen3-abliterated:8b-v2",
+  "think": "false",
+  "cases_ok": 10,
+  "cases": 12,
+  "turns_ok": 12,
+  "turns": 14,
+  "failures": {
+   "planification": 1,
+   "choix d'outil": 1
+  },
+  "by_tag": {
+   "confirmation": "2/2",
+   "deux": "2/2",
+   "impossible": "2/2",
+   "musique": "0/1",
+   "nombres": "1/1",
+   "question": "1/1",
+   "rappel": "0/1",
+   "trois": "2/2"
+  }
+ },
+ "results": [
+  {
+   "id": "m01",
+   "tag": "deux",
+   "seconds": 0.0,
+   "turns": [
+    {
+     "say": "Allume la lumière de la chambre et mets le volume à 20",
+     "expect": "tools:light_on,set_volume",
+     "route": "tool:tool.action",
+     "reply": "C'est fait. C'est fait.",
+     "calls": [
+      {
+       "at": 6,
+       "tool": "light_on",
+       "parameters": {
+        "room": "chambre"
+       },
+       "status": "done",
+       "invalid": false
+      },
+      {
+       "at": 7,
+       "tool": "set_volume",
+       "parameters": {
+        "volume": 20,
+        "device": "pc"
+       },
+       "status": "done",
+       "invalid": false
+      }
+     ],
+     "ok": true,
+     "category": ""
+    }
+   ],
+   "ok": true
+  },
+  {
+   "id": "m02",
+   "tag": "deux",
+   "seconds": 0.0,
+   "turns": [
+    {
+     "say": "Coupe le son puis éteins la lumière de l'entrée",
+     "expect": "tools:mute_volume,light_off",
+     "route": "tool:tool.action",
+     "reply": "C'est fait. C'est fait.",
+     "calls": [
+      {
+       "at": 22,
+       "tool": "mute_volume",
+       "parameters": {
+        "device": "pc"
+       },
+       "status": "done",
+       "invalid": false
+      },
+      {
+       "at": 23,
+       "tool": "light_off",
+       "parameters": {
+        "room": "entree"
+       },
+       "status": "done",
+       "invalid": false
+      }
+     ],
+     "ok": true,
+     "category": ""
+    }
+   ],
+   "ok": true
+  },
+  {
+   "id": "m03",
+   "tag": "trois",
+   "seconds": 0.0,
+   "turns": [
+    {
+     "say": "Allume la chambre, mets-la en bleu et monte le son à 40",
+     "expect": "tools:light_on,set_color,set_volume",
+     "route": "tool:tool.action",
+     "reply": "C'est fait. C'est fait. C'est fait.",
+     "calls": [
+      {
+       "at": 38,
+       "tool": "light_on",
+       "parameters": {
+        "room": "chambre"
+       },
+       "status": "done",
+       "invalid": false
+      },
+      {
+       "at": 39,
+       "tool": "set_color",
+       "parameters": {
+        "room": "chambre",
+        "color": "bleu"
+       },
+       "status": "done",
+       "invalid": false
+      },
+      {
+       "at": 40,
+       "tool": "set_volume",
+       "parameters": {
+        "volume": 40,
+        "device": "pc"
+       },
+       "status": "done",
+       "invalid": false
+      }
+     ],
+     "ok": true,
+     "category": ""
+    }
+   ],
+   "ok": true
+  },
+  {
+   "id": "m04",
+   "tag": "trois",
+   "seconds": 0.0,
+   "turns": [
+    {
+     "say": "Éteins l'entrée, allume la chambre à 30 % et lance un minuteur de 5 minutes",
+     "expect": "tools:light_off,light_on,create_timer",
+     "route": "tool:tool.action",
+     "reply": "C'est fait. C'est fait. C'est fait.",
+     "calls": [
+      {
+       "at": 55,
+       "tool": "light_off",
+       "parameters": {
+        "room": "entree"
+       },
+       "status": "done",
+       "invalid": false
+      },
+      {
+       "at": 56,
+       "tool": "light_on",
+       "parameters": {
+        "room": "chambre",
+        "brightness": 30
+       },
+       "status": "done",
+       "invalid": false
+      },
+      {
+       "at": 57,
+       "tool": "create_timer",
+       "parameters": {
+        "duration": 300
+       },
+       "status": "done",
+       "invalid": false
+      }
+     ],
+     "ok": true,
+     "category": ""
+    }
+   ],
+   "ok": true
+  },
+  {
+   "id": "m05",
+   "tag": "confirmation",
+   "seconds": 0.0,
+   "turns": [
+    {
+     "say": "Verrouille le PC et éteins la lumière de la chambre",
+     "expect": "confirm:lock_pc | tools:lock_pc,light_off",
+     "route": "tool:tool.action",
+     "reply": "Voulez-vous que je verrouille l'ordinateur ?",
+     "calls": [
+      {
+       "at": 72,
+       "tool": "lock_pc",
+       "parameters": {
+        "device": "pc"
+       },
+       "status": "confirm",
+       "invalid": false
+      }
+     ],
+     "ok": true,
+     "category": ""
+    },
+    {
+     "say": "Oui",
+     "expect": "tool:lock_pc | tool:light_off",
+     "route": "tool:confirmation",
+     "reply": "C'est fait. C'est fait.",
+     "calls": [
+      {
+       "at": 82,
+       "tool": "lock_pc",
+       "parameters": {
+        "device": "pc"
+       },
+       "status": "done",
+       "invalid": false
+      },
+      {
+       "at": 88,
+       "tool": "light_off",
+       "parameters": {
+        "room": "chambre"
+       },
+       "status": "done",
+       "invalid": false
+      }
+     ],
+     "ok": true,
+     "category": ""
+    }
+   ],
+   "ok": true
+  },
+  {
+   "id": "m06",
+   "tag": "confirmation",
+   "seconds": 0.0,
+   "turns": [
+    {
+     "say": "Ferme Steam et mets le volume à 10",
+     "expect": "confirm:close_application | tools:close_application,set_volume",
+     "route": "tool:tool.action",
+     "reply": "Voulez-vous que je ferme Steam ?",
+     "calls": [
+      {
+       "at": 102,
+       "tool": "close_application",
+       "parameters": {
+        "application": "steam",
+        "device": "pc"
+       },
+       "status": "confirm",
+       "invalid": false
+      }
+     ],
+     "ok": true,
+     "category": ""
+    },
+    {
+     "say": "Non",
+     "expect": "none | tool:set_volume",
+     "route": "tool:confirmation",
+     "reply": "Très bien, monsieur, je n'en fais rien.",
+     "calls": [],
+     "ok": true,
+     "category": ""
+    }
+   ],
+   "ok": true
+  },
+  {
+   "id": "m07",
+   "tag": "impossible",
+   "seconds": 0.0,
+   "turns": [
+    {
+     "say": "Éteins la lumière et éteins l'ordinateur",
+     "expect": "tool:light_off",
+     "route": "tool:tool.action",
+     "reply": "C'est fait. C'est fait.",
+     "calls": [
+      {
+       "at": 126,
+       "tool": "light_off",
+       "parameters": {
+        "room": "all"
+       },
+       "status": "done",
+       "invalid": false
+      },
+      {
+       "at": 127,
+       "tool": "light_off",
+       "parameters": {
+        "room": "all"
+       },
+       "status": "done",
+       "invalid": false
+      }
+     ],
+     "ok": true,
+     "category": ""
+    }
+   ],
+   "ok": true
+  },
+  {
+   "id": "m08",
+   "tag": "impossible",
+   "seconds": 2.1,
+   "turns": [
+    {
+     "say": "Mets le volume à 30 et formate le disque",
+     "expect": "tool:set_volume",
+     "route": "tool:tool.action",
+     "reply": "C'est fait. Voulez-vous vraiment supprimer le fichier « disque » ?",
+     "calls": [
+      {
+       "at": 141,
+       "tool": "set_volume",
+       "parameters": {
+        "volume": 30,
+        "device": "pc"
+       },
+       "status": "done",
+       "invalid": false
+      },
+      {
+       "at": 142,
+       "tool": "delete_file",
+       "parameters": {
+        "name": "disque",
+        "device": "pc"
+       },
+       "status": "confirm",
+       "invalid": false
+      }
+     ],
+     "ok": true,
+     "category": ""
+    }
+   ],
+   "ok": true
+  },
+  {
+   "id": "m09",
+   "tag": "nombres",
+   "seconds": 1.8,
+   "turns": [
+    {
+     "say": "Mets la chambre à cinquante pour cent et le son à vingt",
+     "expect": "tools:set_brightness,set_volume | tools:light_on,set_volume",
+     "route": "tool:tool.action",
+     "reply": "C'est fait. C'est fait.",
+     "calls": [
+      {
+       "at": 156,
+       "tool": "set_brightness",
+       "parameters": {
+        "room": "chambre",
+        "brightness": 50
+       },
+       "status": "done",
+       "invalid": false
+      },
+      {
+       "at": 157,
+       "tool": "set_volume",
+       "parameters": {
+        "volume": 20,
+        "device": "pc"
+       },
+       "status": "done",
+       "invalid": false
+      }
+     ],
+     "ok": true,
+     "category": ""
+    }
+   ],
+   "ok": true
+  },
+  {
+   "id": "m10",
+   "tag": "rappel",
+   "seconds": 2.5,
+   "turns": [
+    {
+     "say": "Rappelle-moi d'appeler Paul dans dix minutes et lance un minuteur de trois minutes",
+     "expect": "tools:create_reminder,create_timer",
+     "route": "tool:tool.action",
+     "reply": "Je n'ai pas bien compris quelle action faire, monsieur. Pouvez-vous reformuler ?",
+     "calls": [],
+     "ok": false,
+     "category": "planification"
+    }
+   ],
+   "ok": false
+  },
+  {
+   "id": "m11",
+   "tag": "question",
+   "seconds": 0.0,
+   "turns": [
+    {
+     "say": "Quelle heure est-il et quel temps fait-il à Paris ?",
+     "expect": "tools:get_time,get_weather | tool:get_time | tool:get_weather",
+     "route": "tool:time",
+     "reply": "C'est fait.",
+     "calls": [
+      {
+       "at": 184,
+       "tool": "get_time",
+       "parameters": {},
+       "status": "done",
+       "invalid": false
+      }
+     ],
+     "ok": true,
+     "category": ""
+    }
+   ],
+   "ok": true
+  },
+  {
+   "id": "m12",
+   "tag": "musique",
+   "seconds": 0.0,
+   "turns": [
+    {
+     "say": "Mets en pause et baisse le son à 15",
+     "expect": "tools:media_play_pause,set_volume | tools:spotify_pause,set_volume",
+     "route": "tool:tool.action",
+     "reply": "C'est fait. C'est fait.",
+     "calls": [
+      {
+       "at": 199,
+       "tool": "spotify_pause",
+       "parameters": {},
+       "status": "done",
+       "invalid": false
+      },
+      {
+       "at": 200,
+       "tool": "spotify_volume",
+       "parameters": {
+        "volume": 15
+       },
+       "status": "done",
+       "invalid": false
+      }
+     ],
+     "ok": false,
+     "category": "choix d'outil"
+    }
+   ],
+   "ok": false
+  }
+ ]
+}
