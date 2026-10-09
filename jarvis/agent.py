@@ -60,6 +60,10 @@ WAKE_WINDOW = 2.0  # secondes d'audio gardées avant la détection (vérificatio
 # Audio écouté après le déclenchement avant la vérification : le détecteur réagit pendant le mot (« Ori... »), Whisper
 # doit entendre « Orion » en entier. Ces blocs sont ensuite rendus à l'enregistrement de la demande.
 WAKE_TAIL = 0.32
+# Reprise après une erreur imprévue : au-delà de MAX_CRASHES erreurs en CRASH_WINDOW secondes, le service s'arrête
+# (systemd le relance) plutôt que de tourner en boucle sur la même panne.
+MAX_CRASHES = 3
+CRASH_WINDOW = 60
 # Après un rejet : un pic dans la seconde qui suit est le même son (le score reste haut quelques images) et est
 # ignoré ; un nouvel appel entre 1 et 8 s plus tard est accepté sans vérification (« Jarvis » redit).
 WAKE_SAME_SOUND = 1.0
@@ -319,10 +323,34 @@ class Agent:
     # --- Boucle principale -------------------------------------------------
 
     def run(self) -> None:
-        """Tourne jusqu'à épuisement de la source audio (ou Ctrl+C)."""
+        """Tourne jusqu'à épuisement de la source audio (ou Ctrl+C). Une erreur imprévue pendant une conversation
+        est journalisée et ORION se remet en veille ; des erreurs en rafale (plus de MAX_CRASHES en
+        CRASH_WINDOW secondes) arrêtent le service, que systemd redémarre (Restart=on-failure)."""
+        crashes: list[float] = []
         while self._wait_for_wake_word():
-            self._conversation()
+            try:
+                self._conversation()
+            except Exception:
+                now = time.monotonic()
+                crashes = [t for t in crashes if now - t < CRASH_WINDOW] + [now]
+                log.exception("Erreur imprévue pendant la conversation : retour en veille (%d en %d s)",
+                              len(crashes), CRASH_WINDOW)
+                if len(crashes) > MAX_CRASHES:
+                    raise
+                self._recover()
         log.info("Source audio épuisée, arrêt.")
+
+    def _recover(self) -> None:
+        """Après une erreur : rien d'une demande à moitié traitée ne doit survivre (confirmation, contexte)."""
+        for cleanup in (lambda: self._tools.cancel_pending() if self._tools is not None else None,
+                        lambda: self._context.clear() if self._context is not None else None,
+                        lambda: self._event("sleep", "Retour en veille (après une erreur)")):
+            try:
+                cleanup()
+            except Exception:  # noqa: BLE001 - la reprise ne doit jamais échouer à son tour
+                log.exception("Reprise après erreur incomplète")
+        self._follow_up = None
+        self._lead = []
 
     def _wait_for_wake_word(self) -> bool:
         self._event("sleep", f"En veille — dites « {self.settings.wake_phrase} »")

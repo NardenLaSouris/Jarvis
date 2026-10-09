@@ -59,6 +59,14 @@ class ExclusiveServer(ThreadingHTTPServer):
     # de clients simultanés (ORION Control, visages, routines). Mesuré lors du test de charge.
     request_queue_size = 128
 
+    def handle_error(self, request, client_address):
+        """Navigateur fermé ou visage rechargé en pleine réponse : une ligne au lieu d'une trace complète."""
+        error = sys.exc_info()[1]
+        if isinstance(error, (ConnectionResetError, BrokenPipeError, TimeoutError)):
+            log.debug("Visage %s : connexion interrompue (%s)", client_address[0], type(error).__name__)
+            return
+        super().handle_error(request, client_address)
+
     def server_bind(self):
         exclusive = getattr(socket, "SO_EXCLUSIVEADDRUSE", None)
         if exclusive is not None:
