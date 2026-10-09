@@ -15,6 +15,7 @@ Sortie : data/wakeword/<name>/clips/{train,test}/{pos,neg}/*.wav (16 kHz) + mani
 from __future__ import annotations
 
 import json
+import os
 import random
 import re
 import zlib
@@ -231,6 +232,8 @@ def run(spec: Spec, workers: int) -> None:
                 tasks += [(voice_name, speaker, part, kind, split, total // parts, spec.raw, str(spec.clips_dir))
                           for part in range(parts)]
 
+    if os.environ.get("WAKE_TASKS_REVERSED"):  # seconde machine : par la fin (les deux se rejoignent au milieu)
+        tasks.reverse()
     print(f"Synthèse + vérification Whisper : {len(tasks)} tâches, {workers} processus…", flush=True)
     rows = []
     with ProcessPoolExecutor(workers) as pool:
