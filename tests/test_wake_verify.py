@@ -40,9 +40,11 @@ def test_lookalike_words_are_not_taken_for_jarvis(text):
     assert not heard_wake(text)
 
 
-HEARD_ORION = ["Orion.", "Orion !", "Oryon ?", "Aurion.", "O'Rion !", "Bon, Orion, allume la lumière", "Orillon."]
+HEARD_ORION = ["Orion.", "Orion !", "Oryon ?", "Aurion.", "O'Rion !", "Bon, Orion, allume la lumière", "Orillon.",
+               "Ouyon.", "Oyon !"]
 HEARD_NOT_ORION = ["Nous aurions dû partir.", "Aurions-nous le temps ?", "Marion arrive.", "Horizon.", "Oreille.",
-                   "Avion.", "Oriane.", "Orange.", "Champion.", "Jarvis.", "", "Merci d'avoir regardé cette vidéo !"]
+                   "Avion.", "Oriane.", "Orange.", "Champion.", "Jarvis.", "Oignon.", "Lyon.", "Oui, on y va.", "Rayon.",
+                   "", "Merci d'avoir regardé cette vidéo !"]
 
 
 @pytest.mark.parametrize("text", HEARD_ORION)

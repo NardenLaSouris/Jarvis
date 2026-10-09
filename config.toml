@@ -25,18 +25,21 @@ embedding_model = "models/openwakeword/embedding_model.onnx"
 # Score (0-1) et nombre d'images consécutives (80 ms) au-dessus du seuil pour déclencher. Réglages choisis par le banc
 # de bout en bout silencieux (python -m wakeword_training e2e, rapport models/openwakeword/orion_fr_e2e.json, octobre
 # 2026) : voix de test jamais vues, calme, bruit, bruit fort, distance, voix variées, mots pièges, flux de phrases
-# ordinaires. Avec la vérification et le réveil franc ci-dessous : 82 % des « Orion » retenus au calme, 65 % dans le
-# bruit, 37 % à distance très réverbérante (redire le mot dans les 8 s suffit, accepté sans vérification), 0 faux
-# réveil par heure de parole ordinaire, 4 % de phrases piégeuses (« nous aurions », « Marion »...).
+# ordinaires. Avec la vérification et le réveil franc ci-dessous : 89 % des « Orion » retenus au calme, 75 % dans le
+# bruit, 51 % à distance très réverbérante (redire le mot dans les 8 s suffit, accepté sans vérification), 1,5 faux
+# réveil par heure de parole continue, 6 % de phrases piégeuses (« nous aurions », « Marion »...).
 # À affiner avec `python -m jarvis --wake-test` et `--wake-report` sur la vraie voix.
 threshold = 0.5
-patience = 3
+# 2 : un « Orion » dit vite ne reste que 2 ou 3 images au-dessus du seuil (relevé le 9 octobre 2026).
+patience = 2
 verify = true
 verify_model = "base"
-# Réveil franc (score ≥ 0,95 pendant 4 images, juste après le déclenchement compris) : accepté sans la vérification,
+# Réveil franc (score ≥ 0,95 pendant 3 images, juste après le déclenchement compris) : accepté sans la vérification,
 # qui reconnaît mal une voix lointaine ou noyée (2 % des « Orion » à distance confirmés). 0 : toujours vérifier.
 sure_score = 0.95
-sure_patience = 4
+# 3 et non 4 : de vrais « Orion » dits vite (0,95 à 0,99 sur 3 images) étaient écartés par Whisper (« Ouyon »,
+# rien entendu). Banc : 89 % retenus au calme, 1,5 faux réveil/h de parole continue, 6 % de phrases piégeuses.
+sure_patience = 3
 # Audio et issue de chaque réveil (demande ou non) : python -m jarvis --wake-report pour choisir le seuil,
 # python -m wakeword_training import-captures pour réentraîner avec. 0 : aucune capture.
 captures = "data/wakeword/captures"

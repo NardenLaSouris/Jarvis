@@ -28,9 +28,10 @@ log = logging.getLogger(__name__)
 # (jarvis, jarvisse, gervis, jervice, j'avise, « j'en vis » : un vrai « Jarvis » écarté le 5 octobre 2026) ;
 # jamais « j'avais », « j'arrive », « j'en vais », « service », « j'ai revu ».
 WAKE_SHAPE = re.compile(r"(?:dj|j|g|ch)[ae]?[rn]?vi[sc]")
-# Forme sonore de « Orion » : orion, oryon, aurion, o'rion, orillon ; jamais « horizon », « oreille », « avion »,
-# « Marion » (« arion » sans o initial). « Nous aurions » s'entend pareil : Whisper l'écrit avec son sens, écarté.
-SHAPES = {"jarvis": WAKE_SHAPE, "orion": re.compile(r"(?:o|au)(?:r)(?:i|y|ill)+[oa]n")}
+# Forme sonore de « Orion » : orion, oryon, aurion, o'rion, orillon, et dit vite sans le r : ouyon, oyon (« Ouyon »
+# entendu sur un vrai « Orion » le 9 octobre 2026) ; jamais « horizon », « oreille », « avion », « oignon », « Marion »
+# (« arion » sans o initial). « Nous aurions » s'entend pareil : Whisper l'écrit avec son sens, écarté.
+SHAPES = {"jarvis": WAKE_SHAPE, "orion": re.compile(r"(?:o|au|ou)r?(?:i|y|ill)+[oa]n")}
 
 
 def heard_wake(text: str, phrase: str = "Jarvis") -> bool:

@@ -70,7 +70,7 @@ class WakeTrigger:
     """Wake word retenu quand le score reste au-dessus du seuil pendant ``patience`` images d'affilée ; les pics
     non retenus sont journalisés (pic, durée) pour régler seuil et patience sur la vraie voix."""
 
-    def __init__(self, threshold: float, patience: int = 1, notice: float = 0.5):
+    def __init__(self, threshold: float, patience: int = 1, notice: float = 0.3):
         self.threshold, self.patience, self._notice = threshold, max(1, patience), notice
         self.reset()
 
