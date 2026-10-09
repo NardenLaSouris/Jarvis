@@ -15,30 +15,28 @@ barge_in = true
 
 [wake_word]
 # Mot affiché/utilisé dans les messages ; le modèle ci-dessous fait la détection.
-phrase = "Jarvis"
-# Classifieur openWakeWord entraîné dans ce dépôt pour « Jarvis » prononcé à la française
-# (python -m wakeword_training all). Pour un autre mot : entraîner un modèle et pointer ici.
-model = "models/openwakeword/jarvis_fr.onnx"
+phrase = "Orion"
+# Classifieur openWakeWord entraîné dans ce dépôt pour « Orion » (python -m wakeword_training all --spec
+# wakeword_training/specs/orion_fr.toml) : voix Piper et voix neuronales Edge, de loin, dans le bruit, mal articulé.
+# Ancien modèle : models/openwakeword/jarvis_fr.onnx avec phrase = "Jarvis". Pour un autre mot : entraîner et pointer ici.
+model = "models/openwakeword/orion_fr.onnx"
 melspectrogram_model = "models/openwakeword/melspectrogram.onnx"
 embedding_model = "models/openwakeword/embedding_model.onnx"
-# Score (0-1) au-delà duquel le wake word est considéré comme détecté.
-# 0.96 = seuil recommandé par l'évaluation (models/openwakeword/jarvis_fr.json) : le plus bas
-# qui garde < 0,5 fausse alerte/h et < 3 % de mots pièges déclencheurs sur des voix de test.
-# À ajuster avec `python -m jarvis --wake-test` : plus bas = détecte mieux de loin, se trompe plus.
-# 0.55 : bas, parce que la seconde vérification (verify, plus bas) écarte les faux réveils (13 sur 15 relevés le
-# 5 octobre 2026) ; des « Jarvis » réels restaient entre 0,58 et 0,92.
-threshold = 0.55
-# Nombre d'images consécutives (80 ms chacune) au-dessus du seuil : un vrai « Jarvis » dure 4 à 9 images,
-# un faux pic (bruit, voix d'un jeu) une ou deux. 2 : moitié moins de faux déclenchements, presque sans perte
-# (essai sur 960 enregistrements, octobre 2026). Le journal note les pics non retenus pour affiner.
-patience = 2
-# Seconde vérification : un petit Whisper relit les 2 dernières secondes (dont 0,32 s écoutées après le déclenchement,
-# pour entendre le mot en entier) et la conversation ne s'ouvre que s'il y entend le mot de réveil. « base » (0,85 s sur
-# le mini-PC, en partie pendant que l'on parle) : 78 % des « Orion » de test confirmés contre 34 % pour « tiny »,
-# 1 % de mots pièges acceptés pour les deux (octobre 2026). Un mot écarté à tort se rattrape en le redisant dans les
-# 8 secondes (accepté sans vérification).
+# Score (0-1) et nombre d'images consécutives (80 ms) au-dessus du seuil pour déclencher. Réglages choisis par le banc
+# de bout en bout silencieux (python -m wakeword_training e2e, rapport models/openwakeword/orion_fr_e2e.json, octobre
+# 2026) : voix de test jamais vues, calme, bruit, bruit fort, distance, voix variées, mots pièges, flux de phrases
+# ordinaires. Avec la vérification et le réveil franc ci-dessous : 82 % des « Orion » retenus au calme, 65 % dans le
+# bruit, 37 % à distance très réverbérante (redire le mot dans les 8 s suffit, accepté sans vérification), 0 faux
+# réveil par heure de parole ordinaire, 4 % de phrases piégeuses (« nous aurions », « Marion »...).
+# À affiner avec `python -m jarvis --wake-test` et `--wake-report` sur la vraie voix.
+threshold = 0.5
+patience = 3
 verify = true
 verify_model = "base"
+# Réveil franc (score ≥ 0,95 pendant 4 images, juste après le déclenchement compris) : accepté sans la vérification,
+# qui reconnaît mal une voix lointaine ou noyée (2 % des « Orion » à distance confirmés). 0 : toujours vérifier.
+sure_score = 0.95
+sure_patience = 4
 # Audio et issue de chaque réveil (demande ou non) : python -m jarvis --wake-report pour choisir le seuil,
 # python -m wakeword_training import-captures pour réentraîner avec. 0 : aucune capture.
 captures = "data/wakeword/captures"

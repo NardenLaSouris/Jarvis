@@ -39,7 +39,7 @@ def silence(seconds: float) -> np.ndarray:
 def test_config_loads_and_resolves_paths():
     cfg = load_config(ROOT / "config.toml", local=False)
     assert cfg.assistant.personality.exists()
-    assert cfg.wake_word.phrase == "Jarvis"
+    assert cfg.wake_word.phrase == "Orion"
     assert cfg.wake_word.model.is_absolute()
 
 

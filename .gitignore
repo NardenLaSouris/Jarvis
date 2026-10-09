@@ -10,6 +10,9 @@ models/*
 models/openwakeword/*
 !models/openwakeword/jarvis_fr.onnx
 !models/openwakeword/jarvis_fr.json
+!models/openwakeword/orion_fr.onnx
+!models/openwakeword/orion_fr.json
+!models/openwakeword/orion_fr_e2e.json
 .env
 # Voix de référence NeuTTS (LibriVox, domaine public), versionnée pour que JARVIS parle sans étape manuelle.
 !models/neutts/

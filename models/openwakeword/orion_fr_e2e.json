@@ -1,0 +1,1484 @@
+{
+ "model": "orion_fr.onnx",
+ "phrase": "Orion",
+ "hours_ordinary": 0.67,
+ "grid": {
+  "0.3/2": {
+   "detection": {
+    "calme": 0.556,
+    "bruit": 0.32,
+    "bruit_fort": 0.164,
+    "distance": 0.031,
+    "loin_bruit": 0.009,
+    "voix_variees": 0.293
+   },
+   "detection_model_only": {
+    "calme": 0.991,
+    "bruit": 0.969,
+    "bruit_fort": 0.907,
+    "distance": 0.947,
+    "loin_bruit": 0.871,
+    "voix_variees": 0.969
+   },
+   "false_wakes_hard": {
+    "calme": 0.004,
+    "bruit": 0.002
+   },
+   "false_triggers_hard_model_only": {
+    "calme": 0.062,
+    "bruit": 0.095
+   },
+   "false_wakes_trap": {
+    "calme": 0.026,
+    "bruit": 0.01
+   },
+   "false_triggers_trap_model_only": {
+    "calme": 0.214,
+    "bruit": 0.24
+   },
+   "false_wakes_per_hour": 0.0,
+   "false_triggers_per_hour_model_only": 71.88
+  },
+  "0.3/2+0.9/3": {
+   "detection": {
+    "calme": 0.933,
+    "bruit": 0.82,
+    "bruit_fort": 0.624,
+    "distance": 0.571,
+    "loin_bruit": 0.449,
+    "voix_variees": 0.749
+   },
+   "detection_model_only": {
+    "calme": 0.991,
+    "bruit": 0.969,
+    "bruit_fort": 0.907,
+    "distance": 0.947,
+    "loin_bruit": 0.871,
+    "voix_variees": 0.969
+   },
+   "false_wakes_hard": {
+    "calme": 0.007,
+    "bruit": 0.009
+   },
+   "false_triggers_hard_model_only": {
+    "calme": 0.062,
+    "bruit": 0.095
+   },
+   "false_wakes_trap": {
+    "calme": 0.068,
+    "bruit": 0.068
+   },
+   "false_triggers_trap_model_only": {
+    "calme": 0.214,
+    "bruit": 0.24
+   },
+   "false_wakes_per_hour": 4.49,
+   "false_triggers_per_hour_model_only": 71.88
+  },
+  "0.3/2+0.95/3": {
+   "detection": {
+    "calme": 0.891,
+    "bruit": 0.747,
+    "bruit_fort": 0.571,
+    "distance": 0.5,
+    "loin_bruit": 0.369,
+    "voix_variees": 0.689
+   },
+   "detection_model_only": {
+    "calme": 0.991,
+    "bruit": 0.969,
+    "bruit_fort": 0.907,
+    "distance": 0.947,
+    "loin_bruit": 0.871,
+    "voix_variees": 0.969
+   },
+   "false_wakes_hard": {
+    "calme": 0.005,
+    "bruit": 0.005
+   },
+   "false_triggers_hard_model_only": {
+    "calme": 0.062,
+    "bruit": 0.095
+   },
+   "false_wakes_trap": {
+    "calme": 0.057,
+    "bruit": 0.057
+   },
+   "false_triggers_trap_model_only": {
+    "calme": 0.214,
+    "bruit": 0.24
+   },
+   "false_wakes_per_hour": 1.5,
+   "false_triggers_per_hour_model_only": 71.88
+  },
+  "0.3/2+0.95/4": {
+   "detection": {
+    "calme": 0.818,
+    "bruit": 0.649,
+    "bruit_fort": 0.476,
+    "distance": 0.364,
+    "loin_bruit": 0.244,
+    "voix_variees": 0.589
+   },
+   "detection_model_only": {
+    "calme": 0.991,
+    "bruit": 0.969,
+    "bruit_fort": 0.907,
+    "distance": 0.947,
+    "loin_bruit": 0.871,
+    "voix_variees": 0.969
+   },
+   "false_wakes_hard": {
+    "calme": 0.004,
+    "bruit": 0.004
+   },
+   "false_triggers_hard_model_only": {
+    "calme": 0.062,
+    "bruit": 0.095
+   },
+   "false_wakes_trap": {
+    "calme": 0.042,
+    "bruit": 0.031
+   },
+   "false_triggers_trap_model_only": {
+    "calme": 0.214,
+    "bruit": 0.24
+   },
+   "false_wakes_per_hour": 0.0,
+   "false_triggers_per_hour_model_only": 71.88
+  },
+  "0.3/2+0.98/4": {
+   "detection": {
+    "calme": 0.749,
+    "bruit": 0.551,
+    "bruit_fort": 0.358,
+    "distance": 0.276,
+    "loin_bruit": 0.151,
+    "voix_variees": 0.5
+   },
+   "detection_model_only": {
+    "calme": 0.991,
+    "bruit": 0.969,
+    "bruit_fort": 0.907,
+    "distance": 0.947,
+    "loin_bruit": 0.871,
+    "voix_variees": 0.969
+   },
+   "false_wakes_hard": {
+    "calme": 0.004,
+    "bruit": 0.003
+   },
+   "false_triggers_hard_model_only": {
+    "calme": 0.062,
+    "bruit": 0.095
+   },
+   "false_wakes_trap": {
+    "calme": 0.026,
+    "bruit": 0.016
+   },
+   "false_triggers_trap_model_only": {
+    "calme": 0.214,
+    "bruit": 0.24
+   },
+   "false_wakes_per_hour": 0.0,
+   "false_triggers_per_hour_model_only": 71.88
+  },
+  "0.3/2+0.98/5": {
+   "detection": {
+    "calme": 0.644,
+    "bruit": 0.427,
+    "bruit_fort": 0.249,
+    "distance": 0.144,
+    "loin_bruit": 0.087,
+    "voix_variees": 0.378
+   },
+   "detection_model_only": {
+    "calme": 0.991,
+    "bruit": 0.969,
+    "bruit_fort": 0.907,
+    "distance": 0.947,
+    "loin_bruit": 0.871,
+    "voix_variees": 0.969
+   },
+   "false_wakes_hard": {
+    "calme": 0.004,
+    "bruit": 0.002
+   },
+   "false_triggers_hard_model_only": {
+    "calme": 0.062,
+    "bruit": 0.095
+   },
+   "false_wakes_trap": {
+    "calme": 0.026,
+    "bruit": 0.01
+   },
+   "false_triggers_trap_model_only": {
+    "calme": 0.214,
+    "bruit": 0.24
+   },
+   "false_wakes_per_hour": 0.0,
+   "false_triggers_per_hour_model_only": 71.88
+  },
+  "0.3/2+0.99/5": {
+   "detection": {
+    "calme": 0.62,
+    "bruit": 0.387,
+    "bruit_fort": 0.224,
+    "distance": 0.111,
+    "loin_bruit": 0.062,
+    "voix_variees": 0.347
+   },
+   "detection_model_only": {
+    "calme": 0.991,
+    "bruit": 0.969,
+    "bruit_fort": 0.907,
+    "distance": 0.947,
+    "loin_bruit": 0.871,
+    "voix_variees": 0.969
+   },
+   "false_wakes_hard": {
+    "calme": 0.004,
+    "bruit": 0.002
+   },
+   "false_triggers_hard_model_only": {
+    "calme": 0.062,
+    "bruit": 0.095
+   },
+   "false_wakes_trap": {
+    "calme": 0.026,
+    "bruit": 0.01
+   },
+   "false_triggers_trap_model_only": {
+    "calme": 0.214,
+    "bruit": 0.24
+   },
+   "false_wakes_per_hour": 0.0,
+   "false_triggers_per_hour_model_only": 71.88
+  },
+  "0.4/2": {
+   "detection": {
+    "calme": 0.564,
+    "bruit": 0.324,
+    "bruit_fort": 0.158,
+    "distance": 0.029,
+    "loin_bruit": 0.011,
+    "voix_variees": 0.3
+   },
+   "detection_model_only": {
+    "calme": 0.989,
+    "bruit": 0.964,
+    "bruit_fort": 0.884,
+    "distance": 0.922,
+    "loin_bruit": 0.827,
+    "voix_variees": 0.953
+   },
+   "false_wakes_hard": {
+    "calme": 0.004,
+    "bruit": 0.002
+   },
+   "false_triggers_hard_model_only": {
+    "calme": 0.051,
+    "bruit": 0.082
+   },
+   "false_wakes_trap": {
+    "calme": 0.026,
+    "bruit": 0.01
+   },
+   "false_triggers_trap_model_only": {
+    "calme": 0.188,
+    "bruit": 0.198
+   },
+   "false_wakes_per_hour": 0.0,
+   "false_triggers_per_hour_model_only": 50.91
+  },
+  "0.4/2+0.9/3": {
+   "detection": {
+    "calme": 0.933,
+    "bruit": 0.827,
+    "bruit_fort": 0.627,
+    "distance": 0.576,
+    "loin_bruit": 0.46,
+    "voix_variees": 0.751
+   },
+   "detection_model_only": {
+    "calme": 0.989,
+    "bruit": 0.964,
+    "bruit_fort": 0.884,
+    "distance": 0.922,
+    "loin_bruit": 0.827,
+    "voix_variees": 0.953
+   },
+   "false_wakes_hard": {
+    "calme": 0.007,
+    "bruit": 0.01
+   },
+   "false_triggers_hard_model_only": {
+    "calme": 0.051,
+    "bruit": 0.082
+   },
+   "false_wakes_trap": {
+    "calme": 0.068,
+    "bruit": 0.068
+   },
+   "false_triggers_trap_model_only": {
+    "calme": 0.188,
+    "bruit": 0.198
+   },
+   "false_wakes_per_hour": 4.49,
+   "false_triggers_per_hour_model_only": 50.91
+  },
+  "0.4/2+0.95/3": {
+   "detection": {
+    "calme": 0.893,
+    "bruit": 0.751,
+    "bruit_fort": 0.576,
+    "distance": 0.504,
+    "loin_bruit": 0.378,
+    "voix_variees": 0.691
+   },
+   "detection_model_only": {
+    "calme": 0.989,
+    "bruit": 0.964,
+    "bruit_fort": 0.884,
+    "distance": 0.922,
+    "loin_bruit": 0.827,
+    "voix_variees": 0.953
+   },
+   "false_wakes_hard": {
+    "calme": 0.005,
+    "bruit": 0.005
+   },
+   "false_triggers_hard_model_only": {
+    "calme": 0.051,
+    "bruit": 0.082
+   },
+   "false_wakes_trap": {
+    "calme": 0.057,
+    "bruit": 0.057
+   },
+   "false_triggers_trap_model_only": {
+    "calme": 0.188,
+    "bruit": 0.198
+   },
+   "false_wakes_per_hour": 1.5,
+   "false_triggers_per_hour_model_only": 50.91
+  },
+  "0.4/2+0.95/4": {
+   "detection": {
+    "calme": 0.822,
+    "bruit": 0.653,
+    "bruit_fort": 0.476,
+    "distance": 0.367,
+    "loin_bruit": 0.256,
+    "voix_variees": 0.593
+   },
+   "detection_model_only": {
+    "calme": 0.989,
+    "bruit": 0.964,
+    "bruit_fort": 0.884,
+    "distance": 0.922,
+    "loin_bruit": 0.827,
+    "voix_variees": 0.953
+   },
+   "false_wakes_hard": {
+    "calme": 0.004,
+    "bruit": 0.004
+   },
+   "false_triggers_hard_model_only": {
+    "calme": 0.051,
+    "bruit": 0.082
+   },
+   "false_wakes_trap": {
+    "calme": 0.042,
+    "bruit": 0.031
+   },
+   "false_triggers_trap_model_only": {
+    "calme": 0.188,
+    "bruit": 0.198
+   },
+   "false_wakes_per_hour": 0.0,
+   "false_triggers_per_hour_model_only": 50.91
+  },
+  "0.4/2+0.98/4": {
+   "detection": {
+    "calme": 0.753,
+    "bruit": 0.56,
+    "bruit_fort": 0.362,
+    "distance": 0.278,
+    "loin_bruit": 0.16,
+    "voix_variees": 0.507
+   },
+   "detection_model_only": {
+    "calme": 0.989,
+    "bruit": 0.964,
+    "bruit_fort": 0.884,
+    "distance": 0.922,
+    "loin_bruit": 0.827,
+    "voix_variees": 0.953
+   },
+   "false_wakes_hard": {
+    "calme": 0.004,
+    "bruit": 0.003
+   },
+   "false_triggers_hard_model_only": {
+    "calme": 0.051,
+    "bruit": 0.082
+   },
+   "false_wakes_trap": {
+    "calme": 0.026,
+    "bruit": 0.016
+   },
+   "false_triggers_trap_model_only": {
+    "calme": 0.188,
+    "bruit": 0.198
+   },
+   "false_wakes_per_hour": 0.0,
+   "false_triggers_per_hour_model_only": 50.91
+  },
+  "0.4/2+0.98/5": {
+   "detection": {
+    "calme": 0.651,
+    "bruit": 0.436,
+    "bruit_fort": 0.247,
+    "distance": 0.142,
+    "loin_bruit": 0.091,
+    "voix_variees": 0.391
+   },
+   "detection_model_only": {
+    "calme": 0.989,
+    "bruit": 0.964,
+    "bruit_fort": 0.884,
+    "distance": 0.922,
+    "loin_bruit": 0.827,
+    "voix_variees": 0.953
+   },
+   "false_wakes_hard": {
+    "calme": 0.004,
+    "bruit": 0.002
+   },
+   "false_triggers_hard_model_only": {
+    "calme": 0.051,
+    "bruit": 0.082
+   },
+   "false_wakes_trap": {
+    "calme": 0.026,
+    "bruit": 0.01
+   },
+   "false_triggers_trap_model_only": {
+    "calme": 0.188,
+    "bruit": 0.198
+   },
+   "false_wakes_per_hour": 0.0,
+   "false_triggers_per_hour_model_only": 50.91
+  },
+  "0.4/2+0.99/5": {
+   "detection": {
+    "calme": 0.629,
+    "bruit": 0.393,
+    "bruit_fort": 0.224,
+    "distance": 0.109,
+    "loin_bruit": 0.062,
+    "voix_variees": 0.358
+   },
+   "detection_model_only": {
+    "calme": 0.989,
+    "bruit": 0.964,
+    "bruit_fort": 0.884,
+    "distance": 0.922,
+    "loin_bruit": 0.827,
+    "voix_variees": 0.953
+   },
+   "false_wakes_hard": {
+    "calme": 0.004,
+    "bruit": 0.002
+   },
+   "false_triggers_hard_model_only": {
+    "calme": 0.051,
+    "bruit": 0.082
+   },
+   "false_wakes_trap": {
+    "calme": 0.026,
+    "bruit": 0.01
+   },
+   "false_triggers_trap_model_only": {
+    "calme": 0.188,
+    "bruit": 0.198
+   },
+   "false_wakes_per_hour": 0.0,
+   "false_triggers_per_hour_model_only": 50.91
+  },
+  "0.5/2": {
+   "detection": {
+    "calme": 0.562,
+    "bruit": 0.32,
+    "bruit_fort": 0.16,
+    "distance": 0.029,
+    "loin_bruit": 0.011,
+    "voix_variees": 0.3
+   },
+   "detection_model_only": {
+    "calme": 0.987,
+    "bruit": 0.949,
+    "bruit_fort": 0.876,
+    "distance": 0.898,
+    "loin_bruit": 0.793,
+    "voix_variees": 0.947
+   },
+   "false_wakes_hard": {
+    "calme": 0.004,
+    "bruit": 0.002
+   },
+   "false_triggers_hard_model_only": {
+    "calme": 0.043,
+    "bruit": 0.067
+   },
+   "false_wakes_trap": {
+    "calme": 0.026,
+    "bruit": 0.01
+   },
+   "false_triggers_trap_model_only": {
+    "calme": 0.156,
+    "bruit": 0.161
+   },
+   "false_wakes_per_hour": 0.0,
+   "false_triggers_per_hour_model_only": 43.43
+  },
+  "0.5/2+0.9/3": {
+   "detection": {
+    "calme": 0.933,
+    "bruit": 0.822,
+    "bruit_fort": 0.629,
+    "distance": 0.578,
+    "loin_bruit": 0.46,
+    "voix_variees": 0.751
+   },
+   "detection_model_only": {
+    "calme": 0.987,
+    "bruit": 0.949,
+    "bruit_fort": 0.876,
+    "distance": 0.898,
+    "loin_bruit": 0.793,
+    "voix_variees": 0.947
+   },
+   "false_wakes_hard": {
+    "calme": 0.007,
+    "bruit": 0.01
+   },
+   "false_triggers_hard_model_only": {
+    "calme": 0.043,
+    "bruit": 0.067
+   },
+   "false_wakes_trap": {
+    "calme": 0.068,
+    "bruit": 0.068
+   },
+   "false_triggers_trap_model_only": {
+    "calme": 0.156,
+    "bruit": 0.161
+   },
+   "false_wakes_per_hour": 4.49,
+   "false_triggers_per_hour_model_only": 43.43
+  },
+  "0.5/2+0.95/3": {
+   "detection": {
+    "calme": 0.893,
+    "bruit": 0.749,
+    "bruit_fort": 0.58,
+    "distance": 0.507,
+    "loin_bruit": 0.378,
+    "voix_variees": 0.691
+   },
+   "detection_model_only": {
+    "calme": 0.987,
+    "bruit": 0.949,
+    "bruit_fort": 0.876,
+    "distance": 0.898,
+    "loin_bruit": 0.793,
+    "voix_variees": 0.947
+   },
+   "false_wakes_hard": {
+    "calme": 0.004,
+    "bruit": 0.005
+   },
+   "false_triggers_hard_model_only": {
+    "calme": 0.043,
+    "bruit": 0.067
+   },
+   "false_wakes_trap": {
+    "calme": 0.057,
+    "bruit": 0.057
+   },
+   "false_triggers_trap_model_only": {
+    "calme": 0.156,
+    "bruit": 0.161
+   },
+   "false_wakes_per_hour": 1.5,
+   "false_triggers_per_hour_model_only": 43.43
+  },
+  "0.5/2+0.95/4": {
+   "detection": {
+    "calme": 0.822,
+    "bruit": 0.649,
+    "bruit_fort": 0.484,
+    "distance": 0.371,
+    "loin_bruit": 0.258,
+    "voix_variees": 0.598
+   },
+   "detection_model_only": {
+    "calme": 0.987,
+    "bruit": 0.949,
+    "bruit_fort": 0.876,
+    "distance": 0.898,
+    "loin_bruit": 0.793,
+    "voix_variees": 0.947
+   },
+   "false_wakes_hard": {
+    "calme": 0.004,
+    "bruit": 0.004
+   },
+   "false_triggers_hard_model_only": {
+    "calme": 0.043,
+    "bruit": 0.067
+   },
+   "false_wakes_trap": {
+    "calme": 0.042,
+    "bruit": 0.031
+   },
+   "false_triggers_trap_model_only": {
+    "calme": 0.156,
+    "bruit": 0.161
+   },
+   "false_wakes_per_hour": 0.0,
+   "false_triggers_per_hour_model_only": 43.43
+  },
+  "0.5/2+0.98/4": {
+   "detection": {
+    "calme": 0.753,
+    "bruit": 0.558,
+    "bruit_fort": 0.364,
+    "distance": 0.284,
+    "loin_bruit": 0.164,
+    "voix_variees": 0.509
+   },
+   "detection_model_only": {
+    "calme": 0.987,
+    "bruit": 0.949,
+    "bruit_fort": 0.876,
+    "distance": 0.898,
+    "loin_bruit": 0.793,
+    "voix_variees": 0.947
+   },
+   "false_wakes_hard": {
+    "calme": 0.004,
+    "bruit": 0.003
+   },
+   "false_triggers_hard_model_only": {
+    "calme": 0.043,
+    "bruit": 0.067
+   },
+   "false_wakes_trap": {
+    "calme": 0.026,
+    "bruit": 0.016
+   },
+   "false_triggers_trap_model_only": {
+    "calme": 0.156,
+    "bruit": 0.161
+   },
+   "false_wakes_per_hour": 0.0,
+   "false_triggers_per_hour_model_only": 43.43
+  },
+  "0.5/2+0.98/5": {
+   "detection": {
+    "calme": 0.656,
+    "bruit": 0.431,
+    "bruit_fort": 0.249,
+    "distance": 0.144,
+    "loin_bruit": 0.093,
+    "voix_variees": 0.391
+   },
+   "detection_model_only": {
+    "calme": 0.987,
+    "bruit": 0.949,
+    "bruit_fort": 0.876,
+    "distance": 0.898,
+    "loin_bruit": 0.793,
+    "voix_variees": 0.947
+   },
+   "false_wakes_hard": {
+    "calme": 0.004,
+    "bruit": 0.002
+   },
+   "false_triggers_hard_model_only": {
+    "calme": 0.043,
+    "bruit": 0.067
+   },
+   "false_wakes_trap": {
+    "calme": 0.026,
+    "bruit": 0.01
+   },
+   "false_triggers_trap_model_only": {
+    "calme": 0.156,
+    "bruit": 0.161
+   },
+   "false_wakes_per_hour": 0.0,
+   "false_triggers_per_hour_model_only": 43.43
+  },
+  "0.5/2+0.99/5": {
+   "detection": {
+    "calme": 0.633,
+    "bruit": 0.391,
+    "bruit_fort": 0.227,
+    "distance": 0.113,
+    "loin_bruit": 0.064,
+    "voix_variees": 0.358
+   },
+   "detection_model_only": {
+    "calme": 0.987,
+    "bruit": 0.949,
+    "bruit_fort": 0.876,
+    "distance": 0.898,
+    "loin_bruit": 0.793,
+    "voix_variees": 0.947
+   },
+   "false_wakes_hard": {
+    "calme": 0.004,
+    "bruit": 0.002
+   },
+   "false_triggers_hard_model_only": {
+    "calme": 0.043,
+    "bruit": 0.067
+   },
+   "false_wakes_trap": {
+    "calme": 0.026,
+    "bruit": 0.01
+   },
+   "false_triggers_trap_model_only": {
+    "calme": 0.156,
+    "bruit": 0.161
+   },
+   "false_wakes_per_hour": 0.0,
+   "false_triggers_per_hour_model_only": 43.43
+  },
+  "0.5/3": {
+   "detection": {
+    "calme": 0.567,
+    "bruit": 0.311,
+    "bruit_fort": 0.173,
+    "distance": 0.024,
+    "loin_bruit": 0.016,
+    "voix_variees": 0.287
+   },
+   "detection_model_only": {
+    "calme": 0.973,
+    "bruit": 0.911,
+    "bruit_fort": 0.822,
+    "distance": 0.82,
+    "loin_bruit": 0.704,
+    "voix_variees": 0.889
+   },
+   "false_wakes_hard": {
+    "calme": 0.004,
+    "bruit": 0.002
+   },
+   "false_triggers_hard_model_only": {
+    "calme": 0.024,
+    "bruit": 0.039
+   },
+   "false_wakes_trap": {
+    "calme": 0.026,
+    "bruit": 0.005
+   },
+   "false_triggers_trap_model_only": {
+    "calme": 0.12,
+    "bruit": 0.115
+   },
+   "false_wakes_per_hour": 0.0,
+   "false_triggers_per_hour_model_only": 20.96
+  },
+  "0.5/3+0.9/3": {
+   "detection": {
+    "calme": 0.936,
+    "bruit": 0.822,
+    "bruit_fort": 0.624,
+    "distance": 0.582,
+    "loin_bruit": 0.462,
+    "voix_variees": 0.76
+   },
+   "detection_model_only": {
+    "calme": 0.973,
+    "bruit": 0.911,
+    "bruit_fort": 0.822,
+    "distance": 0.82,
+    "loin_bruit": 0.704,
+    "voix_variees": 0.889
+   },
+   "false_wakes_hard": {
+    "calme": 0.007,
+    "bruit": 0.01
+   },
+   "false_triggers_hard_model_only": {
+    "calme": 0.024,
+    "bruit": 0.039
+   },
+   "false_wakes_trap": {
+    "calme": 0.068,
+    "bruit": 0.068
+   },
+   "false_triggers_trap_model_only": {
+    "calme": 0.12,
+    "bruit": 0.115
+   },
+   "false_wakes_per_hour": 4.49,
+   "false_triggers_per_hour_model_only": 20.96
+  },
+  "0.5/3+0.95/3": {
+   "detection": {
+    "calme": 0.896,
+    "bruit": 0.744,
+    "bruit_fort": 0.578,
+    "distance": 0.507,
+    "loin_bruit": 0.38,
+    "voix_variees": 0.7
+   },
+   "detection_model_only": {
+    "calme": 0.973,
+    "bruit": 0.911,
+    "bruit_fort": 0.822,
+    "distance": 0.82,
+    "loin_bruit": 0.704,
+    "voix_variees": 0.889
+   },
+   "false_wakes_hard": {
+    "calme": 0.004,
+    "bruit": 0.005
+   },
+   "false_triggers_hard_model_only": {
+    "calme": 0.024,
+    "bruit": 0.039
+   },
+   "false_wakes_trap": {
+    "calme": 0.057,
+    "bruit": 0.057
+   },
+   "false_triggers_trap_model_only": {
+    "calme": 0.12,
+    "bruit": 0.115
+   },
+   "false_wakes_per_hour": 1.5,
+   "false_triggers_per_hour_model_only": 20.96
+  },
+  "0.5/3+0.95/4": {
+   "detection": {
+    "calme": 0.822,
+    "bruit": 0.64,
+    "bruit_fort": 0.493,
+    "distance": 0.373,
+    "loin_bruit": 0.267,
+    "voix_variees": 0.602
+   },
+   "detection_model_only": {
+    "calme": 0.973,
+    "bruit": 0.911,
+    "bruit_fort": 0.822,
+    "distance": 0.82,
+    "loin_bruit": 0.704,
+    "voix_variees": 0.889
+   },
+   "false_wakes_hard": {
+    "calme": 0.004,
+    "bruit": 0.004
+   },
+   "false_triggers_hard_model_only": {
+    "calme": 0.024,
+    "bruit": 0.039
+   },
+   "false_wakes_trap": {
+    "calme": 0.042,
+    "bruit": 0.031
+   },
+   "false_triggers_trap_model_only": {
+    "calme": 0.12,
+    "bruit": 0.115
+   },
+   "false_wakes_per_hour": 0.0,
+   "false_triggers_per_hour_model_only": 20.96
+  },
+  "0.5/3+0.98/4": {
+   "detection": {
+    "calme": 0.753,
+    "bruit": 0.553,
+    "bruit_fort": 0.376,
+    "distance": 0.289,
+    "loin_bruit": 0.171,
+    "voix_variees": 0.513
+   },
+   "detection_model_only": {
+    "calme": 0.973,
+    "bruit": 0.911,
+    "bruit_fort": 0.822,
+    "distance": 0.82,
+    "loin_bruit": 0.704,
+    "voix_variees": 0.889
+   },
+   "false_wakes_hard": {
+    "calme": 0.004,
+    "bruit": 0.003
+   },
+   "false_triggers_hard_model_only": {
+    "calme": 0.024,
+    "bruit": 0.039
+   },
+   "false_wakes_trap": {
+    "calme": 0.026,
+    "bruit": 0.01
+   },
+   "false_triggers_trap_model_only": {
+    "calme": 0.12,
+    "bruit": 0.115
+   },
+   "false_wakes_per_hour": 0.0,
+   "false_triggers_per_hour_model_only": 20.96
+  },
+  "0.5/3+0.98/5": {
+   "detection": {
+    "calme": 0.673,
+    "bruit": 0.436,
+    "bruit_fort": 0.271,
+    "distance": 0.142,
+    "loin_bruit": 0.102,
+    "voix_variees": 0.393
+   },
+   "detection_model_only": {
+    "calme": 0.973,
+    "bruit": 0.911,
+    "bruit_fort": 0.822,
+    "distance": 0.82,
+    "loin_bruit": 0.704,
+    "voix_variees": 0.889
+   },
+   "false_wakes_hard": {
+    "calme": 0.004,
+    "bruit": 0.003
+   },
+   "false_triggers_hard_model_only": {
+    "calme": 0.024,
+    "bruit": 0.039
+   },
+   "false_wakes_trap": {
+    "calme": 0.026,
+    "bruit": 0.005
+   },
+   "false_triggers_trap_model_only": {
+    "calme": 0.12,
+    "bruit": 0.115
+   },
+   "false_wakes_per_hour": 0.0,
+   "false_triggers_per_hour_model_only": 20.96
+  },
+  "0.5/3+0.99/5": {
+   "detection": {
+    "calme": 0.64,
+    "bruit": 0.393,
+    "bruit_fort": 0.251,
+    "distance": 0.109,
+    "loin_bruit": 0.073,
+    "voix_variees": 0.358
+   },
+   "detection_model_only": {
+    "calme": 0.973,
+    "bruit": 0.911,
+    "bruit_fort": 0.822,
+    "distance": 0.82,
+    "loin_bruit": 0.704,
+    "voix_variees": 0.889
+   },
+   "false_wakes_hard": {
+    "calme": 0.004,
+    "bruit": 0.002
+   },
+   "false_triggers_hard_model_only": {
+    "calme": 0.024,
+    "bruit": 0.039
+   },
+   "false_wakes_trap": {
+    "calme": 0.026,
+    "bruit": 0.005
+   },
+   "false_triggers_trap_model_only": {
+    "calme": 0.12,
+    "bruit": 0.115
+   },
+   "false_wakes_per_hour": 0.0,
+   "false_triggers_per_hour_model_only": 20.96
+  },
+  "0.6/2": {
+   "detection": {
+    "calme": 0.556,
+    "bruit": 0.318,
+    "bruit_fort": 0.167,
+    "distance": 0.027,
+    "loin_bruit": 0.011,
+    "voix_variees": 0.307
+   },
+   "detection_model_only": {
+    "calme": 0.978,
+    "bruit": 0.938,
+    "bruit_fort": 0.851,
+    "distance": 0.862,
+    "loin_bruit": 0.749,
+    "voix_variees": 0.931
+   },
+   "false_wakes_hard": {
+    "calme": 0.004,
+    "bruit": 0.002
+   },
+   "false_triggers_hard_model_only": {
+    "calme": 0.033,
+    "bruit": 0.054
+   },
+   "false_wakes_trap": {
+    "calme": 0.026,
+    "bruit": 0.01
+   },
+   "false_triggers_trap_model_only": {
+    "calme": 0.141,
+    "bruit": 0.135
+   },
+   "false_wakes_per_hour": 0.0,
+   "false_triggers_per_hour_model_only": 37.44
+  },
+  "0.6/2+0.9/3": {
+   "detection": {
+    "calme": 0.929,
+    "bruit": 0.824,
+    "bruit_fort": 0.629,
+    "distance": 0.58,
+    "loin_bruit": 0.464,
+    "voix_variees": 0.753
+   },
+   "detection_model_only": {
+    "calme": 0.978,
+    "bruit": 0.938,
+    "bruit_fort": 0.851,
+    "distance": 0.862,
+    "loin_bruit": 0.749,
+    "voix_variees": 0.931
+   },
+   "false_wakes_hard": {
+    "calme": 0.007,
+    "bruit": 0.01
+   },
+   "false_triggers_hard_model_only": {
+    "calme": 0.033,
+    "bruit": 0.054
+   },
+   "false_wakes_trap": {
+    "calme": 0.068,
+    "bruit": 0.068
+   },
+   "false_triggers_trap_model_only": {
+    "calme": 0.141,
+    "bruit": 0.135
+   },
+   "false_wakes_per_hour": 4.49,
+   "false_triggers_per_hour_model_only": 37.44
+  },
+  "0.6/2+0.95/3": {
+   "detection": {
+    "calme": 0.889,
+    "bruit": 0.751,
+    "bruit_fort": 0.58,
+    "distance": 0.509,
+    "loin_bruit": 0.382,
+    "voix_variees": 0.693
+   },
+   "detection_model_only": {
+    "calme": 0.978,
+    "bruit": 0.938,
+    "bruit_fort": 0.851,
+    "distance": 0.862,
+    "loin_bruit": 0.749,
+    "voix_variees": 0.931
+   },
+   "false_wakes_hard": {
+    "calme": 0.005,
+    "bruit": 0.005
+   },
+   "false_triggers_hard_model_only": {
+    "calme": 0.033,
+    "bruit": 0.054
+   },
+   "false_wakes_trap": {
+    "calme": 0.057,
+    "bruit": 0.057
+   },
+   "false_triggers_trap_model_only": {
+    "calme": 0.141,
+    "bruit": 0.135
+   },
+   "false_wakes_per_hour": 1.5,
+   "false_triggers_per_hour_model_only": 37.44
+  },
+  "0.6/2+0.95/4": {
+   "detection": {
+    "calme": 0.818,
+    "bruit": 0.651,
+    "bruit_fort": 0.493,
+    "distance": 0.376,
+    "loin_bruit": 0.26,
+    "voix_variees": 0.602
+   },
+   "detection_model_only": {
+    "calme": 0.978,
+    "bruit": 0.938,
+    "bruit_fort": 0.851,
+    "distance": 0.862,
+    "loin_bruit": 0.749,
+    "voix_variees": 0.931
+   },
+   "false_wakes_hard": {
+    "calme": 0.005,
+    "bruit": 0.004
+   },
+   "false_triggers_hard_model_only": {
+    "calme": 0.033,
+    "bruit": 0.054
+   },
+   "false_wakes_trap": {
+    "calme": 0.042,
+    "bruit": 0.031
+   },
+   "false_triggers_trap_model_only": {
+    "calme": 0.141,
+    "bruit": 0.135
+   },
+   "false_wakes_per_hour": 0.0,
+   "false_triggers_per_hour_model_only": 37.44
+  },
+  "0.6/2+0.98/4": {
+   "detection": {
+    "calme": 0.749,
+    "bruit": 0.56,
+    "bruit_fort": 0.371,
+    "distance": 0.291,
+    "loin_bruit": 0.164,
+    "voix_variees": 0.513
+   },
+   "detection_model_only": {
+    "calme": 0.978,
+    "bruit": 0.938,
+    "bruit_fort": 0.851,
+    "distance": 0.862,
+    "loin_bruit": 0.749,
+    "voix_variees": 0.931
+   },
+   "false_wakes_hard": {
+    "calme": 0.004,
+    "bruit": 0.003
+   },
+   "false_triggers_hard_model_only": {
+    "calme": 0.033,
+    "bruit": 0.054
+   },
+   "false_wakes_trap": {
+    "calme": 0.026,
+    "bruit": 0.016
+   },
+   "false_triggers_trap_model_only": {
+    "calme": 0.141,
+    "bruit": 0.135
+   },
+   "false_wakes_per_hour": 0.0,
+   "false_triggers_per_hour_model_only": 37.44
+  },
+  "0.6/2+0.98/5": {
+   "detection": {
+    "calme": 0.656,
+    "bruit": 0.431,
+    "bruit_fort": 0.256,
+    "distance": 0.147,
+    "loin_bruit": 0.098,
+    "voix_variees": 0.402
+   },
+   "detection_model_only": {
+    "calme": 0.978,
+    "bruit": 0.938,
+    "bruit_fort": 0.851,
+    "distance": 0.862,
+    "loin_bruit": 0.749,
+    "voix_variees": 0.931
+   },
+   "false_wakes_hard": {
+    "calme": 0.004,
+    "bruit": 0.002
+   },
+   "false_triggers_hard_model_only": {
+    "calme": 0.033,
+    "bruit": 0.054
+   },
+   "false_wakes_trap": {
+    "calme": 0.026,
+    "bruit": 0.01
+   },
+   "false_triggers_trap_model_only": {
+    "calme": 0.141,
+    "bruit": 0.135
+   },
+   "false_wakes_per_hour": 0.0,
+   "false_triggers_per_hour_model_only": 37.44
+  },
+  "0.6/2+0.99/5": {
+   "detection": {
+    "calme": 0.631,
+    "bruit": 0.393,
+    "bruit_fort": 0.236,
+    "distance": 0.113,
+    "loin_bruit": 0.069,
+    "voix_variees": 0.367
+   },
+   "detection_model_only": {
+    "calme": 0.978,
+    "bruit": 0.938,
+    "bruit_fort": 0.851,
+    "distance": 0.862,
+    "loin_bruit": 0.749,
+    "voix_variees": 0.931
+   },
+   "false_wakes_hard": {
+    "calme": 0.004,
+    "bruit": 0.002
+   },
+   "false_triggers_hard_model_only": {
+    "calme": 0.033,
+    "bruit": 0.054
+   },
+   "false_wakes_trap": {
+    "calme": 0.026,
+    "bruit": 0.01
+   },
+   "false_triggers_trap_model_only": {
+    "calme": 0.141,
+    "bruit": 0.135
+   },
+   "false_wakes_per_hour": 0.0,
+   "false_triggers_per_hour_model_only": 37.44
+  },
+  "seul 0.9/3": {
+   "detection": {
+    "calme": 0.913,
+    "bruit": 0.791,
+    "bruit_fort": 0.613,
+    "distance": 0.584,
+    "loin_bruit": 0.464,
+    "voix_variees": 0.744
+   },
+   "detection_model_only": {
+    "calme": 0.913,
+    "bruit": 0.791,
+    "bruit_fort": 0.613,
+    "distance": 0.584,
+    "loin_bruit": 0.464,
+    "voix_variees": 0.744
+   },
+   "false_wakes_hard": {
+    "calme": 0.004,
+    "bruit": 0.009
+   },
+   "false_triggers_hard_model_only": {
+    "calme": 0.004,
+    "bruit": 0.009
+   },
+   "false_wakes_trap": {
+    "calme": 0.062,
+    "bruit": 0.068
+   },
+   "false_triggers_trap_model_only": {
+    "calme": 0.062,
+    "bruit": 0.068
+   },
+   "false_wakes_per_hour": 4.49,
+   "false_triggers_per_hour_model_only": 4.49
+  },
+  "seul 0.95/3": {
+   "detection": {
+    "calme": 0.836,
+    "bruit": 0.702,
+    "bruit_fort": 0.56,
+    "distance": 0.509,
+    "loin_bruit": 0.382,
+    "voix_variees": 0.66
+   },
+   "detection_model_only": {
+    "calme": 0.836,
+    "bruit": 0.702,
+    "bruit_fort": 0.56,
+    "distance": 0.509,
+    "loin_bruit": 0.382,
+    "voix_variees": 0.66
+   },
+   "false_wakes_hard": {
+    "calme": 0.002,
+    "bruit": 0.004
+   },
+   "false_triggers_hard_model_only": {
+    "calme": 0.002,
+    "bruit": 0.004
+   },
+   "false_wakes_trap": {
+    "calme": 0.052,
+    "bruit": 0.057
+   },
+   "false_triggers_trap_model_only": {
+    "calme": 0.052,
+    "bruit": 0.057
+   },
+   "false_wakes_per_hour": 1.5,
+   "false_triggers_per_hour_model_only": 1.5
+  },
+  "seul 0.95/4": {
+   "detection": {
+    "calme": 0.713,
+    "bruit": 0.564,
+    "bruit_fort": 0.447,
+    "distance": 0.371,
+    "loin_bruit": 0.264,
+    "voix_variees": 0.529
+   },
+   "detection_model_only": {
+    "calme": 0.713,
+    "bruit": 0.564,
+    "bruit_fort": 0.447,
+    "distance": 0.371,
+    "loin_bruit": 0.264,
+    "voix_variees": 0.529
+   },
+   "false_wakes_hard": {
+    "calme": 0.001,
+    "bruit": 0.002
+   },
+   "false_triggers_hard_model_only": {
+    "calme": 0.001,
+    "bruit": 0.002
+   },
+   "false_wakes_trap": {
+    "calme": 0.036,
+    "bruit": 0.031
+   },
+   "false_triggers_trap_model_only": {
+    "calme": 0.036,
+    "bruit": 0.031
+   },
+   "false_wakes_per_hour": 0.0,
+   "false_triggers_per_hour_model_only": 0.0
+  },
+  "seul 0.98/4": {
+   "detection": {
+    "calme": 0.576,
+    "bruit": 0.438,
+    "bruit_fort": 0.302,
+    "distance": 0.284,
+    "loin_bruit": 0.171,
+    "voix_variees": 0.409
+   },
+   "detection_model_only": {
+    "calme": 0.576,
+    "bruit": 0.438,
+    "bruit_fort": 0.302,
+    "distance": 0.284,
+    "loin_bruit": 0.171,
+    "voix_variees": 0.409
+   },
+   "false_wakes_hard": {
+    "calme": 0.0,
+    "bruit": 0.001
+   },
+   "false_triggers_hard_model_only": {
+    "calme": 0.0,
+    "bruit": 0.001
+   },
+   "false_wakes_trap": {
+    "calme": 0.021,
+    "bruit": 0.01
+   },
+   "false_triggers_trap_model_only": {
+    "calme": 0.021,
+    "bruit": 0.01
+   },
+   "false_wakes_per_hour": 0.0,
+   "false_triggers_per_hour_model_only": 0.0
+  },
+  "seul 0.98/5": {
+   "detection": {
+    "calme": 0.378,
+    "bruit": 0.249,
+    "bruit_fort": 0.162,
+    "distance": 0.14,
+    "loin_bruit": 0.102,
+    "voix_variees": 0.238
+   },
+   "detection_model_only": {
+    "calme": 0.378,
+    "bruit": 0.249,
+    "bruit_fort": 0.162,
+    "distance": 0.14,
+    "loin_bruit": 0.102,
+    "voix_variees": 0.238
+   },
+   "false_wakes_hard": {
+    "calme": 0.0,
+    "bruit": 0.001
+   },
+   "false_triggers_hard_model_only": {
+    "calme": 0.0,
+    "bruit": 0.001
+   },
+   "false_wakes_trap": {
+    "calme": 0.01,
+    "bruit": 0.0
+   },
+   "false_triggers_trap_model_only": {
+    "calme": 0.01,
+    "bruit": 0.0
+   },
+   "false_wakes_per_hour": 0.0,
+   "false_triggers_per_hour_model_only": 0.0
+  },
+  "seul 0.99/5": {
+   "detection": {
+    "calme": 0.282,
+    "bruit": 0.187,
+    "bruit_fort": 0.131,
+    "distance": 0.107,
+    "loin_bruit": 0.067,
+    "voix_variees": 0.173
+   },
+   "detection_model_only": {
+    "calme": 0.282,
+    "bruit": 0.187,
+    "bruit_fort": 0.131,
+    "distance": 0.107,
+    "loin_bruit": 0.067,
+    "voix_variees": 0.173
+   },
+   "false_wakes_hard": {
+    "calme": 0.0,
+    "bruit": 0.0
+   },
+   "false_triggers_hard_model_only": {
+    "calme": 0.0,
+    "bruit": 0.0
+   },
+   "false_wakes_trap": {
+    "calme": 0.005,
+    "bruit": 0.0
+   },
+   "false_triggers_trap_model_only": {
+    "calme": 0.005,
+    "bruit": 0.0
+   },
+   "false_wakes_per_hour": 0.0,
+   "false_triggers_per_hour_model_only": 0.0
+  }
+ },
+ "recommended": "0.5/3+0.95/4"
+}

@@ -97,7 +97,7 @@ def test_your_spotify_artists_join_the_vocabulary_hint(tmp_path):
 
 
 def _vocabulary_checks():
-    assert vocabulary_hint(CFG) == ("Jarvis, ouvre Discord, ferme Steam, lance Google Chrome, quitte Spotify, "
+    assert vocabulary_hint(CFG) == ("Orion, ouvre Discord, ferme Steam, lance Google Chrome, quitte Spotify, "
                                    "ouvre Visual Studio Code, ferme le Bloc-notes. Mets un minuteur. Rappelle-moi. "
                                    f"Recherche-moi. Raconte-moi. Arrête. Tais-toi. Quel temps fera-t-il à {CFG.weather.default_location} ?")
     from dataclasses import replace
