@@ -1,0 +1,34 @@
+{
+  "": {
+    "entityTypes": {
+      "Role": {},
+      "Category": {},
+      "User": {
+        "memberOfTypes": ["Role"],
+        "shape": {"type": "Record", "attributes": {}}
+      },
+      "Tool": {
+        "memberOfTypes": ["Category"],
+        "shape": {"type": "Record", "attributes": {"risk": {"type": "String"}}}
+      }
+    },
+    "actions": {
+      "execute": {
+        "appliesTo": {
+          "principalTypes": ["User"],
+          "resourceTypes": ["Tool"],
+          "context": {
+            "type": "Record",
+            "attributes": {
+              "confirmed": {"type": "Boolean"},
+              "origin": {"type": "String"},
+              "device_forbidden": {"type": "Boolean"},
+              "url_executable": {"type": "Boolean"},
+              "forget_all": {"type": "Boolean"}
+            }
+          }
+        }
+      }
+    }
+  }
+}
