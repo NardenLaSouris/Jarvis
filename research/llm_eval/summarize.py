@@ -18,7 +18,7 @@ def main(paths: list[str]) -> None:
     runs = defaultdict(list)
     for p in paths:
         r = json.loads(Path(p).read_text(encoding="utf-8"))
-        runs[(r["model"], r["think"])].append(r)
+        runs[(r["model"] + (" + garde-fou" if r.get("guard") else ""), r["think"])].append(r)
     header = ["modèle", "réflexion", "passes"] + list(SECTIONS) + ["latence outils", "latence réponse", "jetons/s",
                                                                     "VRAM / taille", "erreurs", "vides"]
     print(" | ".join(header))

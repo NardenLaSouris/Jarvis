@@ -80,6 +80,11 @@ class LLMConfig:
     # false : modèle non éprouvé (abliterated...) ; avec [tools.policy] engine = "both", ses propositions sont
     # limitées aux outils d'information, de maison, de médias et de minuteurs.
     trusted: bool = True
+    # Modèles à réflexion (Qwen3...) : "false" pour répondre sans réfléchir (sinon la réflexion consomme les
+    # max_tokens et la réponse reste vide) ; "" : réglage du modèle.
+    think: str = ""
+    # Garde-fou de ce que dit le modèle (jarvis/llm/guard.py) : "auto" (actif si trusted = false), "on" ou "off".
+    guard: str = "auto"
     # Worker distant (fallback_host renseigné) : connexion de vérification, délai du secours, sonde, lenteur.
     connect_timeout: float = 1.0
     fallback_timeout: float = 30.0

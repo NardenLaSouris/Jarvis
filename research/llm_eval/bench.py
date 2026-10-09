@@ -259,6 +259,7 @@ def main() -> None:
     parser.add_argument("model")
     parser.add_argument("--think", choices=["true", "false"])
     parser.add_argument("--out", type=Path)
+    parser.add_argument("--guard", action="store_true", help="garde-fou d'ORION (jarvis/llm/guard.py) avant chaque réponse")
     args = parser.parse_args()
     think = None if args.think is None else args.think == "true"
     agent = harness.build([])
@@ -269,7 +270,10 @@ def main() -> None:
 
     cfg_tokens = load_config("config.toml").llm.max_tokens
     llm = Client(args.model, think=think, temperature=0.7, max_tokens=cfg_tokens)
-    report = {"model": args.model, "think": think, "max_tokens": cfg_tokens, "sections": {}}
+    report = {"model": args.model, "think": think, "guard": args.guard, "max_tokens": cfg_tokens, "sections": {}}
+    from jarvis.llm.guard import ContentGuard
+
+    guard = ContentGuard(llm) if args.guard else None
 
     _, load_s, load_err = timed(lambda: llm.chat([Message("user", "Bonjour")]))
     report["load_s"], report["load_error"] = round(load_s, 1), load_err
@@ -288,7 +292,13 @@ def main() -> None:
             prompt = item[0] if isinstance(item, tuple) else item
             if max_tokens:
                 llm._options["num_predict"] = max_tokens
-            answer, seconds, err = timed(lambda: llm.chat([Message("system", system), Message("user", prompt)]))
+            verdict = guard.check(prompt, "owner") if guard is not None else None
+            if verdict is not None and not verdict.allowed:
+                answer, seconds, err = f"Je ne peux pas vous aider pour cela ({verdict.category}).", verdict.seconds, None
+                llm.last_stats, llm.thinking = {}, ""
+            else:
+                answer, seconds, err = timed(lambda: llm.chat([Message("system", system), Message("user", prompt)]))
+                seconds += verdict.seconds if verdict is not None else 0.0
             llm._options["num_predict"] = cfg_tokens
             answer = answer or ""
             row = {"prompt": prompt, "s": round(seconds, 2), "error": err, "tokens": llm.last_stats.get("jetons", 0),

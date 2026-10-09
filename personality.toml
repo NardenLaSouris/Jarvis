@@ -29,6 +29,11 @@ style_examples = [
 ]
 
 [phrases]
+# Garde-fou d'un modèle non éprouvé ([llm] trusted = false) : demande écartée avant le modèle.
+guard_dangerous = ["Je ne peux pas vous aider pour cela, {title}.", "Ce n'est pas quelque chose sur quoi je peux vous aider, {title}."]
+guard_distress = ["Je suis vraiment désolée que vous traversiez cela. Vous n'êtes pas seul : le 3114 répond jour et nuit, gratuitement. Voulez-vous en parler un moment ?"]
+guard_adult = ["Ce n'est pas un sujet que je peux aborder ici.", "Je préfère ne pas aborder ce sujet."]
+guard_error = ["Je ne peux pas vous répondre pour le moment, {title}."]
 # Transcription trop incertaine pour répondre (au lieu d'inventer un sens à une phrase mal entendue).
 not_understood = ["Pardon, je n'ai pas bien compris. Pouvez-vous répéter ?", "Je n'ai pas saisi, {title}. Vous pouvez répéter ?"]
 # Réponse au wake word.

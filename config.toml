@@ -131,6 +131,12 @@ fallback_model = ""
 # false : modèle non éprouvé (abliterated...). Avec [tools.policy] engine = "both", ses propositions d'action sont
 # limitées aux outils d'information, de maison, de médias et de minuteurs (aucun mail, fichier, application, PC).
 trusted = true
+# Modèles à réflexion (Qwen3...) : "false" pour répondre sans réfléchir ; vide = réglage du modèle.
+think = ""
+# Garde-fou de ce que dit le modèle : chaque demande de conversation ou de recherche est d'abord classée ; refus des
+# demandes dangereuses pour tous, réponse de soutien (3114) en cas de détresse, contenu adulte refusé aux profils
+# enfant et invité. "auto" : actif seulement si trusted = false ; "on" ; "off".
+guard = "auto"
 # Avec un secours (worker distant) : état du worker ONLINE / DEGRADED / OFFLINE (journal, API, --health).
 # timeout ci-dessus = attente maximale entre deux morceaux de réponse ; avec un worker GPU, 20 s suffisent.
 connect_timeout = 1.0   # vérification TCP avant chaque appel (s) : un worker éteint est détecté aussitôt
