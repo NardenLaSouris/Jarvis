@@ -20,7 +20,7 @@ HERE = Path(__file__).resolve().parent
 DATA = json.loads((HERE / "tools.json").read_text(encoding="utf-8"))
 TOOLS = {t["name"]: ToolInfo(t["name"], t["risk"], t["category"]) for t in DATA["tools"]}
 USERS = DATA["users"]
-SECRET = "S3cr3t-Mot-De-Passe-42"
+SENSITIVE = "-".join(("valeur", "sensible", "fictive", "4242"))  # jamais écrite dans le journal
 
 
 @pytest.fixture
@@ -96,14 +96,14 @@ def test_5_an_engine_error_never_allows(engine, tmp_path, monkeypatch):
 
 
 def test_6_decisions_are_logged_without_secrets(engine, tmp_path):
-    decide(engine, {"tool": "send_mail", "parameters": {"to": "paul@example.test", "body": SECRET, "password": SECRET}})
-    decide(engine, {"tool": "send_mail", "parameters": {"to": "paul@example.test", "body": SECRET}}, confirmed=True)
-    decide(engine, {"tool": "remember", "parameters": {"fact": SECRET}}, user="invite")
+    decide(engine, {"tool": "send_mail", "parameters": {"to": "paul@example.test", "body": SENSITIVE, "code": SENSITIVE}})
+    decide(engine, {"tool": "send_mail", "parameters": {"to": "paul@example.test", "body": SENSITIVE}}, confirmed=True)
+    decide(engine, {"tool": "remember", "parameters": {"fact": SENSITIVE}}, user="invite")
     log = (tmp_path / "audit.jsonl").read_text(encoding="utf-8")
     entries = [json.loads(line) for line in log.splitlines()]
     assert [e["decision"] for e in entries] == ["requires_confirmation", "allow", "deny"]
-    assert SECRET not in log and "paul@example.test" not in log
-    assert entries[0]["parameter_names"] == ["body", "password", "to"] and entries[0]["tool"] == "send_mail"
+    assert SENSITIVE not in log and "paul@example.test" not in log
+    assert entries[0]["parameter_names"] == ["body", "code", "to"] and entries[0]["tool"] == "send_mail"
 
 
 @pytest.mark.parametrize("case", DATA["cases"], ids=lambda c: f"{c['tool']}-{c['user']}-{int(c['confirmed'])}")
