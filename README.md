@@ -99,6 +99,7 @@ jarvis/
   scheduling/          minuteurs et rappels (persistants), heures et durées dites, actions programmées
   audio/ stt/ tts/ wakeword/ web/ weather/ notifications/ face/ api/ control/ winagent/
 wakeword_training/     entraînement d'un wake word personnalisé
+tts_training/          entraînement de la voix Piper d'ORION (fr_FR-orion-medium)
 tests/                 tests silencieux (garde-fous dans conftest.py)
 ```
 
@@ -649,8 +650,11 @@ voice = "models/piper/fr_FR-upmc-medium.onnx"
 speaker = "pierre"          # vide pour une voix à un seul locuteur
 ```
 
-Voix par défaut : `fr_FR-siwis-medium` (femme, CC-BY 4.0), la plus intelligible et la plus rapide des voix
-féminines mesurées sur le mini-PC (0,1 s de calcul par seconde de voix, contre 0,17 s pour `fr_FR-tom-medium`).
+Voix par défaut : `fr_FR-orion-medium`, la voix propre à ORION, entraînée dans ce dépôt et versionnée dans
+`models/piper/` (voir « Entraîner la voix d'ORION »). Même architecture que `fr_FR-siwis-medium` (femme, CC-BY 4.0),
+dont elle est un fine-tuning : même coût de calcul sur le mini-PC (0,1 s par seconde de voix, contre 0,17 s pour
+`fr_FR-tom-medium`). Pour revenir à siwis : `voice = "models/piper/fr_FR-siwis-medium.onnx"` dans
+`config.local.toml`, puis `python scripts/download_models.py`.
 
 **Signature synthétique.** `[tts.effect]` applique en mémoire, à chaque phrase, une chaîne légère en numpy :
 coupe des graves sourds, clarté (`presence_db`), brillance (`air_db`), texture électronique discrète
@@ -662,6 +666,7 @@ Voix françaises Piper disponibles :
 
 | voix | locuteurs | remarques |
 |---|---|---|
+| `fr_FR-orion-medium` | femme | voix d'ORION, entraînée ici (défaut) |
 | `fr_FR-tom-medium` | homme | 44,1 kHz |
 | `fr_FR-gilles-low` | homme | 16 kHz, qualité « low », parfois instable sur les textes courts |
 | `fr_FR-upmc-medium` | `pierre` (homme), `jessica` (femme) | |
@@ -681,6 +686,36 @@ Jarvis = "ʒaʁvˈis"
 
 Ce lexique est appliqué à tout texte prononcé, y compris les réponses du LLM, en conservant la
 ponctuation qui suit le mot. On peut y ajouter d'autres mots mal prononcés.
+
+## Entraîner la voix d'ORION
+
+`models/piper/fr_FR-orion-medium.onnx` est une voix Piper « medium » obtenue par fine-tuning de
+`fr_FR-siwis-medium` sur ~5 min d'enregistrements d'ORION (95 phrases). Les outils sont dans `tts_training/` et
+ne servent pas à l'exécution d'ORION.
+
+- **Corpus** : `tts_training/corpus_orion_fr.md`. Une section `## …` par enregistrement : la section N est lue
+  dans un WAV nommé `N <titre>.wav` (phrases dites dans l'ordre, séparées par un court silence).
+- **Découpage** : Whisper horodate chaque mot de l'enregistrement long ; le texte du corpus est aligné sur ces
+  mots et sert de transcription (Whisper ne fait que placer les coupes). Les nombres que Whisper écrit en
+  chiffres (« 7h15 ») sont tolérés. `dataset.py check` re-transcrit chaque segment pour repérer une coupe ratée.
+- **Entraînement** : [piper1-gpl](https://github.com/OHF-Voice/piper1-gpl), poids de départ siwis
+  (`rhasspy/piper-checkpoints`), 1000 époques. Environ 1 h 05 sur une RTX 4070 Laptop (8 Go, lot de 16).
+- **Mesures** (`train.sh evaluate`, 8 phrases hors corpus re-transcrites par Whisper) : 93 % des mots retrouvés,
+  contre 97,5 % pour siwis ; même coût de calcul (0,04 s par seconde de voix sur le PC d'entraînement).
+- **Environnement** : Linux ou WSL2 avec GPU NVIDIA ; tout s'installe dans `~/orion_tts` sans droits root
+  (uv, cmake et ninja par pip). Les enregistrements bruts et le dossier de travail restent hors git.
+
+```bash
+bash tts_training/train.sh setup                     # piper1-gpl, PyTorch, Whisper, checkpoint siwis
+bash tts_training/train.sh dataset "/chemin/des/wav"  # découpe, alignement, contrôle
+bash tts_training/train.sh train                     # EPOCHS=1000 BATCH=16 par défaut
+bash tts_training/train.sh export                    # écrit models/piper/fr_FR-orion-medium.onnx(.json)
+bash tts_training/train.sh evaluate                  # intelligibilité comparée à siwis, WAV dans ~/orion_tts/evaluate
+python -m jarvis --tts-test "Bonjour monsieur."      # écoute avec la chaîne réelle d'ORION
+```
+
+Pour améliorer la voix : enregistrer de nouvelles sections (ajoutées au corpus avec le WAV correspondant),
+relancer `dataset`, `train` et `export`.
 
 ## Réglages utiles (`config.toml`)
 

@@ -14,6 +14,11 @@ models/openwakeword/*
 !models/openwakeword/orion_fr.json
 !models/openwakeword/orion_fr_e2e.json
 .env
+# Voix Piper d'ORION entraînée ici (tts_training/), versionnée comme le wake word.
+!models/piper/
+models/piper/*
+!models/piper/fr_FR-orion-medium.onnx
+!models/piper/fr_FR-orion-medium.onnx.json
 # Voix de référence NeuTTS (LibriVox, domaine public), versionnée pour que JARVIS parle sans étape manuelle.
 !models/neutts/
 models/neutts/*

@@ -71,9 +71,16 @@ def main() -> None:
             print(f"  ATTENTION : voix de référence absente ({n['voice']} + .txt).")
     else:
         print(f"TTS (voix Piper '{cfg.tts.voice.name}')")
-        url = piper_voice_url(cfg.tts.voice.name.removesuffix(".onnx"))
-        fetch(url, cfg.tts.voice)
-        fetch(url + ".json", cfg.tts.voice.with_suffix(".onnx.json"))
+        if cfg.tts.voice.exists():  # voix versionnée dans le dépôt (fr_FR-orion-medium) ou déjà téléchargée
+            print(f"  présent : {cfg.tts.voice.relative_to(ROOT)}")
+        else:
+            url = piper_voice_url(cfg.tts.voice.name.removesuffix(".onnx"))
+            try:
+                fetch(url, cfg.tts.voice)
+                fetch(url + ".json", cfg.tts.voice.with_suffix(".onnx.json"))
+            except urllib.error.HTTPError:
+                print(f"  ATTENTION : {cfg.tts.voice.name} n'est pas une voix publiée par Piper. "
+                      "Entraînez-la avec tts_training/train.sh (voir README).")
 
     print(f"STT (faster-whisper '{cfg.stt.model}')")
     from faster_whisper import download_model

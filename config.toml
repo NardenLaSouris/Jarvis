@@ -67,8 +67,10 @@ min_confidence = -1.0
 # Moteur de synthèse, 100 % local : "piper" (rapide, défaut) ou "neutts" (NeuTTS Nano French,
 # voix plus naturelle mais ~1,2 fois plus lente que le temps réel sur le CPU ; voir [tts.neutts]).
 engine = "piper"
-# Voix Piper (https://huggingface.co/rhasspy/piper-voices). Le .onnx.json doit être à côté.
-voice = "models/piper/fr_FR-siwis-medium.onnx"
+# Voix Piper. Le .onnx.json doit être à côté. Par défaut, la voix d'ORION entraînée dans ce dépôt
+# (tts_training/, versionnée) ; ou une voix publiée (https://huggingface.co/rhasspy/piper-voices),
+# par exemple "models/piper/fr_FR-siwis-medium.onnx" (voix d'origine du fine-tuning).
+voice = "models/piper/fr_FR-orion-medium.onnx"
 # Locuteur des voix multi-locuteurs (ex. "pierre" pour fr_FR-upmc-medium) ; vide sinon.
 speaker = ""
 length_scale = 1.0      # > 1 = plus lent
