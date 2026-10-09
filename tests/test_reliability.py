@@ -90,3 +90,19 @@ def test_a_reset_connection_is_logged_quietly(caplog):
         with caplog.at_level(logging.DEBUG):
             server.handle_error(None, ("192.168.1.73", 50000))
     assert "Traceback" not in caplog.text
+
+
+def test_downsampling_attenuates_aliasing_and_keeps_speech():
+    from jarvis.audio.resample import resample
+
+    rate = 48000
+    t = np.arange(rate) / rate
+    voice = (8000 * np.sin(2 * np.pi * 300 * t)).astype(np.int16)
+    high = (8000 * np.sin(2 * np.pi * 15000 * t)).astype(np.int16)  # au-dessus de 8 kHz : se replierait vers 1 kHz
+    kept = resample(voice, rate, 16000)
+    folded = resample(high, rate, 16000)
+    assert len(kept) == 16000 and kept.dtype == np.int16
+    assert np.sqrt(np.mean(kept.astype(float) ** 2)) > 0.9 * np.sqrt(np.mean(voice.astype(float) ** 2))
+    assert np.sqrt(np.mean(folded.astype(float) ** 2)) < 0.35 * np.sqrt(np.mean(high.astype(float) ** 2))
+    block = resample(voice[:3840], rate, 16000, 1280)  # un bloc du micro : longueur exacte, sans à-coup aux bords
+    assert len(block) == 1280 and abs(int(block[0]) - int(voice[0])) < 200

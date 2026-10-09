@@ -65,6 +65,10 @@ vocabulary_hint = true
 # phrase est dans le journal) pour une question confiée au LLM ; en dessous, ORION demande de répéter au lieu
 # de répondre à une phrase probablement mal entendue. -99 : jamais.
 min_confidence = -1.0
+# Détection de la parole (Silero, fournie avec faster-whisper) avant la transcription. Banc synthétique du 9 octobre
+# 2026 (research/stt) : erreurs dans un brouhaha de voix 22 % -> 7 %, plus aucun texte inventé sur un silence
+# (« Sous-titres réalisés par... »), latence inchangée. false : comportement d'origine.
+vad_filter = true
 
 [tts]
 # Moteur de synthèse, 100 % local : "piper" (rapide, défaut) ou "neutts" (NeuTTS Nano French,

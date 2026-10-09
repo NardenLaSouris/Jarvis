@@ -113,6 +113,7 @@ def _vocabulary_checks():
 
     stt = FasterWhisperSTT.__new__(FasterWhisperSTT)
     stt._model, stt._language, stt._beam_size, stt.hotwords = Model(), "fr", 1, "Jarvis, ouvre Steam."
+    stt.vad_filter = False
     stt.transcribe(np.zeros(1600, np.int16), 16000)
     assert stt._model.options["hotwords"] == "Jarvis, ouvre Steam."
     stt.hotwords = ""

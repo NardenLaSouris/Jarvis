@@ -66,9 +66,11 @@ class FasterWhisperSTT:
         fallback_device: str = "cpu",
         fallback_compute_type: str = "int8",
         hotwords: str = "",
+        vad_filter: bool = False,
     ):
         self.model_name = model
         self.hotwords = hotwords
+        self.vad_filter = vad_filter
         self.last_confidence: float | None = None
         self._language = language
         self._beam_size = beam_size
@@ -118,7 +120,7 @@ class FasterWhisperSTT:
             language=self._language,
             beam_size=self._beam_size,
             condition_on_previous_text=False,
-            vad_filter=False,
+            vad_filter=self.vad_filter,
             hotwords=self.hotwords or None,
         )
         # Whisper « invente » parfois du texte sur du bruit : on écarte ces segments.

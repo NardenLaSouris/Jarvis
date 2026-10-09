@@ -50,6 +50,9 @@ class STTConfig:
     fallback_compute_type: str = "int8"
     vocabulary_hint: bool = True
     min_confidence: float = -1.0
+    # Détection de la parole (Silero, fournie avec faster-whisper) avant la transcription. False : comportement
+    # d'origine.
+    vad_filter: bool = False
 
 
 @dataclass(frozen=True)

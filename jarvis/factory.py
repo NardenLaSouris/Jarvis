@@ -159,6 +159,7 @@ def build_stt(cfg: Config) -> SpeechToText:
     return FasterWhisperSTT(
         c.model, cfg.assistant.language, c.device, c.compute_type, c.beam_size, c.download_root,
         c.fallback_device, c.fallback_compute_type, hotwords=vocabulary_hint(cfg) if c.vocabulary_hint else "",
+        vad_filter=c.vad_filter,
     )
 
 
