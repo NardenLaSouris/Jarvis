@@ -33,7 +33,8 @@ def build_llm(cfg: Config) -> LanguageModel:
         from jarvis.llm.ollama import OllamaLLM
 
         c = cfg.llm
-        llm = OllamaLLM(c.host, c.model, c.temperature, c.max_tokens, c.keep_alive, c.timeout)
+        think = {"true": True, "false": False}.get(str(c.think).strip().lower())
+        llm = OllamaLLM(c.host, c.model, c.temperature, c.max_tokens, c.keep_alive, c.timeout, think)
         if not c.fallback_host:
             return llm
         from jarvis.llm.failover import FailoverLLM
@@ -47,6 +48,18 @@ def build_llm(cfg: Config) -> LanguageModel:
                            probe_interval=c.probe_interval, first_token_timeout=c.first_token_timeout,
                            waiting_notice="Un instant, monsieur.")
     raise ValueError(f"Backend LLM inconnu : {cfg.llm.backend}")
+
+
+def build_content_guard(cfg: Config, llm):
+    """Garde-fou de ce que dit le modèle ([llm] guard) : « auto » = actif pour un modèle non éprouvé."""
+    mode = str(cfg.llm.guard).strip().lower()
+    if mode not in ("auto", "on", "off"):
+        raise ValueError('[llm] guard : "auto", "on" ou "off"')
+    if mode == "off" or (mode == "auto" and cfg.llm.trusted) or not hasattr(llm, "chat_json"):
+        return None
+    from jarvis.llm.guard import ContentGuard
+
+    return ContentGuard(llm)
 
 
 def build_wake_verifier(cfg: Config):
@@ -462,7 +475,8 @@ def build_routines(cfg: Config, tools, notifications, events: EventBus, sink=Non
     alarm = AlarmPlayer(sink, cfg.alarms.sound, cfg.alarms.max_minutes, before_ringing) \
         if sink is not None and cfg.alarms.enabled else None
     owner = next(u.id for u in build_profiles(cfg).users() if u.role == "owner")
-    run_as_owner = lambda data: tools.submit(data, user=owner)  # noqa: E731
+    # Routines programmées : droits du propriétaire ; lancées par la voix : droits de celui qui les demande.
+    run_as_owner = lambda data, user=None: tools.submit(data, user=user or owner, origin="routine")  # noqa: E731
     welcome = None
     if presence is not None:
         profiles = build_profiles(cfg)
@@ -557,7 +571,12 @@ def build_tools(cfg: Config, personality, events: EventBus | None = None, timers
                                                  personality.user_title))
     profiles = build_profiles(cfg)
     owner = next(u.id for u in profiles.users() if u.role == "owner")
-    return ToolCore(registry, PermissionManager(profiles=profiles), confirmations, timeout=cfg.tools.timeout,
+    from jarvis.profiles import category
+    from jarvis.tools.policy import build_gate
+
+    permissions = build_gate(PermissionManager(profiles=profiles), cfg.tools.policy, registry,
+                             {u.id: u.role for u in profiles.users()}, category, ENV_FILE.parent, cfg.llm.trusted)
+    return ToolCore(registry, permissions, confirmations, timeout=cfg.tools.timeout,
                     user=profiles.context().user_id or owner, events=events)
 
 
@@ -792,7 +811,8 @@ def build_agent(
                  tools=tools, corrector=corrector, notifications=voice, alarm=routines.alarm if routines else None,
                  services=tuple(s for s in (api, routines, timers, notifications, worker, presence) if s is not None),
                  fast_path=cfg.tools.fast_path, routines=routines, profiles=build_profiles(cfg),
-                 wake_verifier=build_wake_verifier(cfg), wake_captures=build_wake_captures(cfg))
+                 wake_verifier=build_wake_verifier(cfg), wake_captures=build_wake_captures(cfg),
+                 content_guard=build_content_guard(cfg, llm))
     # Échéance proche (rendez-vous, minuteur, rappel) pour l'anneau du visage.
     agent.upcoming = Upcoming(calendar, timers) if calendar is not None or timers is not None else None
     return agent

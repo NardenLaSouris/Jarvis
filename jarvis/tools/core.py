@@ -99,7 +99,7 @@ class ToolCore:
             self.confirmations.clear()
         self._user = user
 
-    def submit(self, data: Any, user: str | None = None) -> Outcome:
+    def submit(self, data: Any, user: str | None = None, origin: str = "user") -> Outcome:
         """Demande venant du LLM ou du routeur : jamais exécutée sans validation ni permission. ``user`` : pour
         une demande qui n'est pas celle de l'utilisateur en cours (routine du propriétaire). L'identité suit la
         demande de bout en bout : elle n'est jamais changée temporairement dans un état partagé (plusieurs fils
@@ -115,13 +115,14 @@ class ToolCore:
             self._log(invalid.tool, None, "validation", "invalid", "n/a", invalid, started, who)
             return Outcome(REJECTED, None, invalid)
         tool = self.registry.get(request.tool)
-        decision = self.permissions.decide(who, tool, dict(request.parameters))
+        decision = self.permissions.decide(who, tool, dict(request.parameters), origin=origin)
         if decision.decision is Decision.DENY:
             result = ToolResult(tool.name, False, error=PERMISSION_DENIED, message="Je n'ai pas l'autorisation de faire cela.")
             self._log(tool.name, request.parameters, "permission", decision.decision.value, "n/a", result, started, who)
             return Outcome(REJECTED, request, result)
         if decision.decision is Decision.REQUIRES_CONFIRMATION:
-            question = self.confirmations.ask(request, tool.confirmation_question(dict(request.parameters)), who)
+            question = self.confirmations.ask(request, tool.confirmation_question(dict(request.parameters)), who,
+                                              origin)
             self._log(tool.name, request.parameters, "confirmation", decision.decision.value, "asked", None, started,
                       who)
             return Outcome(CONFIRM, request, question=question)
@@ -149,7 +150,8 @@ class ToolCore:
             self._log(tool.name, request.parameters, "confirmation", "requires_confirmation", "refused", result, started,
                       who)
             return Outcome(CANCELLED, request, result)
-        decision = self.permissions.decide(who, tool, dict(request.parameters), confirmed=(verdict == YES))
+        decision = self.permissions.decide(who, tool, dict(request.parameters), confirmed=(verdict == YES),
+                                           origin=pending.origin)
         if decision.decision is not Decision.ALLOW:
             result = ToolResult(tool.name, False, error=PERMISSION_DENIED, message="Je n'ai pas l'autorisation de faire cela.")
             self._log(tool.name, request.parameters, "permission", decision.decision.value, "accepted", result, started,

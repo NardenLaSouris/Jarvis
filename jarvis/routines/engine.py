@@ -183,28 +183,29 @@ class RoutineEngine:
     # --- Exécution -----------------------------------------------------------------------------------
 
     def run(self, routine_id: str, source: str = "manual", wait: bool = False,
-            context: dict | None = None) -> bool:
+            context: dict | None = None, user: str | None = None) -> bool:
         """Lance la routine en arrière-plan ; False si elle est déjà en cours. ``context`` : données de
-        l'événement déclencheur (arrivée : utilisateur, début de l'absence), pour l'annonce « welcome »."""
+        l'événement déclencheur (arrivée : utilisateur, début de l'absence), pour l'annonce « welcome ».
+        ``user`` : qui l'a demandée (par la voix) ; ses étapes ont alors ses droits, jamais davantage."""
         with self._lock:
             routine = self._find(routine_id)
             state = self._state.setdefault(routine_id, {})
             if state.get("running"):
                 return False
             state["running"] = True
-        thread = threading.Thread(target=self._execute, args=(routine, source, context or {}),
+        thread = threading.Thread(target=self._execute, args=(routine, source, context or {}, user),
                                   name=f"routine-{routine_id}", daemon=True)
         thread.start()
         if wait:
             thread.join()
         return True
 
-    def _execute(self, routine: Routine, source: str, context: dict | None = None) -> None:
+    def _execute(self, routine: Routine, source: str, context: dict | None = None, user: str | None = None) -> None:
         base = {"routine_id": routine.id, "name": routine.name, "source": source}
         self._publish(ROUTINE_STARTED, {**base, "subject": f"routine « {routine.name} »"})
         success, error = True, None
         for index, action in enumerate(routine.actions, 1):
-            ok, message = self._step(routine, action, context or {})
+            ok, message = self._step(routine, action, context or {}, user)
             self._publish(ROUTINE_STEP, {**base, "step": index, "action": describe(action), "success": ok,
                                          "message": message, "subject": f"{routine.name} : {describe(action)}"})
             if not ok:
@@ -219,7 +220,8 @@ class RoutineEngine:
         self._publish(ROUTINE_FINISHED, {**base, "success": success, "error": error,
                                          "subject": f"routine « {routine.name} » {'réussie' if success else 'en échec'}"})
 
-    def _step(self, routine: Routine, action: dict, context: dict | None = None) -> tuple[bool, str]:
+    def _step(self, routine: Routine, action: dict, context: dict | None = None,
+              user: str | None = None) -> tuple[bool, str]:
         try:
             if action["type"] == "wait":
                 self._sleep(action["seconds"])
@@ -239,7 +241,8 @@ class RoutineEngine:
                 if text:
                     self._say(routine.name, text)
                 return bool(text), text or "Rien à annoncer."
-            outcome = self._run_tool({"type": "tool_call", "tool": action["tool"], "parameters": action["parameters"]})
+            data = {"type": "tool_call", "tool": action["tool"], "parameters": action["parameters"]}
+            outcome = self._run_tool(data) if user is None else self._run_tool(data, user=user)
             result = getattr(outcome, "result", None)
             if getattr(outcome, "status", None) == DONE and result is not None and result.success:
                 return True, result.message

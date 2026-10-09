@@ -46,12 +46,14 @@ class OllamaLLM:
         max_tokens: int = 200,
         keep_alive: str = "30m",
         timeout: float = 120.0,
+        think: bool | None = None,
     ):
         self._url = host.rstrip("/")
         self._model = model
         self._options = {"temperature": temperature, "num_predict": max_tokens}
         self._keep_alive = keep_alive
         self._timeout = timeout
+        self._think = think
         self.last_stats: dict[str, float] = {}
         self.last_done_reason = ""
 
@@ -73,13 +75,16 @@ class OllamaLLM:
             raise LLMError("Réponse d'Ollama illisible") from exc
 
     def _chat_payload(self, messages: list[Message], stream: bool) -> dict:
-        return {
+        payload = {
             "model": self._model,
             "messages": [{"role": m.role, "content": m.content} for m in messages],
             "stream": stream,
             "keep_alive": self._keep_alive,
             "options": self._options,
         }
+        if self._think is not None:  # modèles à réflexion (Qwen3...) : false pour répondre tout de suite
+            payload["think"] = self._think
+        return payload
 
     def _record_stats(self, data: dict) -> None:
         self.last_done_reason = data.get("done_reason", "")

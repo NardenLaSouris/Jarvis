@@ -1,0 +1,1 @@
+cedarpy==4.12.1        # politiques Cedar ([tools.policy] engine = "shadow" ou "both")

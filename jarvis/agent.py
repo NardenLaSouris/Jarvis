@@ -238,6 +238,7 @@ class Agent:
         terminal: str = "main",
         wake_verifier=None,
         wake_captures=None,
+        content_guard=None,
     ):
         self.settings = settings
         self._source = source
@@ -254,6 +255,7 @@ class Agent:
         self._fast_path = fast_path
         self._routines = routines
         self._profiles = profiles
+        self._guard = content_guard  # jarvis.llm.guard : ce qu'un modèle non éprouvé peut dire
         self.request_context = profiles.context(terminal) if profiles is not None else None
         self._context = ConversationContext(tools.registry, settings.assistant_name) if tools is not None else None
         self._interrupted = False
@@ -515,16 +517,32 @@ class Agent:
     def _answer(self, history: list[Message], text: str, route, latency: dict) -> str:
         if route.source == "tool" and self._tools is not None:
             return self._use_tool(history, text, route, latency)
-        if route.source == "web.search":
-            if self._degraded():
-                return self._say_phrase(history, text, "degraded_web", latency)
-            return self._search_and_answer(history, text, latency)
         if route.reply is not None:
             reply = self._speak([route.reply], latency)
             self._remember(history, Message("user", text))
             self._remember(history, Message("assistant", reply))
             return reply
+        refused = self._guarded(text, latency)
+        if refused is not None:
+            return self._say_text(history, text, refused, latency)
+        if route.source == "web.search":
+            if self._degraded():
+                return self._say_phrase(history, text, "degraded_web", latency)
+            return self._search_and_answer(history, text, latency)
         return self._ask(history, text, latency)
+
+    def _guarded(self, text: str, latency: dict) -> str | None:
+        """Phrase de refus si le garde-fou écarte la demande avant le modèle (recherche comprise), sinon None."""
+        if self._guard is None:
+            return None
+        user = self.request_context.user_id if self.request_context is not None else ""
+        profile = self._profiles.user(user) if self._profiles is not None else None
+        verdict = self._guard.check(text, profile.role if profile is not None else "guest")
+        latency["garde-fou"] = verdict.seconds
+        if verdict.allowed:
+            return None
+        self._event("guard", f"Demande écartée par le garde-fou ({verdict.category})")
+        return self._router.phrase(f"guard_{verdict.category}") or self._router.phrase("guard_dangerous")
 
     # --- Outils ------------------------------------------------------------
 

@@ -345,6 +345,45 @@ Lancer `python -m jarvis`, puis dire « Jarvis… » avant chaque phrase et vér
 
 Dans le terminal, chaque action laisse une ligne `outil {...}` avec son résultat.
 
+## Autorité du Core et politiques Cedar (`[tools.policy]`)
+
+Le LLM ne fait que **proposer** un appel d'outil ; le Core seul décide et exécute :
+
+```
+LLM -> proposition (non fiable) -> parse_request (outil du registre, paramètres connus, aucun champ en plus)
+    -> contexte de confiance construit par le Core : utilisateur et rôle (terminal, profils), risque et catégorie
+       (registre), confirmation (recueillie par le Core, liée à l'action exacte, 30 s), origine (conversation,
+       routine, API), modèle de confiance ou non ([llm] trusted)
+    -> porte de décision (jarvis/tools/policy.py) : PermissionManager, et Cedar selon le mode
+    -> exécuter / demander confirmation / refuser -> journal sans valeur de paramètre
+```
+
+- `engine = "builtin"` (défaut) : PermissionManager seul, comportement historique.
+- `engine = "shadow"` : PermissionManager seul décide ; Cedar (`policies/orion.cedar`) est évalué et chaque décision,
+  écarts compris, est écrite dans `data/policy_decisions.jsonl`. Aucune action ne dépend de Cedar.
+- `engine = "both"` : double verrou. Permis seulement si les deux permettent ; la confirmation exigée par l'un
+  reste exigée ; refus si l'un refuse, si Cedar est en erreur (une règle en erreur est un refus), trop lent
+  (0,5 s) ou indisponible (cedarpy absent, politique invalide : tout est refusé).
+- Une demande issue d'un contenu (mail, page, fichier) n'est jamais exécutée, quel que soit le mode.
+- Une routine lancée par la voix (`run_routine`) s'exécute avec les droits de celui qui la demande ; programmée,
+  avec ceux du propriétaire.
+
+Installation de Cedar (seulement pour `shadow` et `both`) : `pip install -r requirements-policy.txt`.
+Tests : `python -m pytest tests/test_policy.py` (les tests Cedar sont ignorés sans cedarpy).
+
+**Essayer un modèle non éprouvé (abliterated) sans accès sensible**
+
+1. `pip install -r requirements-policy.txt`, puis `python -m pytest -q tests/test_policy.py` : tout doit passer.
+2. Dans `config.local.toml` : `[tools.policy] engine = "both"` et, dans `[llm]`, `model = "<modèle à essayer>"`,
+   `trusted = false`. Ses propositions sont alors limitées aux outils d'information, de maison, de médias et de
+   minuteurs : ni mail, ni fichier, ni application, ni PC, ni mémoire.
+3. Un modèle Qwen3 a besoin de répondre sans réflexion (sinon réponses vides, voir
+   `research/rapport_llm_avp.html`).
+4. Relire `data/policy_decisions.jsonl` (refus, écarts) et le journal du service.
+
+**Retour arrière** : `engine = "builtin"` (et `trusted = true`, modèle d'origine) dans `config.local.toml`, puis
+redémarrer ORION. Rien d'autre à défaire.
+
 ## Visage graphique
 
 Au lancement, ORION ouvre son visage animé dans le navigateur (`http://127.0.0.1:8765/`) : anneaux

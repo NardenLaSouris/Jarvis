@@ -12,6 +12,7 @@ from jarvis.memory import keywords
 from jarvis.routines.engine import WEEKDAYS, next_time
 from jarvis.scheduling.clock import spoken_clock
 from jarvis.tools.base import Param, Risk, Tool, ToolError
+from jarvis.tools.core import request_user
 
 ROUTINE_NOT_FOUND = "routine_not_found"
 AMBIGUOUS = "ambiguous_target"
@@ -47,7 +48,7 @@ def routine_tools(engine) -> list[Tool]:
 
     def run_routine(name: str) -> dict:
         routine = find(name)
-        if not engine.run(routine.id):
+        if not engine.run(routine.id, user=request_user() or None):
             raise ToolError("already_running", f"La routine « {routine.name} » est déjà en cours.")
         return {"name": routine.name}
 
