@@ -27,3 +27,19 @@ service (10 s sans assistant, conversation perdue).
 
 **Tests** : `tests/test_reliability.py` (conversation qui plante puis suivantes traitées ; pannes en rafale rendues
 à systemd ; connexion coupée sans trace).
+
+## Chantier 3 — Mémoire
+
+**Audit (code et tests existants)** : mémoire explicite seulement (`remember` sur demande, jamais les
+conversations) ; fait vérifié contre les mots de l'utilisateur (le LLM ne peut rien inventer à retenir) ; 200 faits
+au plus par utilisateur ; écriture atomique, fichier abîmé mis de côté ; faits de l'utilisateur en cours seulement,
+et seulement pour un adulte (jamais lus à un enfant ni à un invité) ; présentés au LLM comme des données ; oubli
+confirmé, jamais répété à voix haute ; 12 tests existants.
+
+**Faiblesse trouvée** : un fait pouvait contenir les balises qui délimitent les données dans les prompts
+(`<<<RESULTAT_OUTIL>>>`...), de quoi brouiller la frontière entre données et consignes.
+
+**Correctif** : balises refusées à l'enregistrement et neutralisées dans les faits déjà enregistrés au moment de
+les placer dans le prompt (`jarvis/memory.py`). Test : `test_prompt_markers_never_enter_or_leave_memory`.
+
+**Non vérifié** : effet de la mémoire sur la qualité des réponses du modèle abliterated (aucun banc dédié).
