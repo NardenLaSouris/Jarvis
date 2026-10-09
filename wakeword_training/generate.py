@@ -26,6 +26,7 @@ import numpy as np
 
 from jarvis.audio.files import write_wav
 from jarvis.audio.resample import resample
+from wakeword_training.edge import PREFIX as EDGE, EdgeVoice, render as render_edge
 from wakeword_training.spec import ROOT, VOICES_DIR, Spec
 
 SR = 16000
@@ -52,7 +53,9 @@ def trim_silence(audio: np.ndarray, sample_rate: int, floor_db: float = -45.0) -
 
 
 def _voice(name: str):
-    """Voix Piper avec alignement des phonèmes et un seul thread (un processus par cœur)."""
+    """Voix Piper avec alignement des phonèmes et un seul thread (un processus par cœur) ; voix Edge (« edge-... »)."""
+    if name.startswith(EDGE):
+        return EdgeVoice(name)
     import onnx
     import onnxruntime as ort
     from piper import PiperVoice
@@ -105,6 +108,12 @@ def _load_whisper(probe: np.ndarray):
 
 def _render(voice, speaker: int, text: str, target: str | None, context_s: float, rng: random.Random) -> np.ndarray | None:
     """Synthétise ``text`` ; si ``target`` est donné, ne garde que ce mot final (+ contexte)."""
+    if isinstance(voice, EdgeVoice):
+        audio = render_edge(voice, speaker, text, target, context_s, rng)
+        if audio is None:
+            return None
+        audio = trim_silence(audio, SR)
+        return audio if SR // 5 <= len(audio) <= 6 * SR else None
     from piper import SynthesisConfig
 
     ranges = SYNTHESIS or {}
@@ -202,7 +211,12 @@ def _generate_task(task: tuple) -> list[dict]:
     return rows
 
 
+EDGE_SPEAKERS = 12  # « locuteurs » (débit et hauteur de base) par voix Edge ; [voices] edge_speakers
+
+
 def _speaker_count(voice_name: str) -> int:
+    if voice_name.startswith(EDGE):
+        return EDGE_SPEAKERS
     config = json.loads((VOICES_DIR / f"{voice_name}.onnx.json").read_text(encoding="utf-8"))
     return int(config.get("num_speakers", 1))
 
@@ -215,19 +229,24 @@ def _is_test(voices: dict, voice_name: str, speaker: int) -> bool:
 
 
 def run(spec: Spec, workers: int) -> None:
+    global EDGE_SPEAKERS
     voices, positives, negatives = spec["voices"], spec["positives"], spec["negatives"]
+    EDGE_SPEAKERS = int(voices.get("edge_speakers", EDGE_SPEAKERS))
+    names = list(voices["files"]) + [EDGE + v for v in voices.get("edge", [])]
     missing = [v for v in voices["files"] if not (VOICES_DIR / f"{v}.onnx").exists()]
     if missing:
         raise SystemExit(f"Voix manquantes : {missing}. Lancez d'abord : python -m wakeword_training download")
 
     tasks = []
-    for voice_name in voices["files"]:
+    for voice_name in names:
         n_speakers = _speaker_count(voice_name)
         scale = max(1, positives["min_clips_per_voice"] // (positives["clips_per_speaker"] * n_speakers))
+        edge_totals = {"pos": voices.get("edge_positives_per_speaker", 16),
+                       "neg": voices.get("edge_negatives_per_speaker", 16)}
         for speaker in range(n_speakers):
             split = "test" if _is_test(voices, voice_name, speaker) else "train"
             for kind, section in (("pos", positives), ("neg", negatives)):
-                total = section["clips_per_speaker"] * scale
+                total = edge_totals[kind] if voice_name.startswith(EDGE) else section["clips_per_speaker"] * scale
                 parts = max(1, total // TASK_SIZE)
                 tasks += [(voice_name, speaker, part, kind, split, total // parts, spec.raw, str(spec.clips_dir))
                           for part in range(parts)]
@@ -244,7 +263,7 @@ def run(spec: Spec, workers: int) -> None:
     (spec.clips_dir / "manifest.json").write_text(json.dumps(rows, ensure_ascii=False, indent=0), encoding="utf-8")
 
     print("Clips retenus (positifs demandés -> validés par Whisper) :")
-    for voice_name in voices["files"]:
+    for voice_name in names:
         wanted = sum(t[5] for t in tasks if t[0] == voice_name and t[3] == "pos")
         mine = [r for r in rows if r["voice"] == voice_name]
         got = {s: sum(1 for r in mine if r["label"] == "pos" and r["split"] == s) for s in ("train", "test")}

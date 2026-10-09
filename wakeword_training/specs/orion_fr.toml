@@ -13,7 +13,23 @@ files = [
     "fr_FR-gilles-low",      # homme
     "fr_FR-upmc-medium",     # 2 locuteurs (femme, homme)
 ]
-test_voices = ["fr_FR-tom-medium", "fr_FR-upmc-medium:1"]
+# Voix neuronales Edge (wakeword_training/edge.py) : beaucoup plus de timbres et d'accents que Piper (la voix
+# « mls » ne prononce jamais « Orion » : 1 exemple validé sur 500). Seuls les textes de cette spécification sont
+# envoyés au service. Chaque voix compte edge_speakers « locuteurs » (débit et hauteur de base différents).
+edge = [
+    "fr-FR-HenriNeural", "fr-FR-DeniseNeural", "fr-FR-EloiseNeural", "fr-FR-RemyMultilingualNeural",
+    "fr-FR-VivienneMultilingualNeural", "fr-BE-CharlineNeural", "fr-BE-GerardNeural", "fr-CH-ArianeNeural",
+    "fr-CH-FabriceNeural", "fr-CA-ThierryNeural", "fr-CA-AntoineNeural", "fr-CA-JeanNeural", "fr-CA-SylvieNeural",
+    "en-US-AndrewMultilingualNeural", "en-US-AvaMultilingualNeural", "en-US-BrianMultilingualNeural",
+    "en-US-EmmaMultilingualNeural", "en-AU-WilliamMultilingualNeural", "de-DE-SeraphinaMultilingualNeural",
+    "de-DE-FlorianMultilingualNeural", "it-IT-GiuseppeMultilingualNeural", "pt-BR-ThalitaMultilingualNeural",
+    "ko-KR-HyunsuMultilingualNeural",
+]
+edge_speakers = 12
+edge_positives_per_speaker = 16
+edge_negatives_per_speaker = 16
+# Voix (ou locuteurs) jamais vus à l'entraînement : mesure de la généralisation à une voix nouvelle.
+test_voices = ["fr_FR-tom-medium", "fr_FR-upmc-medium:1", "edge-fr-CA-JeanNeural", "edge-en-US-EmmaMultilingualNeural"]
 test_speaker_fraction = 0.15
 
 # Synthèse Piper : débit (length_scale), articulation (noise_scale : plus haut = plus relâchée) et rythme
