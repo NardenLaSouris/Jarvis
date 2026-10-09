@@ -66,8 +66,10 @@ vocabulary_hint = true
 # de répondre à une phrase probablement mal entendue. -99 : jamais.
 min_confidence = -1.0
 # Détection de la parole (Silero, fournie avec faster-whisper) avant la transcription. Banc synthétique du 9 octobre
-# 2026 (research/stt) : erreurs dans un brouhaha de voix 22 % -> 7 %, plus aucun texte inventé sur un silence
-# (« Sous-titres réalisés par... »), latence inchangée. false : comportement d'origine.
+# 2026 (research/stt, 318 fichiers) : erreurs de mots 11,2 % -> 11,1 %, latence inchangée, plus de texte inventé sur
+# un silence (« Sous-titres réalisés par... », 1 cas sur 12 -> 0), phrases hésitantes ou bruitées 8,5 % -> 6,1 %
+# (10 fichiers, reproductible) ; gain sur un brouhaha de voix non confirmé (7 % ou 22 % selon le lancement).
+# false : comportement d'origine.
 vad_filter = true
 
 [tts]
