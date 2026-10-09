@@ -30,7 +30,7 @@ from jarvis.streaming import SpeechPipeline, sentences_from_llm
 from jarvis.personality import normalize
 from jarvis.tools.core import CANCELLED, CONFIRM, DONE
 from jarvis.tools.request import MALFORMED_MESSAGES
-from jarvis.tools.planner import plan, tool_request
+from jarvis.tools.planner import plan, quoted, tool_request
 from jarvis.tools.quick import quick_plan
 from jarvis.weather.cities import mentioned_city
 from jarvis.web.research import names_pattern, web_request, without_name
@@ -175,6 +175,17 @@ def polish_web_sentence(sentence: str, question: str, first: bool, assistant_nam
 
 
 WEATHER_TOOL = "get_weather"
+# Réponses « pas encore disponible » de la personnalité et outils qui les rendent fausses quand ils existent.
+STALE_UNAVAILABLE = {
+    "unavailable_reminders": ("create_timer", "create_reminder", "create_alarm", "list_events"),
+    "unavailable_home": ("light_on", "light_off"),
+    "unavailable_realtime": ("get_weather",),
+    "unavailable_messages": ("check_mail", "read_mail"),
+}
+# Demande qui désigne un objet d'ORION (« mes mails », « le minuteur », « mon réveil ») : sans outil retenu, une
+# question plutôt qu'une réponse libre, qui inventerait le contenu d'un mail ou le temps restant.
+ORION_OBJECTS = re.compile(r"\b(mon|ma|mes|le|la|les|ce|cette|ces|du|des)\s+(mails?|courriers?|minuteurs?|rappels?|"
+                           r"reveils?|alarmes?)\b")
 SOURCES = re.compile(r"\b(tes|vos|quelles sont les|quelle est la|cite moi les|cite tes) sources?\b|\bd ou vient (cette|l) info")
 
 LATENCY_LABELS = (
@@ -262,6 +273,7 @@ class Agent:
         self._last_outcome = None
         self._action_unclear = False
         self._last_tool_request = ""
+        self._previous_request = ""
         # Seconde vérification du wake word (jarvis.wakeword.verify) et audio des réveils (jarvis.wakeword.captures).
         self._wake_verifier = wake_verifier
         self._wake_captures = wake_captures
@@ -420,7 +432,7 @@ class Agent:
         history: list[Message] = []
         self._place = None
         # Rien ne passe d'une conversation à l'autre (« Et demain ? » reprenait la météo de Lyon de la précédente).
-        self._last_tool_request = ""
+        self._last_tool_request = self._previous_request = ""
         self._after_confirmation = None
         if self.request_context is not None and self._tools is not None and hasattr(self._tools, "set_user"):
             self._tools.set_user(self.request_context.user_id)
@@ -485,8 +497,11 @@ class Agent:
                     reply, end = self._run_call(history, text, contextual, latency), False
             else:
                 follow_up = self._tool_follow_up(text)
-                self._last_tool_request = ""
+                self._previous_request, self._last_tool_request = self._last_tool_request, ""
                 route = Route("tool", "tool.follow_up") if follow_up else self._router.route(text)
+                if route.source == "unavailable" and self._tools is not None and any(
+                        self._tools.registry.exists(t) for t in STALE_UNAVAILABLE.get(route.name, ())):
+                    route = Route("tool", "tool.action")  # « pas encore disponible » alors que l'outil existe
                 promoted = self._promote(text, route)
                 if promoted is not None:
                     reply = self._try_promoted(history, text, promoted, latency)
@@ -522,6 +537,10 @@ class Agent:
             self._remember(history, Message("user", text))
             self._remember(history, Message("assistant", reply))
             return reply
+        if route.source == "llm" and self._tools is not None and not self._degraded():
+            reply = self._open_plan(history, text, latency)
+            if reply is not None:
+                return reply
         refused = self._guarded(text, latency)
         if refused is not None:
             return self._say_text(history, text, refused, latency)
@@ -530,6 +549,33 @@ class Agent:
                 return self._say_phrase(history, text, "degraded_web", latency)
             return self._search_and_answer(history, text, latency)
         return self._ask(history, text, latency)
+
+    def _open_plan(self, history: list[Message], text: str, latency: dict) -> str | None:
+        """Demande qu'aucune règle du routeur n'a reconnue (« on n'y voit rien », « annule-le », « lis le premier ») :
+        le planificateur décide s'il s'agit d'une action, avec la demande d'outil précédente pour contexte. Sans
+        outil, None : la conversation libre reprend (jamais d'action ou de donnée inventée faute d'outil)."""
+        started = time.perf_counter()
+        previous, report = self._previous_request, {}
+        data = plan(self._llm, text, self._tools.registry, previous=previous, report=report)
+        latency["tool_plan"] = time.perf_counter() - started
+        if data is None and report.get("proposed"):
+            # Une action était voulue mais pas assez précise (niveau non dit...) : on demande, sans rien inventer.
+            self._event("routing", f"tool:plan (à préciser : {report['proposed']})")
+            return self._say_text(history, text, self._router.phrase("action_unclear"), latency)
+        if data is None and ORION_OBJECTS.search(normalize(text)):
+            self._event("routing", "tool:plan (objet d'ORION sans outil : à préciser)")
+            return self._say_text(history, text, self._router.phrase("action_unclear"), latency)
+        if data is None:
+            return None
+        latency["route"] = "tool:plan"
+        self._event("routing", "tool:plan" + (" (suite)" if previous else ""))
+        said = f"{previous.rstrip(' .!?')}. {text}" if previous else text
+        if data.get("type") == "tool_calls":
+            return self._use_tools(history, said, data["calls"], latency)
+        reply = self._run_call(history, said, data, latency)
+        if self._last_outcome is not None and self._last_outcome.status == DONE and self._last_outcome.result.success:
+            self._last_tool_request = text
+        return reply
 
     def _guarded(self, text: str, latency: dict) -> str | None:
         """Phrase de refus si le garde-fou écarte la demande avant le modèle (recherche comprise), sinon None."""
@@ -578,6 +624,11 @@ class Agent:
                 fallback = self._router.route(text, tools=False)
                 latency["route"] = fallback.label
                 self._event("routing", f"{fallback.label} (aucun outil)")
+                if fallback.source == "unavailable" and any(
+                        self._tools.registry.exists(t) for t in STALE_UNAVAILABLE.get(fallback.name, ())):
+                    # Ces réponses (« les rappels ne sont pas encore disponibles ») valent pour une fonction absente ;
+                    # ici l'outil existe, la demande n'était simplement pas assez claire : on demande de préciser.
+                    return self._say_text(history, text, self._router.phrase("action_unclear"), latency)
                 return self._answer(history, text, fallback, latency)
             if data.get("type") == "tool_calls":
                 return self._use_tools(history, text, data["calls"], latency)
@@ -683,6 +734,8 @@ class Agent:
         return bool(getattr(self._llm, "degraded", False))
 
     def _quick(self, text: str, latency: dict) -> dict | None:
+        if quoted(text):  # « Répète après moi : verrouille le PC » n'est jamais une commande
+            return None
         data = quick_plan(text, self._tools.registry, ignored=(self.settings.assistant_name, self.settings.wake_phrase))
         if data is not None:
             latency["route"] = "tool:quick" + (" (mode dégradé)" if self._degraded() else "")

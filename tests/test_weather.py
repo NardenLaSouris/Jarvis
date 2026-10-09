@@ -640,8 +640,9 @@ def test_weather_follows_the_city_of_the_conversation():
     from test_tools import run_agent
 
     tomorrow = {"type": "tool_call", "tool": "get_weather", "parameters": {"day": "tomorrow"}}
-    llm = AgentLLM(tomorrow, {"type": "tool_call", "tool": "get_weather", "parameters": {"location": "Brest"}},
-                   tomorrow, reply="Bon voyage, monsieur.")
+    none = {"type": "none"}  # phrases de conversation : le planificateur est consulté et ne propose rien
+    llm = AgentLLM(none, tomorrow, {"type": "tool_call", "tool": "get_weather", "parameters": {"location": "Brest"}},
+                   none, tomorrow, reply="Bon voyage, monsieur.")
     spoken, _ = run_agent(["Je pars à Lyon demain.", "Quel temps fera-t-il demain ?", "Quel temps fait-il à Brest ?",
                            "Combien font deux plus deux ?", "Quel temps fera-t-il demain ?"], llm, make_core())
     places = [s.split(" : ")[0].split(", ")[0] for s in spoken if "degrés" in s]

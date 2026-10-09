@@ -14,6 +14,7 @@ import re
 
 from jarvis.interfaces import Message
 from jarvis.personality import normalize
+from jarvis.scheduling.durations import spoken_numbers
 from jarvis.tools.base import ToolResult
 from jarvis.tools.registry import ToolRegistry
 
@@ -135,7 +136,16 @@ def planner_prompt(registry: ToolRegistry) -> str:
                            for name, p in tool.parameters.items() if not p.hidden)
         lines.append(f"- {tool.name} : {tool.description} Paramètres : {params or 'aucun'}.")
     tools = "\n".join(lines)
-    rules = ["- N'inventez jamais d'outil ni de paramètre."]
+    rules = ["- N'inventez jamais d'outil ni de paramètre.",
+             "- Une demande indirecte vaut l'action évidente si un outil la fait (« on n'y voit rien » : allumer ; "
+             "« c'est trop fort » : le son) ; sans niveau dit, n'inventez pas de nombre : outil sans ce paramètre, "
+             "ou none.",
+             "- Si une demande précédente est donnée, « le », « la », « les », « en », « ça », « celui-ci » désignent "
+             "ce qu'elle concernait (« annule-le » après un minuteur : cancel_timer ; « fais-en un autre de 8 "
+             "minutes » : create_timer ; « le deuxième » après une liste de mails : ce mail). Une demande sans lien "
+             "avec elle est traitée seule.",
+             "- Une phrase à lire, répéter, prononcer ou citer (« lis-moi cette phrase : ... », « répète après moi ») "
+             "n'est jamais une action : none."]
     if registry.exists("open_application"):
         rules.append("- open_application : recopiez le nom de l'application tel que l'utilisateur l'a dit, en "
                      "minuscules, même s'il ne figure pas dans la liste.")
@@ -151,7 +161,8 @@ def planner_prompt(registry: ToolRegistry) -> str:
                      "pour un minuteur, une heure précise n'est pas une durée -> none.")
     if registry.exists("create_alarm"):
         rules.append("- create_alarm, cancel_alarm : recopiez l'heure exactement comme elle a été dite (« 7 heures "
-                     "30 », « sept heures et demie ») ; une durée (« dans 10 minutes ») est un minuteur ou un rappel.")
+                     "30 », « sept heures et demie ») ; une durée (« dans 10 minutes ») est un minuteur ou un rappel. "
+                     "Réveiller, faire lever, sonner le matin à une heure dite -> create_alarm.")
     if registry.exists("light_on"):
         rules.append("- Lumières : la pièce n'est jamais un paramètre. « allume », « éteins » -> light_on, light_off ; "
                      "brightness seulement si un pourcentage est dit ; une couleur dite (« en vert », « en blanc "
@@ -178,6 +189,11 @@ def planner_prompt(registry: ToolRegistry) -> str:
     if registry.exists("list_events"):
         rules.append("- Calendrier : le jour n'est jamais un paramètre (déduit de la demande). add_event : heure recopiée "
                      "telle qu'elle a été dite ; un rappel (« rappelle-moi ») reste create_reminder.")
+    if registry.exists("read_mail"):
+        rules.append("- Mails : « lis le premier », « le deuxième », « ce mail » après une liste -> read_mail ; résumer -> "
+                     "summarize_mail ; le rang n'est jamais un paramètre (déduit de la demande).")
+    if registry.exists("list_timers"):
+        rules.append("- Le temps restant d'un minuteur, les minuteurs en cours -> list_timers.")
     if registry.exists("remember"):
         rules.append("- remember : seulement si l'utilisateur demande explicitement de retenir ou de se souvenir de "
                      "quelque chose ; fact reprend ses mots, sans « retiens que ». recall : ce qu'ORION sait de lui. "
@@ -263,11 +279,21 @@ def plan_schema(registry: ToolRegistry) -> dict:
     return {"anyOf": options}
 
 
-def plan(llm, text: str, registry: ToolRegistry) -> dict | None:
-    """Appel d'outil proposé par le LLM pour cette demande, ou None (aucun outil, ou LLM indisponible)."""
-    if not len(registry) or not hasattr(llm, "chat_json"):
+def plan(llm, text: str, registry: ToolRegistry, previous: str = "", report: dict | None = None) -> dict | None:
+    """Appel d'outil proposé par le LLM pour cette demande, ou None (aucun outil, ou LLM indisponible).
+
+    ``previous`` : la demande d'outil précédente de la conversation, déjà exécutée, pour comprendre une suite
+    (« baisse-la à 20 % », « annule-le », « lis le premier »). Les valeurs sont alors vérifiées dans les deux
+    demandes réunies ; sans lien avec elle, la nouvelle demande est traitée seule. ``report`` reçoit « proposed » :
+    l'outil proposé puis écarté par les vérifications (une action était voulue, mais pas assez précise)."""
+    if not len(registry) or not hasattr(llm, "chat_json") or quoted(text):
         return None
     messages = [Message("system", planner_prompt(registry)), Message("user", text)]
+    if previous:
+        messages[1:1] = [Message("user", previous),
+                         Message("assistant", "(Action exécutée. Ne la refais pas : seule la demande suivante compte ; "
+                                              "« la », « le », « ça » peuvent désigner ce qu'elle concernait.)")]
+        text = f"{previous.rstrip(' .!?')}. {text}"
     try:
         data = llm.chat_json(messages, plan_schema(registry))
     except Exception as exc:
@@ -280,6 +306,8 @@ def plan(llm, text: str, registry: ToolRegistry) -> dict | None:
     grounded = _grounded(data, text, registry)
     if grounded is None:
         log.info("Appel d'outil écarté : valeur absente de la demande (%s)", data)
+        if report is not None:
+            report["proposed"] = str(data.get("tool", ""))
     return grounded
 
 
@@ -356,6 +384,19 @@ def _question(text: str) -> bool:
     return bool(QUESTION.match(norm)) and not REQUEST.search(norm)
 
 
+# « Lis-moi cette phrase : éteins tout », « répète après moi : verrouille le PC » : une phrase à lire, répéter ou
+# citer n'est jamais une commande.
+QUOTED = re.compile(r"\b(lis|lire|r[ée]p[èe]te|r[ée]p[ée]ter|prononce|dis)\b[^:«\"]{0,40}[:«\"]",
+                    re.IGNORECASE)
+QUOTED_WORDS = ("apres moi", "cette phrase", "ce texte", "ce mot")
+
+
+def quoted(text: str) -> bool:
+    """Phrase à lire, répéter ou citer : jamais une commande."""
+    norm = f" {normalize(text)} "
+    return bool(QUOTED.search(text)) or any(f" {w} " in norm for w in QUOTED_WORDS)
+
+
 def _deferred(text: str) -> bool:
     norm = f" {normalize(text)} "
     return any(f" {w} " in norm for w in DEFERRED_WORDS)
@@ -389,6 +430,9 @@ def _grounded(data: dict, text: str, registry: ToolRegistry) -> dict | None:
         # « Est-ce que la musique joue ? » : une question ne déclenche jamais une action (lecture/pause du PC).
         log.info("Action écartée : « %s » pour une question (%s)", data["tool"], text[:80])
         return None
+    if quoted(text) and not data["tool"].startswith(READ_ONLY_TOOLS):
+        log.info("Action écartée : « %s » dans une phrase à lire ou répéter (%s)", data["tool"], text[:80])
+        return None
     if _deferred(text) and not data["tool"].startswith(DEFERRED_TOOLS):
         # « Rappelle-moi d'éteindre la chambre » : à rappeler plus tard, jamais à exécuter maintenant.
         log.info("Action écartée : « %s » dans une demande de rappel (%s)", data["tool"], text[:80])
@@ -399,6 +443,7 @@ def _grounded(data: dict, text: str, registry: ToolRegistry) -> dict | None:
     for words, values in NUMBER_WORDS:
         if any(f" {w} " in norm for w in words):
             said |= values
+    said |= {str(n) for n in spoken_numbers(text)}  # « mets le son à cinquante » : 50 est bien dit
     parameters = dict(data["parameters"])
     for name, spec in registry.get(data["tool"]).parameters.items():
         value = parameters.get(name)

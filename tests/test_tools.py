@@ -734,10 +734,11 @@ def routes(events):
     return [t for k, t in events if k == "routing"]
 
 
-def test_request_without_tool_goes_to_the_llm_as_before():
+def test_request_without_tool_goes_to_the_llm_after_the_planner_says_none():
     llm = PlannerLLM(reply="Voici une blague.")
     spoken, events = run_agent(["Raconte-moi une blague"], llm)
-    assert routes(events) == ["llm"] and llm.planned == [] and "RESULTAT_OUTIL" not in llm.calls[0][-1].content
+    assert routes(events) == ["llm"] and len(llm.planned) == 1  # le planificateur est consulté, puis répond « none »
+    assert spoken == ["Voici une blague."] and "RESULTAT_OUTIL" not in llm.calls[0][-1].content
 
 
 def test_time_and_date_are_answered_by_the_tool_without_the_llm():

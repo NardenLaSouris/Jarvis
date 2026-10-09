@@ -37,6 +37,10 @@ ACTION_VERBS = (
     "diminue|mis|joue|appele|supprime|cree|enregistre|demarre|arrete|coupe|verrouille|commande|reserve|ajoute"
 )
 ACTION_CLAIMS = (
+    # « Minuteur pour 8 minutes mis en place », « le mail a bien été envoyé à Paul » (mots entre l'objet et l'action).
+    re.compile(r"\b(minuteur|rappel|alarme|reveil|timer|mail|message|lumiere|volume)\b.{0,40}\b(mis en place|mise en "
+               r"place|lance|programme|regle|cree|enregistre|active|annule|supprime|envoye|archive|allumee?|eteinte?)"
+               r"e?s?\b"),
     re.compile(rf"\bj ai (bien |deja )?({ACTION_VERBS})\b"),
     re.compile(r"\bje viens d (eteindre|allumer|ouvrir|fermer|lancer|envoyer|programmer|regler|activer|couper)\b"),
     re.compile(r"\b(c est|voila c est|voila qui est) fait\b"),

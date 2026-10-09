@@ -15,6 +15,7 @@ from __future__ import annotations
 import re
 
 from jarvis.personality import normalize
+from jarvis.scheduling.durations import SMALL, TENS, UNITS, DurationError, parse_duration, spoken_duration
 from jarvis.tools.quick import QuickPlanner, _has, _percent_raw
 from jarvis.tools.registry import ToolRegistry
 
@@ -36,6 +37,12 @@ CANCEL_IT = {"annule", "annule le", "annule la", "annule ca", "annule ce rappel"
              "annule le minuteur", "supprime le", "supprime la", "supprime ce rappel", "supprime le rappel",
              "laisse tomber", "oublie ca", "finalement annule", "annule finalement", "arrete le", "arrete le minuteur",
              "annule les"}
+MAIL_LISTS = ("check_mail", "list_mail", "search_mail")
+MAIL_ORDINALS = {"premier": 1, "premiere": 1, "deuxieme": 2, "second": 2, "seconde": 2, "troisieme": 3,
+                 "quatrieme": 4, "cinquieme": 5}
+MAIL_VERBS = {"lis", "lit", "lire", "moi", "ouvre", "resume", "resumer", "fais", "un", "resume moi", "mail", "message",
+              "celui", "-ci", "quoi", "dit", "dans", "que"}
+TIMER_WORDS = {"fais", "fait", "en", "un", "une", "autre", "mets", "lance", "minuteur", "plutot", "non", "finalement"}
 CREATED = {"create_reminder": ("cancel_reminder", "reminder_id"), "create_timer": ("cancel_timer", "timer_id")}
 DAY_WORDS = {"demain": "tomorrow", "apres demain": "day_after_tomorrow", "aujourd hui": "today", "hier": "yesterday"}
 WEATHER_DAYS = {"demain": "tomorrow", "apres demain": "day_after_tomorrow", "aujourd hui": "today"}
@@ -92,6 +99,10 @@ class ConversationContext:
             cancel, key = CREATED[tool]
             created = (self.last.get("result") or {}).get(key)
             call = {"tool": cancel, "parameters": {key: str(created)}} if created else None
+        elif tool in MAIL_LISTS:
+            call = self._mail(rest)
+        elif tool == "create_timer":
+            call = self._timer(rest, text)
         elif tool in ("get_time", "get_date"):
             call = self._day(rest, "get_date", DAY_WORDS)
         elif tool == "get_weather":
@@ -115,6 +126,35 @@ class ConversationContext:
         if not self._registry.exists(call["tool"]):
             return None
         return {"type": "tool_call", **call}
+
+    @staticmethod
+    def _mail(rest: str) -> dict | None:
+        """Après une liste de mails : « lis le premier », « résume le deuxième », « et le troisième ? »."""
+        words = rest.split()
+        rank = next((MAIL_ORDINALS[w] for w in words if w in MAIL_ORDINALS), None)
+        if rank is None or not all(w in FILLERS or w in MAIL_ORDINALS or w in MAIL_VERBS for w in words):
+            return None
+        tool = "summarize_mail" if any(w.startswith("resum") for w in words) else "read_mail"
+        return {"tool": tool, "parameters": {"position": rank}}
+
+    @staticmethod
+    def _timer(rest: str, text: str) -> dict | None:
+        """Juste après un minuteur : « il reste combien de temps ? » ; « fais-en un de 8 minutes », « plutôt 8 »."""
+        if re.search(r"\b(reste|restant|combien de temps)\b", rest):
+            return {"tool": "list_timers", "parameters": {}}
+        words = rest.split()
+        start = next((i for i in range(len(words) - 1) if words[i + 1] in UNITS
+                      and (words[i].isdigit() or words[i] in SMALL or words[i] in TENS)), None)
+        if start is None:
+            return None
+        try:
+            seconds = parse_duration(" ".join(words[start:]))
+        except DurationError:
+            return None
+        if not all(w in FILLERS or w in TIMER_WORDS or w.isdigit() or w in UNITS or w in SMALL or w in TENS
+                   for w in rest.split()):
+            return None
+        return {"tool": "create_timer", "parameters": {"duration": spoken_duration(seconds)}}
 
     def _only(self, rest: str, allowed: set[str]) -> bool:
         """Le complément ne contient que des mots vides et ``allowed`` (pas de nouveau verbe ni de nouvel objet)."""

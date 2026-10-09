@@ -44,6 +44,8 @@ MUSIC_STATUS = ("est ce que la musique joue", "la musique joue", "qu est ce qui 
                 "c est quoi ce morceau", "quel est ce morceau", "quelle est cette chanson", "quel morceau joue",
                 "quelle chanson joue", "qu est ce que tu joues", "qu est ce qu on ecoute", "c est quoi ce titre",
                 "quel est le titre", "spotify joue", "la musique est en pause", "est ce que spotify")
+OTHER_DOMAINS = ("lumiere", "lumieres", "luminosite", "lampe", "volume", "minuteur", "reveil", "alarme", "rappel",
+                 "pour cent", "pourcent", "degres", "chauffage", "temperature", "ambiance")
 FACE_WORDS = ("visage", "ton visage", "theme", "ton theme", "ta couleur", "tes couleurs", "ton interface",
               "ton ecran", "ta face", "ta tete", "habille toi", "change de couleur", "couleur de jarvis",
               "arc en ciel", "en arc en ciel", "toutes les couleurs")
@@ -320,6 +322,8 @@ class QuickPlanner:
         rest = re.sub(r"\b(sur spotify|s il te plait|s il vous plait|stp|svp)\b", " ", match.group(1)).strip()
         music = _has(norm, ("sur spotify", "chanson", "morceau", "titre", "album", "playlist", "musique", "du son"))
         if not music and not re.search(r"\b(de|d)\b", rest) and not rest.startswith("du "):
+            return None
+        if not music and _has(norm, OTHER_DOMAINS):  # « mets la luminosité de la chambre à 75 % » n'est pas un titre
             return None
         kind, lead = "track", r"^(?:la |le |l )?(?:chanson |morceau |titre |son )?"
         if re.search(r"\bplaylist\b", rest):

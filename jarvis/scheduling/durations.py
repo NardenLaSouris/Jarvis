@@ -39,11 +39,36 @@ def tokens(text: str) -> list[str]:
     return text.split()
 
 
+def _teen(words: list[str], i: int) -> tuple[int, int] | None:
+    """10 à 19 à la position ``i`` (« dix », « onze »... « dix sept »)."""
+    if i >= len(words):
+        return None
+    if words[i] == "dix" and i + 1 < len(words) and words[i + 1] in ("sept", "huit", "neuf"):
+        return 10 + SMALL[words[i + 1]], 2
+    if words[i] in SMALL and SMALL[words[i]] >= 10:
+        return SMALL[words[i]], 1
+    return None
+
+
 def _number(words: list[str], i: int) -> tuple[int, int] | None:
-    """Nombre écrit en chiffres ou en lettres à la position ``i`` : (valeur, mots consommés)."""
+    """Nombre écrit en chiffres ou en lettres à la position ``i`` : (valeur, mots consommés), jusqu'à cent."""
     word = words[i]
     if word.isdigit():
         return int(word), 1
+    if word == "cent":
+        return 100, 1
+    if word == "soixante":
+        j = i + 2 if i + 1 < len(words) and words[i + 1] == "et" else i + 1
+        teen = _teen(words, j)
+        if teen is not None:
+            return 60 + teen[0], j - i + teen[1]
+    if word == "quatre" and i + 1 < len(words) and words[i + 1] in ("vingt", "vingts"):
+        teen = _teen(words, i + 2)
+        if teen is not None:
+            return 80 + teen[0], 2 + teen[1]
+        if i + 2 < len(words) and words[i + 2] in SMALL and 1 <= SMALL[words[i + 2]] <= 9:
+            return 80 + SMALL[words[i + 2]], 3
+        return 80, 2
     if word in TENS:
         value, used = TENS[word], 1
         if i + 1 < len(words) and words[i + 1] == "et" and i + 2 < len(words) and words[i + 2] in ("un", "une"):
@@ -56,6 +81,19 @@ def _number(words: list[str], i: int) -> tuple[int, int] | None:
     if word in SMALL:
         return SMALL[word], 1
     return None
+
+
+def spoken_numbers(text: str) -> set[int]:
+    """Nombres dits dans la phrase, en chiffres ou en lettres (« soixante-quinze pour cent » -> {75})."""
+    words, found, i = tokens(text), set(), 0
+    while i < len(words):
+        number = _number(words, i)
+        if number is None or (words[i] == "cent" and i > 0 and words[i - 1] == "pour"):  # « pour cent »
+            i += 1
+            continue
+        found.add(number[0])
+        i += number[1]
+    return found
 
 
 def parse_duration(text: str) -> int:
