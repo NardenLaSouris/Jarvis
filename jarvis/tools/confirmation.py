@@ -22,6 +22,7 @@ class Pending:
     question: str
     asked_at: float
     user: str = ""  # qui a demandé : seul lui peut confirmer
+    origin: str = "user"  # origine de la demande, réévaluée à la confirmation
 
 
 class ConfirmationManager:
@@ -40,8 +41,8 @@ class ConfirmationManager:
             self._pending = None
         return self._pending
 
-    def ask(self, request: ToolRequest, question: str, user: str = "") -> str:
-        self._pending = Pending(request, question, self._clock(), user)
+    def ask(self, request: ToolRequest, question: str, user: str = "", origin: str = "user") -> str:
+        self._pending = Pending(request, question, self._clock(), user, origin)
         return question
 
     def answer(self, text: str) -> tuple[str, Pending | None]:

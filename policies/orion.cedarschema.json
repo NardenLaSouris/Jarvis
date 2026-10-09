@@ -24,7 +24,8 @@
               "origin": {"type": "String"},
               "device_forbidden": {"type": "Boolean"},
               "url_executable": {"type": "Boolean"},
-              "forget_all": {"type": "Boolean"}
+              "forget_all": {"type": "Boolean"},
+              "llm_trusted": {"type": "Boolean"}
             }
           }
         }

@@ -128,6 +128,9 @@ timeout = 120.0
 # LLM de secours quand celui de « host » est injoignable (par exemple un worker GPU éteint) ; vide = aucun.
 fallback_host = ""
 fallback_model = ""
+# false : modèle non éprouvé (abliterated...). Avec [tools.policy] engine = "both", ses propositions d'action sont
+# limitées aux outils d'information, de maison, de médias et de minuteurs (aucun mail, fichier, application, PC).
+trusted = true
 # Avec un secours (worker distant) : état du worker ONLINE / DEGRADED / OFFLINE (journal, API, --health).
 # timeout ci-dessus = attente maximale entre deux morceaux de réponse ; avec un worker GPU, 20 s suffisent.
 connect_timeout = 1.0   # vérification TCP avant chaque appel (s) : un worker éteint est détecté aussitôt
@@ -260,6 +263,18 @@ fast_path = true
 #   [tools.devices.mini]
 #   name = "le mini-PC"
 #   aliases = ["mini pc", "le serveur"]
+
+[tools.policy]
+# Autorisation de chaque appel d'outil (le LLM propose, le Core décide et applique) :
+#   "builtin" : PermissionManager seul (rôles, risque, confirmation), comportement historique ;
+#   "shadow"  : PermissionManager seul décide, les politiques Cedar sont évaluées et journalisées (écarts compris) ;
+#   "both"    : double verrou, permis seulement si les deux permettent ; une erreur de Cedar vaut refus.
+# Cedar : pip install -r requirements-policy.txt. Retour arrière : engine = "builtin".
+engine = "builtin"
+policies = "policies/orion.cedar"
+schema = "policies/orion.cedarschema.json"
+audit = "data/policy_decisions.jsonl"   # décisions (sans valeur de paramètre) en mode shadow ou both
+timeout = 0.5
 
 [tools.get_time]
 enabled = true

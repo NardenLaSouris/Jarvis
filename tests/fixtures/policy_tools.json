@@ -1,0 +1,320 @@
+{
+ "about": "Registre réel d'ORION (63 outils : nom, risque, catégorie de rôle), relevé le 9 octobre 2026 pour les tests de tests/test_policy.py.",
+ "tools": [
+  {
+   "name": "get_time",
+   "risk": "safe",
+   "category": "info"
+  },
+  {
+   "name": "get_date",
+   "risk": "safe",
+   "category": "info"
+  },
+  {
+   "name": "system_info",
+   "risk": "safe",
+   "category": "system"
+  },
+  {
+   "name": "open_url",
+   "risk": "safe",
+   "category": "apps"
+  },
+  {
+   "name": "open_application",
+   "risk": "safe",
+   "category": "apps"
+  },
+  {
+   "name": "close_application",
+   "risk": "confirm",
+   "category": "apps"
+  },
+  {
+   "name": "list_running_applications",
+   "risk": "safe",
+   "category": "apps"
+  },
+  {
+   "name": "set_volume",
+   "risk": "safe",
+   "category": "system"
+  },
+  {
+   "name": "mute_volume",
+   "risk": "safe",
+   "category": "system"
+  },
+  {
+   "name": "unmute_volume",
+   "risk": "safe",
+   "category": "system"
+  },
+  {
+   "name": "lock_pc",
+   "risk": "confirm",
+   "category": "system"
+  },
+  {
+   "name": "media_play_pause",
+   "risk": "safe",
+   "category": "media"
+  },
+  {
+   "name": "media_next",
+   "risk": "safe",
+   "category": "media"
+  },
+  {
+   "name": "media_previous",
+   "risk": "safe",
+   "category": "media"
+  },
+  {
+   "name": "create_timer",
+   "risk": "safe",
+   "category": "schedule"
+  },
+  {
+   "name": "cancel_timer",
+   "risk": "safe",
+   "category": "schedule"
+  },
+  {
+   "name": "list_timers",
+   "risk": "safe",
+   "category": "info"
+  },
+  {
+   "name": "create_reminder",
+   "risk": "safe",
+   "category": "schedule"
+  },
+  {
+   "name": "cancel_reminder",
+   "risk": "safe",
+   "category": "schedule"
+  },
+  {
+   "name": "list_reminders",
+   "risk": "safe",
+   "category": "info"
+  },
+  {
+   "name": "get_weather",
+   "risk": "safe",
+   "category": "info"
+  },
+  {
+   "name": "find_files",
+   "risk": "safe",
+   "category": "files"
+  },
+  {
+   "name": "read_text_file",
+   "risk": "safe",
+   "category": "files"
+  },
+  {
+   "name": "create_text_file",
+   "risk": "safe",
+   "category": "files"
+  },
+  {
+   "name": "copy_file",
+   "risk": "safe",
+   "category": "files"
+  },
+  {
+   "name": "move_file",
+   "risk": "confirm",
+   "category": "files"
+  },
+  {
+   "name": "delete_file",
+   "risk": "confirm",
+   "category": "files"
+  },
+  {
+   "name": "light_on",
+   "risk": "safe",
+   "category": "home"
+  },
+  {
+   "name": "light_off",
+   "risk": "safe",
+   "category": "home"
+  },
+  {
+   "name": "light_toggle",
+   "risk": "safe",
+   "category": "home"
+  },
+  {
+   "name": "set_brightness",
+   "risk": "safe",
+   "category": "home"
+  },
+  {
+   "name": "set_color",
+   "risk": "safe",
+   "category": "home"
+  },
+  {
+   "name": "set_color_temperature",
+   "risk": "safe",
+   "category": "home"
+  },
+  {
+   "name": "set_scene",
+   "risk": "safe",
+   "category": "home"
+  },
+  {
+   "name": "light_status",
+   "risk": "safe",
+   "category": "info"
+  },
+  {
+   "name": "remember",
+   "risk": "safe",
+   "category": "memory"
+  },
+  {
+   "name": "recall",
+   "risk": "safe",
+   "category": "memory"
+  },
+  {
+   "name": "forget",
+   "risk": "confirm",
+   "category": "memory"
+  },
+  {
+   "name": "presence_status",
+   "risk": "safe",
+   "category": "info"
+  },
+  {
+   "name": "set_face_theme",
+   "risk": "safe",
+   "category": "home"
+  },
+  {
+   "name": "list_events",
+   "risk": "safe",
+   "category": "calendar"
+  },
+  {
+   "name": "next_events",
+   "risk": "safe",
+   "category": "calendar"
+  },
+  {
+   "name": "search_events",
+   "risk": "safe",
+   "category": "calendar"
+  },
+  {
+   "name": "free_slots",
+   "risk": "safe",
+   "category": "calendar"
+  },
+  {
+   "name": "add_event",
+   "risk": "safe",
+   "category": "calendar"
+  },
+  {
+   "name": "delete_event",
+   "risk": "confirm",
+   "category": "calendar"
+  },
+  {
+   "name": "check_mail",
+   "risk": "safe",
+   "category": "mail"
+  },
+  {
+   "name": "list_mail",
+   "risk": "safe",
+   "category": "mail"
+  },
+  {
+   "name": "search_mail",
+   "risk": "safe",
+   "category": "mail"
+  },
+  {
+   "name": "read_mail",
+   "risk": "safe",
+   "category": "mail"
+  },
+  {
+   "name": "summarize_mail",
+   "risk": "safe",
+   "category": "mail"
+  },
+  {
+   "name": "mark_mail_read",
+   "risk": "confirm",
+   "category": "mail"
+  },
+  {
+   "name": "archive_mail",
+   "risk": "confirm",
+   "category": "mail"
+  },
+  {
+   "name": "delete_mail",
+   "risk": "confirm",
+   "category": "mail"
+  },
+  {
+   "name": "send_mail",
+   "risk": "confirm",
+   "category": "mail"
+  },
+  {
+   "name": "reply_mail",
+   "risk": "confirm",
+   "category": "mail"
+  },
+  {
+   "name": "network_status",
+   "risk": "safe",
+   "category": "system"
+  },
+  {
+   "name": "create_alarm",
+   "risk": "safe",
+   "category": "schedule"
+  },
+  {
+   "name": "list_alarms",
+   "risk": "safe",
+   "category": "info"
+  },
+  {
+   "name": "cancel_alarm",
+   "risk": "safe",
+   "category": "schedule"
+  },
+  {
+   "name": "list_routines",
+   "risk": "safe",
+   "category": "info"
+  },
+  {
+   "name": "run_routine",
+   "risk": "safe",
+   "category": "routines"
+  },
+  {
+   "name": "delete_routine",
+   "risk": "confirm",
+   "category": "routines"
+  }
+ ]
+}

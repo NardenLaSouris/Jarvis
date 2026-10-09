@@ -462,7 +462,8 @@ def build_routines(cfg: Config, tools, notifications, events: EventBus, sink=Non
     alarm = AlarmPlayer(sink, cfg.alarms.sound, cfg.alarms.max_minutes, before_ringing) \
         if sink is not None and cfg.alarms.enabled else None
     owner = next(u.id for u in build_profiles(cfg).users() if u.role == "owner")
-    run_as_owner = lambda data: tools.submit(data, user=owner)  # noqa: E731
+    # Routines programmées : droits du propriétaire ; lancées par la voix : droits de celui qui les demande.
+    run_as_owner = lambda data, user=None: tools.submit(data, user=user or owner, origin="routine")  # noqa: E731
     welcome = None
     if presence is not None:
         profiles = build_profiles(cfg)
@@ -557,7 +558,12 @@ def build_tools(cfg: Config, personality, events: EventBus | None = None, timers
                                                  personality.user_title))
     profiles = build_profiles(cfg)
     owner = next(u.id for u in profiles.users() if u.role == "owner")
-    return ToolCore(registry, PermissionManager(profiles=profiles), confirmations, timeout=cfg.tools.timeout,
+    from jarvis.profiles import category
+    from jarvis.tools.policy import build_gate
+
+    permissions = build_gate(PermissionManager(profiles=profiles), cfg.tools.policy, registry,
+                             {u.id: u.role for u in profiles.users()}, category, ENV_FILE.parent, cfg.llm.trusted)
+    return ToolCore(registry, permissions, confirmations, timeout=cfg.tools.timeout,
                     user=profiles.context().user_id or owner, events=events)
 
 

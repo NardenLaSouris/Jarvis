@@ -1,7 +1,8 @@
-"""Exporte le registre d'outils d'ORION et les décisions actuelles (PermissionManager + rôles) pour le prototype Cedar.
+"""Relève le registre d'outils réel d'ORION et les décisions du PermissionManager (rôles, confirmation).
 
-Lancé avec l'environnement d'ORION dans une copie de travail (harness.py à côté) :
-    TZ=Europe/Paris python research/policy/export_tools.py > research/policy/tools.json
+Sert à rafraîchir tests/fixtures/policy_tools.json (garder la clé « tools ») quand des outils changent. Lancé avec
+l'environnement d'ORION dans une copie de travail (harness.py à côté) :
+    TZ=Europe/Paris python research/policy/export_tools.py > /tmp/registre.json
 """
 
 from __future__ import annotations

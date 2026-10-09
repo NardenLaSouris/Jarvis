@@ -88,7 +88,7 @@ class CoreApi:
         if self.tools.registry.get(name).risk is not Risk.SAFE:
             return 403, {"status": "error", "error": "confirmation_required",
                          "message": "Cet outil demande une confirmation vocale."}
-        outcome = self.tools.submit({"type": "tool_call", "tool": name, "parameters": parameters or {}})
+        outcome = self.tools.submit({"type": "tool_call", "tool": name, "parameters": parameters or {}}, origin="admin")
         result = outcome.result
         ok = outcome.status == DONE and result is not None and result.success
         return (200 if ok else 422), {"status": "ok" if ok else "error", "tool": name,

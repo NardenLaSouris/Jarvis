@@ -8,6 +8,9 @@ from enum import Enum
 from jarvis.tools.base import Risk, Tool
 
 OWNER = "owner"
+# Origines d'une demande, fixées par le Core : la conversation (« user »), une routine, l'API d'administration.
+# Toute autre origine (contenu d'un mail, d'une page, d'un fichier) n'est jamais exécutée.
+TRUSTED_ORIGINS = frozenset({"user", "routine", "admin"})
 
 
 class Decision(str, Enum):
@@ -33,7 +36,10 @@ class PermissionManager:
         self._users = set(users)
         self._profiles = profiles  # jarvis.profiles.Profiles : droits selon le rôle (propriétaire, enfant, invité...)
 
-    def decide(self, user: str, tool: Tool, parameters: dict, confirmed: bool = False) -> PermissionDecision:
+    def decide(self, user: str, tool: Tool, parameters: dict, confirmed: bool = False,
+               origin: str = "user") -> PermissionDecision:
+        if origin not in TRUSTED_ORIGINS:
+            return PermissionDecision(Decision.DENY, "demande issue d'un contenu non fiable")
         if self._profiles is not None:
             allowed, reason = self._profiles.allows(user, tool, parameters)
             if not allowed:

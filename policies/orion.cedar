@@ -1,8 +1,8 @@
-// Politiques d'exécution des outils d'ORION (prototype, non branché sur le service).
-// Équivalent de jarvis.tools.permissions.PermissionManager + jarvis.profiles (rôles), plus trois règles de
-// contexte : origine non fiable, appareil interdit, lien vers un exécutable. Tout ce qui n'est pas permis est
-// refusé (règle par défaut de Cedar) ; un forbid l'emporte toujours sur un permit.
-// L'ordre compte : engine.py associe chaque règle à son @id dans l'ordre du fichier.
+// Politiques d'exécution des outils d'ORION, évaluées par jarvis/tools/policy.py ([tools.policy] engine).
+// Équivalent de jarvis.tools.permissions.PermissionManager + jarvis.profiles (rôles), plus des règles de contexte :
+// origine non fiable, modèle non fiable, appareil interdit, lien vers un exécutable. Tout ce qui n'est pas permis
+// est refusé (règle par défaut de Cedar) ; un forbid l'emporte toujours sur un permit. Le contexte est construit par
+// le Core, jamais par le LLM. L'ordre compte : policy.py associe chaque règle à son @id dans l'ordre du fichier.
 
 @id("owner_all")
 permit (principal in Role::"owner", action == Action::"execute", resource);
@@ -47,7 +47,15 @@ unless { principal in Role::"owner" };
 
 @id("untrusted_origin")
 forbid (principal, action, resource)
-unless { context.origin == "user" };
+unless { context.origin == "user" || context.origin == "routine" || context.origin == "admin" };
+
+@id("untrusted_model")
+forbid (principal, action, resource)
+when { context.origin == "user" && !context.llm_trusted }
+unless {
+  resource in Category::"info" || resource in Category::"home" ||
+  resource in Category::"media" || resource in Category::"schedule"
+};
 
 @id("forbidden_device")
 forbid (principal, action, resource)

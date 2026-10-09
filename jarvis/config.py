@@ -77,6 +77,9 @@ class LLMConfig:
     timeout: float = 120.0
     fallback_host: str = ""
     fallback_model: str = ""
+    # false : modèle non éprouvé (abliterated...) ; avec [tools.policy] engine = "both", ses propositions sont
+    # limitées aux outils d'information, de maison, de médias et de minuteurs.
+    trusted: bool = True
     # Worker distant (fallback_host renseigné) : connexion de vérification, délai du secours, sonde, lenteur.
     connect_timeout: float = 1.0
     fallback_timeout: float = 30.0
@@ -127,9 +130,12 @@ class ToolsConfig:
     files: dict = field(default_factory=dict)
     applications: dict = field(default_factory=dict)
     devices: dict = field(default_factory=dict)
+    # Autorisation : engine = "builtin" (PermissionManager seul), "shadow" (Cedar journalisé) ou "both" (double verrou).
+    policy: dict = field(default_factory=dict)
 
     def settings(self) -> dict[str, dict]:
-        return {f.name: getattr(self, f.name) for f in fields(self) if isinstance(getattr(self, f.name), dict)}
+        return {f.name: getattr(self, f.name) for f in fields(self)
+                if isinstance(getattr(self, f.name), dict) and f.name != "policy"}
 
 
 @dataclass(frozen=True)

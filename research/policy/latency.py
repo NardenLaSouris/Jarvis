@@ -1,25 +1,29 @@
-"""Latence d'une décision (appel d'outil complet : contexte de confiance, Cedar, journal) sur le mini-PC."""
-import json
+"""Latence de la porte de décision en mode both (PermissionManager + Cedar), sur le registre réel d'ORION.
+
+    python research/policy/latency.py   (avec cedarpy installé)
+"""
+
+import itertools
 import statistics
-import tempfile
+import sys
 import time
 from pathlib import Path
 
-from engine import PolicyEngine, ToolInfo, build_context
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "tests"))
 
-data = json.loads((Path(__file__).parent / "tools.json").read_text(encoding="utf-8"))
-tools = {t["name"]: ToolInfo(t["name"], t["risk"], t["category"]) for t in data["tools"]}
+from test_policy import USERS, call, make  # noqa: E402
+
 started = time.perf_counter()
-engine = PolicyEngine(tools, data["users"], audit=Path(tempfile.mkdtemp()) / "audit.jsonl")
-print(f"chargement des politiques : {(time.perf_counter() - started) * 1000:.1f} ms")
+core, _ = make(Path(__import__("tempfile").mkdtemp()), "both")
+print(f"chargement : {(time.perf_counter() - started) * 1000:.1f} ms")
+gate = core.permissions
 samples = []
-for i in range(2000):
-    case = data["cases"][i % len(data["cases"])]
-    ctx = build_context({"tool": case["tool"], "parameters": case["parameters"]}, case["user"],
-                        data["users"][case["user"]], tools, case["confirmed"], "user")
+for tool, user in itertools.islice(itertools.cycle(itertools.product(core.registry.list(), USERS)), 2000):
     t = time.perf_counter()
-    engine.decide(ctx)
+    gate.decide(user, tool, {})
     samples.append((time.perf_counter() - t) * 1000)
 samples.sort()
-print(f"décision : médiane {statistics.median(samples):.2f} ms, p99 {samples[int(len(samples) * 0.99)]:.2f} ms, "
-      f"max {samples[-1]:.2f} ms ({len(samples)} décisions)")
+print(f"décision (PermissionManager + Cedar + journal) : médiane {statistics.median(samples):.2f} ms, "
+      f"p99 {samples[int(len(samples) * 0.99)]:.2f} ms, max {samples[-1]:.2f} ms ({len(samples)} décisions)")
