@@ -357,6 +357,7 @@ DOMAIN_WORDS = {
     "close_application": ("ferme", "fermer", "quitte", "quitter", "arrete", "coupe"),
     # Mails : l'action doit être dite par l'utilisateur, jamais suggérée par le contenu d'un mail lu.
     "mark_mail_read": ("lu", "lus", "marque", "marquer"),
+    "mark_all_mail_read": ("lu", "lus", "marque", "marquer"),
     "archive_mail": ("archive", "archiver", "archives", "range", "ranger"),
     "delete_mail": ("supprime", "supprimer", "supprimes", "efface", "effacer", "corbeille", "jette", "jeter"),
     "send_mail": ("envoie", "envoyer", "envoies", "ecris", "ecrire", "ecrit", "mail a", "email a"),

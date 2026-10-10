@@ -27,6 +27,7 @@ sys.path.insert(0, ".")
 from jarvis.scheduling.durations import _number, tokens  # noqa: E402
 
 NO_SPEECH = 0.6
+EXTRA_HINT = "Éteins la lumière. Retourne en veille. Quelle heure est-il ? Quoi de neuf ? Présente-toi."
 CONFIGS = {
     "actuel": {"model": "small", "beam_size": 1, "hotwords": True},
     "sans_indice": {"model": "small", "beam_size": 1, "hotwords": False},
@@ -35,6 +36,11 @@ CONFIGS = {
     "vad": {"model": "small", "beam_size": 1, "hotwords": True, "vad_filter": True},
     "base": {"model": "base", "beam_size": 1, "hotwords": True},
     "fils4": {"model": "small", "beam_size": 1, "hotwords": True, "cpu_threads": 4},
+    # Sans relance à température plus haute (par défaut, jusqu'à 5 décodages de plus sur un audio peu clair).
+    "temp0": {"model": "small", "beam_size": 1, "hotwords": True, "vad_filter": True, "temperature": 0.0},
+    # Indice enrichi des commandes mal transcrites en service.
+    "indice_plus": {"model": "small", "beam_size": 1, "hotwords": "plus", "vad_filter": True},
+    "temp0_indice_plus": {"model": "small", "beam_size": 1, "hotwords": "plus", "vad_filter": True, "temperature": 0.0},
 }
 
 
@@ -117,13 +123,15 @@ def main() -> None:
         model = WhisperModel(c["model"], device="cpu", compute_type="int8", download_root=str(cfg.stt.download_root),
                              cpu_threads=c.get("cpu_threads", 0), local_files_only=True)
         list(model.transcribe(np.zeros(16000, np.float32), language="fr", beam_size=1)[0])
-        subset = [r for r in rows if not args.subset or name == "actuel" or r["voice"] in ("fr_FR-siwis-medium:", "fr_FR-upmc-medium:pierre", "siwis", "")]
+        subset = [r for r in rows if not args.subset or name == "actuel" or r["voice"] in ("fr_FR-siwis-medium:", "fr_FR-upmc-medium:pierre", "siwis", "")
+                  or r["category"] == "commandes"]
         results = []
         for r in subset:
             audio = read(args.audio / r["file"]).astype(np.float32) / 32768.0
             started = time.perf_counter()
             segments, _ = model.transcribe(audio, language="fr", beam_size=c["beam_size"], condition_on_previous_text=False,
-                                           vad_filter=c.get("vad_filter", False), hotwords=hint if c["hotwords"] else None,
+                                           vad_filter=c.get("vad_filter", False), hotwords=(f"{hint} {EXTRA_HINT}" if c["hotwords"] == "plus" else hint) if c["hotwords"] else None,
+                                           temperature=c.get("temperature", [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]),
                                            without_timestamps=c.get("without_timestamps", False))
             kept = [s for s in segments if s.no_speech_prob < NO_SPEECH]
             text = " ".join(s.text.strip() for s in kept).strip()

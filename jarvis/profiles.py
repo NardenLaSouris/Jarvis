@@ -41,6 +41,7 @@ CATEGORIES = {
     "memory": ("remember", "recall", "forget"),  # faits personnels : jamais lus à un enfant ou un invité
     # Boîte du propriétaire : ni un autre adulte, ni un enfant, ni un invité ne la lit ou n'écrit en son nom.
     "mail": ("check_mail", "list_mail", "search_mail", "read_mail", "summarize_mail", "mark_mail_read",
+             "mark_all_mail_read",
              "archive_mail", "delete_mail", "send_mail", "reply_mail"),
 }
 POLICY = {

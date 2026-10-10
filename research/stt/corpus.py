@@ -34,6 +34,10 @@ SENTENCES = {
                      "Ferme Google Chrome et lance Steam.", "Le processeur est utilisé à quarante-deux pour cent."],
     "anglicismes": ["Mets le podcast en streaming.", "Fais un reset du router.",
                     "Lance le playback en mode shuffle.", "Le meeting est reporté à demain."],
+    # Commandes mal transcrites en service (journal du mini, octobre 2026 : « Et dans la lumière », « Retour d'envahis »,
+    # « Code 9 en mon absence ») ; formulations voisines, pas identiques, de l'indice de vocabulaire.
+    "commandes": ["Éteins la lumière du salon.", "Retourne en veille maintenant.", "Quoi de neuf en mon absence ?",
+                  "Quelle heure est-il ?", "Présente-toi rapidement.", "Mets le son de Spotify à quarante pour cent."],
 }
 VOICES = [("fr_FR-siwis-medium", ""), ("fr_FR-tom-medium", ""), ("fr_FR-upmc-medium", "jessica"),
           ("fr_FR-upmc-medium", "pierre")]

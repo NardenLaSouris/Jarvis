@@ -681,7 +681,7 @@ SLEEP = "<veille>"
 
 
 def run_agent(texts, llm, core=None, tools=True, corrector=None, confidence=None, min_confidence=None,
-              **agent_options):
+              repeat_confidence=None, **agent_options):
     class Stt:
         def __init__(self):
             self.replies = iter([t for t in texts if t != SLEEP])
@@ -718,7 +718,8 @@ def run_agent(texts, llm, core=None, tools=True, corrector=None, confidence=None
     names = tuple(t.name for t in core.registry.list()) if tools else ()
     router = IntentRouter(PERSONALITY, capabilities, tools=names)
     Tts.spoken = []
-    settings = AgentSettings("JARVIS", "Jarvis", 0.5, ("Oui, monsieur ?",), 3.0, 2.0, 6, min_confidence=min_confidence)
+    settings = AgentSettings("JARVIS", "Jarvis", 0.5, ("Oui, monsieur ?",), 3.0, 2.0, 6, min_confidence=min_confidence,
+                             repeat_confidence=repeat_confidence)
     Agent(settings, source, RecordingSink(), Wake(), UtteranceRecorder(source, EndpointerSettings()), Stt(), llm,
           Tts(), router, lambda kind, text: events.append((kind, text)), tools=core if tools else None,
           corrector=corrector, **agent_options).run()

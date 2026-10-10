@@ -28,6 +28,7 @@ from jarvis.router import IntentRouter, Route
 from jarvis.scheduling.actions import split_schedule
 from jarvis.streaming import SpeechPipeline, sentences_from_llm
 from jarvis.personality import normalize
+from jarvis.tools.base import Risk
 from jarvis.tools.core import CANCELLED, CONFIRM, DONE
 from jarvis.tools.request import MALFORMED_MESSAGES
 from jarvis.tools.planner import plan, quoted, tool_request
@@ -51,11 +52,15 @@ class AgentSettings:
     max_history_turns: int
     barge_in: bool = False
     min_confidence: float | None = None
+    # Transcription peu sûre qui redemande exactement l'action d'information faite à l'instant (« tous mes mails
+    # comme lui » relisait le résumé des mails) : ORION demande de reformuler au lieu de la refaire. None : jamais.
+    repeat_confidence: float | None = None
     wake_patience: int = 1
     wake_sure_score: float = 0.0
     wake_sure_patience: int = 3
 
 
+REPEAT_WINDOW = 120.0  # secondes : au-delà, redemander la même information est normal
 WAKE_WINDOW = 2.0  # secondes d'audio gardées avant la détection (vérification, captures)
 # Audio écouté après le déclenchement avant la vérification : le détecteur réagit pendant le mot (« Ori... »), Whisper
 # doit entendre « Orion » en entier. Ces blocs sont ensuite rendus à l'enregistrement de la demande.
@@ -277,6 +282,7 @@ class Agent:
         self._last_outcome = None
         self._action_unclear = False
         self._last_tool_request = ""
+        self._last_done: tuple[str, str, float] | None = None
         self._previous_request = ""
         # Seconde vérification du wake word (jarvis.wakeword.verify) et audio des réveils (jarvis.wakeword.captures).
         self._wake_verifier = wake_verifier
@@ -668,6 +674,11 @@ class Agent:
     def _run_call(self, history: list[Message], text: str, data: dict, latency: dict) -> str:
         """Une demande d'outil -> Core ; une action réussie devient le contexte des compléments (« À 30 %. »)."""
         data = self._with_hidden(self._with_place(data), text)
+        if self._unsure_repeat(data):
+            self._last_outcome = None
+            latency["route"] = "unsure (même action)"
+            self._event("routing", latency["route"])
+            return self._say_phrase(history, text, "unsure_repeat", latency)
         self._event("tool", json.dumps(data, ensure_ascii=False)[:200])
         started = time.perf_counter()
         outcome = self._last_outcome = self._tools.submit(data)
@@ -675,6 +686,7 @@ class Agent:
         reply = self._after_tool(history, text, outcome, latency)
         if outcome.status == DONE and outcome.result.success:
             self._record(data, outcome.result.result)
+            self._last_done = (data.get("tool"), self._call_key(data), time.monotonic())
             place = outcome.result.result.get("location") if isinstance(outcome.result.result, dict) else None
             self._place = place if data.get("tool") == WEATHER_TOOL and place else self._place
         return reply
@@ -979,6 +991,19 @@ class Agent:
                 stop()
             except Exception:
                 log.exception("Arrêt de la lecture impossible")
+
+    @staticmethod
+    def _call_key(data: dict) -> str:
+        return json.dumps(data.get("parameters") or {}, ensure_ascii=False, sort_keys=True, default=str)
+
+    def _unsure_repeat(self, data: dict) -> bool:
+        threshold, confidence = self.settings.repeat_confidence, getattr(self._stt, "last_confidence", None)
+        if threshold is None or confidence is None or confidence >= threshold or self._last_done is None:
+            return False
+        tool, key, at = self._last_done
+        registry = self._tools.registry
+        return (data.get("tool") == tool and self._call_key(data) == key and time.monotonic() - at < REPEAT_WINDOW
+                and registry.exists(tool) and registry.get(tool).risk is Risk.SAFE)
 
     def _unsure(self) -> bool:
         """Transcription trop peu sûre pour être confiée au LLM (« ta gueule » entendu « regarde-moi le gul »)."""

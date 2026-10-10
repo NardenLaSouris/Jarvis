@@ -1,5 +1,5 @@
 {
- "about": "Registre réel d'ORION (63 outils : nom, risque, catégorie de rôle), relevé le 9 octobre 2026 pour les tests de tests/test_policy.py.",
+ "about": "Registre réel d'ORION (64 outils : nom, risque, catégorie de rôle), relevé le 9 octobre 2026 (mark_all_mail_read ajouté le 10) pour les tests de tests/test_policy.py.",
  "tools": [
   {
    "name": "get_time",
@@ -258,6 +258,11 @@
   },
   {
    "name": "mark_mail_read",
+   "risk": "confirm",
+   "category": "mail"
+  },
+  {
+   "name": "mark_all_mail_read",
    "risk": "confirm",
    "category": "mail"
   },

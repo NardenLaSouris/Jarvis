@@ -36,6 +36,11 @@ guard_adult = ["Ce n'est pas un sujet que je peux aborder ici.", "Je préfère n
 guard_error = ["Je ne peux pas vous répondre pour le moment, {title}."]
 # Transcription trop incertaine pour répondre (au lieu d'inventer un sens à une phrase mal entendue).
 not_understood = ["Pardon, je n'ai pas bien compris. Pouvez-vous répéter ?", "Je n'ai pas saisi, {title}. Vous pouvez répéter ?"]
+# Phrase peu sûre qui redemandait l'information donnée à l'instant (voir [stt] repeat_confidence).
+unsure_repeat = [
+    "Pardon, {title}, je ne suis pas sûr d'avoir compris. Vous voulez que je répète, ou autre chose ?",
+    "Je crains d'avoir mal entendu, {title}. Pouvez-vous reformuler ?",
+]
 # Réponse au wake word.
 wake = ["Oui, {title} ?", "{Title} ?", "Je vous écoute, {title}.", "À votre service, {title}."]
 # Demande d'action qu'aucun outil n'a reconnue (le LLM ne peut pas l'avoir faite) : ORION le dit sans prétendre

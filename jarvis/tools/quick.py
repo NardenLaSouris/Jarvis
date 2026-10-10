@@ -64,6 +64,9 @@ MAIL_ACTIONS = ("envoie", "envoyer", "ecris", "ecrire", "reponds", "repondre", "
 REPLY = re.compile(r"^(?:jarvis\s+)?(?:reponds|repondez|repond)(?:\s+(?:lui|leur|moi))?"
                    r"(?:\s+(?:a ce mail|au mail|a ce message|a ce courriel))?\s+(?:que|qu|:)\s+(.+)$")
 MAIL_IMPORTANT = ("mails importants", "mail important", "emails importants")
+# « Marque tous mes mails comme lus » (souvent entendu « tous mes mails comme lui ») : demande toujours confirmée.
+MAIL_ALL_READ = re.compile(r"\b(?:(?:tous|tout) (?:mes |les )?(?:e ?)?mails?|tout|toute ma boite(?: mail)?)"
+                           r"(?: non lus?)? (?:en |comme )lus?\b|\b(?:tous|tout) (?:mes |les )?(?:e ?)?mails? comme lui\b")
 TIMER_WORDS = ("minuteur", "minuteurs", "timer", "timers", "minuterie", "compte a rebours")
 REMINDER_WORDS = ("rappelle moi", "rappelez moi", "fais moi penser", "previens moi", "rappelle nous")
 ALARM_WORDS = ("reveille moi", "reveillez moi", "mets un reveil", "mets moi un reveil", "programme un reveil",
@@ -266,6 +269,8 @@ class QuickPlanner:
             return "spotify_status", {}
         if self._exists("presence_status") and _has(norm, PRESENCE_QUESTIONS):
             return "presence_status", {}
+        if self._exists("mark_all_mail_read") and MAIL_ALL_READ.search(norm):
+            return "mark_all_mail_read", {}
         if self._exists("check_mail") and not _has(norm, MAIL_ACTIONS):
             if _has(norm, MAIL_IMPORTANT):
                 return "list_mail", {"important_only": True}

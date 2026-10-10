@@ -50,9 +50,12 @@ class STTConfig:
     fallback_compute_type: str = "int8"
     vocabulary_hint: bool = True
     min_confidence: float = -1.0
+    repeat_confidence: float = -99.0  # -99 : jamais (voir [stt] de config.toml)
     # Détection de la parole (Silero, fournie avec faster-whisper) avant la transcription. False : comportement
     # d'origine.
     vad_filter: bool = False
+    # Nouveaux décodages, plus « chauds », d'un audio peu clair (réglage de faster-whisper). False : un seul.
+    temperature_fallback: bool = True
 
 
 @dataclass(frozen=True)

@@ -200,6 +200,26 @@ def mail_tools(box: MailBox) -> list[Tool]:
         box.provider.mark_read(m.id)
         return {"from": m.who, "subject": m.subject}
 
+    def mark_all_mail_read() -> dict:
+        count = box.provider.mark_all_read()
+        log.info("Mails marqués lus (confirmé) : %d", count)
+        return {"count": count}
+
+    def all_read_question(p: dict) -> str:
+        try:
+            count = box.provider.unread_count()
+        except MailError:
+            return "Voulez-vous vraiment marquer tous vos mails non lus comme lus ?"
+        if count == 0:
+            return "Vous n'avez aucun mail non lu. Voulez-vous quand même que je vérifie et marque tout comme lu ?"
+        return f"Voulez-vous vraiment marquer vos {count} mails non lus comme lus ?" if count > 1 else             "Voulez-vous vraiment marquer votre mail non lu comme lu ?"
+
+    def all_read_said(r: dict) -> str:
+        count = r.get("count", 0)
+        if count == 0:
+            return "Il n'y avait aucun mail non lu."
+        return f"C'est fait : {count} mails marqués comme lus." if count > 1 else "C'est fait : le mail est marqué comme lu."
+
     def archive_mail(position: int | None = None) -> dict:
         m = box.target(position)
         box.provider.archive(m.id)
@@ -278,6 +298,9 @@ def mail_tools(box: MailBox) -> list[Tool]:
         Tool("mark_mail_read", "Marque un mail comme lu.", {"position": position}, {"subject": "objet"},
              Risk.CONFIRMATION_REQUIRED, mark_mail_read, question=lambda p: target_question(p, "marquer comme lu"),
              say=lambda r: "C'est marqué comme lu."),
+        Tool("mark_all_mail_read", "Marque tous les mails non lus comme lus (« marque tous mes mails comme lus »).", {},
+             {"count": "nombre de mails marqués lus"}, Risk.CONFIRMATION_REQUIRED, mark_all_mail_read,
+             question=all_read_question, say=all_read_said),
         Tool("archive_mail", "Archive un mail.", {"position": position}, {"subject": "objet"},
              Risk.CONFIRMATION_REQUIRED, archive_mail, question=lambda p: target_question(p, "archiver"),
              say=lambda r: "Le mail est archivé."),

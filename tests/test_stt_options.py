@@ -31,6 +31,7 @@ def stt(vad: bool, segments=()):
     engine = FasterWhisperSTT.__new__(FasterWhisperSTT)
     engine._model = FakeModel(list(segments))
     engine._language, engine._beam_size, engine.hotwords, engine.vad_filter = "fr", 1, "Orion, ouvre Discord.", vad
+    engine.temperature_fallback = True
     engine.last_confidence = None
     return engine
 
@@ -62,3 +63,11 @@ def test_vad_is_on_in_the_shipped_config_and_off_by_default():
     from jarvis.config import STTConfig
 
     assert STTConfig().vad_filter is False
+
+
+@pytest.mark.parametrize("fallback, temperature", [(True, (0.0, 0.2, 0.4, 0.6, 0.8, 1.0)), (False, 0.0)])
+def test_temperature_fallback_option_reaches_whisper(fallback, temperature):
+    engine = stt(True, [segment(" Oui.")])
+    engine.temperature_fallback = fallback
+    engine.transcribe(np.zeros(16000, np.int16), 16000)
+    assert engine._model.calls[0]["temperature"] == temperature

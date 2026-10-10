@@ -141,6 +141,8 @@ def vocabulary_hint(cfg: Config, personality_name: str = "") -> str:
     phrases += ["Raconte-moi.", "Arrête. Tais-toi."]
     if cfg.tools.enabled and cfg.weather.enabled:
         phrases.append(f"Quel temps fera-t-il à {cfg.weather.default_location} ?")
+    if cfg.tools.enabled and cfg.mail.enabled:  # « tous mes mails comme lui » : « lus » mal entendu
+        phrases.append("Marque tous mes mails comme lus.")
     if cfg.tools.enabled and cfg.lights.enabled:
         phrases += ["Allume la lumière.", "Luminosité 30 %."]
     if cfg.tools.enabled and cfg.spotify.enabled and Path(cfg.spotify.catalog_path).exists():
@@ -159,7 +161,7 @@ def build_stt(cfg: Config) -> SpeechToText:
     return FasterWhisperSTT(
         c.model, cfg.assistant.language, c.device, c.compute_type, c.beam_size, c.download_root,
         c.fallback_device, c.fallback_compute_type, hotwords=vocabulary_hint(cfg) if c.vocabulary_hint else "",
-        vad_filter=c.vad_filter,
+        vad_filter=c.vad_filter, temperature_fallback=c.temperature_fallback,
     )
 
 
@@ -803,6 +805,7 @@ def build_agent(
         max_history_turns=cfg.assistant.max_history_turns,
         barge_in=cfg.assistant.barge_in,
         min_confidence=cfg.stt.min_confidence,
+        repeat_confidence=cfg.stt.repeat_confidence if cfg.stt.repeat_confidence > -99 else None,
     )
     from jarvis.face.upcoming import Upcoming
 

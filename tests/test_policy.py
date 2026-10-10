@@ -1,6 +1,6 @@
 """Autorité du Core face au LLM : porte de décision (builtin, shadow, both), politiques Cedar et chemins indirects.
 
-Registre réel d'ORION (tests/fixtures/policy_tools.json, 63 outils) avec des outils factices qui notent leurs
+Registre réel d'ORION (tests/fixtures/policy_tools.json, 64 outils) avec des outils factices qui notent leurs
 exécutions : aucun outil réel n'agit, aucun fichier hors des dossiers temporaires n'est touché. Les tests Cedar sont
 ignorés si cedarpy n'est pas installé (pip install -r requirements-policy.txt).
 """

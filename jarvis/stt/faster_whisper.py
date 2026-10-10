@@ -17,6 +17,8 @@ from faster_whisper import WhisperModel  # noqa: E402
 log = logging.getLogger(__name__)
 
 NO_SPEECH_THRESHOLD = 0.6
+# Températures essayées tour à tour par faster-whisper quand un décodage semble raté (son réglage par défaut).
+FALLBACK_TEMPERATURES = (0.0, 0.2, 0.4, 0.6, 0.8, 1.0)
 
 
 def cuda_library_dirs() -> list[Path]:
@@ -67,10 +69,12 @@ class FasterWhisperSTT:
         fallback_compute_type: str = "int8",
         hotwords: str = "",
         vad_filter: bool = False,
+        temperature_fallback: bool = True,
     ):
         self.model_name = model
         self.hotwords = hotwords
         self.vad_filter = vad_filter
+        self.temperature_fallback = temperature_fallback
         self.last_confidence: float | None = None
         self._language = language
         self._beam_size = beam_size
@@ -122,6 +126,8 @@ class FasterWhisperSTT:
             condition_on_previous_text=False,
             vad_filter=self.vad_filter,
             hotwords=self.hotwords or None,
+            # Sans relance : un seul décodage, même sur un audio peu clair (sinon jusqu'à 5 de plus, plus chauds).
+            temperature=FALLBACK_TEMPERATURES if getattr(self, "temperature_fallback", True) else 0.0,
         )
         # Whisper « invente » parfois du texte sur du bruit : on écarte ces segments.
         kept = [s for s in segments if s.no_speech_prob < NO_SPEECH_THRESHOLD]

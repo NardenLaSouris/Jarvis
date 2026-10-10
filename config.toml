@@ -65,6 +65,10 @@ vocabulary_hint = true
 # phrase est dans le journal) pour une question confiée au LLM ; en dessous, ORION demande de répéter au lieu
 # de répondre à une phrase probablement mal entendue. -99 : jamais.
 min_confidence = -1.0
+# En dessous de cette confiance, une phrase qui redemande exactement l'information donnée à l'instant (moins de
+# 2 minutes) est sans doute mal entendue (« tous mes mails comme lui » relisait les mails) : ORION demande de
+# reformuler au lieu de répéter. Phrases bien entendues dans le journal : -0,2 à -0,4. -99 : jamais.
+repeat_confidence = -0.45
 # Détection de la parole (Silero, fournie avec faster-whisper) avant la transcription. Banc synthétique du 9 octobre
 # 2026 (research/stt, 318 fichiers) : erreurs de mots 11,2 % -> 11,1 %, latence inchangée, plus de texte inventé sur
 # un silence (« Sous-titres réalisés par... », 1 cas sur 12 -> 0), phrases hésitantes ou bruitées 8,5 % -> 6,1 %

@@ -225,7 +225,7 @@ def test_reading_tools_are_safe_and_changes_are_confirmed():
     assert {n for n, r in risks.items() if r is Risk.SAFE} == {"check_mail", "list_mail", "search_mail", "read_mail",
                                                               "summarize_mail"}
     assert {n for n, r in risks.items() if r is Risk.CONFIRMATION_REQUIRED} == {
-        "mark_mail_read", "archive_mail", "delete_mail", "send_mail", "reply_mail"}
+        "mark_mail_read", "mark_all_mail_read", "archive_mail", "delete_mail", "send_mail", "reply_mail"}
 
 
 def test_check_mail_says_important_first_and_leaves_out_newsletters():
@@ -265,6 +265,65 @@ def test_delete_asks_naming_the_mail_and_goes_to_the_trash_only_after_yes():
     assert pending.status == "confirm" and "Ancien" in pending.question and "Déjà lu" in pending.question
     assert provider.trashed == []
     assert core.answer("oui").result.success and provider.trashed == ["5"]
+
+
+def test_mark_all_read_asks_with_the_count_and_changes_nothing_before_yes():
+    core, provider, _ = mail_core()
+    pending = core.submit({"tool": "mark_all_mail_read", "parameters": {}})
+    assert pending.status == "confirm" and "vos 4 mails non lus" in pending.question
+    assert provider.unread_count() == 4
+    done = core.answer("oui")
+    assert done.result.success and provider.unread_count() == 0
+    assert core.registry.get("mark_all_mail_read").say(done.result.result) == "C'est fait : 4 mails marqués comme lus."
+    pending = core.submit({"tool": "mark_all_mail_read", "parameters": {}})
+    assert "aucun mail non lu" in pending.question
+    core.answer("non")
+    assert provider.unread_count() == 0
+
+
+def test_mark_all_read_is_refused_by_no():
+    core, provider, _ = mail_core()
+    core.submit({"tool": "mark_all_mail_read", "parameters": {}})
+    core.answer("non")
+    assert provider.unread_count() == 4
+
+
+def test_imap_mark_all_read_stores_seen_by_batches():
+    from jarvis.mail.provider import ImapSmtpProvider
+
+    class Imap:
+        stored = []
+
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def login(self, user, password):
+            pass
+
+        def select(self, folder, readonly=True):
+            Imap.readonly = readonly
+            return "OK", [b"1200"]
+
+        def uid(self, command, *args):
+            if command == "SEARCH":
+                return "OK", [b" ".join(str(i).encode() for i in range(1, 1201))]
+            Imap.stored.append(args)
+            return "OK", [b""]
+
+        def logout(self):
+            pass
+
+        def close(self):
+            pass
+
+    provider = ImapSmtpProvider.__new__(ImapSmtpProvider)
+    import threading
+
+    provider._lock, provider._imap_factory, provider._imap_host, provider._imap_port = threading.Lock(), Imap, "h", 993
+    provider._timeout, provider._user, provider._password, provider._folder = 5, "u", "p", "INBOX"
+    assert provider.mark_all_read() == 1200 and Imap.readonly is False
+    assert [len(a[0].split(",")) for a in Imap.stored] == [500, 500, 200]
+    assert all(a[1:] == ("+FLAGS", "(\\Seen)") for a in Imap.stored)
 
 
 def test_send_goes_only_to_a_said_address_or_known_contact():
@@ -359,6 +418,10 @@ def test_config_section_is_off_by_default_and_the_factory_skips_it():
     ("Supprime le premier mail", None),
     ("Envoie un mail à maman", None),
     ("Lis-moi le deuxième mail", None),
+    ("Marque tous mes mails comme lus", ("mark_all_mail_read", {})),
+    ("Tout mes mails comme lui.", ("mark_all_mail_read", {})),  # « lus » mal entendu, toujours confirmé
+    ("Marque le premier comme lu", None),
+    ("Lis tous mes mails", ("check_mail", {})),
 ])
 def test_consulting_mail_needs_no_llm_but_acting_on_one_does(text, expected):
     from jarvis.tools.quick import quick_plan
@@ -366,6 +429,19 @@ def test_consulting_mail_needs_no_llm_but_acting_on_one_does(text, expected):
     core, _, _ = mail_core()
     data = quick_plan(text, core.registry)
     assert (None if data is None else (data["tool"], data["parameters"])) == expected
+
+
+@pytest.mark.parametrize("confidence, checks", [(-0.6, 1), (-0.3, 2)])
+def test_unsure_repeat_of_the_same_information_asks_instead_of_repeating(confidence, checks):
+    core, _, _ = mail_core()
+    calls = []
+    submit = core.submit
+    core.submit = lambda data, **kw: (calls.append(data.get("tool")), submit(data, **kw))[1]
+    spoken, events = run_agent(["Est-ce que j'ai des mails ?", "Est-ce que j'ai des mails ?"], PlannerLLM(),
+                               core=core, confidence=confidence, repeat_confidence=-0.45, fast_path=True)
+    assert calls.count("check_mail") == checks
+    if checks == 1:
+        assert spoken[-1] in [PERSONALITY.render(t) for t in PERSONALITY.phrases["unsure_repeat"]]
 
 
 def test_without_mailbox_no_quick_mail_command():

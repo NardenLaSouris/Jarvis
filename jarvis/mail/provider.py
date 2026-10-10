@@ -51,6 +51,8 @@ class MailProvider(Protocol):
 
     def mark_read(self, message_id: str) -> None: ...
 
+    def mark_all_read(self) -> int: ...
+
     def archive(self, message_id: str) -> None: ...
 
     def delete(self, message_id: str) -> None: ...
@@ -295,6 +297,21 @@ class ImapSmtpProvider:
     def mark_read(self, message_id: str) -> None:
         self._change(message_id, lambda imap, uid: imap.uid("STORE", uid, "+FLAGS", "(\\Seen)"))
 
+    def mark_all_read(self) -> int:
+        """Tous les non lus du dossier marqués lus, par paquets (une boîte peut en compter des milliers)."""
+        with self._lock:
+            imap = self._session(readonly=False)
+            try:
+                uids = self._uids(imap, "UNSEEN")
+                for start in range(0, len(uids), 500):
+                    batch = b",".join(uids[start:start + 500]).decode()
+                    status, _ = imap.uid("STORE", batch, "+FLAGS", "(\\Seen)")
+                    if status != "OK":
+                        raise MailError(MAIL_UNAVAILABLE, "La boîte mail a refusé de marquer les mails comme lus.")
+                return len(uids)
+            finally:
+                self._close(imap)
+
     def _move(self, imap, uid: str, folder: str) -> None:
         status, _ = imap.uid("MOVE", uid, self._quoted(folder))
         if status == "OK":
@@ -371,6 +388,12 @@ class MemoryMailProvider:
 
     def mark_read(self, message_id: str) -> None:
         self._replace(message_id, unread=False)
+
+    def mark_all_read(self) -> int:
+        unread = [m for m in self.messages if m.unread]
+        for m in unread:
+            self._replace(m.id, unread=False)
+        return len(unread)
 
     def archive(self, message_id: str) -> None:
         self.messages.remove(self.get(message_id))
