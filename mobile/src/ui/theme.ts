@@ -1,10 +1,22 @@
+// Charte Aureon, celle du visage d'ORION (jarvis/face/static/face.js) : vert forêt (structure), vert secondaire
+// (actif), crème (important), doré (accents rares), noir profond (fond). Police du nom : Michroma.
+
 export const colors = {
-  background: '#05080F',
-  surface: '#0E1522',
-  border: '#1C2738',
-  text: '#E8EEF7',
-  muted: '#8A97AB',
-  accent: '#4FC3F7',
-  accept: '#2ECC71',
-  refuse: '#E74C3C',
+  background: '#0e0e0e',
+  backgroundTop: '#111814',
+  deep: 'rgb(15, 61, 46)',
+  green: 'rgb(60, 139, 111)',
+  mint: 'rgb(128, 186, 160)',
+  cream: 'rgb(244, 239, 228)',
+  gold: 'rgb(201, 164, 92)',
+  muted: 'rgba(244, 239, 228, 0.55)',
+  faint: 'rgba(244, 239, 228, 0.28)',
+  line: 'rgba(201, 164, 92, 0.28)',
+  refuse: 'rgb(178, 84, 70)', // terre cuite : refuser, raccrocher (s'accorde au vert et à l'or)
+};
+
+export const rgba = (rgb: string, alpha: number) => rgb.replace('rgb(', 'rgba(').replace(')', `, ${alpha})`);
+
+export const fonts = {
+  display: 'Michroma_400Regular',
 };

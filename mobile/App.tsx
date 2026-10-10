@@ -1,17 +1,37 @@
 // Application mobile ORION — étape actuelle : interface d'appel avec une passerelle simulée (aucun module natif).
 // Suite : jumelage réel, passerelle orion-call (signalisation, WebRTC), puis sonnerie native (FCM, écran d'appel).
 
+import { Michroma_400Regular, useFonts } from '@expo-google-fonts/michroma';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useState } from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import { MockGateway, type Pairing } from './src/call/gateway';
 import { move, type Call } from './src/call/states';
 import { EndedBanner, HomeScreen, IncomingCallScreen, InCallScreen, PairingScreen } from './src/ui/screens';
 import { colors } from './src/ui/theme';
 
+function Backdrop() {
+  // Fond du visage d'ORION : vert très sombre au centre, noir profond sur les bords.
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      <Svg width="100%" height="100%">
+        <Defs>
+          <RadialGradient id="backdrop" cx="50%" cy="42%" r="75%">
+            <Stop offset="0" stopColor={colors.backgroundTop} />
+            <Stop offset="1" stopColor={colors.background} />
+          </RadialGradient>
+        </Defs>
+        <Rect width="100%" height="100%" fill="url(#backdrop)" />
+      </Svg>
+    </View>
+  );
+}
+
 export default function App() {
+  const [fontsLoaded] = useFonts({ Michroma_400Regular });
   const gateway = useMemo(() => new MockGateway(), []);
   const [pairing, setPairing] = useState<Pairing | null>(null);
   const [call, setCall] = useState<Call | null>(null);
@@ -43,7 +63,9 @@ export default function App() {
   };
 
   let screen;
-  if (!pairing) {
+  if (!fontsLoaded) {
+    screen = null;
+  } else if (!pairing) {
     screen = <PairingScreen onPaired={setPairing} />;
   } else if (call && call.state === 'sonnerie') {
     screen = (
@@ -75,6 +97,7 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
+      <Backdrop />
       <SafeAreaView style={styles.root}>
         {screen}
         {lastEnd ? <EndedBanner text={lastEnd} /> : null}
@@ -85,5 +108,5 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.background },
+  root: { flex: 1 },
 });

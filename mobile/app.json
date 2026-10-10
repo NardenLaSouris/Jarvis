@@ -29,6 +29,9 @@
         "projectId": "da49e945-e225-43b9-b248-8b34a9e11234"
       }
     },
-    "owner": "nardenlasouris"
+    "owner": "nardenlasouris",
+    "plugins": [
+      "expo-font"
+    ]
   }
 }
