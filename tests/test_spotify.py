@@ -458,3 +458,26 @@ def test_followed_playlists_are_skipped_without_asking(tmp_path):
     asked = [u for u in fake.urls if "/playlists/" in u]
     assert any("/mine/" in u for u in asked) and any("/shared/" in u for u in asked)
     assert not any("/theirs/" in u for u in asked)
+
+
+@pytest.mark.parametrize("system, command", [(False, ["systemctl", "--user", "restart", "jarvis-librespot"]),
+                                             (True, ["systemctl", "restart", "jarvis-librespot"])])
+def test_player_revive_command_follows_service_scope(tmp_path, monkeypatch, system, command):
+    import dataclasses
+    import subprocess
+
+    import jarvis.factory as factory
+    import jarvis.spotify as spotify_module
+    from jarvis.config import load_config
+
+    token = tmp_path / "token.json"
+    token.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(factory, "secret", lambda name, env: "client-id")
+    monkeypatch.setattr(spotify_module, "SpotifyCatalog", lambda path: type("Catalog", (), {"stale": False})())
+    calls = []
+    monkeypatch.setattr(subprocess, "run", lambda args, **kw: calls.append(args))
+    cfg = load_config(ROOT / "config.toml", local=False)
+    cfg = dataclasses.replace(cfg, spotify=dataclasses.replace(cfg.spotify, token_path=token, device="ORION",
+                                                              player_service="jarvis-librespot", player_system=system))
+    factory.build_spotify(cfg).revive()
+    assert calls == [command]

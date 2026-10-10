@@ -1,4 +1,4 @@
-# Durcissement du système du mini-PC (EN ATTENTE DE VALIDATION — rien n'est appliqué)
+# Durcissement du système du mini-PC (validé le 10 octobre 2026 — script prêt, à lancer par vous avec sudo)
 
 Constat (chantier 6, mesuré le 9 octobre 2026) : le service ORION tourne sous le compte `user`, propriétaire du
 code (`/opt/jarvis`), de la configuration et des politiques Cedar, et membre des groupes `sudo`, `docker` et `lxd`
@@ -6,26 +6,33 @@ code (`/opt/jarvis`), de la configuration et des politiques Cedar, et membre des
 (vérifié : outils de fichiers exécutés sur le PC, dans des dossiers autorisés ; aucune commande libre), mais si une
 faille du Core était exploitée, rien au niveau du système ne la limiterait.
 
-## Proposition (à appliquer avec sudo, après accord)
+## Application
 
-1. Compte dédié sans privilège : `sudo useradd --system --create-home --shell /usr/sbin/nologin orion`
-   (aucun groupe sudo, docker ou lxd ; groupe `audio` inutile : le son passe par le réseau).
-2. Code, configuration et politiques en lecture seule pour ce compte :
-   `sudo chown -R root:orion /opt/jarvis && sudo chmod -R u=rwX,g=rX,o= /opt/jarvis`
-   puis données seules en écriture : `sudo chown -R orion:orion /opt/jarvis/data /opt/jarvis/models/openwakeword`
-   et `.env` : `sudo chown root:orion /opt/jarvis/.env && sudo chmod 640 /opt/jarvis/.env`.
-3. Service système durci (au lieu du service utilisateur) : `User=orion`, `NoNewPrivileges=yes`,
-   `ProtectSystem=strict`, `ProtectHome=yes`, `PrivateTmp=yes`, `ReadWritePaths=/opt/jarvis/data`,
-   `RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX`, `CapabilityBoundingSet=`, `LockPersonality=yes`.
-4. Mises à jour du code : faites par `user` (git pull) puis `sudo systemctl restart jarvis`, jamais par le service.
-5. Retirer `user` des groupes `docker` et `lxd` s'ils ne servent pas (vérifier SearXNG, qui tourne peut-être sous
-   docker) : `sudo gpasswd -d user lxd`.
+    sudo bash /opt/jarvis/deploy/durcissement.sh
 
-## Points à vérifier avant (non vérifiés)
-- SearXNG (127.0.0.1:8080) : lancé par docker sous `user` ? Le retrait du groupe docker le casserait.
-- librespot (service utilisateur `jarvis-librespot`) écrit `data/music.fifo` : le compte `orion` doit pouvoir le lire.
-- Le cache des modèles Whisper et Hugging Face (`~/.cache`) doit être déplacé ou rendu lisible par `orion`.
+Le script ([deploy/durcissement.sh](../deploy/durcissement.sh)) :
+1. crée le compte de service `orion` (sans shell, sans groupe sudo, docker ni lxd) ;
+2. laisse le code à `user` (git pull), lisible mais non modifiable par `orion` ; `.env` et `config.local.toml` en
+   640 `user:orion` ; seuls `data/` et `models/whisper` modifiables par `orion` ;
+3. passe librespot sous `orion` (service système `orion-librespot`, binaire copié dans `/usr/local/bin`, identifiants
+   copiés dans `/var/lib/orion/librespot`) ; une règle polkit permet à `orion` de relancer ce seul service
+   (`[spotify] player_system = true`, ajouté à `config.local.toml`) ;
+4. installe le service système `orion` : `NoNewPrivileges`, `ProtectSystem=strict`, `ProtectHome`, `PrivateTmp`,
+   `PrivateDevices` (le son passe par le réseau), aucune capacité, familles réseau limitées à IPv4/IPv6/Unix ;
+5. autorise `user` à `sudo systemctl restart orion` (et start, stop, status, restart orion-librespot) sans mot de
+   passe, pour les déploiements ;
+6. arrête et désactive les services utilisateur `jarvis` et `jarvis-librespot`, démarre les services système.
+
+Après : journal `journalctl -u orion -f` ; déploiement `git pull` puis `sudo systemctl restart orion`.
+
+## Non fait (volontairement)
+- `user` reste dans `sudo` (votre compte d'administration) et dans `docker` : SearXNG (`jarvis-searxng`) tourne
+  dans docker ; ORION ne le joint qu'en HTTP (127.0.0.1:8080), le compte `orion` n'a aucun accès à docker.
+- Retrait de `user` du groupe `lxd`, s'il ne sert pas : `sudo gpasswd -d user lxd` (à votre main).
 
 ## Retour arrière
-Réactiver le service utilisateur (`systemctl --user enable --now jarvis`), désactiver le service système, rendre
-`/opt/jarvis` à `user` (`sudo chown -R user:user /opt/jarvis`).
+
+    sudo bash /opt/jarvis/deploy/durcissement_annuler.sh
+
+Supprime les services système, la règle polkit et la règle sudo, rend `/opt/jarvis` à `user`, retire les lignes
+ajoutées à `config.local.toml` et relance les services utilisateur d'origine.

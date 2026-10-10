@@ -311,10 +311,9 @@ def build_spotify(cfg: Config):
             and not cfg.spotify.player_service.startswith("-"):
         import subprocess
 
-        service = cfg.spotify.player_service
-        # Commande fixe (aucun texte venu d'une demande) : relance du lecteur d'ORION, service de l'utilisateur.
-        client.revive = lambda: subprocess.run(["systemctl", "--user", "restart", service], check=True, timeout=20,
-                                               capture_output=True)
+        command = ["systemctl"] + ([] if cfg.spotify.player_system else ["--user"]) + ["restart", cfg.spotify.player_service]
+        # Commande fixe (aucun texte venu d'une demande) : relance du lecteur d'ORION (service système : règle polkit).
+        client.revive = lambda: subprocess.run(command, check=True, timeout=20, capture_output=True)
     if not client.configured:
         log.info("Spotify non relié (SPOTIFY_CLIENT_ID et python -m jarvis --spotify-login) : touches multimédia seules")
         return None

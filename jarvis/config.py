@@ -192,6 +192,8 @@ class SpotifyConfig:
     # Service utilisateur systemd du lecteur (librespot), relancé si l'appareil « device » a disparu de Spotify
     # (session perdue après une longue inactivité) ; vide = jamais relancé.
     player_service: str = ""
+    # Service système (compte de service durci, deploy/durcissement.sh) plutôt que service utilisateur.
+    player_system: bool = False
     pipe: Path = Path("data/music.fifo")
     catalog_path: Path = Path("data/spotify_catalog.json")
     duck_percent: int = 15

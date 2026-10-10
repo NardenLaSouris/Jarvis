@@ -115,9 +115,12 @@ nécessaire pour une mesure indépendante.
 **Ajouté** : `tests/test_security_hygiene.py` (`.env` et `*.local.toml` ignorés par Git ; aucun motif de secret —
 clé privée, jetons GitHub, Hugging Face, AWS, clés `sk-`, secrets d'ORION affectés en clair — dans les fichiers suivis).
 
-**En attente de validation** : durcissement du compte système (compte dédié sans sudo/docker/lxd, code en lecture
-seule, service systemd durci) : procédure prête dans `docs/durcissement_systeme.md`, non appliquée (demande sudo et
-touche au service actif).
+**Validé le 10 octobre 2026** : durcissement du compte système (compte dédié sans sudo/docker/lxd, code en lecture
+seule, services systemd durcis, librespot compris) : script `deploy/durcissement.sh` et retour arrière
+`deploy/durcissement_annuler.sh`, à lancer avec sudo (voir `docs/durcissement_systeme.md`).
+
+**Modèle** : `huihui_ai/qwen3-abliterated:8b-v2` (`think = false`, garde de contenu active) validé en production le
+10 octobre 2026 ; secours `qwen2.5:3b` sur le mini inchangé.
 
 ## Chantier 7 — Qualité et maintenabilité
 
