@@ -1,7 +1,9 @@
 // Audio d'un appel : WebRTC entre ce téléphone et la passerelle d'ORION (réseau de la maison ou VPN, sans STUN ni
-// TURN). Micro du téléphone vers ORION, voix d'ORION vers l'écouteur, comme un appel téléphonique.
+// TURN). Micro du téléphone vers ORION, voix d'ORION vers l'écouteur (écran éteint contre l'oreille) ou le
+// haut-parleur, comme un appel téléphonique.
 
 import { PermissionsAndroid, Platform } from 'react-native';
+import InCallManager from 'react-native-incall-manager';
 import { mediaDevices, MediaStream, RTCPeerConnection, RTCSessionDescription } from 'react-native-webrtc';
 
 export type AudioState = 'connexion' | 'connecté' | 'perdu';
@@ -52,6 +54,8 @@ export class CallAudio {
     if (!(await microphoneAllowed())) {
       throw new Error("Micro refusé : autorisez-le dans les réglages pour parler à ORION.");
     }
+    InCallManager.start({ media: 'audio' }); // mode communication : écouteur par défaut, capteur de proximité
+    InCallManager.setForceSpeakerphoneOn(false);
     const pc = (this.pc = new RTCPeerConnection({ iceServers: [] }));
     pc.onconnectionstatechange = () => {
       if (pc.connectionState === 'connected') {
@@ -72,6 +76,10 @@ export class CallAudio {
     await pc.setRemoteDescription(new RTCSessionDescription(answer));
   }
 
+  setSpeaker(on: boolean) {
+    InCallManager.setForceSpeakerphoneOn(on);
+  }
+
   setMuted(muted: boolean) {
     this.stream?.getAudioTracks().forEach((track) => {
       track.enabled = !muted;
@@ -83,5 +91,6 @@ export class CallAudio {
     this.stream = null;
     this.pc?.close();
     this.pc = null;
+    InCallManager.stop();
   }
 }

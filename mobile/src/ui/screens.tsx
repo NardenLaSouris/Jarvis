@@ -157,10 +157,12 @@ export function IncomingCallScreen({ call, onAccept, onRefuse }: {
   );
 }
 
-export function InCallScreen({ call, muted, onToggleMute, onHangUp }: {
+export function InCallScreen({ call, muted, speaker, onToggleMute, onToggleSpeaker, onHangUp }: {
   call: Call;
   muted: boolean;
+  speaker: boolean;
   onToggleMute: () => void;
+  onToggleSpeaker: () => void;
   onHangUp: () => void;
 }) {
   const [seconds, setSeconds] = useState(0);
@@ -184,6 +186,8 @@ export function InCallScreen({ call, muted, onToggleMute, onHangUp }: {
       <View style={styles.actions}>
         <RoundButton icon={muted ? 'mic-off' : 'mic'} label={muted ? 'Micro coupé' : 'Micro'}
           color={muted ? colors.gold : colors.surface} onPress={onToggleMute} />
+        <RoundButton icon={speaker ? 'volume-high' : 'volume-medium'} label="Haut-parleur"
+          color={speaker ? colors.gold : colors.surface} onPress={onToggleSpeaker} />
         <RoundButton icon="call" label="Raccrocher" color={colors.refuse} rotate="135deg" onPress={onHangUp} />
       </View>
     </View>

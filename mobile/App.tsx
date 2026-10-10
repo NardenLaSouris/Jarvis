@@ -45,12 +45,14 @@ export default function App() {
   const [call, setCall] = useState<Call | null>(null);
   const [lastEnd, setLastEnd] = useState('');
   const [muted, setMuted] = useState(false);
+  const [speaker, setSpeaker] = useState(false);
   const audio = useRef<CallAudio | null>(null);
 
   const stopAudio = useCallback(() => {
     audio.current?.stop();
     audio.current = null;
     setMuted(false);
+    setSpeaker(false);
   }, []);
 
   useEffect(() => {
@@ -165,9 +167,14 @@ export default function App() {
         <InCallScreen
           call={call}
           muted={muted}
+          speaker={speaker}
           onToggleMute={() => {
             audio.current?.setMuted(!muted);
             setMuted(!muted);
+          }}
+          onToggleSpeaker={() => {
+            audio.current?.setSpeaker(!speaker);
+            setSpeaker(!speaker);
           }}
           onHangUp={() => {
             stopAudio();
