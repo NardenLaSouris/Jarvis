@@ -203,6 +203,20 @@ class SpotifyConfig:
 
 
 @dataclass(frozen=True)
+class CallConfig:
+    """Appels vocaux d'ORION vers l'appareil mobile jumelé (jarvis/call) ; désactivés par défaut."""
+    enabled: bool = False
+    device: str = ""  # appareil jumelé (le seul destinataire possible) ; vide : aucun appel
+    gateway: str = "http://127.0.0.1:8770"  # passerelle d'appel locale (jeton : CALL_GATEWAY_TOKEN dans .env)
+    ring_timeout: float = 40.0
+    connect_timeout: float = 15.0
+    max_minutes: float = 15.0
+    max_per_hour: int = 3
+    min_interval_minutes: float = 10.0
+    refusal_pause_minutes: float = 30.0
+
+
+@dataclass(frozen=True)
 class PresenceConfig:
     """Présence à la maison (jarvis/presence) : capteurs, fenêtres de corrélation, seuil, accueil au retour."""
     enabled: bool = False
@@ -357,6 +371,7 @@ class Config:
     spotify: SpotifyConfig = SpotifyConfig()
     presence: PresenceConfig = PresenceConfig()
     mail: MailConfig = MailConfig()
+    call: CallConfig = CallConfig()
     users: dict = field(default_factory=dict)
     terminals: dict = field(default_factory=dict)
 
@@ -471,6 +486,7 @@ def load_config(path: str | Path = "config.toml", local: bool = True) -> Config:
         "spotify": SpotifyConfig,
         "presence": PresenceConfig,
         "mail": MailConfig,
+        "call": CallConfig,
     }
     tables = {key: raw.pop(key, {}) for key in ("users", "terminals")}
     unknown = set(raw) - set(sections)

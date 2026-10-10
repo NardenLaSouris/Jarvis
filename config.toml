@@ -246,6 +246,20 @@ network_away_minutes = 10.0  # absent du réseau depuis N minutes : « parti » 
 # (il s'y reconnecte avant la porte : l'accueil attend d'être entendu), après un départ confirmé. -1 : jamais.
 phone_arrival_delay = -1.0
 
+[call]
+# Appels vocaux d'ORION vers votre téléphone (application mobile ORION, en développement). Le Core seul décide
+# d'un appel ; le destinataire est l'appareil jumelé, jamais une adresse donnée par le modèle. La passerelle
+# d'appel (locale) fait sonner le téléphone et transporte l'audio ; jeton : CALL_GATEWAY_TOKEN dans .env.
+enabled = false
+device = ""                      # appareil jumelé ; vide : aucun appel possible
+gateway = "http://127.0.0.1:8770"
+ring_timeout = 40.0              # s sans réponse : appel expiré
+connect_timeout = 15.0           # s entre « décroché » et l'audio établi
+max_minutes = 15.0               # durée maximale d'un appel
+max_per_hour = 3                 # jamais de harcèlement : au plus 3 appels par heure,
+min_interval_minutes = 10.0      # 10 min entre deux appels,
+refusal_pause_minutes = 30.0     # et 30 min de pause après un refus ou un appel sans réponse
+
 [api]
 # API d'administration pour ORION Control (HTTP, réseau local). Jeton : JARVIS_AGENT_TOKEN dans .env.
 # Seules les IP listées y accèdent (celle du PC qui exécute ORION Control).

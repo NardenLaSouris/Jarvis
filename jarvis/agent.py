@@ -259,6 +259,7 @@ class Agent:
         wake_verifier=None,
         wake_captures=None,
         content_guard=None,
+        calls=None,
     ):
         self.settings = settings
         self._source = source
@@ -297,6 +298,8 @@ class Agent:
         self._corrector = corrector
         self._notifications = notifications
         self._follow_up: dict | None = None  # suite proposée par une annonce (écoute sans mot de réveil)
+        self._calls = calls  # appels vers le téléphone jumelé (jarvis/call) ; None : désactivés
+        self._in_call = None  # appel décroché, pris par la prochaine conversation
         self._services = services
         self.last_sources: list[dict] = []
         self._pipeline = SpeechPipeline(tts, sink, stream_audio, merge_under)
@@ -350,12 +353,14 @@ class Agent:
         """Après une erreur : rien d'une demande à moitié traitée ne doit survivre (confirmation, contexte)."""
         for cleanup in (lambda: self._tools.cancel_pending() if self._tools is not None else None,
                         lambda: self._context.clear() if self._context is not None else None,
+                        lambda: self._calls.finish() if self._calls is not None else None,
                         lambda: self._event("sleep", "Retour en veille (après une erreur)")):
             try:
                 cleanup()
             except Exception:  # noqa: BLE001 - la reprise ne doit jamais échouer à son tour
                 log.exception("Reprise après erreur incomplète")
         self._follow_up = None
+        self._in_call = None
         self._lead = []
 
     def _wait_for_wake_word(self) -> bool:
@@ -383,6 +388,12 @@ class Agent:
                     self._event("wake", "Écoute après l'annonce")
                     return True
                 continue
+            call = self._calls.take_connected() if self._calls is not None else None
+            if call is not None:  # le téléphone a décroché : la conversation commence sans mot de réveil
+                self._in_call = call
+                self._wake_capture = None
+                self._event("wake", "Appel décroché")
+                return True
             score = self._wake_word.process(frame)
             sure_run = self._sure_run(sure_run, score)
             if trigger.update(score):
@@ -457,11 +468,14 @@ class Agent:
             self._wake_capture = None
 
     def _listen_and_answer(self) -> bool:
-        """Conversation ouverte par le wake word ; True si au moins une demande a été comprise."""
-        understood = False
+        """Conversation ouverte par le wake word, une annonce ou un appel décroché ; True si au moins une demande a
+        été comprise."""
         self._router.start_conversation()
         offer, self._follow_up = self._follow_up, None
-        if offer is None:
+        call, self._in_call = self._in_call, None
+        if call is not None:
+            self._greet_call(call)
+        elif offer is None:
             self._play(*random.choice(self._acks))
         history: list[Message] = []
         self._place = None
@@ -472,8 +486,26 @@ class Agent:
             self._tools.set_user(self.request_context.user_id)
         if self._context is not None:
             self._context.clear()
-        timeout = self.settings.conversation_timeout if offer is not None else self.settings.listen_timeout
+        ongoing = offer is not None or call is not None
+        timeout = self.settings.conversation_timeout if ongoing else self.settings.listen_timeout
+        try:
+            return self._converse(history, offer, call, timeout)
+        finally:
+            if call is not None:
+                self._calls.finish()  # ORION raccroche s'il est encore en ligne ; retour au terminal de la maison
+
+    def _greet_call(self, call) -> None:
+        greeting = " ".join(t for t in (self._router.phrase("call_greeting"), call.reason) if t)
+        self._event("assistant", greeting)
+        self._pipeline.speak([greeting])
+        self._source.flush()
+
+    def _converse(self, history: list[Message], offer, call, timeout: float) -> bool:
+        understood = False
         while True:
+            if call is not None and not self._calls.active():
+                self._event("call", "Appel terminé sur le téléphone")
+                break
             self._deliver_notifications()
             self._event("listening", f"À l'écoute ({timeout:.0f} s)")
             lead, self._lead = self._lead, []

@@ -41,6 +41,8 @@ unsure_repeat = [
     "Pardon, {title}, je ne suis pas sûr d'avoir compris. Vous voulez que je répète, ou autre chose ?",
     "Je crains d'avoir mal entendu, {title}. Pouvez-vous reformuler ?",
 ]
+# Début d'un appel d'ORION vers le téléphone jumelé, suivi de la raison de l'appel.
+call_greeting = ["Bonjour {title}, c'est ORION.", "{Title}, ORION à l'appareil."]
 # Réponse au wake word.
 wake = ["Oui, {title} ?", "{Title} ?", "Je vous écoute, {title}.", "À votre service, {title}."]
 # Demande d'action qu'aucun outil n'a reconnue (le LLM ne peut pas l'avoir faite) : ORION le dit sans prétendre

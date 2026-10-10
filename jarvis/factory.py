@@ -639,6 +639,38 @@ def build_sink(cfg: Config) -> AudioSink:
     return SpeakerSink(cfg.audio.output_device)
 
 
+def build_calls(cfg: Config, source, sink, events: EventBus | None):
+    """Appels vers l'appareil jumelé ([call]) : le Core décide ; la passerelle d'appel (jarvis/call) fait sonner et
+    transporte l'audio, vue par le Core comme un agent audio (même protocole que l'agent Windows)."""
+    if not cfg.call.enabled:
+        return None
+    from jarvis.audio.network import NetworkSink, NetworkSource
+    from jarvis.call import CallLimitSettings, CallManager, CallSettings
+    from jarvis.events import Event
+
+    c = cfg.call
+    token = secret("CALL_GATEWAY_TOKEN", ENV_FILE)
+
+    def open_terminal(call):
+        if not token:
+            raise RuntimeError("CALL_GATEWAY_TOKEN absent de .env")
+        return (NetworkSource(c.gateway, token, cfg.audio.sample_rate, cfg.audio.frame_samples),
+                NetworkSink(c.gateway, token))
+
+    def publish(kind: str, data: dict) -> None:
+        if events is not None:
+            events.publish(Event(kind, "call", data))
+
+    settings = CallSettings(device=c.device, ring_timeout=c.ring_timeout, connect_timeout=c.connect_timeout,
+                            max_duration=c.max_minutes * 60,
+                            limits=CallLimitSettings(c.max_per_hour, c.min_interval_minutes * 60,
+                                                     c.refusal_pause_minutes * 60))
+    manager = CallManager(settings, source, sink, open_terminal, on_event=publish)
+    manager.start()
+    log.info("Appels : activés vers « %s » (passerelle %s)", c.device or "aucun appareil jumelé", c.gateway)
+    return manager
+
+
 def build_agent(
     cfg: Config,
     source: AudioSource | None = None,
@@ -648,6 +680,10 @@ def build_agent(
 ) -> Agent:
     source = source if source is not None else build_source(cfg)
     sink = sink or build_sink(cfg)
+    if cfg.call.enabled:  # appels vers le téléphone jumelé : micro et sortie commutables (maison / appel)
+        from jarvis.audio.switch import SwitchableSink, SwitchableSource
+
+        source, sink = SwitchableSource(source), SwitchableSink(sink)
     from jarvis.hardware import machine_summary
 
     log.info("Machine : %s", machine_summary())
@@ -809,13 +845,15 @@ def build_agent(
     )
     from jarvis.face.upcoming import Upcoming
 
+    calls = build_calls(cfg, source, sink, events)
     agent = Agent(settings, source, sink, wake_word, recorder, stt, llm, tts, router, on_event,
                  stream_audio=cfg.tts.stream_audio, merge_under=cfg.tts.merge_under, web=web,
                  tools=tools, corrector=corrector, notifications=voice, alarm=routines.alarm if routines else None,
-                 services=tuple(s for s in (api, routines, timers, notifications, worker, presence) if s is not None),
+                 services=tuple(s for s in (api, routines, timers, notifications, worker, presence, calls)
+                                if s is not None),
                  fast_path=cfg.tools.fast_path, routines=routines, profiles=build_profiles(cfg),
                  wake_verifier=build_wake_verifier(cfg), wake_captures=build_wake_captures(cfg),
-                 content_guard=build_content_guard(cfg, llm))
+                 content_guard=build_content_guard(cfg, llm), calls=calls)
     # Échéance proche (rendez-vous, minuteur, rappel) pour l'anneau du visage.
     agent.upcoming = Upcoming(calendar, timers) if calendar is not None or timers is not None else None
     return agent
