@@ -2,8 +2,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 
-import type { Pairing } from '../call/gateway';
 import type { Call } from '../call/states';
+import type { Credentials } from '../call/storage';
 import { Emblem } from './Emblem';
 import { colors, fonts, rgba } from './theme';
 
@@ -13,11 +13,16 @@ function Kicker({ children, color = colors.gold }: { children: string; color?: s
   return <Text style={[styles.kicker, { color }]}>{children.toUpperCase()}</Text>;
 }
 
-function OutlineButton({ label, onPress, tone = 'gold' }: { label: string; onPress: () => void; tone?: 'gold' | 'quiet' }) {
+function OutlineButton({ label, onPress, tone = 'gold', disabled = false }: {
+  label: string;
+  onPress: () => void;
+  tone?: 'gold' | 'quiet';
+  disabled?: boolean;
+}) {
   const color = tone === 'gold' ? colors.gold : colors.faint;
   return (
-    <Pressable accessibilityRole="button" onPress={onPress}
-      style={({ pressed }) => [styles.outline, { borderColor: color, opacity: pressed ? 0.6 : 1 }]}>
+    <Pressable accessibilityRole="button" onPress={onPress} disabled={disabled}
+      style={({ pressed }) => [styles.outline, { borderColor: color, opacity: disabled ? 0.4 : pressed ? 0.6 : 1 }]}>
       <Text style={[styles.outlineText, { color: tone === 'gold' ? colors.cream : colors.muted }]}>
         {label.toUpperCase()}
       </Text>
@@ -62,44 +67,70 @@ function useEmblemSize(ratio: number) {
 
 // --- Écrans ------------------------------------------------------------------------------------------------
 
-export function PairingScreen({ onPaired }: { onPaired: (pairing: Pairing) => void }) {
-  const [gateway, setGateway] = useState('');
+export function PairingScreen({ onPair }: {
+  onPair: (gateway: string, code: string, name: string) => Promise<string | null>;
+}) {
+  const [gateway, setGateway] = useState('http://192.168.1.91:8770');
+  const [code, setCode] = useState('');
   const [deviceName, setDeviceName] = useState('Mon téléphone');
-  const size = useEmblemSize(0.55);
-  // Étape suivante : code de jumelage à usage unique (QR code affiché par ORION), jeton gardé dans le coffre du
-  // téléphone. Ici, seule l'adresse est notée, pour tester l'interface.
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const size = useEmblemSize(0.42);
+  const clean = code.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+  const submit = async () => {
+    setBusy(true);
+    setError('');
+    const failure = await onPair(gateway, clean, deviceName.trim());
+    setBusy(false);
+    if (failure) {
+      setError(failure);
+    }
+  };
   return (
     <View style={styles.screen}>
       <View style={styles.hero}>
         <Emblem size={size} />
         <Kicker>Jumelage</Kicker>
-        <Text style={styles.lead}>Reliez ce téléphone à votre assistant.</Text>
+        <Text style={styles.lead}>Sur le mini-PC : python -m jarvis.call.gateway --pair, puis saisissez le code.</Text>
       </View>
       <View style={styles.form}>
+        <Field label="Code de jumelage" value={clean.length > 4 ? `${clean.slice(0, 4)}-${clean.slice(4)}` : clean}
+          onChangeText={setCode} placeholder="XXXX-XXXX" autoCapitalize="characters" autoCorrect={false} />
         <Field label="Passerelle d'appel" value={gateway} onChangeText={setGateway}
-          placeholder="https://192.168.1.91:8770" autoCapitalize="none" autoCorrect={false} keyboardType="url" />
+          autoCapitalize="none" autoCorrect={false} keyboardType="url" />
         <Field label="Nom de cet appareil" value={deviceName} onChangeText={setDeviceName} />
-        <OutlineButton label="Jumeler" onPress={() => onPaired({ gateway: gateway.trim(), deviceName: deviceName.trim() })} />
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+        <OutlineButton label={busy ? 'Jumelage…' : 'Jumeler'} disabled={busy || clean.length !== 8} onPress={submit} />
       </View>
     </View>
   );
 }
 
-export function HomeScreen({ pairing, onTestCall }: { pairing: Pairing; onTestCall: () => void }) {
+export function HomeScreen({ credentials, online, onForget }: {
+  credentials: Credentials;
+  online: boolean | null;
+  onForget: () => void;
+}) {
   const size = useEmblemSize(0.82);
+  const label = online === null ? 'Connexion' : online ? 'En veille' : 'Hors de portée';
+  const tint = online ? colors.mint : online === null ? colors.gold : colors.refuse;
   return (
     <View style={styles.screen}>
       <View style={styles.hero}>
         <Emblem size={size} />
         <View style={styles.status}>
-          <View style={styles.dot} />
-          <Kicker color={colors.mint}>En veille</Kicker>
+          <View style={[styles.dot, { backgroundColor: tint }]} />
+          <Kicker color={tint}>{label}</Kicker>
         </View>
-        <Text style={styles.lead}>{pairing.deviceName || 'Ce téléphone'} est prêt à recevoir les appels d'ORION.</Text>
-        <Text style={styles.small}>{pairing.gateway || 'passerelle non renseignée'}</Text>
+        <Text style={styles.lead}>
+          {online === false
+            ? "Passerelle d'ORION injoignable : êtes-vous sur le Wi-Fi de la maison ?"
+            : `${credentials.name} est prêt à recevoir les appels d'ORION.`}
+        </Text>
+        <Text style={styles.small}>{credentials.gateway}</Text>
       </View>
       <View style={styles.footer}>
-        <OutlineButton label="Simuler un appel" tone="quiet" onPress={onTestCall} />
+        <OutlineButton label="Oublier ce jumelage" tone="quiet" onPress={onForget} />
       </View>
     </View>
   );
@@ -184,4 +215,5 @@ const styles = StyleSheet.create({
   },
   roundLabel: { fontFamily: fonts.display, color: colors.muted, fontSize: 10, letterSpacing: 3, paddingLeft: 3 },
   banner: { color: colors.muted, textAlign: 'center', paddingBottom: 10, fontSize: 13, letterSpacing: 0.5 },
+  error: { color: colors.refuse, fontSize: 13, textAlign: 'center' },
 });
