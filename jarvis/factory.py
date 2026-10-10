@@ -851,6 +851,11 @@ def build_agent(
     from jarvis.face.upcoming import Upcoming
 
     calls = build_calls(cfg, source, sink, events)
+    if calls is not None and presence is not None and cfg.call.away_events:
+        from jarvis.call.trigger import AwayCallTrigger
+
+        # Absence et événement important : ORION appelle (phrase du journal de la maison, limites des appels).
+        AwayCallTrigger(calls, presence.engine, presence.journal, cfg.call.away_events).attach(events)
     agent = Agent(settings, source, sink, wake_word, recorder, stt, llm, tts, router, on_event,
                  stream_audio=cfg.tts.stream_audio, merge_under=cfg.tts.merge_under, web=web,
                  tools=tools, corrector=corrector, notifications=voice, alarm=routines.alarm if routines else None,

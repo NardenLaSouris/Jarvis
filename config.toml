@@ -256,6 +256,9 @@ gateway = "http://127.0.0.1:8770"
 listen_host = "0.0.0.0"           # passerelle : le téléphone la joint par le réseau local ou le VPN
 app_networks = ["192.168.1.0/24"]  # seuls ces réseaux joignent la passerelle (ajouter celui du VPN, ex. 192.168.27.0/24)
 devices_path = "data/call_devices.json"  # appareils jumelés : empreintes des jetons seulement
+# Maison vide ([presence]) et un de ces événements : ORION vous appelle et dit ce qui se passe. [] : jamais.
+# Autres possibles : "mail.received" (mail important), "appliance.finished" (fin de cycle d'un appareil).
+away_events = ["leak.detected", "smoke.detected", "presence.motion_while_away", "door.left_open"]
 ring_timeout = 40.0              # s sans réponse : appel expiré
 connect_timeout = 15.0           # s entre « décroché » et l'audio établi
 max_minutes = 15.0               # durée maximale d'un appel
