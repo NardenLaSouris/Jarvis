@@ -12,6 +12,7 @@ export const colors = {
   muted: 'rgba(244, 239, 228, 0.55)',
   faint: 'rgba(244, 239, 228, 0.28)',
   line: 'rgba(201, 164, 92, 0.28)',
+  surface: 'rgb(24, 34, 29)', // bouton secondaire (micro), vert très sombre
   refuse: 'rgb(178, 84, 70)', // terre cuite : refuser, raccrocher (s'accorde au vert et à l'or)
 };
 

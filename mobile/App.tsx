@@ -1,14 +1,14 @@
-// Application mobile ORION — étape actuelle : jumelage réel avec la passerelle d'appel et réception des appels tant
-// que l'application est ouverte (sur le Wi-Fi de la maison). Audio simulé côté passerelle : pas encore de son.
-// Suite : audio (WebRTC), puis sonnerie application fermée (FCM, écran d'appel natif).
+// Application mobile ORION — étape actuelle : jumelage réel, appels reçus tant que l'application est ouverte (Wi-Fi
+// de la maison), audio WebRTC avec la passerelle. Suite : sonnerie application fermée (FCM, écran d'appel natif).
 
 import { Michroma_400Regular, useFonts } from '@expo-google-fonts/michroma';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 
+import { CallAudio } from './src/call/audio';
 import { HttpGateway, pairDevice } from './src/call/gateway';
 import { move, type Call } from './src/call/states';
 import { clearCredentials, loadCredentials, saveCredentials, type Credentials } from './src/call/storage';
@@ -44,16 +44,25 @@ export default function App() {
   const [online, setOnline] = useState<boolean | null>(null);
   const [call, setCall] = useState<Call | null>(null);
   const [lastEnd, setLastEnd] = useState('');
+  const [muted, setMuted] = useState(false);
+  const audio = useRef<CallAudio | null>(null);
+
+  const stopAudio = useCallback(() => {
+    audio.current?.stop();
+    audio.current = null;
+    setMuted(false);
+  }, []);
 
   useEffect(() => {
     loadCredentials().then(setCredentials, () => setCredentials(null));
   }, []);
 
   const forget = useCallback(async () => {
+    stopAudio();
     await clearCredentials();
     setCredentials(null);
     setCall(null);
-  }, []);
+  }, [stopAudio]);
 
   useEffect(() => {
     if (!credentials) {
@@ -73,6 +82,7 @@ export default function App() {
         if (!current || current.id !== callId) {
           return current;
         }
+        stopAudio();
         setLastEnd(END_TEXT[reason] ?? `Appel ${reason}`);
         return null;
       });
@@ -86,7 +96,24 @@ export default function App() {
       offStatus();
       client.stop();
     };
-  }, [credentials, forget]);
+  }, [credentials, forget, stopAudio]);
+
+  const startAudio = async (client: HttpGateway, callId: string) => {
+    const callAudio = new CallAudio((state) => {
+      if (state === 'connecté') {
+        setCall((current) => (current && current.id === callId ? move(current, 'connecté') : current));
+      }
+    });
+    audio.current = callAudio;
+    try {
+      await callAudio.start((offer) => client.offer(callId, offer));
+    } catch (error) {
+      stopAudio();
+      setCall(null);
+      setLastEnd(error instanceof Error ? error.message : 'Audio impossible.');
+      client.hangUp(callId).catch(() => {});
+    }
+  };
 
   const pair = async (url: string, code: string, name: string) => {
     try {
@@ -119,7 +146,12 @@ export default function App() {
       screen = (
         <IncomingCallScreen
           call={call}
-          onAccept={() => act(() => gateway.accept(call.id), () => setCall(move(move(call, 'accepté'), 'connecté')))}
+          onAccept={() =>
+            act(() => gateway.accept(call.id), () => {
+              setCall(move(call, 'accepté'));
+              void startAudio(gateway, call.id);
+            })
+          }
           onRefuse={() =>
             act(() => gateway.refuse(call.id), () => {
               setCall(null);
@@ -132,12 +164,18 @@ export default function App() {
       screen = (
         <InCallScreen
           call={call}
-          onHangUp={() =>
-            act(() => gateway.hangUp(call.id), () => {
+          muted={muted}
+          onToggleMute={() => {
+            audio.current?.setMuted(!muted);
+            setMuted(!muted);
+          }}
+          onHangUp={() => {
+            stopAudio();
+            void act(() => gateway.hangUp(call.id), () => {
               setCall(null);
               setLastEnd('Appel terminé');
-            })
-          }
+            });
+          }}
         />
       );
     } else {

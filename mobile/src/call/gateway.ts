@@ -178,6 +178,19 @@ export class HttpGateway implements CallGateway {
     return this.act(callId, 'accept');
   }
 
+  /** Offre audio WebRTC (après « accept ») -> réponse de la passerelle. */
+  async offer(callId: string, offer: { sdp: string; type: string }): Promise<{ sdp: string; type: string }> {
+    const response = await fetchWithin(`${this.credentials.gateway}/app/calls/${encodeURIComponent(callId)}/offer`, {
+      method: 'POST',
+      headers: this.headers(),
+      body: JSON.stringify(offer),
+    });
+    if (!response.ok) {
+      throw new GatewayError(await readError(response));
+    }
+    return (await response.json()) as { sdp: string; type: string };
+  }
+
   refuse(callId: string) {
     return this.act(callId, 'refuse');
   }

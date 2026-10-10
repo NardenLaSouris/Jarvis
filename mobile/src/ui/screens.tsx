@@ -157,7 +157,12 @@ export function IncomingCallScreen({ call, onAccept, onRefuse }: {
   );
 }
 
-export function InCallScreen({ call, onHangUp }: { call: Call; onHangUp: () => void }) {
+export function InCallScreen({ call, muted, onToggleMute, onHangUp }: {
+  call: Call;
+  muted: boolean;
+  onToggleMute: () => void;
+  onHangUp: () => void;
+}) {
   const [seconds, setSeconds] = useState(0);
   const size = useEmblemSize(0.82);
   useEffect(() => {
@@ -177,6 +182,8 @@ export function InCallScreen({ call, onHangUp }: { call: Call; onHangUp: () => v
         <Text style={styles.clock}>{clock}</Text>
       </View>
       <View style={styles.actions}>
+        <RoundButton icon={muted ? 'mic-off' : 'mic'} label={muted ? 'Micro coupé' : 'Micro'}
+          color={muted ? colors.gold : colors.surface} onPress={onToggleMute} />
         <RoundButton icon="call" label="Raccrocher" color={colors.refuse} rotate="135deg" onPress={onHangUp} />
       </View>
     </View>
