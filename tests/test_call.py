@@ -320,3 +320,12 @@ def test_calls_are_off_by_default_and_without_device():
     cfg = load_config(ROOT / "config.toml", local=False)
     assert cfg.call.enabled is False and cfg.call.device == ""
     assert cfg.call.gateway.startswith("http://127.0.0.1:")
+
+
+def test_flush_during_a_call_also_drops_what_the_phone_heard_while_orion_spoke():
+    world = World()
+    world.connect()
+    before = world.phone_mic.flushed
+    world.source.flush()  # ORION vient de parler : ce que le téléphone a capté pendant ce temps est oublié
+    assert world.phone_mic.flushed == before + 1
+    world.calls.finish()

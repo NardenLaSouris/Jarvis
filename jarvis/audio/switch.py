@@ -57,6 +57,11 @@ class _Pump:
             return None
 
     def clear(self) -> None:
+        """Oublie l'audio en attente : le sien et celui de la source (sinon ce que le téléphone a capté pendant
+        qu'ORION parlait ressortirait juste après, avec plusieurs secondes de retard)."""
+        flush = getattr(self.source, "flush", None)
+        if flush is not None:
+            flush()
         while True:
             try:
                 self._queue.get_nowait()

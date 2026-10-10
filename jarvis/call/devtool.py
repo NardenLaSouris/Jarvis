@@ -95,6 +95,7 @@ def main(argv: list[str] | None = None) -> int:
                                              "Je vous renvoie maintenant votre voix, en écho.")
                 sink.play(np.asarray(audio, dtype=np.int16), rate)
                 sink.drain()
+                source.flush()  # comme ORION après avoir parlé : rien de ce qui a été capté pendant ce temps
             print(f"Décroché : écho de votre voix pendant {args.talk:.0f} s")
             echo(manager, source, sink, args.talk)
             manager.finish()

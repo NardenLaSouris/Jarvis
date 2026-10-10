@@ -132,6 +132,8 @@ class CallMedia:
         self._call_id = ""
         self.voice: VoiceTrack | None = None
         self.mic: ByteStream | None = None
+        self._out_rate = 0
+        self._out_resampler = None
 
     def _run(self, coro, timeout: float = 15.0):
         return asyncio.run_coroutine_threadsafe(coro, self._loop).result(timeout)
@@ -147,6 +149,7 @@ class CallMedia:
         pc = self._pc = RTCPeerConnection(RTCConfiguration(iceServers=[]))
         self._call_id = call_id
         self.voice, self.mic = VoiceTrack(), ByteStream()
+        self._out_rate, self._out_resampler = 0, None
         pc.addTrack(self.voice)
         mic = self.mic
 
@@ -183,9 +186,20 @@ class CallMedia:
     # --- Voix d'ORION --------------------------------------------------------------------------------------------
 
     def play(self, pcm: np.ndarray, rate: int) -> None:
+        """Voix d'ORION en morceaux successifs : un seul rééchantillonneur par fréquence, gardé d'un morceau à
+        l'autre (repartir de zéro à chaque morceau faisait des clics aux jointures)."""
         voice = self.voice
-        if voice is not None:
-            voice.push(resample(pcm, rate, RATE))
+        if voice is None or pcm.size == 0:
+            return
+        if rate == RATE:
+            voice.push(pcm.astype(np.int16))
+            return
+        if self._out_rate != rate or self._out_resampler is None:
+            self._out_rate, self._out_resampler = rate, av.AudioResampler(format="s16", layout="mono", rate=RATE)
+        frame = av.AudioFrame.from_ndarray(pcm.astype(np.int16).reshape(1, -1), format="s16", layout="mono")
+        frame.sample_rate = rate
+        for out in self._out_resampler.resample(frame):
+            voice.push(out.to_ndarray().reshape(-1))
 
     def drain(self, timeout: float = 120.0) -> None:
         """Attend que la voix en attente soit partie vers le téléphone."""
