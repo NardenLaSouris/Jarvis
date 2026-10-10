@@ -21,6 +21,18 @@ export class GatewayError extends Error {}
 
 const WAIT_S = 25;
 const RETRY_MS = 5000;
+const REQUEST_TIMEOUT_MS = 10_000; // jumelage et actions : un réseau muet ne doit jamais bloquer l'écran
+
+/** fetch abandonné au bout de ``ms`` (pare-feu, mauvaise adresse : pas de réponse du tout). */
+async function fetchWithin(url: string, init: RequestInit, ms = REQUEST_TIMEOUT_MS): Promise<Response> {
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), ms);
+  try {
+    return await fetch(url, { ...init, signal: abort.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 function normalizeUrl(url: string): string {
   const trimmed = url.trim().replace(/\/+$/, '');
@@ -41,13 +53,15 @@ export async function pairDevice(gatewayUrl: string, code: string, name: string)
   const gateway = normalizeUrl(gatewayUrl);
   let response: Response;
   try {
-    response = await fetch(`${gateway}/app/pair`, {
+    response = await fetchWithin(`${gateway}/app/pair`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code, name }),
     });
   } catch {
-    throw new GatewayError("Passerelle injoignable : vérifiez l'adresse et le Wi-Fi de la maison.");
+    throw new GatewayError(
+      "Passerelle injoignable : vérifiez l'adresse, le Wi-Fi de la maison et le pare-feu du mini-PC (port 8770).",
+    );
   }
   if (!response.ok) {
     throw new GatewayError(response.status === 403 ? await readError(response) : `Jumelage refusé (${response.status}).`);
@@ -115,10 +129,12 @@ export class HttpGateway implements CallGateway {
     while (this.running) {
       this.abort = new AbortController();
       try {
+        const abort = this.abort;
+        const timer = setTimeout(() => abort.abort(), (WAIT_S + 10) * 1000); // attente longue + marge
         const response = await fetch(`${this.credentials.gateway}/app/events?timeout=${WAIT_S}`, {
           headers: this.headers(),
-          signal: this.abort.signal,
-        });
+          signal: abort.signal,
+        }).finally(() => clearTimeout(timer));
         if (response.status === 401) {
           this.running = false;
           this.onUnauthorized();
@@ -148,7 +164,7 @@ export class HttpGateway implements CallGateway {
   }
 
   private async act(callId: string, action: 'accept' | 'refuse' | 'hangup') {
-    const response = await fetch(`${this.credentials.gateway}/app/calls/${encodeURIComponent(callId)}/${action}`, {
+    const response = await fetchWithin(`${this.credentials.gateway}/app/calls/${encodeURIComponent(callId)}/${action}`, {
       method: 'POST',
       headers: this.headers(),
       body: '{}',
