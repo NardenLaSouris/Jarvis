@@ -47,6 +47,9 @@ class GatewayLink:
     def hang_up(self, call) -> None:
         self._post("/core/hangup", {"call_id": call.id})
 
+    def answer(self, call) -> None:
+        self._post("/core/answer", {"call_id": call.id})
+
     # --- Signaux du téléphone ------------------------------------------------------------------------------
 
     def start(self) -> None:

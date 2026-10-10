@@ -14,7 +14,7 @@ from jarvis.call.trigger import AwayCallTrigger  # noqa: E402
 from jarvis.config import load_config  # noqa: E402
 from jarvis.events import Event, EventBus  # noqa: E402
 from jarvis.presence import HouseJournal  # noqa: E402
-from test_call import Mic, Phone, Speaker  # noqa: E402
+from call_fakes import Mic, Phone, Speaker  # noqa: E402
 from jarvis.audio.switch import SwitchableSink, SwitchableSource  # noqa: E402
 
 
@@ -83,3 +83,12 @@ def test_shipped_away_events_and_calls_off_by_default():
     assert cfg.call.enabled is False
     assert set(cfg.call.away_events) == {"leak.detected", "smoke.detected", "presence.motion_while_away",
                                          "door.left_open"}
+
+
+def test_events_from_anywhere_but_sensors_and_presence_never_call(tmp_path):
+    bus, manager, phone, _, _ = setup(tmp_path)
+    for source in ("llm", "mail", "tool", "web", "routine", ""):
+        bus.publish(Event("leak.detected", source, {"sensor": "fuite_sdb", "kind": "leak", "room": "la cave"}))
+    assert phone.calls == [] and manager.current is None
+    bus.publish(Event("door.left_open", "presence", {"sensor": "porte_entree", "room": "l'entrée", "minutes": 12}))
+    assert manager.current is not None and phone.calls[0][0] == "ring"

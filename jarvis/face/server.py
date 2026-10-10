@@ -8,8 +8,6 @@ from __future__ import annotations
 
 import json
 import logging
-import socket
-import sys
 import threading
 from datetime import datetime, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -17,6 +15,7 @@ from pathlib import Path
 from typing import Callable
 
 from jarvis.face.state import VisualState
+from jarvis.net import ExclusiveServer  # aussi importé d'ici par l'API et l'agent Windows
 from jarvis.face.themes import COLORS, SEASONS, FaceThemeStore, jarvis_age, season_of
 
 log = logging.getLogger(__name__)
@@ -46,32 +45,6 @@ def is_night(now: time, hours: tuple[time, time] | None) -> bool:
         return False
     start, end = hours
     return start <= now or now < end if start > end else start <= now < end
-
-
-class ExclusiveServer(ThreadingHTTPServer):
-    """Port réservé en exclusivité : sous Windows, la réutilisation d'adresse laisserait deux
-    serveurs écouter le même port sans erreur ; ailleurs, elle permet seulement de rouvrir le port
-    juste après un arrêt (TIME_WAIT)."""
-
-    allow_reuse_address = sys.platform != "win32"
-    daemon_threads = True
-    # File d'attente des connexions : 5 par défaut ; au-delà, des connexions étaient réinitialisées dès une vingtaine
-    # de clients simultanés (ORION Control, visages, routines). Mesuré lors du test de charge.
-    request_queue_size = 128
-
-    def handle_error(self, request, client_address):
-        """Navigateur fermé ou visage rechargé en pleine réponse : une ligne au lieu d'une trace complète."""
-        error = sys.exc_info()[1]
-        if isinstance(error, (ConnectionResetError, BrokenPipeError, TimeoutError)):
-            log.debug("Visage %s : connexion interrompue (%s)", client_address[0], type(error).__name__)
-            return
-        super().handle_error(request, client_address)
-
-    def server_bind(self):
-        exclusive = getattr(socket, "SO_EXCLUSIVEADDRUSE", None)
-        if exclusive is not None:
-            self.socket.setsockopt(socket.SOL_SOCKET, exclusive, 1)
-        super().server_bind()
 
 
 class FaceServer:

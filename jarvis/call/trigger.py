@@ -6,6 +6,9 @@ ouverte). La phrase dite au décroché est celle du journal de la maison (« Une
 salle de bain. »). L'appel passe par le gestionnaire d'appels : appareil jumelé seul destinataire, limites
 anti-harcèlement, origine « routine » (décision du Core). Un appel refusé par les limites n'est pas perdu :
 l'événement reste au journal et figure dans le résumé du retour.
+
+Seuls les événements des capteurs (source « sensor:… ») et du système de présence (« presence ») comptent : rien
+de ce que dit le modèle, un mail ou une page Web ne peut publier un événement qui fasse appeler.
 """
 
 from __future__ import annotations
@@ -18,6 +21,10 @@ from jarvis.events import Event, EventBus
 log = logging.getLogger(__name__)
 
 DEFAULT_AWAY_EVENTS = ("leak.detected", "smoke.detected", "presence.motion_while_away", "door.left_open")
+
+
+def trusted(event: Event) -> bool:
+    return event.source == "presence" or event.source.startswith("sensor:")
 
 
 class AwayCallTrigger:
@@ -33,6 +40,9 @@ class AwayCallTrigger:
 
     def on_event(self, event: Event) -> None:
         if event.type not in self.event_types or self._presence.occupancy() != "empty":
+            return
+        if not trusted(event):
+            log.warning("Appel d'absence : %s de source %r ignoré (ni capteur ni présence)", event.type, event.source)
             return
         try:
             _, text = self._journal.classify(event)

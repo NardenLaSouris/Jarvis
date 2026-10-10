@@ -148,7 +148,7 @@ def test_other_device_cannot_answer_someone_elses_call(gateway):
 def test_core_link_rings_and_forwards_the_phone_signals_to_the_manager(gateway):
     from jarvis.audio.switch import SwitchableSink, SwitchableSource
     from jarvis.call import CallManager, CallSettings
-    from test_call import Mic, Speaker
+    from call_fakes import Mic, Speaker
 
     device_id, device = pair(gateway)
     link = GatewayLink(f"http://127.0.0.1:{gateway.port}", CORE_TOKEN, device_id, wait=1)
@@ -188,8 +188,15 @@ def test_closing_the_call_mic_during_a_read_is_quiet(gateway):
     assert errors == [] and not source._thread.is_alive()
 
 
+def core_alive(gateway):
+    """Le Core vient chercher ses signaux : la passerelle le sait en vie."""
+    assert request(gateway, "GET", "/core/events?timeout=0", headers=core())[0] == 200
+
+
 def test_phone_can_dial_orion_and_the_core_can_refuse(gateway):
     device_id, device = pair(gateway)
+    assert request(gateway, "POST", "/app/dial", {}, device)[0] == 503  # Core jamais venu : ORION injoignable
+    core_alive(gateway)
     status, body = request(gateway, "POST", "/app/dial", {}, device)
     assert status == 200
     call_id = body["call_id"]
@@ -204,20 +211,57 @@ def test_phone_can_dial_orion_and_the_core_can_refuse(gateway):
 def test_core_link_answers_or_refuses_a_dialed_call(gateway):
     from jarvis.audio.switch import SwitchableSink, SwitchableSource
     from jarvis.call import CallManager, CallSettings
-    from test_call import Mic, Speaker
+    from call_fakes import Mic, Speaker
 
     device_id, device = pair(gateway)
     link = GatewayLink(f"http://127.0.0.1:{gateway.port}", CORE_TOKEN, device_id, wait=1)
     manager = CallManager(CallSettings(device=device_id), SwitchableSource(Mic(1), sleep=lambda s: None),
                           SwitchableSink(Speaker()), lambda call: (Mic(7), Speaker()), notifier=link)
     link.manager = manager
+    core_alive(gateway)
     call_id = request(gateway, "POST", "/app/dial", {}, device)[1]["call_id"]
+    assert request(gateway, "POST", f"/app/calls/{call_id}/offer", {"sdp": "x"}, device)[0] == 409  # pas décroché
     for event in request(gateway, "GET", "/core/events?timeout=1", headers=core())[1]["events"]:
         link.deliver(event)
     assert manager.current.id == call_id and manager.current.state == "accepté"
+    assert request(gateway, "GET", "/app/events?timeout=1", headers=device)[1]["events"] == \
+        [{"type": "answered", "call_id": call_id}]  # le téléphone peut maintenant ouvrir l'audio
     other = CallManager(CallSettings(device="un-autre"), SwitchableSource(Mic(1), sleep=lambda s: None),
                         SwitchableSink(Speaker()), lambda call: (Mic(7), Speaker()), notifier=link)
     link.manager = other  # Core configuré pour un autre appareil : il raccroche
     link.deliver({"type": "dialed", "call_id": call_id, "device": device_id})
     assert request(gateway, "GET", "/app/events?timeout=1", headers=device)[1]["events"] == \
         [{"type": "ended", "call_id": call_id, "reason": "appareil non jumelé au Core"}]
+
+
+def test_dialed_call_ends_when_orion_does_not_answer(gateway):
+    device_id, device = pair(gateway)
+    core_alive(gateway)
+    call_id = request(gateway, "POST", "/app/dial", {}, device)[1]["call_id"]
+    gateway.watch(gateway.call.created + 11)  # aucun décroché du Core en 10 s
+    assert request(gateway, "GET", "/app/events?timeout=1", headers=device)[1]["events"] == \
+        [{"type": "ended", "call_id": call_id, "reason": "ORION ne répond pas"}]
+
+
+def test_call_ends_when_the_core_disappears_or_after_the_maximum_duration(gateway):
+    from jarvis.call.gateway import CORE_TIMEOUT, MAX_CALL_SECONDS
+
+    device_id, device = pair(gateway)
+    core_alive(gateway)
+    request(gateway, "POST", "/core/ring", {"call_id": "c5", "device": device_id}, core())
+    request(gateway, "POST", "/app/calls/c5/accept", {}, device)
+    request(gateway, "GET", "/app/events?timeout=0", headers=device)
+    gateway._core_seen -= CORE_TIMEOUT + 1  # le Core ne vient plus (arrêté, redémarré)
+    gateway.watch()
+    assert request(gateway, "GET", "/app/events?timeout=1", headers=device)[1]["events"] == \
+        [{"type": "ended", "call_id": "c5", "reason": "ORION injoignable"}]
+    core_alive(gateway)
+    request(gateway, "POST", "/core/ring", {"call_id": "c6", "device": device_id}, core())
+    request(gateway, "POST", "/app/calls/c6/accept", {}, device)
+    request(gateway, "GET", "/app/events?timeout=0", headers=device)
+    request(gateway, "GET", "/core/events?timeout=0", headers=core())
+    gateway.watch(gateway.call.created + MAX_CALL_SECONDS + 1)
+    assert request(gateway, "GET", "/app/events?timeout=1", headers=device)[1]["events"] == \
+        [{"type": "ended", "call_id": "c6", "reason": "durée maximale atteinte"}]
+    assert {"type": "failed", "call_id": "c6", "reason": "durée maximale atteinte"} in \
+        request(gateway, "GET", "/core/events?timeout=1", headers=core())[1]["events"]

@@ -851,6 +851,8 @@ def build_agent(
     from jarvis.face.upcoming import Upcoming
 
     calls = build_calls(cfg, source, sink, events)
+    if calls is not None and api is not None:
+        api.calls = calls  # appel d'essai par l'API d'administration (POST /api/call), jamais automatique
     if calls is not None and presence is not None and cfg.call.away_events:
         from jarvis.call.trigger import AwayCallTrigger
 

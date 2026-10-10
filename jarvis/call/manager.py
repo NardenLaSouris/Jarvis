@@ -50,6 +50,8 @@ class CallNotifier(Protocol):
 
     def hang_up(self, call: CallSession) -> None: ...
 
+    def answer(self, call: CallSession) -> None: ...
+
 
 class LogNotifier:
     """Sans passerelle : rien ne sonne ; l'appel expirera (utile pour tester le Core seul)."""
@@ -61,6 +63,9 @@ class LogNotifier:
         pass
 
     def hang_up(self, call: CallSession) -> None:
+        pass
+
+    def answer(self, call: CallSession) -> None:
         pass
 
 
@@ -130,6 +135,11 @@ class CallManager:
             call.move(RINGING, now)
             call.move(ACCEPTED, now)
             self._event("call.accepted", call)
+            try:
+                self._notifier.answer(call)  # la passerelle laisse maintenant le téléphone ouvrir l'audio
+            except Exception as exc:  # noqa: BLE001
+                log.warning("Appel %s : passerelle non prévenue du décroché (%s)", call.id, type(exc).__name__)
+                self._end(call, FAILED, "décroché impossible", now, notify=False)
             return call
 
     # --- Signaux de la passerelle --------------------------------------------------------------------------

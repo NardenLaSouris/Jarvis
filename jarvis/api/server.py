@@ -9,6 +9,8 @@ validation, permissions). Seuls les outils sans confirmation sont exécutables i
   GET  /api/routines                   POST /api/routines
   GET | PUT | DELETE /api/routines/<id>
   POST /api/routines/<id>/run | enable | disable | duplicate
+  POST /api/call                       {"reason": "..."} : appel d'essai vers l'appareil jumelé ([call] activé),
+                                       avec les limites des appels (origine « admin », jamais automatique)
 """
 
 from __future__ import annotations
@@ -50,6 +52,7 @@ class CoreApi:
         self.memory = memory
         self.face_themes = face_themes
         self.presence = presence
+        self.calls = None  # gestionnaire d'appels (jarvis/call), branché après sa création
         self._httpd: ExclusiveServer | None = None
 
     @property
@@ -115,6 +118,18 @@ class CoreApi:
                 return 400, {"status": "error", "error": "refused", "message": str(exc)}
             return 200, {"status": "ok", "event": event.as_dict(), "presence": self.presence.engine.snapshot()}
         return 404, {"status": "error", "error": "not_found"}
+
+    def call_action(self, data) -> tuple[int, dict]:
+        if self.calls is None:
+            return 404, {"status": "error", "error": "calls_disabled"}
+        from jarvis.call import CallRefused
+
+        reason = str(data.get("reason", "")).strip()[:300] if isinstance(data, dict) else ""
+        try:
+            call = self.calls.request(reason or "Ceci est un appel d'essai.", "admin")
+        except CallRefused as exc:
+            return 409, {"status": "error", "error": "call_refused", "message": str(exc)}
+        return 202, {"status": "ok", "call": call.describe()}
 
     def routine_action(self, method: str, parts: list[str], data) -> tuple[int, object]:
         engine = self.routines
@@ -207,6 +222,8 @@ class CoreApi:
                     return api.call_tool(route[1], parameters)
                 if route[:1] == ["presence"]:
                     return api.presence_action(method, route[1:], data)
+                if method == "POST" and route == ["call"]:
+                    return api.call_action(data)
                 if method == "GET" and route == ["face"]:
                     if api.face_themes is None:
                         return 404, {"status": "error", "error": "face_disabled"}

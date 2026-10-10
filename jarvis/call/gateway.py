@@ -10,10 +10,12 @@ Deux faces :
     GET  /app/events?timeout=25            -> {"events": [...]} (attente longue : appel entrant, fin d'appel)
     POST /app/calls/<id>/accept | refuse | hangup
     POST /app/calls/<id>/offer {sdp, type}   -> réponse SDP (audio WebRTC, après « accept »)
-    POST /app/dial                           -> {call_id} : le téléphone appelle ORION (le Core décide)
+    POST /app/dial                           -> {call_id} : le téléphone appelle ORION ; l'événement « answered »
+                                                suit quand le Core décroche (sinon « ended », ORION ne répond pas)
   authentification : en-têtes « X-Device » (identifiant) et « Authorization: Bearer <jeton> » ;
 - Core (127.0.0.1 seulement, jeton CALL_GATEWAY_TOKEN) :
-    POST /core/ring {call_id, device, reason} ; POST /core/cancel | /core/hangup {call_id} ; POST /core/pairing-code
+    POST /core/ring {call_id, device, reason} ; POST /core/cancel | /core/hangup {call_id[, reason]}
+    POST /core/answer {call_id} (appel du téléphone décroché) ; POST /core/pairing-code
     GET  /core/events?timeout=25           -> signaux de l'appareil (accepted, refused, connected, hung_up)
     GET  /audio/input ; POST /audio/output | /audio/drain | /audio/stop : le protocole des agents audio d'ORION
   (jarvis/audio/network.py). Audio par WebRTC (jarvis/call/media.py) quand aiortc est installé ; sinon SIMULÉ
@@ -35,14 +37,16 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 from jarvis.call.devices import DeviceRegistry, PairingError
-from jarvis.face.server import ExclusiveServer
-from jarvis.net import JsonHandler, bearer_ok, client_ip
+from jarvis.net import ExclusiveServer, JsonHandler, bearer_ok, client_ip
 
 log = logging.getLogger(__name__)
 
 MAX_BODY = 16 * 1024
 MAX_AUDIO = 8 * 1024 * 1024
 MAX_WAIT = 30.0
+CORE_TIMEOUT = 40.0  # s sans que le Core vienne chercher ses signaux : ORION est injoignable
+DIAL_TIMEOUT = 10.0  # s pour que le Core décroche un appel du téléphone
+MAX_CALL_SECONDS = 20 * 60  # durée maximale de secours (le Core arrête à [call] max_minutes)
 APP_ACTIONS = ("accept", "refuse", "hangup")
 
 
@@ -72,8 +76,9 @@ class GatewayCall:
     id: str
     device: str
     reason: str
-    state: str = "sonnerie"  # sonnerie, accepté, connecté, terminé
-    created: float = field(default_factory=time.time)
+    state: str = "sonnerie"  # sonnerie | composé (le téléphone appelle, le Core n'a pas encore décroché),
+    #                          accepté, connecté, terminé
+    created: float = field(default_factory=time.monotonic)
 
 
 class CallGateway:
@@ -89,6 +94,9 @@ class CallGateway:
         self.core_events = Mailbox()
         self._app_events: dict[str, Mailbox] = {}
         self._httpd: ExclusiveServer | None = None
+        self._clock = time.monotonic
+        self._core_seen: float | None = None  # dernière attente du Core sur /core/events (il est en vie)
+        self._stopping = threading.Event()
         # media_factory(on_connected, on_failed) -> CallMedia ; None : audio simulé.
         self.media = media_factory(self._media_connected, self._media_failed) if media_factory else None
 
@@ -107,16 +115,54 @@ class CallGateway:
         log.info("Passerelle : appel %s, sonnerie sur l'appareil %s", self.call.id, device_id)
         return True
 
-    def dial(self, device_id: str) -> GatewayCall | None:
-        """Le téléphone appelle ORION : appel aussitôt « accepté » côté passerelle, le Core décide (il raccroche
-        s'il refuse). None si un appel est déjà en cours."""
+    def core_alive(self) -> bool:
+        seen = self._core_seen
+        return seen is not None and self._clock() - seen < CORE_TIMEOUT
+
+    def dial(self, device_id: str) -> tuple[GatewayCall | None, str]:
+        """Le téléphone appelle ORION : (appel « composé », "") en attendant que le Core décroche (``answer``) ou
+        raccroche ; (None, raison) si ORION est injoignable ou déjà en ligne."""
+        if not self.core_alive():
+            return None, "ORION est injoignable."
         with self._lock:
             if self.call is not None and self.call.state != "terminé":
-                return None
-            call = self.call = GatewayCall(secrets.token_urlsafe(12), device_id, "", state="accepté")
+                return None, "ORION est déjà en ligne."
+            call = self.call = GatewayCall(secrets.token_urlsafe(12), device_id, "", state="composé")
         self.core_events.put({"type": "dialed", "call_id": call.id, "device": device_id})
         log.info("Passerelle : appel %s composé par l'appareil %s", call.id, device_id)
-        return call
+        return call, ""
+
+    def answer_from_core(self, call_id: str) -> bool:
+        """Le Core décroche un appel du téléphone : le téléphone peut maintenant ouvrir l'audio."""
+        call = self._current(call_id)
+        if call is None or call.state != "composé":
+            return False
+        call.state = "accepté"
+        self.app_mailbox(call.device).put({"type": "answered", "call_id": call.id})
+        log.info("Passerelle : appel %s décroché par ORION", call.id)
+        return True
+
+    def watch(self, now: float | None = None) -> None:
+        """Délais de la passerelle (appelé chaque seconde) : Core qui ne décroche pas, Core disparu en plein appel,
+        durée maximale de secours."""
+        now = self._clock() if now is None else now
+        call = self.call
+        if call is None or call.state == "terminé":
+            return
+        if call.state == "composé" and now - call.created >= DIAL_TIMEOUT:
+            self._end_here(call, "ORION ne répond pas", tell_core=False)
+        elif not self.core_alive():
+            self._end_here(call, "ORION injoignable", tell_core=False)
+        elif now - call.created >= MAX_CALL_SECONDS:
+            self._end_here(call, "durée maximale atteinte", tell_core=True)
+
+    def _end_here(self, call: GatewayCall, why: str, tell_core: bool) -> None:
+        call.state = "terminé"
+        if tell_core:
+            self.core_events.put({"type": "failed", "call_id": call.id, "reason": why})
+        self.app_mailbox(call.device).put({"type": "ended", "call_id": call.id, "reason": why})
+        threading.Thread(target=self._close_media, daemon=True).start()
+        log.info("Passerelle : appel %s terminé (%s)", call.id, why)
 
     def end_from_core(self, call_id: str, why: str) -> None:
         call = self._current(call_id)
@@ -166,7 +212,7 @@ class CallGateway:
         elif action == "refuse" and call.state == "sonnerie":
             call.state = "terminé"
             self.core_events.put({"type": "refused", "call_id": call.id})
-        elif action == "hangup" and call.state in ("accepté", "connecté"):
+        elif action == "hangup" and call.state in ("composé", "accepté", "connecté"):
             call.state = "terminé"
             self.core_events.put({"type": "hung_up", "call_id": call.id})
             self._close_media()
@@ -188,10 +234,19 @@ class CallGateway:
     def start(self) -> None:
         self._httpd = ExclusiveServer(self._address, self._handler())
         threading.Thread(target=self._httpd.serve_forever, name="passerelle-appel", daemon=True).start()
+        threading.Thread(target=self._watch_loop, name="passerelle-delais", daemon=True).start()
         log.info("Passerelle d'appel à l'écoute sur %s:%d (application : %s)", *self._address,
                  ", ".join(str(n) for n in self._networks))
 
+    def _watch_loop(self) -> None:
+        while not self._stopping.wait(1.0):
+            try:
+                self.watch()
+            except Exception:  # noqa: BLE001 - le fil des délais ne doit pas mourir
+                log.exception("Passerelle : délais non vérifiés")
+
     def stop(self) -> None:
+        self._stopping.set()
         if self._httpd is not None:
             self._httpd.shutdown()
             self._httpd.server_close()
@@ -264,7 +319,10 @@ class CallGateway:
                         self._json(200, {"status": "ok", "device": device.name})
                 elif url.path == "/core/events":
                     if self._core_ok():
-                        self._json(200, {"events": gateway.core_events.take(self._wait(query))})
+                        gateway._core_seen = gateway._clock()  # le Core est en vie (il attend ses signaux)
+                        events = gateway.core_events.take(self._wait(query))
+                        gateway._core_seen = gateway._clock()
+                        self._json(200, {"events": events})
                 elif url.path == "/audio/input":
                     if self._core_ok():
                         self._silence(query)
@@ -303,9 +361,9 @@ class CallGateway:
                     if not self._app_network_ok() or (device := self._device()) is None:
                         return
                     self._drain()
-                    call = gateway.dial(device.id)
+                    call, refusal = gateway.dial(device.id)
                     if call is None:
-                        self._error(409, "busy", "ORION est déjà en ligne.")
+                        self._error(409 if "en ligne" in refusal else 503, "unavailable", refusal)
                     else:
                         self._json(200, {"call_id": call.id})
                 elif len(parts) == 4 and parts[:2] == ["app", "calls"] and parts[3] in APP_ACTIONS:
@@ -316,11 +374,14 @@ class CallGateway:
                         self._json(200, {"status": "ok"})
                     else:
                         self._error(409, "call_not_active")
-                elif path in ("/core/ring", "/core/cancel", "/core/hangup", "/core/pairing-code"):
+                elif path in ("/core/ring", "/core/cancel", "/core/hangup", "/core/pairing-code", "/core/answer"):
                     if not self._core_ok() or (data := self._json_body()) is None:
                         return
                     if path == "/core/pairing-code":
                         self._json(200, {"code": gateway.registry.new_code(), "expires_in": 300})
+                    elif path == "/core/answer":
+                        ok = gateway.answer_from_core(str(data.get("call_id", "")))
+                        self._json(200, {"status": "ok"}) if ok else self._error(409, "call_not_dialed")
                     elif path == "/core/ring":
                         ok = gateway.ring(data.get("call_id", ""), data.get("device", ""), data.get("reason", ""))
                         self._json(200, {"status": "ringing"}) if ok else self._error(404, "device_not_paired")

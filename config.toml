@@ -257,7 +257,8 @@ listen_host = "0.0.0.0"           # passerelle : le téléphone la joint par le 
 app_networks = ["192.168.1.0/24"]  # seuls ces réseaux joignent la passerelle (ajouter celui du VPN, ex. 192.168.27.0/24)
 devices_path = "data/call_devices.json"  # appareils jumelés : empreintes des jetons seulement
 # Maison vide ([presence]) et un de ces événements : ORION vous appelle et dit ce qui se passe. [] : jamais.
-# Autres possibles : "mail.received" (mail important), "appliance.finished" (fin de cycle d'un appareil).
+# Autre possible : "appliance.finished" (fin de cycle d'un appareil). Jamais les mails : seuls les capteurs et la
+# présence peuvent faire appeler (le texte d'un mail, écrit par n'importe qui, serait lu au téléphone).
 away_events = ["leak.detected", "smoke.detected", "presence.motion_while_away", "door.left_open"]
 ring_timeout = 40.0              # s sans réponse : appel expiré
 connect_timeout = 15.0           # s entre « décroché » et l'audio établi

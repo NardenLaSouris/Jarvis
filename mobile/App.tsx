@@ -47,6 +47,10 @@ export default function App() {
   const [muted, setMuted] = useState(false);
   const [speaker, setSpeaker] = useState(false);
   const audio = useRef<CallAudio | null>(null);
+  const callRef = useRef<Call | null>(null); // appel en cours, lu par les écouteurs de la passerelle
+  useEffect(() => {
+    callRef.current = call;
+  }, [call]);
 
   const stopAudio = useCallback(() => {
     audio.current?.stop();
@@ -90,12 +94,20 @@ export default function App() {
       });
     });
     const offStatus = client.onStatus(setOnline);
+    const offAnswered = client.onAnswered((callId) => {
+      const current = callRef.current;
+      if (current && current.id === callId && current.state === 'demandé') {
+        setCall(move(current, 'accepté'));
+        void startAudio(client, callId); // ORION a décroché : le son peut s'ouvrir
+      }
+    });
     client.start();
     setGateway(client);
     return () => {
       offIncoming();
       offEnded();
       offStatus();
+      offAnswered();
       client.stop();
     };
   }, [credentials, forget, stopAudio]);
@@ -104,6 +116,11 @@ export default function App() {
     const callAudio = new CallAudio((state) => {
       if (state === 'connecté') {
         setCall((current) => (current && current.id === callId ? move(current, 'connecté') : current));
+      } else if (state === 'perdu') {
+        stopAudio(); // réseau perdu (4G, VPN) : l'appel se termine au lieu de rester « en ligne »
+        setCall((current) => (current && current.id === callId ? null : current));
+        setLastEnd('Connexion perdue');
+        client.hangUp(callId).catch(() => {});
       }
     });
     audio.current = callAudio;
@@ -195,8 +212,7 @@ export default function App() {
             try {
               const callId = await gateway.dial();
               setLastEnd('');
-              setCall({ id: callId, reason: '', state: 'accepté' });
-              void startAudio(gateway, callId);
+              setCall({ id: callId, reason: '', state: 'demandé' }); // le son s'ouvre quand ORION décroche
             } catch (error) {
               setLastEnd(error instanceof Error ? error.message : 'Appel impossible.');
             }

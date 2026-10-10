@@ -21,54 +21,8 @@ from jarvis.call.session import (  # noqa: E402
     ACCEPTED, CONNECTED, ENDED, EXPIRED, FAILED, REFUSED, REQUESTED, RINGING,
 )
 from jarvis.config import load_config  # noqa: E402
+from call_fakes import Mic, Phone, Speaker  # noqa: E402
 from test_tools import PERSONALITY, PlannerLLM, run_agent  # noqa: E402
-
-
-class Mic:
-    """Micro en mémoire : des blocs constants (valeur ``level``), sans fin."""
-
-    def __init__(self, level: int, frame_samples: int = 160):
-        self.sample_rate, self.frame_samples, self.level = 16000, frame_samples, level
-        self.flushed = 0
-        self.closed = False
-
-    def read(self):
-        return np.full(self.frame_samples, self.level, np.int16)
-
-    def flush(self):
-        self.flushed += 1
-
-    def close(self):
-        self.closed = True
-
-
-class Speaker:
-    def __init__(self):
-        self.played, self.closed = [], False
-
-    def play(self, audio, rate):
-        self.played.append(len(audio))
-
-    def close(self):
-        self.closed = True
-
-
-class Phone:
-    """Passerelle factice : note ce que le Core lui demande."""
-
-    def __init__(self, fail=False):
-        self.calls, self.fail = [], fail
-
-    def ring(self, call):
-        if self.fail:
-            raise ConnectionError("passerelle absente")
-        self.calls.append(("ring", call.id))
-
-    def cancel(self, call):
-        self.calls.append(("cancel", call.id))
-
-    def hang_up(self, call):
-        self.calls.append(("hang_up", call.id))
 
 
 class World:
@@ -371,3 +325,17 @@ def test_phone_call_is_greeted_like_a_wake_word():
     spoken, events = run_agent(["Quelle heure est-il ?"], PlannerLLM(reply="Il est midi."), calls=calls)
     wake = [PERSONALITY.render(t) for t in PERSONALITY.phrases["wake"]]
     assert spoken[0] in wake
+
+
+def test_admin_test_call_goes_through_the_core_and_its_limits():
+    from jarvis.api.server import CoreApi
+
+    api = CoreApi.__new__(CoreApi)
+    api.calls = None
+    assert api.call_action({"reason": "Essai"})[0] == 404  # appels désactivés
+    world = World()
+    api.calls = world.calls
+    status, body = api.call_action({"reason": "Essai du vrai ORION."})
+    assert status == 202 and world.phone.calls[0][0] == "ring" and world.calls.current.origin == "admin"
+    assert world.calls.current.reason == "Essai du vrai ORION."
+    assert api.call_action({"reason": "Encore"})[0] == 409  # un appel à la fois, limites respectées

@@ -10,6 +10,7 @@ export interface CallGateway {
   onIncoming(listener: (call: Call) => void): () => void;
   onEnded(listener: (callId: string, reason: string) => void): () => void;
   onStatus(listener: (online: boolean) => void): () => void;
+  onAnswered(listener: (callId: string) => void): () => void;
   accept(callId: string): Promise<void>;
   refuse(callId: string): Promise<void>;
   hangUp(callId: string): Promise<void>;
@@ -76,6 +77,7 @@ export class HttpGateway implements CallGateway {
   private incoming = new Set<Listener<[Call]>>();
   private ended = new Set<Listener<[string, string]>>();
   private status = new Set<Listener<[boolean]>>();
+  private answered = new Set<Listener<[string]>>();
   private running = false;
   private abort: AbortController | null = null;
   private online: boolean | null = null;
@@ -95,6 +97,12 @@ export class HttpGateway implements CallGateway {
   onStatus(listener: Listener<[boolean]>) {
     this.status.add(listener);
     return () => this.status.delete(listener);
+  }
+
+  /** ORION a décroché un appel passé depuis ce téléphone : l'audio peut s'ouvrir. */
+  onAnswered(listener: Listener<[string]>) {
+    this.answered.add(listener);
+    return () => this.answered.delete(listener);
   }
 
   private headers() {
@@ -149,6 +157,8 @@ export class HttpGateway implements CallGateway {
           if (event.type === 'incoming') {
             const call: Call = { id: event.call_id, reason: event.reason ?? '', state: 'sonnerie' };
             this.incoming.forEach((listener) => listener(call));
+          } else if (event.type === 'answered') {
+            this.answered.forEach((listener) => listener(event.call_id));
           } else if (event.type === 'ended') {
             this.ended.forEach((listener) => listener(event.call_id, event.reason ?? 'terminé'));
           }
@@ -186,7 +196,7 @@ export class HttpGateway implements CallGateway {
       body: '{}',
     });
     if (!response.ok) {
-      throw new GatewayError(response.status === 409 ? 'ORION est déjà en ligne.' : await readError(response));
+      throw new GatewayError(await readError(response)); // « ORION est déjà en ligne. », « ORION est injoignable. »
     }
     return ((await response.json()) as { call_id: string }).call_id;
   }
