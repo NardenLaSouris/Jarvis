@@ -111,6 +111,12 @@ class NetworkSource:
                         if len(data) < size:
                             break
                         self._queue.put_latest(np.frombuffer(data, dtype="<i2").astype(np.int16))
+            except AttributeError:
+                # ``close`` pendant une lecture (fin d'un appel) : http.client lève AttributeError sur la réponse
+                # fermée. Arrêt normal ; ailleurs, une vraie erreur.
+                if not self._stopping.is_set():
+                    raise
+                break
             except (OSError, ValueError) as exc:
                 if not failing and not self._stopping.is_set():
                     log.warning("Micro distant injoignable (%s) : nouvelle tentative toutes les %.0f s",

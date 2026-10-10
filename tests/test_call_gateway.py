@@ -166,3 +166,23 @@ def test_core_link_rings_and_forwards_the_phone_signals_to_the_manager(gateway):
     assert request(gateway, "GET", "/app/events?timeout=1", headers=device)[1]["events"] == \
         [{"type": "ended", "call_id": call.id, "reason": "raccroché par ORION"}]
     link.deliver({"type": "hung_up", "call_id": call.id})  # signal en retard : ignoré, sans erreur
+
+
+def test_closing_the_call_mic_during_a_read_is_quiet(gateway):
+    import threading
+
+    from jarvis.audio.network import NetworkSource
+
+    device_id, device = pair(gateway)
+    request(gateway, "POST", "/core/ring", {"call_id": "c4", "device": device_id}, core())
+    request(gateway, "POST", "/app/calls/c4/accept", {}, device)
+    errors = []
+    previous, threading.excepthook = threading.excepthook, lambda info: errors.append(info.exc_type)
+    try:
+        source = NetworkSource(f"http://127.0.0.1:{gateway.port}", CORE_TOKEN, 16000, 1280)
+        assert len(source.read()) == 1280  # le micro (simulé) de l'appel arrive
+        source.close()  # fin d'appel pendant une lecture
+        source._thread.join(3)
+    finally:
+        threading.excepthook = previous
+    assert errors == [] and not source._thread.is_alive()
