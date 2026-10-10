@@ -198,6 +198,9 @@ class CallManager:
 
     def stop(self) -> None:
         self._stopping.set()
+        stop = getattr(self._notifier, "stop", None)
+        if stop is not None:
+            stop()
 
     def _run(self) -> None:
         while not self._stopping.wait(1.0):

@@ -208,6 +208,9 @@ class CallConfig:
     enabled: bool = False
     device: str = ""  # appareil jumelé (le seul destinataire possible) ; vide : aucun appel
     gateway: str = "http://127.0.0.1:8770"  # passerelle d'appel locale (jeton : CALL_GATEWAY_TOKEN dans .env)
+    listen_host: str = "0.0.0.0"  # passerelle : écoute (le téléphone la joint par le réseau local ou le VPN)
+    app_networks: tuple = ("192.168.1.0/24",)  # passerelle : seuls ces réseaux joignent la face « application »
+    devices_path: Path = Path("data/call_devices.json")  # appareils jumelés (empreinte des jetons, fichier en 600)
     ring_timeout: float = 40.0
     connect_timeout: float = 15.0
     max_minutes: float = 15.0

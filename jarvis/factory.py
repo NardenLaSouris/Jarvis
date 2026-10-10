@@ -665,7 +665,12 @@ def build_calls(cfg: Config, source, sink, events: EventBus | None):
                             max_duration=c.max_minutes * 60,
                             limits=CallLimitSettings(c.max_per_hour, c.min_interval_minutes * 60,
                                                      c.refusal_pause_minutes * 60))
-    manager = CallManager(settings, source, sink, open_terminal, on_event=publish)
+    from jarvis.call.link import GatewayLink
+
+    link = GatewayLink(c.gateway, token, c.device)
+    manager = CallManager(settings, source, sink, open_terminal, notifier=link, on_event=publish)
+    link.manager = manager
+    link.start()
     manager.start()
     log.info("Appels : activés vers « %s » (passerelle %s)", c.device or "aucun appareil jumelé", c.gateway)
     return manager
