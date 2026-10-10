@@ -77,10 +77,13 @@ class GatewayLink:
     def deliver(self, event: dict) -> None:
         manager = self.manager
         handler = {"accepted": "accepted", "refused": "refused", "connected": "connected",
-                   "hung_up": "hung_up"}.get(str(event.get("type")))
+                   "hung_up": "hung_up", "failed": "failed"}.get(str(event.get("type")))
         if manager is None or handler is None:
             return
         try:
-            getattr(manager, handler)(str(event.get("call_id", "")))
+            if handler == "failed":
+                manager.failed(str(event.get("call_id", "")), str(event.get("reason", "réseau"))[:80])
+            else:
+                getattr(manager, handler)(str(event.get("call_id", "")))
         except CallError as exc:
             log.info("Signal de la passerelle ignoré (%s)", exc)

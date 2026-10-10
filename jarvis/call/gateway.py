@@ -9,13 +9,14 @@ Deux faces :
     POST /app/pair {code, name}            -> {device_id, token} (une seule fois)
     GET  /app/events?timeout=25            -> {"events": [...]} (attente longue : appel entrant, fin d'appel)
     POST /app/calls/<id>/accept | refuse | hangup
+    POST /app/calls/<id>/offer {sdp, type}   -> réponse SDP (audio WebRTC, après « accept »)
   authentification : en-têtes « X-Device » (identifiant) et « Authorization: Bearer <jeton> » ;
 - Core (127.0.0.1 seulement, jeton CALL_GATEWAY_TOKEN) :
     POST /core/ring {call_id, device, reason} ; POST /core/cancel | /core/hangup {call_id} ; POST /core/pairing-code
     GET  /core/events?timeout=25           -> signaux de l'appareil (accepted, refused, connected, hung_up)
     GET  /audio/input ; POST /audio/output | /audio/drain | /audio/stop : le protocole des agents audio d'ORION
-  (jarvis/audio/network.py). Étape actuelle : audio SIMULÉ (silence en entrée, voix d'ORION jetée) ; le transport
-  WebRTC le remplacera.
+  (jarvis/audio/network.py). Audio par WebRTC (jarvis/call/media.py) quand aiortc est installé ; sinon SIMULÉ
+  (silence en entrée, voix d'ORION jetée), pour les essais de signalisation.
 Aucun jeton, code de jumelage ni contenu d'appel n'est journalisé.
 """
 
@@ -75,7 +76,7 @@ class GatewayCall:
 
 class CallGateway:
     def __init__(self, registry: DeviceRegistry, core_token: str, app_networks: list[str],
-                 host: str = "0.0.0.0", port: int = 8770, frame_seconds: float = 0.08):
+                 host: str = "0.0.0.0", port: int = 8770, frame_seconds: float = 0.08, media_factory=None):
         self.registry = registry
         self._core_token = core_token
         self._networks = [ipaddress.ip_network(n, strict=False) for n in app_networks]
@@ -86,6 +87,8 @@ class CallGateway:
         self.core_events = Mailbox()
         self._app_events: dict[str, Mailbox] = {}
         self._httpd: ExclusiveServer | None = None
+        # media_factory(on_connected, on_failed) -> CallMedia ; None : audio simulé.
+        self.media = media_factory(self._media_connected, self._media_failed) if media_factory else None
 
     # --- Logique -------------------------------------------------------------------------------------------
 
@@ -107,8 +110,35 @@ class CallGateway:
         if call is None:
             return
         call.state = "terminé"
+        self._close_media()
         self.app_mailbox(call.device).put({"type": "ended", "call_id": call.id, "reason": why})
         log.info("Passerelle : appel %s %s", call.id, why)
+
+    def offer(self, device_id: str, call_id: str, sdp: str, kind: str) -> dict | None:
+        """Offre WebRTC du téléphone (appel accepté) -> réponse SDP ; None si l'appel ne l'attend pas."""
+        call = self._current(call_id)
+        if self.media is None or call is None or call.device != device_id or call.state != "accepté":
+            return None
+        return self.media.answer(call.id, sdp, kind)
+
+    def _media_connected(self, call_id: str) -> None:
+        call = self._current(call_id)
+        if call is not None and call.state == "accepté":
+            call.state = "connecté"
+            self.core_events.put({"type": "connected", "call_id": call.id})
+
+    def _media_failed(self, call_id: str, why: str) -> None:
+        call = self._current(call_id)
+        if call is None:
+            return
+        call.state = "terminé"
+        self.core_events.put({"type": "failed", "call_id": call.id, "reason": why})
+        self.app_mailbox(call.device).put({"type": "ended", "call_id": call.id, "reason": why})
+        threading.Thread(target=self._close_media, daemon=True).start()
+
+    def _close_media(self) -> None:
+        if self.media is not None:
+            self.media.close()
 
     def from_app(self, device_id: str, call_id: str, action: str) -> bool:
         call = self._current(call_id)
@@ -117,15 +147,16 @@ class CallGateway:
         if action == "accept" and call.state == "sonnerie":
             call.state = "accepté"
             self.core_events.put({"type": "accepted", "call_id": call.id})
-            # Audio simulé : connecté aussitôt (le transport WebRTC annoncera la connexion réelle).
-            call.state = "connecté"
-            self.core_events.put({"type": "connected", "call_id": call.id})
+            if self.media is None:  # audio simulé : connecté aussitôt ; en WebRTC, à la connexion audio réelle
+                call.state = "connecté"
+                self.core_events.put({"type": "connected", "call_id": call.id})
         elif action == "refuse" and call.state == "sonnerie":
             call.state = "terminé"
             self.core_events.put({"type": "refused", "call_id": call.id})
         elif action == "hangup" and call.state in ("accepté", "connecté"):
             call.state = "terminé"
             self.core_events.put({"type": "hung_up", "call_id": call.id})
+            self._close_media()
         else:
             return False
         log.info("Passerelle : appel %s, %s sur le téléphone", call.id, action)
@@ -240,6 +271,21 @@ class CallGateway:
                         return
                     log.info("Passerelle : appareil « %s » jumelé (%s)", device.name, device.id)
                     self._json(200, {"device_id": device.id, "token": token, "name": device.name})
+                elif len(parts) == 4 and parts[:2] == ["app", "calls"] and parts[3] == "offer":
+                    if not self._app_network_ok() or (device := self._device()) is None:
+                        return
+                    if (data := self._json_body()) is None:
+                        return
+                    try:
+                        answer = gateway.offer(device.id, parts[2], str(data.get("sdp", "")),
+                                               str(data.get("type", "offer")))
+                    except Exception as exc:  # noqa: BLE001 - offre illisible ou connexion impossible
+                        log.warning("Passerelle : offre audio refusée (%s)", type(exc).__name__)
+                        answer = None
+                    if answer is None:
+                        self._error(409, "offer_refused")
+                    else:
+                        self._json(200, answer)
                 elif len(parts) == 4 and parts[:2] == ["app", "calls"] and parts[3] in APP_ACTIONS:
                     if not self._app_network_ok() or (device := self._device()) is None:
                         return
@@ -262,10 +308,31 @@ class CallGateway:
                         self._json(200, {"status": "ok"})
                 elif path in ("/audio/output", "/audio/drain", "/audio/stop"):
                     if self._core_ok():
-                        self._body(MAX_AUDIO)  # audio simulé : la voix d'ORION n'est jouée nulle part
-                        self._json(200, {"status": "ok"})
+                        self._voice(path)
                 else:
                     self._error(404, "not_found")
+
+            def _voice(self, path: str) -> None:
+                """Voix d'ORION vers le téléphone (WebRTC) ; jetée en audio simulé."""
+                body = self._body(MAX_AUDIO)
+                if body is None:
+                    return
+                media = gateway.media
+                if media is not None:
+                    if path == "/audio/output":
+                        import numpy as np
+
+                        query = parse_qs(urlsplit(self.path).query)
+                        try:
+                            rate = max(8000, min(48000, int(query.get("rate", ["22050"])[0])))
+                        except ValueError:
+                            rate = 22050
+                        media.play(np.frombuffer(body[: len(body) // 2 * 2], dtype="<i2"), rate)
+                    elif path == "/audio/drain":
+                        media.drain()
+                    else:
+                        media.stop_voice()
+                self._json(200, {"status": "ok"})
 
             def _silence(self, query: dict) -> None:
                 """Micro simulé : des blocs de silence au rythme réel, tant que l'appel dure."""
@@ -279,9 +346,21 @@ class CallGateway:
                 block = bytes(2 * frame)
                 try:
                     while gateway.call is not None and gateway.call.state != "terminé":
-                        self.wfile.write(block)
+                        media = gateway.media
+                        if media is None:  # audio simulé
+                            chunk = block
+                            time.sleep(gateway._frame_seconds)
+                        elif media.mic is None:  # en attente de l'audio du téléphone
+                            time.sleep(0.05)
+                            continue
+                        else:
+                            chunk = media.mic.read(2 * frame, timeout=0.5)
+                            if chunk is None:
+                                break
+                            if not chunk:
+                                continue
+                        self.wfile.write(chunk)
                         self.wfile.flush()
-                        time.sleep(gateway._frame_seconds)
                 except (BrokenPipeError, ConnectionResetError):
                     pass
 
@@ -292,14 +371,15 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m jarvis.call.gateway")
     parser.add_argument("--config", default="config.toml")
     parser.add_argument("--pair", action="store_true", help="affiche un code de jumelage à usage unique")
+    parser.add_argument("--no-media", action="store_true", help="audio simulé, même si aiortc est installé")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s : %(message)s")
     from jarvis.config import load_config, secret
-    from jarvis.factory import ENV_FILE
 
+    env_file = Path(__file__).resolve().parents[2] / ".env"  # sans importer le Core (environnement minimal)
     cfg = load_config(args.config)
     c = cfg.call
-    token = secret("CALL_GATEWAY_TOKEN", ENV_FILE)
+    token = secret("CALL_GATEWAY_TOKEN", env_file)
     if not token:
         print("CALL_GATEWAY_TOKEN absent de .env : la passerelle refuse de démarrer.")
         return 2
@@ -314,8 +394,15 @@ def main(argv: list[str] | None = None) -> int:
             code = json.load(response)["code"]
         print(f"Code de jumelage (valable 5 minutes, une seule fois) : {code[:4]}-{code[4:]}")
         return 0
+    media_factory = None
+    if not args.no_media:
+        try:
+            from jarvis.call.media import CallMedia as media_factory
+        except ImportError:
+            log.warning("aiortc absent : audio simulé (pip install aiortc numpy dans l'environnement de la passerelle)")
     gateway = CallGateway(DeviceRegistry(Path(c.devices_path)), token, list(c.app_networks),
-                          c.listen_host, url.port or 8770)
+                          c.listen_host, url.port or 8770, media_factory=media_factory)
+    log.info("Audio des appels : %s", "WebRTC" if gateway.media is not None else "simulé")
     gateway.start()
     try:
         while True:
