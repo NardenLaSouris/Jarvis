@@ -84,7 +84,8 @@ def build_presence(config, bus: EventBus, known_users: set[str], home=None,
     users = sorted({s.user for s in sensors.values() if s.kind == "presence"})
     settings = PresenceSettings(departure_window=config.departure_window, arrival_window=config.arrival_window,
                                 threshold=config.threshold, absence_timeout=config.absence_minutes * 60,
-                                door_left_open=config.door_left_open_minutes * 60)
+                                door_left_open=config.door_left_open_minutes * 60,
+                                phone_arrival_delay=getattr(config, "phone_arrival_delay", -1.0))
     first_start = not Path(config.state_path).exists()
     engine = PresenceEngine(users, bus, settings, clock=clock, state_path=config.state_path, home=home)
     engine.attach()
@@ -94,7 +95,9 @@ def build_presence(config, bus: EventBus, known_users: set[str], home=None,
     by_driver: dict[str, list[Sensor]] = {}
     for sensor in sensors.values():
         by_driver.setdefault(sensor.driver, []).append(sensor)
-    drivers = [DRIVERS[name](group) for name, group in sorted(by_driver.items())]
+    options = {"network": {"interval": getattr(config, "network_interval", 20.0),
+                           "away_after": getattr(config, "network_away_minutes", 10.0) * 60}}
+    drivers = [DRIVERS[name](group, **options.get(name, {})) for name, group in sorted(by_driver.items())]
     system = PresenceSystem(hub, engine, journal, drivers, clock, first_start)
     if not users:
         log.warning("Présence : aucun capteur de présence (téléphone) : arrivées et départs jamais confirmés")

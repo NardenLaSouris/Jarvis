@@ -225,6 +225,9 @@ quiet_end = "08:00"
 #   [presence.sensors.telephone_monsieur]
 #   kind = "presence"
 #   user = "owner"           # identifiant du profil ([users]) dont le téléphone est suivi
+#   driver = "network"       # téléphone suivi sur le Wi-Fi de la maison (ping, puis ARP) :
+#   address = "192.168.1.104"  # son adresse IP (à fixer dans la box : bail DHCP réservé)
+#   mac = "aa:bb:cc:dd:ee:ff"  # facultatif : vérifie que l'adresse est toujours la sienne
 enabled = false
 departure_window = 180.0   # s : le téléphone quitte le Wi-Fi jusqu'à quelques minutes après la porte
 arrival_window = 300.0     # s : le téléphone revient sur le Wi-Fi avant d'arriver à la porte
@@ -237,6 +240,11 @@ absence_summary = true     # au retour : ce qui s'est passé pendant l'absence (
 state_path = "data/presence.json"
 journal_path = "data/house_journal.jsonl"
 journal_max_kb = 1000
+network_interval = 20.0    # s : sondage du téléphone (pilote « network »)
+network_away_minutes = 10.0  # absent du réseau depuis N minutes : « parti » (un téléphone en veille se tait un moment)
+# Sans porte d'entrée connectée : retour confirmé par le seul téléphone, N secondes après son retour sur le Wi-Fi
+# (il s'y reconnecte avant la porte : l'accueil attend d'être entendu), après un départ confirmé. -1 : jamais.
+phone_arrival_delay = -1.0
 
 [api]
 # API d'administration pour ORION Control (HTTP, réseau local). Jeton : JARVIS_AGENT_TOKEN dans .env.

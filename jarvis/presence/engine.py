@@ -66,6 +66,9 @@ class PresenceSettings:
     absence_timeout: float = 1200.0  # téléphone parti sans porte : départ après ce délai sans mouvement (0 : jamais)
     door_left_open: float = 600.0  # porte d'entrée ouverte plus longtemps : événement (0 : jamais)
     motion_report_every: float = 600.0  # « mouvement pendant l'absence » : au plus une fois par pièce et par délai
+    # Sans porte d'entrée connectée : retour confirmé par le seul téléphone, revenu depuis ce délai (il rejoint le
+    # Wi-Fi un peu avant la porte : l'accueil attend d'être entendu), après un départ confirmé. < 0 : jamais.
+    phone_arrival_delay: float = -1.0
 
 
 @dataclass
@@ -228,6 +231,10 @@ class PresenceEngine:
         window = self.settings.departure_window if h.kind == "departure" else self.settings.arrival_window
         if h.score() >= self.settings.threshold:
             self._confirm(u, h, now, "signaux concordants")
+            return
+        delay = self.settings.phone_arrival_delay
+        if h.kind == "arrival" and delay >= 0 and u.phone == "home" and u.away_since is not None                 and "phone_home" in h.signals and now - h.signals["phone_home"] >= delay:
+            self._confirm(u, h, now, "téléphone revenu sur le réseau")
             return
         if now - h.started <= window:
             return

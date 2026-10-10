@@ -62,6 +62,8 @@ class Sensor:
     entrance: bool = False  # porte d'entrée de la maison (ou mouvement juste derrière elle)
     driver: str = "simulated"
     name: str = ""  # appareil : « la machine à laver »
+    address: str = ""  # pilote « network » : adresse IP de l'appareil suivi (téléphone) sur le réseau local
+    mac: str = ""  # pilote « network » : son adresse MAC (facultative), pour ne pas suivre un autre appareil
 
 
 def load_sensors(table: dict, known_users: set[str]) -> dict[str, Sensor]:
@@ -73,7 +75,7 @@ def load_sensors(table: dict, known_users: set[str]) -> dict[str, Sensor]:
             raise SensorError(f"{where} : identifiant en minuscules, chiffres et _ attendu")
         if not isinstance(spec, dict):
             raise SensorError(f"{where} : section attendue")
-        unknown = set(spec) - {"kind", "room", "user", "entrance", "driver", "name"}
+        unknown = set(spec) - {"kind", "room", "user", "entrance", "driver", "name", "address", "mac"}
         if unknown:
             raise SensorError(f"{where} : clés inconnues {sorted(unknown)}")
         kind = spec.get("kind")
@@ -91,8 +93,20 @@ def load_sensors(table: dict, known_users: set[str]) -> dict[str, Sensor]:
         entrance = spec.get("entrance", False)
         if not isinstance(entrance, bool):
             raise SensorError(f"{where} entrance : true ou false attendu")
+        address, mac = str(spec.get("address", "")).strip(), str(spec.get("mac", "")).strip().lower().replace("-", ":")
+        if driver == "network":
+            from jarvis.presence.network import valid_address, valid_mac
+
+            if kind != "presence":
+                raise SensorError(f"{where} driver network : seulement pour un capteur de présence (téléphone)")
+            if not valid_address(address):
+                raise SensorError(f"{where} address : adresse IPv4 du réseau local attendue, pas {address!r}")
+            if mac and not valid_mac(mac):
+                raise SensorError(f"{where} mac : adresse MAC (aa:bb:cc:dd:ee:ff) attendue, pas {mac!r}")
+        elif address or mac:
+            raise SensorError(f"{where} address, mac : seulement avec driver = \"network\"")
         sensors[sensor_id] = Sensor(sensor_id, kind, str(spec.get("room", ""))[:40], user, entrance, driver,
-                                    str(spec.get("name", ""))[:60])
+                                    str(spec.get("name", ""))[:60], address, mac)
     return sensors
 
 
@@ -191,4 +205,10 @@ class SimulatedDriver:
         pass
 
 
-DRIVERS: dict[str, Callable[[list[Sensor]], SensorDriver]] = {"simulated": SimulatedDriver}
+def _network(sensors: list[Sensor], **options) -> SensorDriver:
+    from jarvis.presence.network import NetworkDriver
+
+    return NetworkDriver(sensors, **options)
+
+
+DRIVERS: dict[str, Callable[..., SensorDriver]] = {"simulated": SimulatedDriver, "network": _network}

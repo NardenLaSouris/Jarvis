@@ -552,3 +552,83 @@ def test_door_left_open_is_noted_once():
     house.wait(200)
     house.wait(200)
     assert len(house.of_type("door.left_open")) == 1
+
+
+# --- Téléphone suivi sur le réseau (pilote « network ») ------------------------------------------------
+
+def test_phone_alone_confirms_a_return_only_when_enabled_and_after_a_real_absence():
+    house = House(absence_timeout=1200, phone_arrival_delay=45)
+    house.send("telephone_owner", "away")
+    house.wait(1300)
+    assert house.state() == AWAY
+    house.send("telephone_owner", "home", after=3600)
+    house.wait(30)
+    assert house.state() == POSSIBLE_ARRIVAL and not house.of_type(ARRIVAL_CONFIRMED)
+    house.wait(20)
+    [arrival] = house.of_type(ARRIVAL_CONFIRMED)
+    assert house.state() == HOME and arrival.payload["away_seconds"] > 3600
+    off = House(absence_timeout=1200)  # réglage par défaut : le téléphone seul ne suffit jamais
+    off.send("telephone_owner", "away")
+    off.wait(1300)
+    off.send("telephone_owner", "home", after=3600)
+    off.wait(400)
+    assert not off.of_type(ARRIVAL_CONFIRMED)
+
+
+def test_phone_dropping_off_briefly_never_triggers_a_welcome():
+    house = House(absence_timeout=1200, phone_arrival_delay=45)
+    house.send("telephone_owner", "away")
+    house.send("telephone_owner", "home", after=300)  # simple décrochage : jamais parti
+    house.wait(120)
+    assert house.state() == HOME and not house.of_type(ARRIVAL_CONFIRMED)
+
+
+def test_network_sensor_needs_a_local_address():
+    good = {"tel": {"kind": "presence", "user": "owner", "driver": "network", "address": "192.168.1.62",
+                    "mac": "BC-74-4B-11-A3-A7"}}
+    sensor = load_sensors(good, {"owner"})["tel"]
+    assert sensor.address == "192.168.1.62" and sensor.mac == "bc:74:4b:11:a3:a7"
+    for spec in ({"address": "8.8.8.8"}, {"address": "192.168.1.62; reboot"}, {"address": "192.168.1.62", "mac": "x"}):
+        with pytest.raises(SensorError):
+            load_sensors({"tel": {"kind": "presence", "user": "owner", "driver": "network", **spec}}, {"owner"})
+    with pytest.raises(SensorError):
+        load_sensors({"porte": {"kind": "door", "driver": "network", "address": "192.168.1.62"}}, {"owner"})
+    with pytest.raises(SensorError):
+        load_sensors({"tel": {"kind": "presence", "user": "owner", "address": "192.168.1.62"}}, {"owner"})
+
+
+def test_network_driver_reports_home_at_once_and_away_only_after_a_long_silence():
+    from jarvis.presence.network import NetworkDriver
+
+    sensor = load_sensors({"tel": {"kind": "presence", "user": "owner", "driver": "network",
+                                   "address": "192.168.1.62"}}, {"owner"})["tel"]
+    now, answers, emitted = [0.0], [True], []
+    driver = NetworkDriver([sensor], away_after=600, probe=lambda address, mac: answers[0], clock=lambda: now[0])
+    driver._emit = lambda sensor_id, value: emitted.append(value)
+    driver.poll()
+    assert emitted == ["home"]
+    answers[0] = False
+    for step in range(1, 30):  # téléphone en veille : 9 min 40 sans réponse
+        now[0] = step * 20.0
+        driver.poll()
+    assert emitted == ["home"]
+    now[0] = 20.0 * 31
+    driver.poll()
+    assert emitted == ["home", "away"]
+    answers[0] = True
+    now[0] += 20
+    driver.poll()
+    driver.poll()
+    assert emitted == ["home", "away", "home"]
+
+
+def test_probe_checks_the_mac_address(monkeypatch):
+    import jarvis.presence.network as network
+
+    monkeypatch.setattr(network, "_ping", lambda address: False)
+    monkeypatch.setattr(network, "_nudge", lambda address: None)
+    monkeypatch.setattr(network, "_neighbour", lambda address: ("REACHABLE", "bc:74:4b:11:a3:a7"))
+    assert network.probe("192.168.1.62", "bc:74:4b:11:a3:a7", sleep=lambda s: None)
+    assert not network.probe("192.168.1.62", "aa:aa:aa:aa:aa:aa", sleep=lambda s: None)
+    monkeypatch.setattr(network, "_neighbour", lambda address: ("FAILED", ""))
+    assert not network.probe("192.168.1.62", sleep=lambda s: None)

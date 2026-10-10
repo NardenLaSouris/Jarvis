@@ -218,6 +218,9 @@ class PresenceConfig:
     journal_path: Path = Path("data/house_journal.jsonl")
     journal_max_kb: int = 1000
     sensors: dict = field(default_factory=dict)
+    network_interval: float = 20.0  # pilote « network » : sondage du téléphone toutes les N secondes
+    network_away_minutes: float = 10.0  # ... absent du réseau depuis N minutes : « parti »
+    phone_arrival_delay: float = -1.0  # retour confirmé par le téléphone seul après N s (sans porte) ; < 0 : jamais
 
 
 @dataclass(frozen=True)
