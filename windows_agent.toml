@@ -10,7 +10,7 @@ allowed_ips = ["192.168.1.91"]
 # Micro et sortie du PC relayés au Core (vide = périphériques par défaut de Windows ; sinon nom partiel
 # ou index, comme [audio] de config.toml ; liste : python -m jarvis --list-devices).
 [audio]
-input_device = "Microphone (Voicemod Virtual Au, MME"
+input_device = "Chat Mic (2- TC-HELICON GoXLR), MME"
 output_device = "Music (2- TC-HELICON GoXLR), MME"
 
 # Fichiers accessibles à ORION sur ce PC (outils find_files, read_text_file, create_text_file, copy_file, move_file,
