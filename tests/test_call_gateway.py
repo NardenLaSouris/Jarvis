@@ -186,3 +186,38 @@ def test_closing_the_call_mic_during_a_read_is_quiet(gateway):
     finally:
         threading.excepthook = previous
     assert errors == [] and not source._thread.is_alive()
+
+
+def test_phone_can_dial_orion_and_the_core_can_refuse(gateway):
+    device_id, device = pair(gateway)
+    status, body = request(gateway, "POST", "/app/dial", {}, device)
+    assert status == 200
+    call_id = body["call_id"]
+    assert request(gateway, "GET", "/core/events?timeout=1", headers=core())[1]["events"] == \
+        [{"type": "dialed", "call_id": call_id, "device": device_id}]
+    assert request(gateway, "POST", "/app/dial", {}, device)[0] == 409  # déjà en ligne
+    request(gateway, "POST", "/core/hangup", {"call_id": call_id, "reason": "occupé"}, core())
+    assert request(gateway, "GET", "/app/events?timeout=1", headers=device)[1]["events"] == \
+        [{"type": "ended", "call_id": call_id, "reason": "occupé"}]
+
+
+def test_core_link_answers_or_refuses_a_dialed_call(gateway):
+    from jarvis.audio.switch import SwitchableSink, SwitchableSource
+    from jarvis.call import CallManager, CallSettings
+    from test_call import Mic, Speaker
+
+    device_id, device = pair(gateway)
+    link = GatewayLink(f"http://127.0.0.1:{gateway.port}", CORE_TOKEN, device_id, wait=1)
+    manager = CallManager(CallSettings(device=device_id), SwitchableSource(Mic(1), sleep=lambda s: None),
+                          SwitchableSink(Speaker()), lambda call: (Mic(7), Speaker()), notifier=link)
+    link.manager = manager
+    call_id = request(gateway, "POST", "/app/dial", {}, device)[1]["call_id"]
+    for event in request(gateway, "GET", "/core/events?timeout=1", headers=core())[1]["events"]:
+        link.deliver(event)
+    assert manager.current.id == call_id and manager.current.state == "accepté"
+    other = CallManager(CallSettings(device="un-autre"), SwitchableSource(Mic(1), sleep=lambda s: None),
+                        SwitchableSink(Speaker()), lambda call: (Mic(7), Speaker()), notifier=link)
+    link.manager = other  # Core configuré pour un autre appareil : il raccroche
+    link.deliver({"type": "dialed", "call_id": call_id, "device": device_id})
+    assert request(gateway, "GET", "/app/events?timeout=1", headers=device)[1]["events"] == \
+        [{"type": "ended", "call_id": call_id, "reason": "appareil non jumelé au Core"}]

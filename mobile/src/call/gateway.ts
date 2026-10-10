@@ -178,6 +178,19 @@ export class HttpGateway implements CallGateway {
     return this.act(callId, 'accept');
   }
 
+  /** Appeler ORION : la passerelle rend l'identifiant de l'appel (le Core peut encore raccrocher, « occupé »). */
+  async dial(): Promise<string> {
+    const response = await fetchWithin(`${this.credentials.gateway}/app/dial`, {
+      method: 'POST',
+      headers: this.headers(),
+      body: '{}',
+    });
+    if (!response.ok) {
+      throw new GatewayError(response.status === 409 ? 'ORION est déjà en ligne.' : await readError(response));
+    }
+    return ((await response.json()) as { call_id: string }).call_id;
+  }
+
   /** Offre audio WebRTC (après « accept ») -> réponse de la passerelle. */
   async offer(callId: string, offer: { sdp: string; type: string }): Promise<{ sdp: string; type: string }> {
     const response = await fetchWithin(`${this.credentials.gateway}/app/calls/${encodeURIComponent(callId)}/offer`, {

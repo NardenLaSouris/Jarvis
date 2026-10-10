@@ -186,7 +186,23 @@ export default function App() {
         />
       );
     } else {
-      screen = <HomeScreen credentials={credentials} online={online} onForget={forget} />;
+      screen = (
+        <HomeScreen
+          credentials={credentials}
+          online={online}
+          onForget={forget}
+          onDial={async () => {
+            try {
+              const callId = await gateway.dial();
+              setLastEnd('');
+              setCall({ id: callId, reason: '', state: 'accepté' });
+              void startAudio(gateway, callId);
+            } catch (error) {
+              setLastEnd(error instanceof Error ? error.message : 'Appel impossible.');
+            }
+          }}
+        />
+      );
     }
   }
 

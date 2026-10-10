@@ -495,7 +495,10 @@ class Agent:
                 self._calls.finish()  # ORION raccroche s'il est encore en ligne ; retour au terminal de la maison
 
     def _greet_call(self, call) -> None:
-        greeting = " ".join(t for t in (self._router.phrase("call_greeting"), call.reason) if t)
+        if call.origin == "user":  # vous appelez ORION : il répond comme à son nom (« Oui, monsieur ? »)
+            greeting = self._router.phrase("wake")
+        else:
+            greeting = " ".join(t for t in (self._router.phrase("call_greeting"), call.reason) if t)
         self._event("assistant", greeting)
         self._pipeline.speak([greeting])
         self._source.flush()

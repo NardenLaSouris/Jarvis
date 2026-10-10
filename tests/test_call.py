@@ -329,3 +329,45 @@ def test_flush_during_a_call_also_drops_what_the_phone_heard_while_orion_spoke()
     world.source.flush()  # ORION vient de parler : ce que le téléphone a capté pendant ce temps est oublié
     assert world.phone_mic.flushed == before + 1
     world.calls.finish()
+
+
+# --- Le téléphone appelle ORION ----------------------------------------------------------------------------
+
+def test_paired_phone_can_call_orion_and_is_answered_at_once():
+    world = World()
+    call = world.calls.dialed("tel-1", "pixel")
+    assert call.state == ACCEPTED and call.origin == "user" and call.reason == ""
+    world.calls.connected(call.id)
+    assert world.source.mode == CALL and world.calls.take_connected() is call
+    world.calls.finish()
+    world.wait(5)
+    assert world.calls.dialed("tel-2", "pixel").state == ACCEPTED  # pas de délai entre deux appels du téléphone
+
+
+def test_phone_call_refused_when_busy_or_from_another_device():
+    world = World()
+    with pytest.raises(CallRefused, match="non jumelé"):
+        world.calls.dialed("x", "autre-appareil")
+    world.calls.request("test", "routine")
+    with pytest.raises(CallRefused, match="occupé"):
+        world.calls.dialed("y", "pixel")
+
+
+def test_phone_calls_are_limited_against_loops():
+    from jarvis.call.manager import MAX_DIALS_PER_HOUR
+
+    world = World()
+    for i in range(MAX_DIALS_PER_HOUR):
+        call = world.calls.dialed(f"t{i}", "pixel")
+        world.calls.hung_up(call.id)
+        world.calls.finish()
+    with pytest.raises(CallRefused, match="dernière heure"):
+        world.calls.dialed("encore", "pixel")
+
+
+def test_phone_call_is_greeted_like_a_wake_word():
+    calls = FakeCalls(reason="")
+    calls.call = CallSession("pixel", "", "user", 0.0)
+    spoken, events = run_agent(["Quelle heure est-il ?"], PlannerLLM(reply="Il est midi."), calls=calls)
+    wake = [PERSONALITY.render(t) for t in PERSONALITY.phrases["wake"]]
+    assert spoken[0] in wake

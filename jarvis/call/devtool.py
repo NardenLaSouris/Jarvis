@@ -51,6 +51,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("reason", nargs="?", default="Ceci est un appel d'essai.")
     parser.add_argument("--talk", type=float, default=15.0, help="secondes d'écho de votre voix")
     parser.add_argument("--no-voice", action="store_true", help="sans la voix d'ORION (pas de synthèse)")
+    parser.add_argument("--answer", action="store_true", help="attend les appels du téléphone au lieu d'appeler")
     parser.add_argument("--config", default="config.toml")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s : %(message)s")
@@ -83,6 +84,27 @@ def main(argv: list[str] | None = None) -> int:
     link.manager = manager
     link.start()
     manager.start()
+
+    def converse(text: str) -> None:
+        if tts is not None:
+            audio, rate = tts.synthesize(f"{text} Je vous renvoie maintenant votre voix, en écho.")
+            sink.play(np.asarray(audio, dtype=np.int16), rate)
+            sink.drain()
+            source.flush()  # comme ORION après avoir parlé : rien de ce qui a été capté pendant ce temps
+        print(f"En ligne : écho de votre voix pendant {args.talk:.0f} s")
+        echo(manager, source, sink, args.talk)
+        manager.finish()
+
+    if args.answer:
+        print("En attente des appels du téléphone (Ctrl+C pour arrêter)")
+        try:
+            while True:
+                if manager.take_connected() is not None:
+                    converse("Oui, monsieur ? C'est ORION.")
+                time.sleep(0.2)
+        except KeyboardInterrupt:
+            manager.stop()
+            return 0
     try:
         call = manager.request(args.reason, "admin")
     except CallRefused as exc:
@@ -90,15 +112,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     while not call.final:
         if manager.take_connected() is not None:
-            if tts is not None:
-                audio, rate = tts.synthesize(f"Bonjour, c'est ORION. {args.reason} "
-                                             "Je vous renvoie maintenant votre voix, en écho.")
-                sink.play(np.asarray(audio, dtype=np.int16), rate)
-                sink.drain()
-                source.flush()  # comme ORION après avoir parlé : rien de ce qui a été capté pendant ce temps
-            print(f"Décroché : écho de votre voix pendant {args.talk:.0f} s")
-            echo(manager, source, sink, args.talk)
-            manager.finish()
+            converse(f"Bonjour, c'est ORION. {args.reason}")
         time.sleep(0.2)
     manager.finish()
     manager.stop()

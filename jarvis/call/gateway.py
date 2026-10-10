@@ -10,6 +10,7 @@ Deux faces :
     GET  /app/events?timeout=25            -> {"events": [...]} (attente longue : appel entrant, fin d'appel)
     POST /app/calls/<id>/accept | refuse | hangup
     POST /app/calls/<id>/offer {sdp, type}   -> réponse SDP (audio WebRTC, après « accept »)
+    POST /app/dial                           -> {call_id} : le téléphone appelle ORION (le Core décide)
   authentification : en-têtes « X-Device » (identifiant) et « Authorization: Bearer <jeton> » ;
 - Core (127.0.0.1 seulement, jeton CALL_GATEWAY_TOKEN) :
     POST /core/ring {call_id, device, reason} ; POST /core/cancel | /core/hangup {call_id} ; POST /core/pairing-code
@@ -26,6 +27,7 @@ import argparse
 import ipaddress
 import json
 import logging
+import secrets
 import threading
 import time
 from dataclasses import dataclass, field
@@ -104,6 +106,17 @@ class CallGateway:
         self.app_mailbox(device_id).put({"type": "incoming", "call_id": self.call.id, "reason": self.call.reason})
         log.info("Passerelle : appel %s, sonnerie sur l'appareil %s", self.call.id, device_id)
         return True
+
+    def dial(self, device_id: str) -> GatewayCall | None:
+        """Le téléphone appelle ORION : appel aussitôt « accepté » côté passerelle, le Core décide (il raccroche
+        s'il refuse). None si un appel est déjà en cours."""
+        with self._lock:
+            if self.call is not None and self.call.state != "terminé":
+                return None
+            call = self.call = GatewayCall(secrets.token_urlsafe(12), device_id, "", state="accepté")
+        self.core_events.put({"type": "dialed", "call_id": call.id, "device": device_id})
+        log.info("Passerelle : appel %s composé par l'appareil %s", call.id, device_id)
+        return call
 
     def end_from_core(self, call_id: str, why: str) -> None:
         call = self._current(call_id)
@@ -286,6 +299,15 @@ class CallGateway:
                         self._error(409, "offer_refused")
                     else:
                         self._json(200, answer)
+                elif path == "/app/dial":
+                    if not self._app_network_ok() or (device := self._device()) is None:
+                        return
+                    self._drain()
+                    call = gateway.dial(device.id)
+                    if call is None:
+                        self._error(409, "busy", "ORION est déjà en ligne.")
+                    else:
+                        self._json(200, {"call_id": call.id})
                 elif len(parts) == 4 and parts[:2] == ["app", "calls"] and parts[3] in APP_ACTIONS:
                     if not self._app_network_ok() or (device := self._device()) is None:
                         return
@@ -304,6 +326,7 @@ class CallGateway:
                         self._json(200, {"status": "ringing"}) if ok else self._error(404, "device_not_paired")
                     else:
                         why = "annulé" if path == "/core/cancel" else "raccroché par ORION"
+                        why = str(data.get("reason") or why)[:80]  # « occupé »… : dit sur le téléphone
                         gateway.end_from_core(str(data.get("call_id", "")), why)
                         self._json(200, {"status": "ok"})
                 elif path in ("/audio/output", "/audio/drain", "/audio/stop"):

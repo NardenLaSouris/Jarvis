@@ -106,9 +106,10 @@ export function PairingScreen({ onPair }: {
   );
 }
 
-export function HomeScreen({ credentials, online, onForget }: {
+export function HomeScreen({ credentials, online, onDial, onForget }: {
   credentials: Credentials;
   online: boolean | null;
+  onDial: () => void;
   onForget: () => void;
 }) {
   const size = useEmblemSize(0.82);
@@ -130,6 +131,9 @@ export function HomeScreen({ credentials, online, onForget }: {
         <Text style={styles.small}>{credentials.gateway}</Text>
       </View>
       <View style={styles.footer}>
+        <View style={styles.dial}>
+          <RoundButton icon="call" label="Appeler ORION" color={colors.green} onPress={onDial} />
+        </View>
         <OutlineButton label="Oublier ce jumelage" tone="quiet" onPress={onForget} />
       </View>
     </View>
@@ -202,7 +206,8 @@ const styles = StyleSheet.create({
   screen: { flex: 1, justifyContent: 'space-between', paddingHorizontal: 28, paddingVertical: 24 },
   hero: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 18 },
   form: { gap: 22, paddingBottom: 12 },
-  footer: { paddingBottom: 12 },
+  footer: { paddingBottom: 12, gap: 24 },
+  dial: { alignItems: 'center' },
   actions: { flexDirection: 'row', justifyContent: 'space-evenly', paddingBottom: 28 },
   kicker: { fontFamily: fonts.display, fontSize: 12, letterSpacing: 4, paddingLeft: 4 },
   lead: { color: colors.cream, fontSize: 15, lineHeight: 22, textAlign: 'center', opacity: 0.85, maxWidth: 300 },

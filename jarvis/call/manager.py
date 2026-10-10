@@ -16,6 +16,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from collections import deque
 from dataclasses import dataclass
 from typing import Callable, Protocol
 
@@ -25,6 +26,7 @@ from jarvis.call.session import ACCEPTED, CONNECTED, ENDED, EXPIRED, FAILED, REF
 log = logging.getLogger(__name__)
 
 CORE_ORIGINS = ("user", "routine", "admin")
+MAX_DIALS_PER_HOUR = 30  # appels du téléphone vers ORION : seulement contre une boucle (application qui s'emballe)
 END_EVENTS = {ENDED: "call.ended", REFUSED: "call.refused", EXPIRED: "call.expired", FAILED: "call.failed"}
 
 
@@ -73,6 +75,7 @@ class CallManager:
         self._clock = clock
         self._on_event = on_event or (lambda kind, data: None)
         self._limits = CallLimits(settings.limits)
+        self._dials: deque[float] = deque()  # appels composés par le téléphone (limite anti-boucle à part)
         self._lock = threading.RLock()
         self.current: CallSession | None = None
         self._handed_over = False  # appel connecté déjà pris par la conversation
@@ -106,6 +109,27 @@ class CallManager:
                 return call
             call.move(RINGING, now)
             self._event("call.ringing", call)
+            return call
+
+    def dialed(self, call_id: str, device: str) -> CallSession:
+        """Le téléphone jumelé appelle ORION : décroché aussitôt (origine « user », comme une demande à la maison).
+        CallRefused si ce n'est pas l'appareil jumelé, si ORION est déjà en ligne ou au-delà de MAX_DIALS_PER_HOUR."""
+        now = self._clock()
+        with self._lock:
+            if not self.settings.device or device != self.settings.device:
+                raise CallRefused("appareil non jumelé au Core")
+            if self.current is not None and not self.current.final:
+                raise CallRefused("occupé")
+            while self._dials and now - self._dials[0] >= 3600:
+                self._dials.popleft()
+            if len(self._dials) >= MAX_DIALS_PER_HOUR:
+                raise CallRefused("trop d'appels sur la dernière heure")
+            self._dials.append(now)
+            call = self.current = CallSession(device, "", "user", now, id=str(call_id)[:64])
+            self._handed_over = False
+            call.move(RINGING, now)
+            call.move(ACCEPTED, now)
+            self._event("call.accepted", call)
             return call
 
     # --- Signaux de la passerelle --------------------------------------------------------------------------

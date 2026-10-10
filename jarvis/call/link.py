@@ -13,6 +13,7 @@ import threading
 import urllib.error
 import urllib.request
 
+from jarvis.call.manager import CallRefused
 from jarvis.call.session import CallError
 
 log = logging.getLogger(__name__)
@@ -77,8 +78,19 @@ class GatewayLink:
     def deliver(self, event: dict) -> None:
         manager = self.manager
         handler = {"accepted": "accepted", "refused": "refused", "connected": "connected",
-                   "hung_up": "hung_up", "failed": "failed"}.get(str(event.get("type")))
+                   "hung_up": "hung_up", "failed": "failed", "dialed": "dialed"}.get(str(event.get("type")))
         if manager is None or handler is None:
+            return
+        if event.get("type") == "dialed":  # le téléphone appelle ORION : le Core accepte ou raccroche
+            call_id = str(event.get("call_id", ""))
+            try:
+                manager.dialed(call_id, str(event.get("device", "")))
+            except CallRefused as exc:
+                log.info("Appel du téléphone refusé : %s", exc)
+                try:
+                    self._post("/core/hangup", {"call_id": call_id, "reason": str(exc)})
+                except OSError:
+                    pass
             return
         try:
             if handler == "failed":
