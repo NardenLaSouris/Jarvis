@@ -98,7 +98,7 @@ def presentation(f: Facts, phone: bool = False, rng: random.Random | None = None
     """Séquences courtes de la présentation (enceintes) ou sa version resserrée (téléphone), adressées à monsieur."""
     rng = rng or random.Random()
     have = _available(f)
-    opening = "Permettez-moi de me présenter, monsieur : je suis ORION, votre assistante personnelle." if phone else \
+    opening = "Permettez-moi de me présenter : je suis ORION, votre assistante personnelle." if phone else \
         _pick(rng, "Bonjour, monsieur. Permettez-moi de me présenter : je suis ORION, votre assistante personnelle.",
               "Bonjour à tous. Je suis ORION, l'assistante personnelle de monsieur.",
               "Je m'appelle ORION, monsieur. Je suis votre assistante personnelle.")

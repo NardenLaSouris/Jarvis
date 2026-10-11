@@ -100,7 +100,8 @@ def test_away_waits_one_minute_then_calls_with_the_phone_version(tmp_path):
     assert w.calls.requested == []
     w.later(31)
     [call] = w.calls.requested
-    assert call.reason.startswith("Permettez-moi de me présenter") and call.origin == "routine"
+    assert call.reason.startswith("Permettez-moi de me présenter : je suis ORION") and call.origin == "routine"
+    assert call.reason.count("monsieur") <= 1  # « Bonjour, monsieur. » est ajouté au décroché
     w.call_event("call.connected")
     assert w.rules.awaiting_ack(call.id) is None  # pas de « dites c'est noté » pendant une présentation
     w.call_event("call.ended")
