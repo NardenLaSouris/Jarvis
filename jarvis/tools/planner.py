@@ -376,6 +376,9 @@ DOMAIN_WORDS = {
     "delete_call_rule": ("regle", "regles"),
     "modify_call_rule": ("regle", "regles"),
     "explain_calls": ("appele", "appel", "appels", "appeler", "pourquoi"),
+    "mail_action_done": ("regle", "reglee", "regles", "fait", "termine", "traite", "c est bon pour"),
+    "mail_action_waiting": ("attends", "attend", "retour", "reponse de leur part"),
+    "confirm_mail_deadline": ("echeance", "date", "confirme", "c est bien", "oui", "non"),
     "close_application": ("ferme", "fermer", "quitte", "quitter", "arrete", "coupe"),
     # Mails : l'action doit être dite par l'utilisateur, jamais suggérée par le contenu d'un mail lu.
     "mark_mail_read": ("lu", "lus", "marque", "marquer"),

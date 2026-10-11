@@ -63,6 +63,7 @@ class MailBox:
         self._listed: list[MailMessage] = []
         self._current: MailMessage | None = None
         self._lock = threading.Lock()
+        self.on_replied = None  # réponse envoyée par ORION (après confirmation) : suivi des mails
 
     def remember(self, messages: list[MailMessage]) -> None:
         with self._lock:
@@ -268,6 +269,8 @@ def mail_tools(box: MailBox) -> list[Tool]:
         subject = m.subject if normalize(m.subject).startswith("re ") else f"Re: {m.subject}"
         box.provider.send(m.sender, subject, _body(body), reply_to=m)
         log.info("Réponse envoyée au mail %s (confirmée)", m.id)
+        if box.on_replied is not None:
+            box.on_replied(m)  # suivi des mails : le dossier est réévalué
         return {"to": m.who, "subject": subject}
 
     def reply_question(p: dict) -> str:

@@ -200,7 +200,7 @@ def build_learning(cfg: Config, personality, stt=None):
     return learning
 
 
-def build_call_rules(cfg: Config, llm, presence, timers, mailbox):
+def build_call_rules(cfg: Config, llm, presence, timers, mailbox, mail_actions=None):
     """Règles d'appel ([call] activé) et leurs outils ; le gestionnaire d'appels est branché ensuite (connect)."""
     from jarvis.call.rule_parser import RuleParser
     from jarvis.call.rule_tools import call_rule_tools
@@ -208,7 +208,8 @@ def build_call_rules(cfg: Config, llm, presence, timers, mailbox):
     from jarvis.mail.models import thread_key
 
     rules = CallRules(Path(cfg.memory.path).parent / "call_rules.json", calls=None,
-                      presence=presence.engine if presence is not None else None, reminders=timers)
+                      presence=presence.engine if presence is not None else None, reminders=timers,
+                      mail_replied=mail_actions.is_replied if mail_actions is not None else None)
 
     def context() -> dict:
         """« Ce mail » : le dernier lu ou annoncé ; « ce rappel » : le dernier programmé (jamais deviné)."""
@@ -464,6 +465,37 @@ def build_mail_watcher(cfg: Config, mailbox, events: EventBus, notifications, pr
     watcher.start()
     log.info("Mails : annonce des nouveaux mails (%s) toutes les %g min", m.announce, m.watch_minutes)
     return watcher
+
+
+def build_mail_actions(cfg: Config, mailbox, watcher, llm, timers, notifications, presence=None):
+    """Suivi des mails qui attendent quelque chose de vous (analyse, échéances, rappels J-1 et H-1 h 30), branché
+    sur la surveillance des mails ; None sans surveillance."""
+    if watcher is None:
+        return None
+    from datetime import datetime
+
+    from jarvis.mail.actions import MailActions
+    from jarvis.mail.watch import in_quiet_hours
+    from jarvis.notifications import Notification
+
+    def notify(text: str) -> None:
+        """Dit tout de suite si vous êtes là et hors heures calmes ; sinon la liste « à traiter » le garde."""
+        house = presence.engine.snapshot()["house"] if presence is not None else "unknown"
+        if house != "empty" and not in_quiet_hours(datetime.now(), cfg.mail.quiet_start, cfg.mail.quiet_end):
+            notifications.notify(Notification("Échéance", text, "mail"))
+
+    actions = MailActions(Path(cfg.memory.path).parent / "mail_actions.json", mailbox, llm, timers, notify=notify)
+    watcher.on_new = actions.received
+    mailbox.on_replied = lambda message: actions.replied(thread_of(message))
+    actions.start()
+    log.info("Mails : suivi des actions et des échéances activé")
+    return actions
+
+
+def thread_of(message) -> str:
+    from jarvis.mail.models import thread_key
+
+    return thread_key(message)
 
 
 def build_presence_system(cfg: Config, events: EventBus, home=None):
@@ -821,17 +853,22 @@ def build_agent(
         extra += calendar_tools(calendar)
         build_event_announcer(cfg, calendar, notifications, presence, personality)
     mailbox = build_mail(cfg)
-    watcher = None
+    watcher = mail_actions = None
     if mailbox is not None:
         from jarvis.mail import mail_tools
 
         extra += mail_tools(mailbox)
         watcher = build_mail_watcher(cfg, mailbox, events, notifications, presence, personality)
+        mail_actions = build_mail_actions(cfg, mailbox, watcher, llm, timers, notifications, presence)
+        if mail_actions is not None:
+            from jarvis.mail.actions import mail_action_tools
+
+            extra += mail_action_tools(mail_actions)
     if cfg.tools.enabled:
         extra.append(build_network_tool(cfg, rooms))
     call_rules = None
     if cfg.call.enabled and cfg.tools.enabled:  # règles d'appel dites par l'utilisateur (le gestionnaire vient après)
-        call_rules, rule_tools = build_call_rules(cfg, llm, presence, timers, mailbox)
+        call_rules, rule_tools = build_call_rules(cfg, llm, presence, timers, mailbox, mail_actions)
         extra += rule_tools
     tools = build_tools(cfg, personality, events, timers, weather, devices,
                         light_tools_for(rooms, driver, cfg.lights.scenes, home), extra)

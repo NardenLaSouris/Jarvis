@@ -25,13 +25,14 @@ from pathlib import Path
 from typing import Callable
 
 from jarvis.events import Event, EventBus
-from jarvis.mail.models import MailError, MailMessage
+from jarvis.mail.models import MailError, MailMessage, thread_key
 from jarvis.mail.priority import IMPORTANT, NOISE
 from jarvis.persist import load_json_list
 
 log = logging.getLogger(__name__)
 
 MAIL_RECEIVED = "mail.received"
+MAIL_ARRIVED = "mail.arrived"  # tout nouveau mail hors bruit (fil, identifiant) : règles d'appel, suivi
 LEVELS = ("important", "personnel", "aucun")
 MAX_SEEN = 2000
 URL = re.compile(r"https?://\S+|www\.\S+", re.IGNORECASE)
@@ -79,6 +80,7 @@ class MailWatcher:
         self.pending: list[dict] = []        # retenus mais pas encore dits (absence, nuit) : pour le point du jour
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
+        self.on_new: Callable[[list[MailMessage]], None] | None = None  # suivi des actions (jarvis/mail/actions.py)
         if self._path.exists():
             self._seen = [str(x) for x in load_json_list(self._path, "mails déjà vus")][-MAX_SEEN:]
 
@@ -111,7 +113,19 @@ class MailWatcher:
                 return []
             self._seen = (self._seen + [m.id for m in fresh])[-MAX_SEEN:]
             self._save()
-            kept = [m for m in sorted(fresh, key=lambda m: int(m.id) if m.id.isdigit() else 0) if self.wanted(m)]
+            ordered = sorted(fresh, key=lambda m: int(m.id) if m.id.isdigit() else 0)
+            kept = [m for m in ordered if self.wanted(m)]
+            personal = [m for m in ordered if self.box.sorter.priority(m) != NOISE]
+        for m in personal:
+            if self._events is not None:
+                self._events.publish(Event(MAIL_ARRIVED, "mail", {
+                    "thread": thread_key(m), "message_id": str(m.headers.get("Message-ID") or m.id)[:200],
+                    "sender": spoken(m.who, 40), "important": self.box.sorter.priority(m) == IMPORTANT}))
+        if personal and self.on_new is not None:
+            try:
+                self.on_new(personal)
+            except Exception:  # noqa: BLE001 - le suivi ne bloque jamais l'annonce
+                log.exception("Mails : suivi des actions en erreur")
         for m in kept:
             if self._events is not None:
                 self._events.publish(Event(MAIL_RECEIVED, "mail", {

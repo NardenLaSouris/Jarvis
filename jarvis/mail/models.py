@@ -45,6 +45,7 @@ class MailMessage:
     unread: bool
     body: str = ""  # texte brut (donnée non fiable), tronqué
     flagged: bool = False
+    answered: bool = False  # indicateur IMAP \Answered (posé par votre messagerie quand vous répondez)
     attachments: tuple[Attachment, ...] = ()
     headers: dict = field(default_factory=dict)  # en-têtes utiles au tri (List-Unsubscribe, Precedence...)
     # Classement du serveur, s'il en donne un (Gmail) : « important », « promotions », « social »...

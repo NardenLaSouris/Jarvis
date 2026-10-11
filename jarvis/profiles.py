@@ -45,7 +45,8 @@ CATEGORIES = {
     # Boîte du propriétaire : ni un autre adulte, ni un enfant, ni un invité ne la lit ou n'écrit en son nom.
     "mail": ("check_mail", "list_mail", "search_mail", "read_mail", "summarize_mail", "mark_mail_read",
              "mark_all_mail_read",
-             "archive_mail", "delete_mail", "send_mail", "reply_mail"),
+             "archive_mail", "delete_mail", "send_mail", "reply_mail", "list_mail_actions", "mail_action_done",
+             "mail_action_waiting", "confirm_mail_deadline"),
 }
 POLICY = {
     OWNER: {"categories": set(CATEGORIES), "confirm": True},

@@ -100,7 +100,8 @@ def parse_message(message_id: str, raw: bytes, flags: str = "") -> MailMessage:
         to=tuple(a for _, a in getaddresses([str(v) for v in msg.get_all("To", [])]) if a)[:10],
         cc=tuple(a for _, a in getaddresses([str(v) for v in msg.get_all("Cc", [])]) if a)[:10],
         subject=" ".join(str(msg.get("Subject", "")).split())[:200], date=date,
-        unread="\\Seen" not in flags, flagged="\\Flagged" in flags, body=body.strip()[:MAX_BODY_CHARS],
+        unread="\\Seen" not in flags, flagged="\\Flagged" in flags, answered="\\Answered" in flags,
+        body=body.strip()[:MAX_BODY_CHARS],
         attachments=tuple(attachments[:20]),
         headers={h: str(msg[h])[:200] for h in KEPT_HEADERS if msg[h] is not None})
 
@@ -285,6 +286,37 @@ class ImapSmtpProvider:
             raise MailError(MAIL_NOT_FOUND, "Ce mail est introuvable (déplacé ou supprimé ?).")
         return found[0]
 
+    def replied(self, message: MailMessage) -> bool | None:
+        """Avez-vous répondu à ce mail ? Indicateur \\Answered, sinon une réponse (In-Reply-To) dans le dossier des
+        envoyés (attribut \\Sent), en lecture seule ; None si la boîte ne permet pas de le savoir."""
+        if message.answered:
+            return True
+        reference = str((message.headers or {}).get("Message-ID") or "").strip()
+        if not reference or not re.fullmatch(r"<[^<>\s\"]{3,200}>", reference):
+            return None
+        with self._lock:
+            try:
+                imap = self._session()
+            except MailError:
+                return None
+            try:
+                status, folders = imap.list()
+                sent = next((m.group(1) for line in (folders or []) if b"\\Sent" in line
+                             for m in [re.search(rb'"([^"]+)"\s*$', line)] if m), None)
+                if status != "OK" or sent is None:
+                    return None
+                # Nom IMAP tel quel (UTF-7 modifié, ASCII : « [Gmail]/Messages envoy&AOk-s »).
+                status, _ = imap.select(self._quoted(sent.decode("ascii", "replace")), readonly=True)
+                if status != "OK":
+                    return None
+                status, data = imap.uid("SEARCH", None, "HEADER", "In-Reply-To", f'"{reference}"')
+                return status == "OK" and bool((data[0] or b"").split())
+            except Exception:  # noqa: BLE001 - au pire, on ne sait pas : jamais une erreur pour l'utilisateur
+                log.warning("Mail : recherche d'une réponse impossible")
+                return None
+            finally:
+                self._close(imap)
+
     def _change(self, message_id: str, action) -> None:
         if not str(message_id).isdigit():
             raise MailError(MAIL_NOT_FOUND, "Ce mail est introuvable.")
@@ -403,6 +435,9 @@ class MemoryMailProvider:
     def delete(self, message_id: str) -> None:
         self.messages.remove(self.get(message_id))
         self.trashed.append(str(message_id))
+
+    def replied(self, message: MailMessage) -> bool | None:
+        return message.answered or any(s["reply_to"] == message.id for s in self.sent)
 
     def send(self, to: str, subject: str, body: str, reply_to: MailMessage | None = None) -> None:
         self.sent.append({"to": to, "subject": subject, "body": body, "reply_to": reply_to.id if reply_to else None})
