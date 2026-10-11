@@ -78,3 +78,36 @@ def test_encrypted_audio_flows_both_ways_and_reaches_the_core_at_16_khz(payload,
     finally:
         a.close()
         b.close()
+
+
+def test_orion_follows_the_phone_when_its_audio_address_changes():
+    """Le téléphone change de chemin en cours d'appel (relais, réseau) : ORION renvoie sa voix là d'où vient le son
+    authentifié, sinon le téléphone n'entend plus rien et raccroche au bout de 30 s (appel Flex du 12 octobre)."""
+    orion_sock, old_sock, new_sock = (open_media_socket("127.0.0.1") for _ in range(3))
+    orion_key, phone_key = new_key(), new_key()
+    offer = MediaOffer("127.0.0.1", old_sock.getsockname()[1], phone_key, {0: ("PCMU", 8000)})
+    orion = SipMedia(orion_sock, orion_key, offer, 0, "PCMU", 8000)
+    to_orion = MediaOffer("127.0.0.1", orion_sock.getsockname()[1], orion_key, {0: ("PCMU", 8000)})
+    old_sock.close()
+    phone = SipMedia(new_sock, phone_key, to_orion, 0, "PCMU", 8000)  # même téléphone, nouvelle adresse
+    try:
+        time.sleep(0.6)
+        assert orion.remote == ("127.0.0.1", new_sock.getsockname()[1])
+        before = phone.received
+        time.sleep(0.4)
+        assert phone.received > before + 10  # la voix d'ORION arrive à la nouvelle adresse
+    finally:
+        orion.close()
+        phone.close()
+
+
+def test_relaunch_with_a_new_offer_updates_the_address_and_key():
+    orion_sock, phone_sock = open_media_socket("127.0.0.1"), open_media_socket("127.0.0.1")
+    orion = SipMedia(orion_sock, new_key(), MediaOffer("127.0.0.1", 9, new_key(), {0: ("PCMU", 8000)}), 0, "PCMU", 8000)
+    try:
+        offer = MediaOffer("127.0.0.1", phone_sock.getsockname()[1], new_key(), {0: ("PCMU", 8000)})
+        assert orion.update_remote(offer) and orion.remote == ("127.0.0.1", phone_sock.getsockname()[1])
+        assert not orion.update_remote(offer)  # même offre : rien ne change
+    finally:
+        orion.close()
+        phone_sock.close()

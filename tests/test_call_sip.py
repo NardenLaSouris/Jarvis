@@ -268,3 +268,23 @@ def test_orion_reply_is_sent_with_authentication(setup):
     proxy.reply(second, 202, "Accepted")
     thread.join(5)
     assert result["ok"] is True
+
+
+@pytest.mark.parametrize("method", ["INVITE", "UPDATE"])
+def test_phone_relaunching_the_call_gets_our_audio_and_its_new_offer_is_applied(setup, method):
+    """Ré-INVITE ou UPDATE en plein appel (nouvelle adresse du son) : réponse 200 avec notre son, nouvelle offre
+    transmise (sinon le téléphone raccroche au bout de 32 s, délai d'une requête sans réponse)."""
+    proxy, account, events = setup
+    updates = []
+    account.on_update = lambda dialog: updates.append(dialog.remote_sdp)
+    incoming(proxy)
+    proxy.next()
+    dialog = events["incoming"].get(timeout=5)
+    account.answer(dialog, "v=0\r\nm=audio 6000 RTP/SAVP 96\r\n")
+    proxy.next()
+    proxy.send(f"{method} sip:orion@127.0.0.1 SIP/2.0\nVia: SIP/2.0/TCP proxy.test;branch=z9hG4bKr\n"
+               f"From: <{PEER}>;tag=a1\nTo: <sip:orion@{REALM}>;tag={dialog.local_tag}\nCall-ID: in-1\n"
+               f"CSeq: 3 {method}\nContent-Type: application/sdp\n", "v=0\r\nm=audio 7000 RTP/SAVP 96\r\n")
+    ok = proxy.next()
+    assert ok.status == 200 and "m=audio 6000" in ok.body and ok.header("to").count("tag=") == 1
+    assert updates == ["v=0\r\nm=audio 7000 RTP/SAVP 96\r\n"]

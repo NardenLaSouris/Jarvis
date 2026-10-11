@@ -29,6 +29,7 @@ class LinphoneChannel:
         account.on_incoming = self._incoming
         account.on_ended = self._remote_ended
         account.on_message = self._message
+        account.on_update = self._updated
 
     # --- Le Core appelle votre adresse ------------------------------------------------------------------
 
@@ -109,6 +110,14 @@ class LinphoneChannel:
         media = getattr(call, "media", None)
         if media is not None:
             media.close()
+
+    def _updated(self, dialog: Dialog) -> None:
+        """Votre téléphone relance l'appel (nouvelle adresse ou clé du son) : la voix d'ORION suit."""
+        call = self.gateway.call
+        media = getattr(call, "media", None) if call is not None and getattr(call, "sip", None) is dialog else None
+        offer = parse_sdp(dialog.remote_sdp)
+        if media is not None and offer is not None:
+            media.update_remote(offer)
 
     def _remote_ended(self, dialog: Dialog, why: str) -> None:
         self.gateway.sip_ended(dialog, why)

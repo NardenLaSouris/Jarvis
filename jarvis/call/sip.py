@@ -141,6 +141,7 @@ class SipAccount:
         self.aor = f"sip:{user}@{domain}"
         self._connect, self._transport = connect, transport
         self.on_incoming, self.on_ended, self.on_message = on_incoming, on_ended, on_message
+        self.on_update: Callable | None = None  # relance de l'appel par l'autre côté (nouvelle offre de son)
         self._sock: socket.socket | None = None
         self._send_lock = threading.Lock()
         # « branche méthode » -> réponses de la transaction. La méthode compte : une annulation (CANCEL) reprend la
@@ -499,7 +500,11 @@ class SipAccount:
                     self.on_ended(dialog, "annulé")
         elif method == "MESSAGE":
             self._incoming_message(message)
+        elif method == "UPDATE" and call_id in self._dialogs:
+            self._relaunched(self._dialogs[call_id], message)
         elif method in ("OPTIONS", "UPDATE", "INFO", "NOTIFY"):
+            if call_id in self._dialogs:
+                log.info("Compte SIP : %s reçu pendant l'appel", method)
             self._respond(message, 200, "OK")
         else:
             self._respond(message, 405, "Method Not Allowed")
@@ -528,11 +533,24 @@ class SipAccount:
         if self.on_message is not None and text.strip():
             self.on_message(text.strip())
 
+    def _relaunched(self, dialog: "Dialog", request: Message) -> None:
+        """Ré-INVITE ou UPDATE de l'autre côté pendant l'appel : réponse avec notre son (inchangé) ; sa nouvelle
+        offre (adresse, clé) est transmise au son de l'appel (``on_update``)."""
+        log.info("Compte SIP : %s reçu pendant l'appel (%s)", request.method,
+                 "nouvelle offre de son" if request.body.strip() else "sans offre")
+        self._respond(request, 200, "OK", to_tag=dialog.local_tag, body=dialog.local_sdp, contact=True)
+        if request.body.strip():
+            dialog.remote_sdp = request.body
+            if self.on_update is not None:
+                try:
+                    self.on_update(dialog)
+                except Exception:  # noqa: BLE001 - le son garde son ancienne adresse, l'appel continue
+                    log.exception("Compte SIP : relance de l'appel non appliquée au son")
+
     def _incoming(self, invite: Message) -> None:
         call_id = invite.header("call-id")
         if call_id in self._dialogs:  # nouvel INVITE dans un appel en cours (relance, maintien) : même son
-            self._respond(invite, 200, "OK", to_tag=self._dialogs[call_id].local_tag,
-                          body=self._dialogs[call_id].local_sdp, contact=True)
+            self._relaunched(self._dialogs[call_id], invite)
             return
         caller = uri_of(invite.header("from"))
         if caller != self.peer:

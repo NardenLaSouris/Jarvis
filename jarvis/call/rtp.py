@@ -192,6 +192,7 @@ class SipMedia:
         self.payload = payload
         self.codec = Codec(codec, rate)
         self._tx, self._rx = srtp(local_key, True), srtp(remote.key, False)
+        self._remote_key = remote.key
         self._to_codec_rate: Resampler | None = None
         self._from_codec = Resampler(rate if codec == PCMU else 48000, MIC_RATE)
         self.mic = ByteStream()
@@ -236,6 +237,18 @@ class SipMedia:
         with self._lock:
             self._out = np.zeros(0, np.int16)
 
+    def update_remote(self, offer: "MediaOffer") -> bool:
+        """L'autre côté relance l'appel (nouvelle adresse ou nouvelle clé du son) : on le suit. True si changé."""
+        changed = False
+        with self._lock:
+            if (offer.address, offer.port) != self.remote:
+                self.remote, changed = (offer.address, offer.port), True
+            if offer.key != self._remote_key:
+                self._rx, self._remote_key, changed = srtp(offer.key, False), offer.key, True
+        if changed:
+            log.info("Son de l'appel : adresse ou clé de l'autre côté mise à jour (relance de l'appel)")
+        return changed
+
     def close(self) -> None:
         self._stop.set()
         self.mic.close()
@@ -273,7 +286,7 @@ class SipMedia:
         self.sock.settimeout(0.5)
         while not self._stop.is_set():
             try:
-                data, _ = self.sock.recvfrom(4096)
+                data, source = self.sock.recvfrom(4096)
             except (socket.timeout, TimeoutError):
                 continue
             except OSError:
@@ -285,6 +298,13 @@ class SipMedia:
             except Exception:  # noqa: BLE001 - paquet non authentifié : ignoré
                 self.rejected += 1
                 continue
+            if source != self.remote:
+                # Son symétrique : un paquet authentifié (notre clé SRTP) vient d'une autre adresse (relais ou
+                # chemin réseau changé) : c'est là qu'on renvoie la voix d'ORION, sinon le téléphone n'entend plus
+                # rien et raccroche au bout de 30 s.
+                with self._lock:
+                    self.remote = source
+                log.info("Son de l'appel : l'autre côté a changé d'adresse, la voix d'ORION suit")
             if packet[1] & 0x7F != self.payload:
                 continue  # touches, bruit de confort…
             if self.first_received is None:
