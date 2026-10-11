@@ -184,8 +184,8 @@ def health_checks(cfg) -> list[tuple[str, bool, Callable[[], tuple[str, str]]]]:
     return checks
 
 
-def run_health(cfg) -> list[Check]:
-    checks = health_checks(cfg)
+def run_health(cfg, skip: tuple[str, ...] = ()) -> list[Check]:
+    checks = [c for c in health_checks(cfg) if c[0] not in skip]
     with ThreadPoolExecutor(max_workers=max(1, len(checks))) as pool:
         return list(pool.map(lambda c: _timed(*c), checks))
 
@@ -342,28 +342,97 @@ SPOKEN_NAMES = {"LLM principal (worker)": "le module de réflexion du Katana", "
                 "Agent pc": "l'agent de votre PC", "Agent portable": "l'agent de votre PC portable"}
 
 
-def diagnostic_tool(cfg):
-    """Outil en lecture seule : les mêmes contrôles que ``python -m jarvis --health``, résumés à voix haute."""
+def diagnostic_tool(cfg, devices=None, client=None, presence=None, rooms=None, driver=None):
+    """Outil en lecture seule : appareils en ligne ou non (PC, PC portable, mini-PC, iPhone sur le Wi-Fi, lumières),
+    applications connues ouvertes sur les PC allumés, puis les contrôles de ``python -m jarvis --health``."""
     from jarvis.tools.base import Risk, Tool
 
+    def apps_on(device) -> list[str]:
+        """Applications du catalogue d'ORION ouvertes sur ce PC (jamais les titres des fenêtres)."""
+        if client is None:
+            return []
+        try:
+            result = client.call(device, "list_running_applications", {})
+        except Exception:  # noqa: BLE001 - PC qui vient de s'éteindre : rien à dire de plus
+            return []
+        return [str(a.get("label") or a.get("application"))[:30] for a in result.get("applications", [])
+                if isinstance(a, dict) and a.get("running")][:8]
+
     def run() -> dict:
-        checks = run_health(cfg)
+        checks = run_health(cfg, skip=("Lumières Tuya (lecture)",) if driver is not None else ())
+        by_name = {c.name: c for c in checks}
+        online, offline = [], []
+        for key in (devices.keys() if devices is not None else ()):
+            device = devices[key]
+            if not device.url:  # le mini-PC du Core : c'est ORION elle-même, nommé en premier
+                online.insert(0, {"name": device.name, "apps": []})
+                continue
+            check = by_name.get(f"Agent {key}")
+            if check is not None and check.status == OK:
+                online.append({"name": device.name, "apps": apps_on(device)})
+            else:
+                offline.append(device.name)
+        phone = None
+        if presence is not None:
+            users = presence.engine.snapshot()["users"]
+            phone = next((u.get("phone") for u in users.values() if u.get("phone")), None)
+        lights_on, lights_off, lights_down = [], [], []
+        for room in (rooms.rooms() if rooms is not None and driver is not None else ()):
+            try:
+                (lights_on if driver.state(room)["on"] else lights_off).append(room.name)
+            except Exception:  # noqa: BLE001 - ampoule hors tension ou hors réseau
+                lights_down.append(room.name)
         return {"total": len(checks), "ok": sum(c.status in (OK, OFF) for c in checks),
                 "warnings": [(c.name, c.detail[:80]) for c in checks if c.status == WARN],
-                "failures": [(c.name, c.detail[:80], c.critical) for c in checks if c.status == FAIL]}
+                "failures": [(c.name, c.detail[:80], c.critical) for c in checks
+                             if c.status == FAIL and not c.name.startswith("Agent ")],
+                "online": online, "offline": offline, "phone": phone,
+                "lights": {"on": lights_on, "off": lights_off, "down": lights_down}}
 
     def said(r: dict) -> str:
         name = lambda n: SPOKEN_NAMES.get(n, n.lower())  # noqa: E731
+        parts = ["Diagnostic terminé, monsieur."]
+        if r["online"]:
+            described = []
+            for d in r["online"]:
+                apps = d["apps"]
+                described.append(d["name"] + (f", où sont ouverts {_join(apps)}" if len(apps) > 1 else
+                                              f", où {apps[0]} est ouvert" if apps else ""))
+            with_apps = any(d["apps"] for d in r["online"])
+            parts.append("En ligne : " + (" ; ".join(described) if with_apps else _join(described)) + ".")
+        if r["offline"]:
+            parts.append("Hors ligne : " + _join(r["offline"]) + ".")
+        if r["phone"] == "home":
+            parts.append("Votre iPhone est connecté au Wi-Fi de la maison.")
+        elif r["phone"] == "away":
+            parts.append("Votre iPhone n'est pas sur le Wi-Fi de la maison.")
+        lights = r["lights"]
+        if lights["on"] or lights["off"]:
+            said_lights = [f"{_of(n)} allumée" for n in lights["on"]] + [f"{_of(n)} éteinte" for n in lights["off"]]
+            parts.append("Lumières : " + _join(said_lights) + ".")
+        if lights["down"]:
+            parts.append("Lumières sans réponse : " + _join([_of(n) for n in lights["down"]]) + ".")
         if not r["warnings"] and not r["failures"]:
-            return f"Diagnostic terminé, monsieur : les {r['total']} contrôles sont bons. Tout fonctionne."
-        text = f"Diagnostic terminé : {r['ok']} contrôles sur {r['total']} sont bons."
-        if r["failures"]:
-            text += " En panne : " + ", ".join(name(n) for n, _, _ in r["failures"][:4]) + "."
-        if r["warnings"]:
-            text += " À surveiller : " + ", ".join(f"{name(n)} ({d})" for n, d in r["warnings"][:3]) + "."
-        return text
+            parts.append(f"Côté système, les {r['total']} contrôles sont bons.")
+        else:
+            parts.append(f"Côté système, {r['ok']} contrôles sur {r['total']} sont bons.")
+            if r["failures"]:
+                parts.append("En panne : " + _join([name(n) for n, _, _ in r["failures"][:4]]) + ".")
+            if r["warnings"]:
+                parts.append("À surveiller : " + _join([f"{name(n)} ({d})" for n, d in r["warnings"][:3]]) + ".")
+        return " ".join(parts)
 
-    return Tool("run_diagnostic", "Diagnostic de l'environnement d'ORION (modules, agents, lumières, passerelle, "
-                "disque, mémoire) : lecture seule, rien n'est modifié.", {},
-                {"ok": "contrôles bons", "failures": "en panne", "warnings": "à surveiller"}, Risk.SAFE, run,
+    return Tool("run_diagnostic", "Diagnostic de l'environnement d'ORION : appareils en ligne ou non, applications "
+                "ouvertes sur les PC allumés, lumières, iPhone, modules et ressources ; lecture seule.", {},
+                {"online": "appareils en ligne", "offline": "hors ligne", "failures": "en panne"}, Risk.SAFE, run,
                 say=said)
+
+
+def _join(items: list[str]) -> str:
+    items = [i for i in items if i]
+    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " et " + items[-1] if items else ""
+
+
+def _of(room: str) -> str:
+    """« l'entrée », « la chambre » : déjà avec leur article dans la configuration ; sinon tel quel."""
+    return room

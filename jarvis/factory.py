@@ -927,7 +927,13 @@ def build_agent(
         extra.append(build_network_tool(cfg, rooms))
         from jarvis.diagnostics import diagnostic_tool
 
-        extra.append(diagnostic_tool(cfg))  # « lance un diagnostic » : lecture seule
+        agents = None
+        if devices is not None and secret("JARVIS_AGENT_TOKEN", ENV_FILE):
+            from jarvis.tools.devices import AgentClient
+
+            agents = AgentClient(secret("JARVIS_AGENT_TOKEN", ENV_FILE), timeout=5.0)
+        # « Lance un diagnostic » : appareils en ligne, applications ouvertes, lumières, iPhone ; lecture seule.
+        extra.append(diagnostic_tool(cfg, devices, agents, presence, rooms, driver))
     call_rules = None
     if cfg.call.enabled and cfg.tools.enabled:  # règles d'appel dites par l'utilisateur (le gestionnaire vient après)
         call_rules, rule_tools = build_call_rules(cfg, llm, presence, timers, mailbox, mail_actions)
