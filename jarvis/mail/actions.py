@@ -30,7 +30,7 @@ from pathlib import Path
 from typing import Callable
 
 from jarvis.interfaces import Message
-from jarvis.mail.deadlines import Deadline, deadline, vague
+from jarvis.mail.deadlines import deadline, scan, vague
 from jarvis.mail.models import MailError, MailMessage, thread_key
 from jarvis.mail.watch import spoken
 from jarvis.persist import load_json_list
@@ -199,6 +199,8 @@ class MailActions:
             self._history(item, "nouveau message : action de nouveau attendue")
         found = deadline(data.get("deadline_quote", ""), text, received,
                          explicit=data.get("deadline_kind") == "explicite")
+        if found is None:  # citation du LLM absente ou inexacte : le Core cherche lui-même un délai écrit
+            found = scan(text, received)
         previous = item.get("deadline")
         if found is not None:
             item["deadline"] = {"at": found.at.isoformat(), "quote": _clean(found.quote, 200),

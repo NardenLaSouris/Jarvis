@@ -56,6 +56,20 @@ def deadline(quote: str, message_text: str, received: datetime, explicit: bool =
     return Deadline(at, quote, explicit, when.precise)
 
 
+SENTENCES = re.compile(r"(?<=[.!?;\n])\s+")
+
+
+def scan(message_text: str, received: datetime) -> Deadline | None:
+    """Sans citation exploitable du LLM : la première phrase du mail qui dit un délai lisible (déterministe)."""
+    for sentence in SENTENCES.split(message_text):
+        sentence = " ".join(sentence.split())[:300]
+        if MARKERS.search(f" {normalize(sentence)} "):
+            found = deadline(sentence, message_text, received)
+            if found is not None:
+                return found
+    return None
+
+
 def vague(text: str) -> bool:
     """« Au plus vite » et consorts : urgent, sans date."""
     return bool(VAGUE.search(f" {normalize(text)} "))

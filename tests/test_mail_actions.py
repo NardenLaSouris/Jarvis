@@ -218,3 +218,12 @@ def test_watcher_publishes_arrivals_and_feeds_the_tracker(tmp_path):
     watcher.check()
     arrived = [e for e in seen if e.type == "mail.arrived"]
     assert arrived and arrived[0].payload["thread"] == "<m1@agence.fr>" and fed and fed[0].id == "9"
+
+
+def test_core_finds_a_written_deadline_when_the_llm_quote_is_missing_or_inexact(tmp_path):
+    w = World(tmp_path, analysis(""), analysis("répondre rapidement svp"))
+    item = w.receive(mail(1, "Bonjour, merci de nous répondre avant le 20 octobre concernant votre dossier."))
+    assert item["deadline"]["at"] == "2026-10-20T18:00:00" and item["state"] == SCHEDULED
+    other = w.receive(mail(2, "Pour information, l'agence sera fermée le 1er novembre.", subject="Fermeture",
+                           message_id="<f2@agence.fr>"))
+    assert "deadline" not in other  # date seulement mentionnée : jamais une échéance
