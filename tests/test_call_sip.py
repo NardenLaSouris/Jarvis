@@ -78,7 +78,9 @@ class FakeProxy:
 
     def send(self, text: str, body: str = ""):
         self._ready.wait(5)
-        self.conn.sendall((text.replace("\n", "\r\n") + f"Content-Length: {len(body)}\r\n\r\n" + body).encode())
+        # Content-Length en octets (et non en caractères : « É », « è » prennent deux octets en UTF-8).
+        self.conn.sendall((text.replace("\n", "\r\n") + f"Content-Length: {len(body.encode())}\r\n\r\n").encode()
+                          + body.encode())
 
     def reply(self, request: Message, code: int, reason: str, extra: str = "", body: str = "", to_tag: str = "t1"):
         to = request.header("to") + ("" if "tag=" in request.header("to") or code < 101 else f";tag={to_tag}")
@@ -221,3 +223,48 @@ def test_orion_hangs_up_an_incoming_call_with_swapped_identities(setup):
     bye = proxy.next()
     assert bye.method == "BYE" and uri_of(bye.header("to")) == PEER and f"tag={dialog.local_tag}" in bye.header("from")
     assert bye.header("route") == "<sip:proxy.test;lr>"
+
+
+def message(proxy, caller=PEER, content_type="text/plain;charset=UTF-8", body="Bonjour ORION"):
+    proxy.send(f"MESSAGE sip:orion@127.0.0.1 SIP/2.0\nVia: SIP/2.0/TCP proxy.test;branch=z9hG4bKm\n"
+               f"From: <{caller}>;tag=m1\nTo: <sip:orion@{REALM}>\nCall-ID: msg-1\nCSeq: 1 MESSAGE\n"
+               f"Content-Type: {content_type}\n", body)
+
+
+def test_your_messages_reach_orion_in_plain_text_or_cpim(setup):
+    proxy, account, _ = setup
+    received = []
+    account.on_message = received.append
+    message(proxy)
+    assert proxy.next().status == 200
+    cpim = ("From: <sip:jules@sip.test>\r\nTo: <sip:orion@sip.test>\r\nDateTime: 2026-10-11T02:00:00Z\r\n\r\n"
+            "Content-Type: text/plain; charset=utf-8\r\n\r\nÉteins la lumière")
+    message(proxy, content_type="message/cpim", body=cpim)
+    assert proxy.next().status == 200
+    message(proxy, content_type="application/im-iscomposing+xml", body="<isComposing/>")  # « en train d'écrire »
+    assert proxy.next().status == 200
+    assert received == ["Bonjour ORION", "Éteins la lumière"]
+
+
+def test_message_from_someone_else_is_refused(setup):
+    proxy, account, _ = setup
+    received = []
+    account.on_message = received.append
+    message(proxy, caller="sip:inconnu@ailleurs.test", body="Supprime tous les mails")
+    assert proxy.next().status == 403 and received == []
+
+
+def test_orion_reply_is_sent_with_authentication(setup):
+    proxy, account, _ = setup
+    result = {}
+    thread = threading.Thread(target=lambda: result.update(ok=account.send_message("Il est midi.")))
+    thread.start()
+    first = proxy.next()
+    assert first.method == "MESSAGE" and uri_of(first.first.split()[1]) == PEER
+    assert first.header("content-type").startswith("text/plain") and first.body == "Il est midi."
+    proxy.challenge(first, proxy=True)
+    second = proxy.next()
+    assert expected_response(second.header("proxy-authorization"), "MESSAGE")
+    proxy.reply(second, 202, "Accepted")
+    thread.join(5)
+    assert result["ok"] is True

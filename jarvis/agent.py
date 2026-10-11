@@ -26,7 +26,7 @@ from jarvis.interfaces import (
 )
 from jarvis.router import IntentRouter, Route
 from jarvis.scheduling.actions import split_schedule
-from jarvis.streaming import SpeechPipeline, sentences_from_llm
+from jarvis.streaming import SpeechPipeline, TextPipeline, sentences_from_llm
 from jarvis.personality import normalize
 from jarvis.tools.base import Risk
 from jarvis.tools.core import CANCELLED, CONFIRM, DONE
@@ -61,6 +61,7 @@ class AgentSettings:
 
 
 REPEAT_WINDOW = 120.0  # secondes : au-delà, redemander la même information est normal
+MESSAGE_THREAD = 900.0  # secondes : fil des messages Linphone (contexte, confirmation « oui » d'une action)
 WAKE_WINDOW = 2.0  # secondes d'audio gardées avant la détection (vérification, captures)
 # Audio écouté après le déclenchement avant la vérification : le détecteur réagit pendant le mot (« Ori... »), Whisper
 # doit entendre « Orion » en entier. Ces blocs sont ensuite rendus à l'enregistrement de la demande.
@@ -300,6 +301,10 @@ class Agent:
         self._follow_up: dict | None = None  # suite proposée par une annonce (écoute sans mot de réveil)
         self._calls = calls  # appels vers le téléphone jumelé (jarvis/call) ; None : désactivés
         self._in_call = None  # appel décroché, pris par la prochaine conversation
+        # Messages Linphone : réponse écrite (rien n'est prononcé), fil gardé MESSAGE_THREAD secondes.
+        self._texting = False
+        self._message_history: list[Message] = []
+        self._message_at = 0.0
         self._services = services
         self.last_sources: list[dict] = []
         self._pipeline = SpeechPipeline(tts, sink, stream_audio, merge_under)
@@ -394,6 +399,13 @@ class Agent:
                 self._wake_capture = None
                 self._event("wake", "Appel décroché")
                 return True
+            take_message = getattr(self._calls, "take_message", None)  # gestionnaire sans messages : aucun
+            message = take_message() if take_message is not None else None
+            if message is not None:  # votre message Linphone : réponse écrite, puis retour à la veille
+                self._handle_message(message)
+                self._wake_word.reset()
+                trigger.reset()
+                continue
             score = self._wake_word.process(frame)
             sure_run = self._sure_run(sure_run, score)
             if trigger.update(score):
@@ -494,6 +506,31 @@ class Agent:
             if call is not None:
                 self._calls.finish()  # ORION raccroche s'il est encore en ligne ; retour au terminal de la maison
 
+    def _handle_message(self, text: str) -> None:
+        """Votre message Linphone : traité comme une demande dite à ORION (mêmes outils, permissions, confirmations
+        et garde-fous, vous comme propriétaire), dans le fil des messages des MESSAGE_THREAD dernières secondes ; la
+        réponse repart par message, rien n'est prononcé ni écouté à la maison."""
+        now = time.monotonic()
+        if now - self._message_at > MESSAGE_THREAD:  # nouveau fil : rien de l'ancien (« oui » ne confirme rien)
+            self._message_history = []
+            self._router.start_conversation()
+        self._message_at = now
+        if self.request_context is not None and self._tools is not None and hasattr(self._tools, "set_user"):
+            self._tools.set_user(self.request_context.user_id)
+        self._event("message", text)
+        saved, pipeline = self._pipeline, TextPipeline()
+        self._pipeline, self._texting = pipeline, True
+        try:
+            reply, _ = self._reply_to(self._message_history, text, None, {})
+        except Exception:  # noqa: BLE001 - un message mal traité ne fait pas tomber ORION
+            log.exception("Message non traité")
+            reply = self._router.phrase("not_understood")
+        finally:
+            self._pipeline, self._texting = saved, False
+        answer = " ".join(pipeline.spoken).strip() or (reply or "").strip() or self._router.phrase("not_understood")
+        self._event("message_reply", answer)
+        self._calls.reply(answer)
+
     def _greet_call(self, call) -> None:
         if call.origin == "user":  # vous appelez ORION : il répond comme à son nom (« Oui, monsieur ? »)
             greeting = self._router.phrase("wake")
@@ -536,55 +573,10 @@ class Agent:
             self._event("timing", f"STT {latency['stt']:.1f} s" + (f" (confiance {confidence:.2f})" if confidence is not None else ""))
             self._place = mentioned_city(text) or self._place
 
-            outcome = self._tools.answer(text) if self._tools is not None else None
-            rest, self._after_confirmation = self._after_confirmation, None
             accepted_offer, offer = offer, None  # l'offre ne vaut que pour la première phrase
-            accepted = accepted_offer is not None and agrees(text)
-            if accepted and outcome is None:
-                latency["route"] = "tool:annonce"
-                self._event("routing", latency["route"])
-                data = {"type": "tool_call", "tool": accepted_offer["tool"],
-                        "parameters": dict(accepted_offer.get("parameters") or {})}
-                reply, end = self._run_call(history, text, data, latency), False
-            elif outcome is not None:
-                latency["route"] = "tool:confirmation"
-                self._event("routing", latency["route"])
-                reply, end = self._after_tool(history, text, outcome, latency), False
-                if rest is not None and outcome.status == DONE and outcome.result.success:
-                    # Confirmation acceptée : la suite de la demande enchaînée n'est plus perdue.
-                    reply = f"{reply} {self._use_tools(history, rest[0], rest[1], latency, rest[2])}"
-            elif self.last_sources and SOURCES.search(normalize(text)):
-                latency["route"] = "web:sources"
-                self._event("routing", latency["route"])
-                reply, end = self._say_sources(history, text, latency), False
-            elif (contextual := self._context.resolve(text) if self._context is not None else None) is not None:
-                latency["route"] = "tool:context"
-                self._event("routing", latency["route"])
-                if contextual.get("type") == "tool_calls":
-                    reply, end = self._use_tools(history, text, contextual["calls"], latency), False
-                else:
-                    reply, end = self._run_call(history, text, contextual, latency), False
-            else:
-                follow_up = self._tool_follow_up(text)
-                self._previous_request, self._last_tool_request = self._last_tool_request, ""
-                route = Route("tool", "tool.follow_up") if follow_up else self._router.route(text)
-                if route.source == "unavailable" and self._tools is not None and any(
-                        self._tools.registry.exists(t) for t in STALE_UNAVAILABLE.get(route.name, ())):
-                    route = Route("tool", "tool.action")  # « pas encore disponible » alors que l'outil existe
-                promoted = self._promote(text, route)
-                if promoted is not None:
-                    reply = self._try_promoted(history, text, promoted, latency)
-                    if reply is not None:
-                        self._event("assistant", reply)
-                        self._event("latency", format_latency(latency, speech_ended_at))
-                        continue
-                if route.name == "stop":
-                    self._stop_alarm()
-                if route.source == "llm" and self._unsure():
-                    route = Route("unsure", reply=self._router.phrase("not_understood"))
-                latency["route"] = route.label
-                self._event("routing", route.label)
-                reply, end = self._answer(history, follow_up or text, route, latency), route.end_conversation
+            reply, end = self._reply_to(history, text, accepted_offer, latency, speech_ended_at)
+            if reply is None:  # commande promue : déjà dite
+                continue
             self._event("assistant", reply)
             self._event("latency", format_latency(latency, speech_ended_at))
             if self._interrupted:
@@ -597,6 +589,57 @@ class Agent:
             self._tools.cancel_pending()
         self._event("sleep", "Retour en veille")
         return understood
+
+    def _reply_to(self, history: list[Message], text: str, offer, latency: dict, speech_ended_at=None):
+        """Une demande comprise, dite ou écrite (message Linphone) -> (réponse, fin de conversation) : confirmation
+        en attente, annonce acceptée, sources, contexte, outils ou conversation. Réponse None : déjà dite (commande
+        promue). Mêmes permissions, confirmations et garde-fous dans les deux cas."""
+        outcome = self._tools.answer(text) if self._tools is not None else None
+        rest, self._after_confirmation = self._after_confirmation, None
+        accepted = offer is not None and agrees(text)
+        if accepted and outcome is None:
+            latency["route"] = "tool:annonce"
+            self._event("routing", latency["route"])
+            data = {"type": "tool_call", "tool": offer["tool"], "parameters": dict(offer.get("parameters") or {})}
+            return self._run_call(history, text, data, latency), False
+        if outcome is not None:
+            latency["route"] = "tool:confirmation"
+            self._event("routing", latency["route"])
+            reply = self._after_tool(history, text, outcome, latency)
+            if rest is not None and outcome.status == DONE and outcome.result.success:
+                # Confirmation acceptée : la suite de la demande enchaînée n'est plus perdue.
+                reply = f"{reply} {self._use_tools(history, rest[0], rest[1], latency, rest[2])}"
+            return reply, False
+        if self.last_sources and SOURCES.search(normalize(text)):
+            latency["route"] = "web:sources"
+            self._event("routing", latency["route"])
+            return self._say_sources(history, text, latency), False
+        if (contextual := self._context.resolve(text) if self._context is not None else None) is not None:
+            latency["route"] = "tool:context"
+            self._event("routing", latency["route"])
+            if contextual.get("type") == "tool_calls":
+                return self._use_tools(history, text, contextual["calls"], latency), False
+            return self._run_call(history, text, contextual, latency), False
+        follow_up = self._tool_follow_up(text)
+        self._previous_request, self._last_tool_request = self._last_tool_request, ""
+        route = Route("tool", "tool.follow_up") if follow_up else self._router.route(text)
+        if route.source == "unavailable" and self._tools is not None and any(
+                self._tools.registry.exists(t) for t in STALE_UNAVAILABLE.get(route.name, ())):
+            route = Route("tool", "tool.action")  # « pas encore disponible » alors que l'outil existe
+        promoted = self._promote(text, route)
+        if promoted is not None:
+            reply = self._try_promoted(history, text, promoted, latency)
+            if reply is not None:
+                self._event("assistant", reply)
+                self._event("latency", format_latency(latency, speech_ended_at))
+                return None, False
+        if route.name == "stop":
+            self._stop_alarm()
+        if route.source == "llm" and self._unsure():
+            route = Route("unsure", reply=self._router.phrase("not_understood"))
+        latency["route"] = route.label
+        self._event("routing", route.label)
+        return self._answer(history, follow_up or text, route, latency), route.end_conversation
 
     def _answer(self, history: list[Message], text: str, route, latency: dict) -> str:
         if route.source == "tool" and self._tools is not None:
@@ -989,13 +1032,15 @@ class Agent:
 
     def _speak(self, sentences, latency: dict, marks: dict | None = None) -> str:
         watcher = (WakeWatcher(self._source, self._wake_word, self.settings.wake_threshold, self._interrupt,
-                               self.settings.wake_patience).start() if self.settings.barge_in else None)
+                               self.settings.wake_patience).start()
+                   if self.settings.barge_in and not self._texting else None)
         try:
             stats = self._pipeline.speak(sentences)
         finally:
             if watcher is not None:
                 watcher.stop()
-        self._source.flush()
+        if not self._texting:  # message écrit : le micro de la maison n'est pas touché
+            self._source.flush()
         latency.update(marks or {})
         latency["tts_first"] = stats.tts_first or 0.0
         latency["tts_total"] = stats.tts_total
@@ -1032,6 +1077,8 @@ class Agent:
         return json.dumps(data.get("parameters") or {}, ensure_ascii=False, sort_keys=True, default=str)
 
     def _unsure_repeat(self, data: dict) -> bool:
+        if self._texting:  # message écrit : aucune transcription douteuse
+            return False
         threshold, confidence = self.settings.repeat_confidence, getattr(self._stt, "last_confidence", None)
         if threshold is None or confidence is None or confidence >= threshold or self._last_done is None:
             return False
@@ -1041,7 +1088,10 @@ class Agent:
                 and registry.exists(tool) and registry.get(tool).risk is Risk.SAFE)
 
     def _unsure(self) -> bool:
-        """Transcription trop peu sûre pour être confiée au LLM (« ta gueule » entendu « regarde-moi le gul »)."""
+        """Transcription trop peu sûre pour être confiée au LLM (« ta gueule » entendu « regarde-moi le gul »).
+        Jamais pour un message écrit (rien n'a été transcrit)."""
+        if self._texting:
+            return False
         confidence = getattr(self._stt, "last_confidence", None)
         return self.settings.min_confidence is not None and confidence is not None \
             and confidence < self.settings.min_confidence

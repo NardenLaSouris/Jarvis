@@ -27,6 +27,7 @@ log = logging.getLogger(__name__)
 
 CORE_ORIGINS = ("user", "routine", "admin")
 MAX_DIALS_PER_HOUR = 30  # appels du téléphone vers ORION : seulement contre une boucle (application qui s'emballe)
+MAX_PENDING_MESSAGES = 10  # messages en attente pendant une conversation ou un appel
 END_EVENTS = {ENDED: "call.ended", REFUSED: "call.refused", EXPIRED: "call.expired", FAILED: "call.failed"}
 
 
@@ -52,6 +53,8 @@ class CallNotifier(Protocol):
 
     def answer(self, call: CallSession) -> None: ...
 
+    def send_message(self, text: str) -> None: ...
+
 
 class LogNotifier:
     """Sans passerelle : rien ne sonne ; l'appel expirera (utile pour tester le Core seul)."""
@@ -64,6 +67,9 @@ class LogNotifier:
 
     def hang_up(self, call: CallSession) -> None:
         pass
+
+    def send_message(self, text: str) -> None:
+        log.info("Message : aucune passerelle d'appel, réponse non envoyée")
 
     def answer(self, call: CallSession) -> None:
         pass
@@ -81,6 +87,7 @@ class CallManager:
         self._on_event = on_event or (lambda kind, data: None)
         self._limits = CallLimits(settings.limits)
         self._dials: deque[float] = deque()  # appels composés par le téléphone (limite anti-boucle à part)
+        self._inbox: deque[str] = deque(maxlen=MAX_PENDING_MESSAGES)  # vos messages pas encore traités
         self._lock = threading.RLock()
         self.current: CallSession | None = None
         self._handed_over = False  # appel connecté déjà pris par la conversation
@@ -184,6 +191,28 @@ class CallManager:
     def failed(self, call_id: str, why: str = "réseau") -> None:
         with self._lock:
             self._end(self._call(call_id), FAILED, why, self._clock(), notify=False)
+
+    # --- Messages (Linphone) -----------------------------------------------------------------------------
+
+    def message_received(self, text: str) -> None:
+        """Votre message (seule votre adresse passe la passerelle) : traité par la conversation quand elle est
+        libre ; au plus MAX_PENDING_MESSAGES en attente (les plus anciens sont oubliés)."""
+        with self._lock:
+            self._inbox.append(str(text)[:2000])
+        log.info("Message reçu (%d caractères)", len(text))
+
+    def take_message(self) -> str | None:
+        with self._lock:
+            return self._inbox.popleft() if self._inbox else None
+
+    def reply(self, text: str) -> bool:
+        """Réponse d'ORION à votre message ; False si la passerelle ne l'a pas transmise."""
+        try:
+            self._notifier.send_message(text)
+            return True
+        except Exception as exc:  # noqa: BLE001 - passerelle absente : la réponse est perdue, ORION continue
+            log.warning("Réponse au message non envoyée (%s)", type(exc).__name__)
+            return False
 
     # --- Boucle de conversation ------------------------------------------------------------------------
 

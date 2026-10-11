@@ -339,3 +339,61 @@ def test_admin_test_call_goes_through_the_core_and_its_limits():
     assert status == 202 and world.phone.calls[0][0] == "ring" and world.calls.current.origin == "admin"
     assert world.calls.current.reason == "Essai du vrai ORION."
     assert api.call_action({"reason": "Encore"})[0] == 409  # un appel à la fois, limites respectées
+
+
+# --- Messages Linphone -------------------------------------------------------------------------------------
+
+class FakeMessages:
+    """Gestionnaire d'appels factice côté messages : vos messages arrivent un par un, les réponses sont notées."""
+
+    def __init__(self, messages):
+        self.inbox, self.replies = list(messages), []
+
+    def take_connected(self):
+        return None
+
+    def active(self):
+        return False
+
+    def finish(self):
+        pass
+
+    def take_message(self):
+        return self.inbox.pop(0) if self.inbox else None
+
+    def reply(self, text):
+        self.replies.append(text)
+        return True
+
+
+def test_message_is_answered_in_writing_without_speaking_at_home():
+    messages = FakeMessages(["Que penses-tu de la musique classique ?"])
+    spoken, events = run_agent([], PlannerLLM(reply="Elle me plaît beaucoup."), calls=messages)
+    assert messages.replies == ["Elle me plaît beaucoup."]
+    assert spoken == []  # rien n'est prononcé à la maison
+    assert ("message", "Que penses-tu de la musique classique ?") in events
+    assert ("message_reply", "Elle me plaît beaucoup.") in events
+
+
+def test_sensitive_action_by_message_needs_a_written_yes():
+    from test_tools import FakeVolume, Locker, make_core
+
+    locker = Locker()
+    messages = FakeMessages(["Verrouille le PC", "Oui."])
+    run_agent([], PlannerLLM(), make_core(volume=FakeVolume(), locker=locker), fast_path=True, calls=messages)
+    assert messages.replies[0].startswith("Voulez-vous") and locker.calls == 1
+    locker = Locker()
+    messages = FakeMessages(["Verrouille le PC", "Non."])
+    run_agent([], PlannerLLM(), make_core(volume=FakeVolume(), locker=locker), fast_path=True, calls=messages)
+    assert locker.calls == 0  # refusé par message : rien n'est fait
+
+
+def test_manager_keeps_pending_messages_and_sends_replies():
+    world = World()
+    world.calls.message_received("Bonjour ORION")
+    world.calls.message_received("Quelle heure est-il ?")
+    assert world.calls.take_message() == "Bonjour ORION" and world.calls.take_message() == "Quelle heure est-il ?"
+    assert world.calls.take_message() is None
+    sent = []
+    world.calls._notifier.send_message = sent.append
+    assert world.calls.reply("Il est midi.") and sent == ["Il est midi."]

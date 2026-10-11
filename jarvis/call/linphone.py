@@ -28,6 +28,7 @@ class LinphoneChannel:
         self.gateway = gateway
         account.on_incoming = self._incoming
         account.on_ended = self._remote_ended
+        account.on_message = self._message
 
     # --- Le Core appelle votre adresse ------------------------------------------------------------------
 
@@ -111,3 +112,15 @@ class LinphoneChannel:
 
     def _remote_ended(self, dialog: Dialog, why: str) -> None:
         self.gateway.sip_ended(dialog, why)
+
+    # --- Messages -----------------------------------------------------------------------------------------
+
+    def _message(self, text: str) -> None:
+        self.gateway.sip_message(text)
+
+    def send(self, text: str) -> bool:
+        """Message d'ORION vers votre adresse Linphone."""
+        return self.account.send_message(text[:MAX_MESSAGE])
+
+
+MAX_MESSAGE = 2000  # caractères d'un message, dans un sens comme dans l'autre

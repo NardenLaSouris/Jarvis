@@ -50,6 +50,9 @@ class GatewayLink:
     def answer(self, call) -> None:
         self._post("/core/answer", {"call_id": call.id})
 
+    def send_message(self, text: str) -> None:
+        self._post("/core/message", {"text": text})
+
     # --- Signaux du téléphone ------------------------------------------------------------------------------
 
     def start(self) -> None:
@@ -81,8 +84,14 @@ class GatewayLink:
     def deliver(self, event: dict) -> None:
         manager = self.manager
         handler = {"accepted": "accepted", "refused": "refused", "connected": "connected",
-                   "hung_up": "hung_up", "failed": "failed", "dialed": "dialed"}.get(str(event.get("type")))
+                   "hung_up": "hung_up", "failed": "failed", "dialed": "dialed",
+                   "message": "message"}.get(str(event.get("type")))
         if manager is None or handler is None:
+            return
+        if handler == "message":  # votre message Linphone : la conversation y répondra quand elle sera libre
+            text = str(event.get("text", "")).strip()
+            if text:
+                manager.message_received(text)
             return
         if event.get("type") == "dialed":  # le téléphone appelle ORION : le Core accepte ou raccroche
             call_id = str(event.get("call_id", ""))

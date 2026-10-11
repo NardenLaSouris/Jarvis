@@ -153,3 +153,43 @@ def test_unencrypted_offer_is_refused_by_orion(world):
     [event] = gateway.core_events.take(1)
     assert gateway.answer_from_core(event["call_id"]) is False
     assert ("reject", 488) in account.calls
+
+
+class Sent(FakeAccount):
+    def __init__(self):
+        super().__init__()
+        self.messages = []
+
+    def send_message(self, text):
+        self.messages.append(text)
+        return True
+
+
+def test_your_message_reaches_the_core_and_its_reply_goes_back(world, tmp_path, monkeypatch):
+    gateway, _ = world()
+    account = Sent()
+    gateway.linphone = linphone.LinphoneChannel(account, gateway)
+    account.on_message("Quelle heure est-il ?")
+    assert gateway.core_events.take(1) == [{"type": "message", "text": "Quelle heure est-il ?"}]
+    assert gateway.linphone.send("Il est midi.") and account.messages == ["Il est midi."]
+
+
+def test_message_while_orion_is_down_gets_an_automatic_reply(world):
+    gateway, _ = world()
+    account = Sent()
+    gateway.linphone = linphone.LinphoneChannel(account, gateway)
+    gateway._core_seen = None  # Core arrêté
+    account.on_message("Tu es là ?")
+    time.sleep(0.3)
+    assert account.messages == ["ORION est indisponible pour le moment."] and gateway.core_events.take(0.2) == []
+
+
+def test_messages_are_limited_per_minute(world):
+    from jarvis.call.gateway import MESSAGES_PER_MINUTE
+
+    gateway, _ = world()
+    account = Sent()
+    gateway.linphone = linphone.LinphoneChannel(account, gateway)
+    for i in range(MESSAGES_PER_MINUTE + 5):
+        account.on_message(f"message {i}")
+    assert len(gateway.core_events.take(1)) == MESSAGES_PER_MINUTE

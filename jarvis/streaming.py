@@ -124,6 +124,28 @@ class SpeechStats:
         return None if instant is None else instant - self.started
 
 
+class TextPipeline:
+    """Réponse écrite (message Linphone) : les phrases sont recueillies au lieu d'être prononcées ; rien n'est
+    joué. Même interface que SpeechPipeline pour la conversation."""
+
+    def __init__(self):
+        self.spoken: list[str] = []  # tout ce qu'ORION aurait dit pendant le tour, dans l'ordre
+
+    def cancel(self) -> None:
+        pass
+
+    def speak(self, sentences: Iterable[str]) -> SpeechStats:
+        stats = SpeechStats(started=time.perf_counter())
+        for sentence in sentences:
+            if sentence and sentence.strip():
+                if stats.first_sentence is None:
+                    stats.first_sentence = time.perf_counter() - stats.started
+                stats.sentences.append(sentence.strip())
+        stats.finished = time.perf_counter()
+        self.spoken += stats.sentences
+        return stats
+
+
 class SpeechPipeline:
     """Fait parler ORION phrase par phrase, avec synthèse et lecture en parallèle de la génération."""
 

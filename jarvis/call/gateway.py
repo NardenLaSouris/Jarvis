@@ -32,6 +32,7 @@ import logging
 import secrets
 import threading
 import time
+from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
@@ -48,6 +49,7 @@ MAX_WAIT = 30.0
 CORE_TIMEOUT = 40.0  # s sans que le Core vienne chercher ses signaux : ORION est injoignable
 DIAL_TIMEOUT = 10.0  # s pour que le Core décroche un appel du téléphone
 MAX_CALL_SECONDS = 20 * 60  # durée maximale de secours (le Core arrête à [call] max_minutes)
+MESSAGES_PER_MINUTE = 20  # messages Linphone transmis au Core : contre une boucle (application qui s'emballe)
 APP_ACTIONS = ("accept", "refuse", "hangup")
 
 
@@ -104,6 +106,7 @@ class CallGateway:
         # media_factory(on_connected, on_failed) -> CallMedia ; None : audio simulé.
         self.media = media_factory(self._media_connected, self._media_failed) if media_factory else None
         self.linphone = None  # LinphoneChannel (jarvis/call/linphone.py) : appareil « linphone », votre adresse
+        self._messages: deque[float] = deque()  # heures des derniers messages Linphone reçus
 
     def current_media(self):
         """Son de l'appel en cours : le sien (Linphone) ou celui de la passerelle (WebRTC, ou simulé si None)."""
@@ -268,6 +271,23 @@ class CallGateway:
         self.core_events.put({"type": "dialed", "call_id": call.id, "device": LINPHONE_DEVICE})
         log.info("Passerelle : appel %s de Linphone, en attente d'ORION", call.id)
         return call, ""
+
+    def sip_message(self, text: str) -> None:
+        """Votre message Linphone : transmis au Core (qui y répond comme à une demande vocale), au plus
+        MESSAGES_PER_MINUTE ; ORION arrêté : réponse automatique, rien n'est mis en attente."""
+        now = self._clock()
+        while self._messages and now - self._messages[0] >= 60:
+            self._messages.popleft()
+        if len(self._messages) >= MESSAGES_PER_MINUTE:
+            log.warning("Passerelle : trop de messages en une minute, message ignoré")
+            return
+        self._messages.append(now)
+        if not self.core_alive():
+            threading.Thread(target=self.linphone.send, args=("ORION est indisponible pour le moment.",),
+                             daemon=True).start()
+            return
+        self.core_events.put({"type": "message", "text": text[:2000]})
+        log.info("Passerelle : message Linphone transmis à ORION (%d caractères)", len(text))
 
     def sip_ended(self, dialog, why: str) -> None:
         """Vous avez raccroché (ou annulé) sur Linphone."""
@@ -456,10 +476,15 @@ class CallGateway:
                         self._json(200, {"status": "ok"})
                     else:
                         self._error(409, "call_not_active")
-                elif path in ("/core/ring", "/core/cancel", "/core/hangup", "/core/pairing-code", "/core/answer"):
+                elif path in ("/core/ring", "/core/cancel", "/core/hangup", "/core/pairing-code", "/core/answer",
+                              "/core/message"):
                     if not self._core_ok() or (data := self._json_body()) is None:
                         return
-                    if path == "/core/pairing-code":
+                    if path == "/core/message":  # réponse d'ORION à votre message Linphone
+                        text = str(data.get("text", "")).strip()
+                        ok = bool(text) and gateway.linphone is not None and gateway.linphone.send(text)
+                        self._json(200, {"status": "sent"}) if ok else self._error(503, "message_not_sent")
+                    elif path == "/core/pairing-code":
                         self._json(200, {"code": gateway.registry.new_code(), "expires_in": 300})
                     elif path == "/core/answer":
                         ok = gateway.answer_from_core(str(data.get("call_id", "")))

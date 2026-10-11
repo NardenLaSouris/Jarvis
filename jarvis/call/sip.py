@@ -134,12 +134,13 @@ class SipAccount:
     def __init__(self, user: str, password: str, peer: str, domain: str = "sip.linphone.org", port: int = 5061,
                  connect: Callable[[str, int], socket.socket] = tls_connect, transport: str = "TLS",
                  on_incoming: Callable[[Dialog], None] | None = None,
-                 on_ended: Callable[[Dialog, str], None] | None = None):
+                 on_ended: Callable[[Dialog, str], None] | None = None,
+                 on_message: Callable[[str], None] | None = None):
         self.user, self._password, self.domain, self.port = user, password, domain, port
         self.peer = uri_of(peer)
         self.aor = f"sip:{user}@{domain}"
         self._connect, self._transport = connect, transport
-        self.on_incoming, self.on_ended = on_incoming, on_ended
+        self.on_incoming, self.on_ended, self.on_message = on_incoming, on_ended, on_message
         self._sock: socket.socket | None = None
         self._send_lock = threading.Lock()
         # « branche méthode » -> réponses de la transaction. La méthode compte : une annulation (CANCEL) reprend la
@@ -252,7 +253,7 @@ class SipAccount:
             lines.append(f"Route: {', '.join(route)}")
         if auth:
             lines.append(f"{'Proxy-Authorization' if auth[1] else 'Authorization'}: {auth[0]}")
-        if body:
+        if body and "content-type:" not in extra.lower():  # SDP par défaut ; un message porte son propre type
             lines.append("Content-Type: application/sdp")
         text = "\r\n".join(lines) + "\r\n" + extra + f"Content-Length: {len(body.encode())}\r\n\r\n" + body
         self._send_raw(text.encode())
@@ -496,10 +497,36 @@ class SipAccount:
                 self._respond(dialog.invite, 487, "Request Terminated", to_tag=dialog.local_tag)
                 if self.on_ended is not None:
                     self.on_ended(dialog, "annulé")
-        elif method in ("OPTIONS", "UPDATE", "INFO", "NOTIFY", "MESSAGE"):
+        elif method == "MESSAGE":
+            self._incoming_message(message)
+        elif method in ("OPTIONS", "UPDATE", "INFO", "NOTIFY"):
             self._respond(message, 200, "OK")
         else:
             self._respond(message, 405, "Method Not Allowed")
+
+    # --- Messages ------------------------------------------------------------------------------------------
+
+    def send_message(self, text: str) -> bool:
+        """Message texte vers votre adresse (réponse d'ORION) ; True s'il a été accepté par le serveur."""
+        if not self.registered:
+            return False
+        response = self._transaction("MESSAGE", self.peer, self.peer, secrets.token_hex(10), secrets.token_hex(4),
+                                     body=text, extra="Content-Type: text/plain;charset=UTF-8\r\n", cseq=1)
+        return response is not None and 200 <= response.status < 300
+
+    def _incoming_message(self, message: Message) -> None:
+        if uri_of(message.header("from")) != self.peer:
+            log.warning("Compte SIP : message d'un correspondant non autorisé refusé")
+            self._respond(message, 403, "Forbidden")
+            return
+        self._respond(message, 200, "OK")
+        text, kind = message_text(message.header("content-type"), message.body)
+        if text is None:
+            if kind not in ("application/im-iscomposing+xml", "message/imdn+xml"):  # « en train d'écrire », accusés
+                log.info("Compte SIP : message de type %s ignoré (illisible pour ORION)", kind)
+            return
+        if self.on_message is not None and text.strip():
+            self.on_message(text.strip())
 
     def _incoming(self, invite: Message) -> None:
         call_id = invite.header("call-id")
@@ -520,6 +547,22 @@ class SipAccount:
             self.on_incoming(dialog)
         else:
             self.reject(dialog)
+
+
+def message_text(content_type: str, body: str) -> tuple[str | None, str]:
+    """(texte, type) d'un message SIP : texte simple, ou enveloppe CPIM de Linphone (RFC 3862) ; (None, type) sinon
+    (indication « en train d'écrire », accusé de lecture, message chiffré de bout en bout…)."""
+    kind = (content_type or "text/plain").split(";")[0].strip().lower()
+    if kind == "text/plain":
+        return body, kind
+    if kind == "message/cpim":
+        _, _, rest = body.replace("\r\n", "\n").partition("\n\n")  # en-têtes CPIM
+        mime, _, content = rest.partition("\n\n")  # en-têtes du contenu
+        inner = next((line.split(":", 1)[1] for line in mime.split("\n") if line.lower().startswith("content-type:")),
+                     "text/plain")
+        inner = inner.split(";")[0].strip().lower()
+        return (content, inner) if inner == "text/plain" else (None, inner)
+    return None, kind
 
 
 class SipError(Exception):
