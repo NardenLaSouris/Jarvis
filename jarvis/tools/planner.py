@@ -366,6 +366,8 @@ DOMAIN_WORDS = {
     "learn_word": ("je dis", "veut dire", "veux dire", "signifie", "retiens le mot", "retiens l expression",
                    "apprends", "apprend", "le mot", "l expression"),
     "forget_word": ("oublie le mot", "oublie l expression", "oublie ce mot", "desapprends"),
+    "declare_departure": ("je sors", "je pars", "je m en vais", "je quitte", "je m absente", "je file", "je reste",
+                          "courses", "je vais y aller", "j y vais"),
     "close_application": ("ferme", "fermer", "quitte", "quitter", "arrete", "coupe"),
     # Mails : l'action doit être dite par l'utilisateur, jamais suggérée par le contenu d'un mail lu.
     "mark_mail_read": ("lu", "lus", "marque", "marquer"),

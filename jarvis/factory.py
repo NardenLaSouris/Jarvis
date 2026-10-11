@@ -787,6 +787,9 @@ def build_agent(
 
         profiles_for_names = build_profiles(cfg)
         extra.append(presence_tool(presence.engine, lambda user: _person(profiles_for_names, user, personality)))
+        from jarvis.presence.tools import departure_tool
+
+        extra.append(departure_tool(presence.engine, current_user))  # « je sors » : absent sans attendre
     if cfg.face.enabled:
         from jarvis.face.themes import FaceThemeStore, face_theme_tool
 

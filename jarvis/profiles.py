@@ -37,6 +37,7 @@ CATEGORIES = {
     "routines": ("run_routine", "delete_routine"),
     "apps": ("open_application", "close_application", "open_url", "list_running_applications"),
     "system": ("set_volume", "mute_volume", "unmute_volume", "system_info", "lock_pc", "shutdown_pc", "wake_pc",
+               "declare_departure",
                "network_status"),
     "files": ("find_files", "read_text_file", "create_text_file", "copy_file", "move_file", "delete_file"),
     "memory": ("remember", "recall", "forget", "learn_word", "forget_word", "list_learned"),  # faits personnels : jamais lus à un enfant ou un invité

@@ -21,6 +21,11 @@ repart pendant une arrivée. Fenêtre écoulée sans confirmation : départ aban
 parti sans porte, qui ne devient un départ qu'après ``absence_timeout`` sans aucun mouvement dans la maison ;
 arrivée non confirmée : HOME en silence si le téléphone est là (aucune routine), sinon AWAY.
 
+Déclaration explicite (« je sors », jarvis/presence/declaration.py, validée par le Core) : AWAY aussitôt, sans
+attendre les signaux ni les délais ci-dessus, qui restent inchangés pour tout le reste. Pendant ``declared_grace``
+après elle, la porte, le mouvement et le téléphone encore sur le Wi-Fi sont ceux de votre sortie : ni retour, ni
+« mouvement pendant l'absence ». Un départ annoncé pour plus tard (« je sors dans une heure ») attend son heure.
+
 Une seule horloge : ``tick()`` (appelé chaque seconde par le fil du moteur, ou directement dans les tests) gère
 toutes les échéances. Les décisions sont publiées sur le bus : presence.departure_confirmed,
 presence.arrival_confirmed (routine « Bon retour »), presence.changed, presence.motion_while_away, door.left_open.
@@ -54,7 +59,8 @@ DOOR_LEFT_OPEN = "door.left_open"
 OUTPUT_EVENTS = (DEPARTURE_CONFIRMED, ARRIVAL_CONFIRMED, ARRIVAL_UNCONFIRMED, PRESENCE_CHANGED, MOTION_WHILE_AWAY,
                  DOOR_LEFT_OPEN)
 
-DEPARTURE_WEIGHTS = {"phone_away": 50, "door_open": 30, "door_closed": 10, "motion_inside": -20}
+DEPARTURE_WEIGHTS = {"phone_away": 50, "door_open": 30, "door_closed": 10, "motion_inside": -20,
+                     "declared": 100}  # « je sors » : déclaré par l'utilisateur lui-même
 ARRIVAL_WEIGHTS = {"phone_home": 50, "door_open": 30, "door_closed": 10, "entrance_motion": 20, "motion": 10}
 
 
@@ -69,6 +75,7 @@ class PresenceSettings:
     # Sans porte d'entrée connectée : retour confirmé par le seul téléphone, revenu depuis ce délai (il rejoint le
     # Wi-Fi un peu avant la porte : l'accueil attend d'être entendu), après un départ confirmé. < 0 : jamais.
     phone_arrival_delay: float = -1.0
+    declared_grace: float = 900.0  # après « je sors » : le temps de partir (porte, mouvement, téléphone encore là)
 
 
 @dataclass
@@ -92,6 +99,8 @@ class UserPresence:
     phone: str | None = None  # dernier signal du téléphone : "home" | "away"
     phone_at: float = 0.0
     hypothesis: Hypothesis | None = None
+    declared_at: float | None = None  # départ déclaré (« je sors »)
+    planned_departure: float | None = None  # départ annoncé pour plus tard (« je sors dans une heure »)
 
 
 class PresenceEngine:
@@ -142,7 +151,7 @@ class PresenceEngine:
         for u in self.users.values():
             if u.state in PRESENT:
                 self._signal(u, "departure", "door_open", t)
-            else:
+            elif not self._leaving(u, t):  # la porte de la sortie annoncée n'est pas un retour
                 self._signal(u, "arrival", "door_open", t)
 
     def _door_closed(self, p, t: float) -> None:
@@ -162,6 +171,9 @@ class PresenceEngine:
         u = self.users.get(p.get("user", ""))
         if u is None:
             return
+        if self._leaving(u, t) and u.phone != "away":
+            u.phone, u.phone_at = "home", t
+            return  # téléphone encore sur le Wi-Fi juste après « je sors » : pas un retour
         u.phone, u.phone_at = "home", t
         if u.state == POSSIBLE_DEPARTURE:
             self._cancel(u, t, "téléphone toujours à la maison")
@@ -190,11 +202,56 @@ class PresenceEngine:
             elif "door_closed" in h.signals and not self._someone_else_home(u):
                 h.signals["motion_inside"] = t  # quelqu'un bouge encore à l'intérieur : pas parti
         if self.users and all(u.state in (AWAY, POSSIBLE_ARRIVAL) for u in self.users.values()) \
-                and not any(u.hypothesis for u in self.users.values()):
+                and not any(u.hypothesis for u in self.users.values()) \
+                and not any(self._leaving(u, t) for u in self.users.values()):
             room = p.get("room", "")
             if t - self._motion_reported.get(room, -1e18) >= self.settings.motion_report_every:
                 self._motion_reported[room] = t
                 self._publish(MOTION_WHILE_AWAY, {"room": room, "sensor": p.get("sensor")}, t)
+
+    def _leaving(self, u: UserPresence, t: float) -> bool:
+        """Juste après un départ déclaré : la porte, le mouvement et le téléphone sont ceux de la sortie."""
+        return u.declared_at is not None and u.state == AWAY and t - u.declared_at < self.settings.declared_grace
+
+    # --- Déclaration explicite (« je sors ») ----------------------------------------------------------------
+
+    def declare_departure(self, user: str, at: float | None = None) -> str:
+        """Départ déclaré par l'utilisateur ; ``at`` : plus tard (« dans une heure »), sinon maintenant.
+        Rend « away » (absent dès maintenant), « planned », « already » (déjà absent) ou « unknown »."""
+        now = self._clock()
+        with self._lock:
+            u = self.users.get(user)
+            if u is None:
+                return "unknown"
+            if at is not None and at > now + 60:
+                u.planned_departure = at
+                self._save()
+                log.info("Présence %s : départ annoncé dans %.0f min", user, (at - now) / 60)
+                return "planned"
+            u.planned_departure = None
+            if u.state in (AWAY, POSSIBLE_ARRIVAL):
+                self._save()
+                return "already"
+            self._declared(u, now, "départ déclaré")
+            return "away"
+
+    def _declared(self, u: UserPresence, now: float, reason: str) -> None:
+        u.hypothesis, u.declared_at = None, now
+        self._confirm(u, Hypothesis("departure", now, {"declared": now}), now, reason)
+
+    def cancel_declared(self, user: str) -> bool:
+        """« Finalement je reste » : le départ annoncé pour plus tard n'aura pas lieu. True s'il y en avait un."""
+        with self._lock:
+            u = self.users.get(user)
+            if u is None or u.planned_departure is None:
+                return False
+            u.planned_departure = None
+            self._save()
+            return True
+
+    def planned_departure(self, user: str) -> float | None:
+        u = self.users.get(user)
+        return u.planned_departure if u is not None else None
 
     def _someone_else_home(self, user: UserPresence) -> bool:
         return any(u.state == HOME and u is not user for u in self.users.values())
@@ -219,6 +276,12 @@ class PresenceEngine:
         now = self._clock() if now is None else now
         with self._lock:
             for u in self.users.values():
+                if u.planned_departure is not None and now >= u.planned_departure:
+                    u.planned_departure = None
+                    if u.state in PRESENT:
+                        self._declared(u, now, "départ annoncé")  # « je sors dans une heure » : l'heure est venue
+                    else:
+                        self._save()
                 self._evaluate(u, now)
             self._doors_left_open(now)
 
@@ -262,12 +325,14 @@ class PresenceEngine:
         signals = sorted(h.signals)
         if h.kind == "departure":
             u.away_since, u.left_at = h.started, now
+            if "declared" not in h.signals:
+                u.declared_at = None
             self._set_state(u, AWAY, now)
             self._publish(DEPARTURE_CONFIRMED, {"user": u.user, "confidence": h.score(), "signals": signals,
                                                 "reason": reason}, now)
         else:
             away_since, left_at = u.away_since, u.left_at
-            u.away_since = u.left_at = None
+            u.away_since = u.left_at = u.declared_at = None
             self._set_state(u, HOME, now)
             self._publish(ARRIVAL_CONFIRMED, {"user": u.user, "confidence": h.score(), "signals": signals,
                                               "away_since": away_since, "left_at": left_at or away_since,
@@ -332,7 +397,8 @@ class PresenceEngine:
 
         records = [{"user": u.user, "state": u.state if u.state in (HOME, AWAY) else
                     (HOME if u.state == POSSIBLE_DEPARTURE else AWAY), "since": u.since,
-                    "away_since": u.away_since, "left_at": u.left_at} for u in self.users.values()]
+                    "away_since": u.away_since, "left_at": u.left_at, "declared_at": u.declared_at,
+                    "planned_departure": u.planned_departure} for u in self.users.values()]
         try:
             self._path.parent.mkdir(parents=True, exist_ok=True)
             tmp = self._path.with_suffix(".tmp")
@@ -356,6 +422,9 @@ class PresenceEngine:
             u.since = float(since) if isinstance(since, (int, float)) else u.since
             u.away_since = float(away) if isinstance(away, (int, float)) and u.state == AWAY else None
             u.left_at = float(left) if isinstance(left, (int, float)) and u.state == AWAY else u.away_since
+            declared, planned = record.get("declared_at"), record.get("planned_departure")
+            u.declared_at = float(declared) if isinstance(declared, (int, float)) and u.state == AWAY else None
+            u.planned_departure = float(planned) if isinstance(planned, (int, float)) else None
 
     # --- Fil -------------------------------------------------------------------------------------------
 

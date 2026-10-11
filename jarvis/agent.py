@@ -14,6 +14,7 @@ import threading
 import time
 from collections import deque
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
@@ -24,6 +25,7 @@ from jarvis.context import ConversationContext
 from jarvis.interfaces import (
     AudioSink, AudioSource, LanguageModel, Message, SpeechToText, TextToSpeech, WakeWordDetector,
 )
+from jarvis.presence.declaration import parse_declaration
 from jarvis.router import IntentRouter, Route
 from jarvis.scheduling.actions import split_schedule
 from jarvis.streaming import SpeechPipeline, TextPipeline, sentences_from_llm
@@ -644,6 +646,13 @@ class Agent:
             if contextual.get("type") == "tool_calls":
                 return self._use_tools(history, text, contextual["calls"], latency), False
             return self._run_call(history, text, contextual, latency), False
+        if self._tools is not None and self._tools.registry.exists("declare_departure") and \
+                parse_declaration(text, datetime.now()) is not None:
+            # « Je sors » : reconnu sans LLM, appliqué par le Core (outil declare_departure, moteur de présence).
+            latency["route"] = "tool:départ"
+            self._event("routing", latency["route"])
+            return self._run_call(history, text, {"type": "tool_call", "tool": "declare_departure",
+                                                  "parameters": {}}, latency), False
         follow_up = self._tool_follow_up(text)
         self._previous_request, self._last_tool_request = self._last_tool_request, ""
         route = Route("tool", "tool.follow_up") if follow_up else self._router.route(text)
