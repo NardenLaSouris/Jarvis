@@ -59,7 +59,8 @@ EVENTS = {
 }
 CONDITIONS = ("away", "away_for", "home", "important", "reminder_pending", "mail_unanswered")
 PRIORITIES = ("normal", "important", "urgent")
-CHANNELS = ("call", "message")
+CHANNELS = ("call", "message", "auto")  # auto : enceintes si vous êtes là, sinon téléphone
+ACTIONS = ("notify", "flex")  # notify : dire le motif ; flex : présentation d'ORION (jarvis/flex.py)
 RESOLVE = ("arrival", "acknowledged")
 MAX_RULES = 30
 MAX_SAY = 160
@@ -76,7 +77,10 @@ REF = re.compile(r"^[\w.@<>:+/=-]{1,200}$")
 PLANNED, TRYING, ANSWERED, ACKNOWLEDGED = "planifié", "tentative", "décroché", "acquitté"
 UNACKNOWLEDGED, NO_ANSWER, FAILED, REFUSED = "décroché sans accusé", "sans réponse", "échec technique", "refusé"
 SENT, CANCELLED, RESOLVED, GAVE_UP = "message envoyé", "annulé", "résolu", "abandonné"
-JOB_FINAL = (ACKNOWLEDGED, UNACKNOWLEDGED, REFUSED, SENT, CANCELLED, RESOLVED, GAVE_UP)
+PRESENTED = "présenté"  # mode Flex : présentation faite (enceintes ou téléphone)
+JOB_FINAL = (ACKNOWLEDGED, UNACKNOWLEDGED, REFUSED, SENT, CANCELLED, RESOLVED, GAVE_UP, PRESENTED)
+FLEX_MAX_AGE = 600.0  # s : une présentation demandée il y a plus longtemps n'a plus de sens (redémarrage)
+FLEX_REPEAT_GUARD = 120.0  # s après une présentation aux enceintes : « Flex » répété n'en relance pas une autre
 ACK = re.compile(r"^(?:(?:c est |cest )?(?:note|bien note|bien recu|recu|compris|entendu|ok|okay|d accord|"
                  r"ca marche|je m en occupe|je gere|je sais|merci|oui|vu)(?: \w+){0,3})$")
 
@@ -110,7 +114,7 @@ def validate_rule(data, now: datetime | None) -> dict:
     if not isinstance(data, dict):
         raise RuleError("Règle : objet attendu.")
     trigger = data.get("trigger")
-    if not isinstance(trigger, dict) or trigger.get("type") not in ("event", "at"):
+    if not isinstance(trigger, dict) or trigger.get("type") not in ("event", "at", "manual"):
         raise RuleError("Déclencheur inconnu.")
     if trigger["type"] == "event":
         event = trigger.get("event")
@@ -122,6 +126,8 @@ def validate_rule(data, now: datetime | None) -> dict:
             if not REF.match(ref):
                 raise RuleError("Quel mail, monsieur ? Ouvrez-le ou lisez-le d'abord, puis redemandez-moi.")
             clean_trigger["ref"] = ref
+    elif trigger["type"] == "manual":
+        clean_trigger = {"type": "manual"}  # déclenchée sur demande (« Flex »)
     else:
         clean_trigger = {"type": "at", "at": _date(trigger.get("at"), now, "Heure de vérification")}
     conditions = []
@@ -171,9 +177,19 @@ def validate_rule(data, now: datetime | None) -> dict:
     say = " ".join(str(data.get("say") or "").split())
     if len(say) > MAX_SAY or re.search(r"[\x00-\x1f]", say):
         raise RuleError("Ce que je dois vous dire est trop long.")
+    action = data.get("action", "notify")
+    if action not in ACTIONS or (channel == "auto") != (action == "flex"):
+        raise RuleError("Action ou canal incohérents.")
+    if clean_trigger["type"] == "manual" and action != "flex":
+        raise RuleError("Seule la présentation se déclenche sur demande.")
     rule = {"trigger": clean_trigger, "conditions": conditions, "until": until, "priority": priority,
             "channel": channel, "repeat": {"attempts": attempts, "interval_minutes": interval},
-            "resolve": resolve, "once": once}
+            "resolve": resolve, "once": once if action != "flex" else False}
+    if action == "flex":
+        delay = data.get("delay_seconds", 60)
+        if isinstance(delay, bool) or not isinstance(delay, int) or not 10 <= delay <= 600:
+            raise RuleError("Délai avant l'appel : de 10 secondes à 10 minutes.")
+        rule.update(action="flex", delay_seconds=delay)
     if say:
         rule["say"] = say  # ce qu'ORION dit au décroché, dans vos mots (« que je fais un test »)
     return rule
@@ -202,6 +218,9 @@ def describe_rule(rule: dict, labels: dict | None = None) -> str:
                                          + (f"« {labels[c['thread']]} »" if labels.get(c.get("thread", ""))
                                             else "ce mail")}[c["type"]])
     text = head + (", " + " et ".join(parts) if parts else "")
+    if rule.get("action") == "flex":
+        return (f"vous présenter mes capacités quand vous me le demandez : sur les enceintes, ou par téléphone si vous "
+                f"êtes toujours absent au bout de {rule.get('delay_seconds', 60)} secondes")
     if rule.get("say"):
         said = spoken_say(rule["say"]).rstrip(" .")
         text += f", {said}" if said.startswith(("pour", "au sujet")) else f", pour vous dire : {said}"
@@ -231,6 +250,10 @@ class CallRules:
         self._lock = threading.RLock()
         self.labels: dict[str, str] = {}  # fil d'un mail -> objet (pour les phrases), gardé avec les règles
         self.removed: set[str] = set()  # règles intégrées supprimées par vous : jamais recréées
+        # Mode Flex (jarvis/flex.py), branché par la factory : texte (téléphone ou non), enceintes, sortie prête.
+        self.flex_text: Callable[[bool], list[str]] | None = None
+        self.flex_present_home: Callable[[list[str]], None] | None = None
+        self.speaker_ready: Callable[[], bool] | None = None
         self.rules: list[dict] = []
         self.jobs: list[dict] = []
         self._stopping = threading.Event()
@@ -260,7 +283,7 @@ class CallRules:
             elif record.get("kind") == "job":
                 job = {k: record.get(k) for k in ("id", "rule", "key", "state", "reason", "attempts", "next_at",
                                                     "created", "call", "history", "max_attempts", "interval",
-                                                    "channel", "resolve")}
+                                                    "channel", "resolve", "action", "waited")}
                 if job["state"] == TRYING:  # ORION arrêté pendant l'appel : la tentative compte comme un échec
                     job["state"] = FAILED
                     job["history"] = (job.get("history") or []) + [[FAILED, self._time(), "redémarrage"]]
@@ -335,11 +358,19 @@ class CallRules:
             self._save()
         log.info("Règle d'appel intégrée « %s » ajoutée", rule_id)
 
+    def set_builtin_delay(self, rule_id: str, seconds: int) -> None:
+        """Délai de la règle intégrée repris du réglage à chaque démarrage (flex_delay_seconds)."""
+        with self._lock:
+            entry = next((r for r in self.rules if r["id"] == rule_id), None)
+            if entry is not None and entry["rule"].get("delay_seconds") != seconds:
+                entry["rule"] = validate_rule({**entry["rule"], "delay_seconds": seconds}, None)
+                self._save()
+
     def remove(self, position: int) -> dict:
         with self._lock:
             entry = self.at(position)
             self.rules.remove(entry)
-            if entry["id"] == BUILTIN_REMINDERS:
+            if entry["id"] in (BUILTIN_REMINDERS, "flex"):
                 self.removed.add(entry["id"])
             self._cancel_jobs(entry["id"], CANCELLED, "règle supprimée")
             self._save()
@@ -482,12 +513,98 @@ class CallRules:
                     self._advance(job)
             self.jobs = [j for j in self.jobs if j["state"] not in JOB_FINAL or now - j["created"] < 7 * 86400]
 
+    # --- Mode Flex (présentation) -------------------------------------------------------------------------
+
+    def trigger_flex(self, rule_id: str = "flex") -> str:
+        """« Flex » : présentation aux enceintes si vous êtes là, sinon appel après le délai de la règle (annulé si
+        vous rentrez entre-temps). Rend « home », « waiting », « already », « disabled » ou « unavailable »."""
+        with self._lock:
+            entry = next((r for r in self.rules if r["id"] == rule_id), None)
+            if entry is None or self.flex_text is None:
+                return "unavailable"
+            if not entry["enabled"]:
+                return "disabled"
+            now = self._time()
+            for job in self.jobs:
+                if job.get("action") != "flex":
+                    continue
+                if job["state"] not in JOB_FINAL or (job["state"] == PRESENTED and now - job["history"][-1][1] <
+                                                     FLEX_REPEAT_GUARD and job.get("channel") == "home"):
+                    return "already"  # jamais deux présentations à la fois
+            job = {"id": secrets.token_hex(4), "rule": entry["id"], "key": f"flex:{int(now)}", "state": PLANNED,
+                   "reason": "", "attempts": 0, "next_at": now, "created": now, "call": "",
+                   "history": [[PLANNED, now, "demandé"]], "max_attempts": 1, "interval": 0, "channel": "auto",
+                   "resolve": [], "action": "flex", "waited": False}
+            self.jobs.append(job)
+            self._log(entry, "présentation demandée")
+            self._save()
+            self._advance_flex(job, entry)
+            return "home" if job["state"] == PRESENTED else "waiting" if job["state"] == PLANNED else "call"
+
+    def set_flex_enabled(self, enabled: bool, rule_id: str = "flex") -> bool:
+        with self._lock:
+            entry = next((r for r in self.rules if r["id"] == rule_id), None)
+            if entry is None:
+                raise RuleError("Le mode Flex n'est pas disponible.")
+            entry["enabled"] = enabled
+            if not enabled:
+                self._cancel_jobs(entry["id"], CANCELLED, "mode Flex désactivé")
+            self._save()
+            return enabled
+
+    def _home(self) -> bool:
+        """À la maison (ou présence inconnue) : la présentation passe par les enceintes."""
+        state, _ = self._state()
+        return state is None or state in ("HOME", "POSSIBLE_DEPARTURE")
+
+    def _advance_flex(self, job: dict, entry: dict) -> None:
+        now = self._time()
+        if now - job["created"] > FLEX_MAX_AGE:
+            self._finish(job, GAVE_UP, "trop tard (ORION était arrêtée)")
+            return
+        if job["state"] in (NO_ANSWER, FAILED):
+            self._finish(job, GAVE_UP, "pas de réponse")
+            self._send("Je souhaitais me présenter, monsieur. Dites « Flex » quand vous voulez.")
+            return
+        if self._home() and (self.speaker_ready is None or self.speaker_ready()):
+            self._present_home(job, entry)
+            return
+        if self._home():
+            self._log(entry, "enceintes indisponibles : présentation par téléphone")
+        elif not job.get("waited"):
+            job["waited"] = True
+            job["next_at"] = now + entry["rule"].get("delay_seconds", 60)  # une minute pour rentrer
+            self._move(job, PLANNED, "absent : appel dans un instant, sauf retour")
+            return
+        try:
+            call = self._calls.request(" ".join(self.flex_text(True)), "routine")
+        except CallRefused as exc:
+            self._finish(job, GAVE_UP, f"appel impossible : {exc}")
+            self._log(entry, f"présentation non faite : {exc}")
+            return
+        job["attempts"], job["call"] = 1, call.id
+        self._move(job, TRYING, "présentation par téléphone")
+        if call.final:
+            self._outcome(job, FAILED, call.end_reason)
+
+    def _present_home(self, job: dict, entry: dict) -> None:
+        if self.flex_present_home is None:
+            self._finish(job, GAVE_UP, "aucune enceinte")
+            return
+        self.flex_present_home(self.flex_text(False))
+        job["channel"] = "home"
+        self._finish(job, PRESENTED, "présentation aux enceintes")
+        self._log(entry, "présentation faite aux enceintes")
+
     def _advance(self, job: dict) -> None:
         """Prochaine étape d'un appel en attente : vérifié de nouveau, puis tenté (ou message de secours)."""
         entry = next((r for r in self.rules if r["id"] == job["rule"]), None)
         now = self._time()
         if entry is None or not entry["enabled"]:
             self._finish(job, CANCELLED, "règle supprimée ou désactivée")
+            return
+        if job.get("action") == "flex":
+            self._advance_flex(job, entry)
             return
         ok, why = self.check(entry["rule"], {"important": True, "priority": "important"})
         if not ok:
@@ -530,6 +647,17 @@ class CallRules:
             job = next((j for j in self.jobs if j["call"] == call_id and j["state"] in (TRYING, ANSWERED)), None)
             if job is None:
                 return
+            if job.get("action") == "flex":  # présentation : faite si vous avez décroché, jamais rejouée sinon
+                if event.type == "call.connected":
+                    self._move(job, ANSWERED, "décroché")
+                elif event.type == "call.ended" and job["state"] == ANSWERED:
+                    job["channel"] = "phone"
+                    self._finish(job, PRESENTED, "présentation par téléphone")
+                else:
+                    self._outcome(job, NO_ANSWER if event.type == "call.expired" else FAILED,
+                                  str(event.payload.get("end_reason", "")))
+                    self._advance(job)
+                return
             if event.type == "call.connected":
                 self._move(job, ANSWERED, "décroché")
             elif event.type == "call.ended" and job["state"] == ANSWERED:
@@ -551,7 +679,8 @@ class CallRules:
 
     def awaiting_ack(self, call_id: str) -> dict | None:
         with self._lock:
-            return next((j for j in self.jobs if j["call"] == call_id and j["state"] == ANSWERED), None)
+            return next((j for j in self.jobs if j["call"] == call_id and j["state"] == ANSWERED
+                         and j.get("action") != "flex"), None)
 
     def acknowledge(self, call_id: str | None = None) -> bool:
         """« C'est noté » pendant l'appel (``call_id``), ou par message après un résumé envoyé (le plus récent)."""
@@ -576,7 +705,9 @@ class CallRules:
         """Vous êtes rentré : les appels encore en attente des règles « résolues au retour » n'ont plus lieu."""
         with self._lock:
             for job in self.jobs:
-                if job["state"] in (PLANNED, NO_ANSWER, FAILED) and "arrival" in job.get("resolve", []):
+                if job.get("action") == "flex" and job["state"] == PLANNED:
+                    self._advance(job)  # rentré pendant la minute d'attente : enceintes, pas d'appel
+                elif job["state"] in (PLANNED, NO_ANSWER, FAILED) and "arrival" in job.get("resolve", []):
                     self._finish(job, RESOLVED, "vous êtes rentré")
 
     def _cancel_jobs(self, rule_id: str, state: str, why: str) -> None:

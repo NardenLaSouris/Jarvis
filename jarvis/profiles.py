@@ -29,7 +29,7 @@ KEY = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
 # Catégories d'outils (par préfixe ou nom exact) : la politique des rôles s'exprime par catégorie.
 CATEGORIES = {
     "info": ("get_time", "get_date", "get_weather", "light_status", "list_timers", "list_reminders", "list_alarms",
-             "list_routines", "presence_status"),
+             "list_routines", "presence_status", "flex"),
     "home": ("light_", "set_brightness", "set_color", "set_color_temperature", "set_scene", "set_face_theme"),
     "media": ("media_", "spotify_"),
     "schedule": ("create_timer", "cancel_timer", "create_reminder", "cancel_reminder", "create_alarm", "cancel_alarm"),
@@ -37,7 +37,7 @@ CATEGORIES = {
     "routines": ("run_routine", "delete_routine"),
     "apps": ("open_application", "close_application", "open_url", "list_running_applications"),
     "system": ("set_volume", "mute_volume", "unmute_volume", "system_info", "lock_pc", "shutdown_pc", "wake_pc",
-               "declare_departure", "create_call_rule", "list_call_rules", "describe_call_rule",
+               "declare_departure", "set_flex_enabled", "create_call_rule", "list_call_rules", "describe_call_rule",
                "set_call_rule_enabled", "delete_call_rule", "modify_call_rule", "explain_calls",
                "network_status"),
     "files": ("find_files", "read_text_file", "create_text_file", "copy_file", "move_file", "delete_file"),

@@ -222,7 +222,62 @@ def build_call_rules(cfg: Config, llm, presence, timers, mailbox, mail_actions=N
         from jarvis.call.rules import BUILTIN_REMINDERS, BUILTIN_RULE
 
         rules.ensure_builtin(BUILTIN_REMINDERS, BUILTIN_RULE, "rappel qui sonne pendant votre absence (réglage)")
-    return rules, call_rule_tools(rules, RuleParser(llm), context)
+    tools = call_rule_tools(rules, RuleParser(llm), context)
+    if cfg.call.flex:  # mode Flex : règle intégrée, déclenchée sur demande
+        from jarvis.flex import FLEX_RULE, flex_tools
+
+        flex_rule = {"trigger": {"type": "manual"}, "conditions": [], "channel": "auto", "action": "flex",
+                     "delay_seconds": int(cfg.call.flex_delay_seconds), "repeat": {"attempts": 1, "interval_minutes": 5}}
+        rules.ensure_builtin(FLEX_RULE, flex_rule, "mode Flex (réglage)")
+        rules.set_builtin_delay(FLEX_RULE, int(cfg.call.flex_delay_seconds))
+        tools += flex_tools(rules)
+    return rules, tools
+
+
+def connect_flex(cfg: Config, rules, tools, notifications, devices, rooms, presence, watcher, mail_actions, web,
+                 learning) -> None:
+    """Mode Flex : inventaire de ce qui est réellement branché, présentation aux enceintes (canal vocal) et sortie
+    audio de la maison joignable ou non."""
+    from urllib.parse import urlsplit
+
+    from jarvis.flex import UNAVAILABLE, Facts, inventory, presentation
+    from jarvis.notifications import Notification
+
+    computers, llm_host = [], ""
+    llm_ip = urlsplit(cfg.llm.host).hostname or ""
+    for key in (devices.keys() if devices is not None else ()):
+        device = devices[key]
+        if not device.url:
+            continue
+        computers.append(device.name)
+        if urlsplit(device.url).hostname == llm_ip:
+            llm_host = "le Katana" if "katana" in device.aliases else device.name
+    facts = Facts(tools=frozenset(t.name for t in tools.registry.list()) if tools is not None else frozenset(),
+                  llm_host=llm_host if llm_ip not in ("127.0.0.1", "localhost") else "",
+                  computers=tuple(computers), speaker="les haut-parleurs de votre PC" if cfg.audio.remote else "",
+                  lights=len(rooms.rooms()) if rooms is not None else 0,
+                  presence_sensors=len(presence.hub.sensors) if presence is not None else 0,
+                  calls=bool(cfg.call.enabled and cfg.call.device), mail_watch=watcher is not None,
+                  mail_follow_up=mail_actions is not None, call_rules=len(rules.rules),
+                  wake_mac=any(devices[k].mac for k in devices.keys()) if devices is not None else False,
+                  face=cfg.face.enabled, learning=learning is not None, extra={"web": web is not None})
+
+    def present(sequences: list[str]) -> None:  # séquences courtes, dites l'une après l'autre quand ORION est libre
+        for n, text in enumerate(sequences, 1):
+            notifications.notify(Notification(f"Flex {n}/{len(sequences)}", text, "flex"))
+
+    def speaker_ready() -> bool:
+        if not cfg.audio.remote:
+            return True
+        from jarvis.llm.failover import tcp_reachable
+
+        return tcp_reachable(cfg.audio.remote, 1.0)
+
+    rules.flex_text = lambda phone: presentation(facts, phone)
+    rules.flex_present_home = present
+    rules.speaker_ready = speaker_ready
+    log.info("Mode Flex prêt (%d fonctions opérationnelles ou sous conditions)",
+             sum(1 for _, state, _ in inventory(facts) if state != UNAVAILABLE))
 
 
 def build_web(cfg: Config):
@@ -877,6 +932,9 @@ def build_agent(
     tools = build_tools(cfg, personality, events, timers, weather, devices,
                         light_tools_for(rooms, driver, cfg.lights.scenes, home), extra)
     speaker["core"] = tools
+    if call_rules is not None and cfg.call.flex:
+        connect_flex(cfg, call_rules, tools, notifications, devices, rooms, presence, watcher, mail_actions, web,
+                     learning)
     if music is not None:
         from jarvis.audio.music import DuckingSink
 

@@ -29,6 +29,7 @@ from jarvis.call.rule_tools import NEEDS_DETAILS
 from jarvis.call.rules import is_acknowledgement
 from jarvis.presence.declaration import parse_declaration
 from jarvis.router import IntentRouter, Route
+from jarvis.flex import FLEX_SWITCH, is_flex
 from jarvis.learning import instruction_of
 from jarvis.scheduling.actions import split_event, split_schedule
 from jarvis.streaming import SpeechPipeline, TextPipeline, sentences_from_llm
@@ -573,6 +574,8 @@ class Agent:
     def _greet_call(self, call) -> None:
         if call.origin == "user":  # vous appelez ORION : il répond comme à son nom (« Oui, monsieur ? »)
             greeting = self._router.phrase("wake")
+        elif call.reason.startswith("Permettez-moi"):  # mode Flex : la présentation fait office de salut
+            greeting = f"Bonjour, monsieur. {call.reason}"
         else:
             greeting = " ".join(t for t in (self._router.phrase("call_greeting"), call.reason) if t)
             if self._call_rules is not None and self._call_rules.awaiting_ack(call.id):
@@ -678,6 +681,16 @@ class Agent:
         if (self._call_rules is not None and self._texting and is_acknowledgement(text)
                 and self._call_rules.acknowledge()):
             return self._say_text(history, text, "C'est noté, monsieur.", latency), False
+        if self._tools is not None and self._tools.registry.exists("flex"):
+            norm = normalize(text)
+            flex = ("set_flex_enabled" if FLEX_SWITCH.search(norm) and self._tools.registry.exists("set_flex_enabled")
+                    else "flex" if is_flex(text) else None)
+            if flex is not None:  # « Flex », « fais ta présentation » : reconnu sans LLM, décidé par les règles d'appel
+                latency["route"] = f"tool:{flex}"
+                self._event("routing", latency["route"])
+                # Fin de la conversation : la présentation (canal vocal) commence dès qu'ORION est libre.
+                return self._run_call(history, text, {"type": "tool_call", "tool": flex, "parameters": {}},
+                                      latency), flex == "flex"
         compound = COMPOUND_DEPARTURE.match(text)
         if compound and self._tools is not None and self._tools.registry.exists("declare_departure"):
             # « Je sors, appelle-moi dans 3 minutes » : le départ, puis la suite comme une demande à part entière.

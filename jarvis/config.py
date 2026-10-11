@@ -220,6 +220,9 @@ class CallConfig:
     away_events: tuple = ("leak.detected", "smoke.detected", "presence.motion_while_away", "door.left_open")
     # Rappel qui sonne pendant votre absence : ORION vous appelle (règle d'appel intégrée, désactivable par la voix).
     remind_when_away: bool = False
+    # Mode Flex (jarvis/flex.py) : « Flex » -> ORION se présente ; absent : appel après ce délai, sauf retour.
+    flex: bool = True
+    flex_delay_seconds: int = 60
     ring_timeout: float = 40.0
     connect_timeout: float = 15.0
     max_minutes: float = 15.0

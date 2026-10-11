@@ -66,3 +66,25 @@ def test_factory_builds_and_connects_rules_and_mail_follow_up(tmp_path):
         assert len(calls.requested) == 1 and (tmp_path / "call_rules.json").exists()
     finally:
         actions.stop()
+
+
+def test_factory_connects_flex_to_the_voice_channel_with_the_real_inventory(tmp_path):
+    from jarvis.factory import connect_flex
+    from jarvis.tools import ToolRegistry
+
+    cfg = load_config(ROOT / "config.toml")
+    cfg = replace(cfg, memory=replace(cfg.memory, path=tmp_path / "memory.json"), audio=replace(cfg.audio, remote=""))
+    bus = EventBus()
+    engine = PresenceEngine(["owner"], bus, state_path=tmp_path / "presence.json")
+    presence = SimpleNamespace(engine=engine, hub=SimpleNamespace(sensors={"porte": 1, "telephone": 2}))
+    rules, tools = build_call_rules(cfg, SimpleNamespace(), presence, None, None, None)
+    assert any(t.name == "flex" for t in tools) and any(r["id"] == "flex" for r in rules.rules)
+    notifications = Notifications()
+    connect_flex(cfg, rules, SimpleNamespace(registry=ToolRegistry()), notifications, None, None, presence, None, None,
+                 None, None)
+    rules.connect(Calls(), bus)
+    assert rules.trigger_flex() == "home"
+    texts = [n.message for n in notifications.sent]
+    assert len(texts) >= 4 and texts[0].startswith(("Bonjour", "Je m'appelle"))
+    joined = " ".join(texts)
+    assert "Katana" not in joined and "éclairage" not in joined  # rien de branché dans ce test : rien d'affirmé

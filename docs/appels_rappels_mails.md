@@ -130,7 +130,33 @@ Vos messages Linphone passent par la même compréhension que la voix. Vous pouv
   - pour les gérer : « Quelles sont tes consignes ? », « Retire la consigne 2 ».
 - Règles d'appel, vocabulaire (« quand je dis X, je veux dire Y ») et « je sors » : voir plus haut.
 
-## 5. Identité
+## 5. Mode Flex : ORION se présente
+
+Déclenchement : « Flex », « mode Flex », « fais ta présentation », « montre-leur ce que tu sais faire », à la voix
+ou par message Linphone. « Présente-toi » garde sa réponse courte habituelle.
+
+- Vous êtes à la maison : la présentation passe par la sortie audio de la maison, les haut-parleurs du PC via
+  l'agent Windows. Elle est découpée en 8 séquences courtes, dites l'une après l'autre dès qu'ORION est libre.
+  Si le PC ne répond pas, ORION vous appelle à la place.
+- Vous êtes absent : ORION attend `flex_delay_seconds` (60 s par défaut), revérifie votre présence, puis vous appelle.
+  Au téléphone, elle donne une version plus courte, qui commence au décroché.
+- Vous rentrez pendant cette minute : l'appel est annulé, la présentation passe par les enceintes.
+- Une seule présentation à la fois : un deuxième « Flex » pendant l'attente, ou dans les 2 minutes qui suivent une
+  présentation à la maison, ne relance rien. Un appel sans réponse n'est pas répété ; un message le signale.
+- Redémarrage : une présentation en attente reprend. Après 10 minutes, elle est abandonnée.
+- Réglages `[call] flex` et `flex_delay_seconds`. « Désactive le mode Flex » / « Active le mode Flex ». La règle
+  apparaît aussi dans « Quelles sont mes règles d'appel ? ».
+
+La présentation est écrite par le Core (`jarvis/flex.py`) à partir de l'inventaire de ce qui est réellement branché,
+jamais par le LLM. L'inventaire vient des outils enregistrés, des appareils déclarés, des lumières, des capteurs de
+présence, des appels, du suivi des mails, de la recherche et de l'apprentissage. Il classe chaque fonction comme :
+- opérationnelle ;
+- sous conditions (appels par Linphone sur l'iPhone, allumage du PC selon le réveil réseau) ;
+- indisponible (plusieurs enceintes : une seule sortie audio à la maison) : jamais présentée.
+
+Chaque séquence a plusieurs tournures, donc deux présentations diffèrent. Aucun renseignement privé n'y figure.
+
+## 6. Identité
 
 ORION est une femme : présentation (« votre assistante personnelle »), prompts du LLM (accords au féminin) et
 phrases toutes faites (désolée, navrée, ravie…). Elle vous vouvoie et vous appelle « monsieur », sans jamais

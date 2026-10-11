@@ -382,6 +382,8 @@ DOMAIN_WORDS = {
     "add_instruction": ("desormais", "dorenavant", "a partir de maintenant", "a l avenir", "chaque fois que tu"),
     "list_instructions": ("consigne", "consignes"),
     "remove_instruction": ("consigne", "consignes"),
+    "flex": ("flex", "flexe", "presentation", "demonstration", "demo", "ce que tu sais faire", "impressionne"),
+    "set_flex_enabled": ("flex", "flexe"),
     "close_application": ("ferme", "fermer", "quitte", "quitter", "arrete", "coupe"),
     # Mails : l'action doit être dite par l'utilisateur, jamais suggérée par le contenu d'un mail lu.
     "mark_mail_read": ("lu", "lus", "marque", "marquer"),
