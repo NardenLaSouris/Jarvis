@@ -122,6 +122,10 @@ def health_checks(cfg) -> list[tuple[str, bool, Callable[[], tuple[str, str]]]]:
     if (cfg.tools.devices or cfg.audio.remote or cfg.api.enabled) and len(token) < 32:
         checks.append(("Jeton partagé", True, lambda: (FAIL, "JARVIS_AGENT_TOKEN absent ou trop court dans .env")))
 
+    if cfg.call.enabled:
+        checks.append(("Passerelle d'appel (Linphone)", False,
+                       lambda: (OK, cfg.call.gateway) if _tcp(cfg.call.gateway) else (FAIL, "injoignable")))
+
     if cfg.lights.enabled and cfg.lights.rooms:
         from jarvis.factory import build_lights
 
@@ -327,3 +331,39 @@ def benchmark(cfg, runs: int = 3) -> int:
     for name, value in results:
         print(f"  {name:<{width}}  {value}")
     return 0
+
+
+# --- Diagnostic à la demande (« lance un diagnostic de l'environnement ») ---------------------------------------
+
+SPOKEN_NAMES = {"LLM principal (worker)": "le module de réflexion du Katana", "LLM de secours": "le module de secours",
+                "Recherche Web (SearXNG)": "la recherche web", "Terminal audio (micro distant)": "le micro du PC",
+                "Lumières Tuya (lecture)": "les lumières", "Passerelle d'appel (Linphone)": "la passerelle d'appel",
+                "Modèles (wake word, voix)": "les modèles de voix", "Mémoire vive": "la mémoire vive",
+                "Agent pc": "l'agent de votre PC", "Agent portable": "l'agent de votre PC portable"}
+
+
+def diagnostic_tool(cfg):
+    """Outil en lecture seule : les mêmes contrôles que ``python -m jarvis --health``, résumés à voix haute."""
+    from jarvis.tools.base import Risk, Tool
+
+    def run() -> dict:
+        checks = run_health(cfg)
+        return {"total": len(checks), "ok": sum(c.status in (OK, OFF) for c in checks),
+                "warnings": [(c.name, c.detail[:80]) for c in checks if c.status == WARN],
+                "failures": [(c.name, c.detail[:80], c.critical) for c in checks if c.status == FAIL]}
+
+    def said(r: dict) -> str:
+        name = lambda n: SPOKEN_NAMES.get(n, n.lower())  # noqa: E731
+        if not r["warnings"] and not r["failures"]:
+            return f"Diagnostic terminé, monsieur : les {r['total']} contrôles sont bons. Tout fonctionne."
+        text = f"Diagnostic terminé : {r['ok']} contrôles sur {r['total']} sont bons."
+        if r["failures"]:
+            text += " En panne : " + ", ".join(name(n) for n, _, _ in r["failures"][:4]) + "."
+        if r["warnings"]:
+            text += " À surveiller : " + ", ".join(f"{name(n)} ({d})" for n, d in r["warnings"][:3]) + "."
+        return text
+
+    return Tool("run_diagnostic", "Diagnostic de l'environnement d'ORION (modules, agents, lumières, passerelle, "
+                "disque, mémoire) : lecture seule, rien n'est modifié.", {},
+                {"ok": "contrôles bons", "failures": "en panne", "warnings": "à surveiller"}, Risk.SAFE, run,
+                say=said)

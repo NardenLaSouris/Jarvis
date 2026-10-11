@@ -203,6 +203,8 @@ STALE_UNAVAILABLE = {
 ORION_OBJECTS = re.compile(r"\b(mon|ma|mes|le|la|les|ce|cette|ces|du|des)\s+(mails?|courriers?|minuteurs?|rappels?|"
                            r"reveils?|alarmes?)\b")
 CLARIFY_WINDOW = 180.0  # s pour répondre à une question de précision
+DIAGNOSTIC = re.compile(r"\b(?:diagnostic|diagnostique|diagnostiquer|check ?up|etat du systeme|etat de l environnement|"
+                        r"etat de tes systemes|est ce que tout fonctionne|tout fonctionne bien)\b")
 # « Je sors, appelle-moi dans 3 minutes », « je pars et éteins tout » : départ annoncé, puis une autre demande.
 COMPOUND_DEPARTURE = re.compile(
     r"^\s*((?:(?:orion|jarvis)\W+)?je (?:sors|pars|m['’]en vais|quitte la maison|vais sortir|vais partir)"
@@ -681,6 +683,13 @@ class Agent:
         if (self._call_rules is not None and self._texting and is_acknowledgement(text)
                 and self._call_rules.acknowledge()):
             return self._say_text(history, text, "C'est noté, monsieur.", latency), False
+        if (self._tools is not None and self._tools.registry.exists("run_diagnostic")
+                and DIAGNOSTIC.search(normalize(text))):
+            # « Lance un diagnostic de l'environnement » : jamais une musique à lancer (Spotify).
+            latency["route"] = "tool:diagnostic"
+            self._event("routing", latency["route"])
+            return self._run_call(history, text, {"type": "tool_call", "tool": "run_diagnostic", "parameters": {}},
+                                  latency), False
         if self._tools is not None and self._tools.registry.exists("flex"):
             norm = normalize(text)
             flex = ("set_flex_enabled" if FLEX_SWITCH.search(norm) and self._tools.registry.exists("set_flex_enabled")

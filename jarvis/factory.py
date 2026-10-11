@@ -925,6 +925,9 @@ def build_agent(
             extra += mail_action_tools(mail_actions)
     if cfg.tools.enabled:
         extra.append(build_network_tool(cfg, rooms))
+        from jarvis.diagnostics import diagnostic_tool
+
+        extra.append(diagnostic_tool(cfg))  # « lance un diagnostic » : lecture seule
     call_rules = None
     if cfg.call.enabled and cfg.tools.enabled:  # règles d'appel dites par l'utilisateur (le gestionnaire vient après)
         call_rules, rule_tools = build_call_rules(cfg, llm, presence, timers, mailbox, mail_actions)
