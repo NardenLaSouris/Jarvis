@@ -347,14 +347,15 @@ def diagnostic_tool(cfg, devices=None, client=None, presence=None, rooms=None, d
     applications connues ouvertes sur les PC allumés, puis les contrôles de ``python -m jarvis --health``."""
     from jarvis.tools.base import Risk, Tool
 
-    def apps_on(device) -> list[str]:
-        """Applications du catalogue d'ORION ouvertes sur ce PC (jamais les titres des fenêtres)."""
+    def apps_on(device) -> list[str] | None:
+        """Applications du catalogue d'ORION ouvertes sur ce PC (jamais les titres des fenêtres) ; None si le PC n'a
+        pas répondu à temps (le PC fixe met plusieurs secondes à parcourir ses processus)."""
         if client is None:
             return []
         try:
             result = client.call(device, "list_running_applications", {})
-        except Exception:  # noqa: BLE001 - PC qui vient de s'éteindre : rien à dire de plus
-            return []
+        except Exception:  # noqa: BLE001 - PC trop lent ou qui vient de s'éteindre
+            return None
         return [str(a.get("label") or a.get("application"))[:30] for a in result.get("applications", [])
                 if isinstance(a, dict) and a.get("running")][:8]
 
@@ -365,13 +366,18 @@ def diagnostic_tool(cfg, devices=None, client=None, presence=None, rooms=None, d
         for key in (devices.keys() if devices is not None else ()):
             device = devices[key]
             if not device.url:  # le mini-PC du Core : c'est ORION elle-même, nommé en premier
-                online.insert(0, {"name": device.name, "apps": []})
+                online.insert(0, {"name": device.name})
                 continue
             check = by_name.get(f"Agent {key}")
             if check is not None and check.status == OK:
-                online.append({"name": device.name, "apps": apps_on(device)})
+                online.append({"name": device.name, "device": device})
             else:
                 offline.append(device.name)
+        with ThreadPoolExecutor(max_workers=4) as pool:  # les PC en parallèle
+            listed = list(pool.map(lambda d: apps_on(d["device"]) if "device" in d else [], online))
+        for entry, apps in zip(online, listed):
+            entry.pop("device", None)
+            entry["apps"] = apps
         phone = None
         if presence is not None:
             users = presence.engine.snapshot()["users"]
@@ -396,9 +402,12 @@ def diagnostic_tool(cfg, devices=None, client=None, presence=None, rooms=None, d
             described = []
             for d in r["online"]:
                 apps = d["apps"]
+                if apps is None:
+                    described.append(f"{d['name']}, dont je n'ai pas pu lire les applications à temps")
+                    continue
                 described.append(d["name"] + (f", où sont ouverts {_join(apps)}" if len(apps) > 1 else
                                               f", où {apps[0]} est ouvert" if apps else ""))
-            with_apps = any(d["apps"] for d in r["online"])
+            with_apps = any(d["apps"] or d["apps"] is None for d in r["online"])
             parts.append("En ligne : " + (" ; ".join(described) if with_apps else _join(described)) + ".")
         if r["offline"]:
             parts.append("Hors ligne : " + _join(r["offline"]) + ".")

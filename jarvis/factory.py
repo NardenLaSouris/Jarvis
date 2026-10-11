@@ -931,7 +931,7 @@ def build_agent(
         if devices is not None and secret("JARVIS_AGENT_TOKEN", ENV_FILE):
             from jarvis.tools.devices import AgentClient
 
-            agents = AgentClient(secret("JARVIS_AGENT_TOKEN", ENV_FILE), timeout=5.0)
+            agents = AgentClient(secret("JARVIS_AGENT_TOKEN", ENV_FILE), timeout=12.0)
         # « Lance un diagnostic » : appareils en ligne, applications ouvertes, lumières, iPhone ; lecture seule.
         extra.append(diagnostic_tool(cfg, devices, agents, presence, rooms, driver))
     call_rules = None
