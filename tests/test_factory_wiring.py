@@ -59,6 +59,7 @@ def test_factory_builds_and_connects_rules_and_mail_follow_up(tmp_path):
         assert {t.name for t in tools} >= {"create_call_rule", "list_call_rules", "explain_calls"}
         calls = Calls()
         rules.connect(calls, bus)
+        assert rules._thread is not None and rules._thread.is_alive()  # échéances en marche
         rules.add({"trigger": {"type": "event", "event": "reminder_due"}, "conditions": [{"type": "away"}]},
                   "appelle-moi quand je suis absent et qu'un rappel arrive")
         assert engine.declare_departure("owner") == "away"

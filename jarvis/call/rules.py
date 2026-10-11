@@ -251,6 +251,7 @@ class CallRules:
         self.labels: dict[str, str] = {}  # fil d'un mail -> objet (pour les phrases), gardé avec les règles
         self.removed: set[str] = set()  # règles intégrées supprimées par vous : jamais recréées
         # Mode Flex (jarvis/flex.py), branché par la factory : texte (téléphone ou non), enceintes, sortie prête.
+        self.tick_seconds = 5.0  # période du fil des échéances
         self.flex_text: Callable[[bool], list[str]] | None = None
         self.flex_present_home: Callable[[list[str]], None] | None = None
         self.speaker_ready: Callable[[], bool] | None = None
@@ -430,9 +431,11 @@ class CallRules:
     # --- Déclenchement -------------------------------------------------------------------------------------
 
     def connect(self, calls, bus: EventBus) -> None:
-        """Gestionnaire d'appels (créé après les outils) et bus : la règle peut maintenant appeler."""
+        """Gestionnaire d'appels (créé après les outils) et bus : la règle peut maintenant appeler, et le fil des
+        échéances (appels différés, heures dites, nouvelles tentatives, reports) tourne."""
         self._calls = calls
         self.attach(bus)
+        self.start()
 
     def attach(self, bus: EventBus) -> None:
         self._bus = bus
@@ -528,8 +531,9 @@ class CallRules:
             for job in self.jobs:
                 if job.get("action") != "flex":
                     continue
-                if job["state"] not in JOB_FINAL or (job["state"] == PRESENTED and now - job["history"][-1][1] <
-                                                     FLEX_REPEAT_GUARD and job.get("channel") == "home"):
+                recent_home = (job["state"] == PRESENTED and job.get("channel") == "home" and self._home()
+                               and now - job["history"][-1][1] < FLEX_REPEAT_GUARD)  # sorti depuis : permis
+                if job["state"] not in JOB_FINAL or recent_home:
                     return "already"  # jamais deux présentations à la fois
             job = {"id": secrets.token_hex(4), "rule": entry["id"], "key": f"flex:{int(now)}", "state": PLANNED,
                    "reason": "", "attempts": 0, "next_at": now, "created": now, "call": "",
@@ -753,7 +757,7 @@ class CallRules:
         self._stopping.set()
 
     def _run(self) -> None:
-        while not self._stopping.wait(5.0):
+        while not self._stopping.wait(self.tick_seconds):
             try:
                 self.tick()
             except Exception:  # noqa: BLE001 - le fil des règles ne doit pas mourir

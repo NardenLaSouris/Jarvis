@@ -180,3 +180,27 @@ def test_agent_routes_flex_without_the_llm(tmp_path):
     llm = PlannerLLM(reply="Bien.")
     spoken, events = run_agent(["Flex"], llm, core=core)
     assert spoken[0] == "Avec plaisir, monsieur." and llm.calls == [] and len(w.home_said) == 1
+
+
+def test_the_background_thread_really_calls_after_the_delay(tmp_path):
+    import time as real_time
+
+    w = world(tmp_path, state="AWAY")
+    w.rules.tick_seconds = 0.02
+    w.rules.connect(w.calls, w.bus)  # comme en service : le fil des échéances démarre
+    try:
+        assert w.rules.trigger_flex() == "waiting"
+        w.t += 61  # l'horloge avance ; c'est le fil, pas le test, qui doit appeler
+        deadline = real_time.monotonic() + 3
+        while not w.calls.requested and real_time.monotonic() < deadline:
+            real_time.sleep(0.02)
+        assert len(w.calls.requested) == 1
+    finally:
+        w.rules.stop()
+
+
+def test_flex_sent_after_leaving_is_not_blocked_by_the_home_presentation(tmp_path):
+    w = world(tmp_path)
+    assert w.rules.trigger_flex() == "home"
+    w.presence.users["owner"].state = "AWAY"  # « je sors » juste après
+    assert w.rules.trigger_flex() == "waiting"

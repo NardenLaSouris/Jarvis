@@ -1009,7 +1009,7 @@ def build_agent(
 
     calls = build_calls(cfg, source, sink, events)
     if call_rules is not None and calls is not None:
-        call_rules.connect(calls, events)
+        call_rules.connect(calls, events)  # démarre aussi le fil des échéances
     if calls is not None and api is not None:
         api.calls = calls  # appel d'essai par l'API d'administration (POST /api/call), jamais automatique
     if calls is not None and cfg.audio.remote and hasattr(source, "on_status"):
