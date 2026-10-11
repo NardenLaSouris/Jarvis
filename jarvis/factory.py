@@ -857,6 +857,12 @@ def build_agent(
     calls = build_calls(cfg, source, sink, events)
     if calls is not None and api is not None:
         api.calls = calls  # appel d'essai par l'API d'administration (POST /api/call), jamais automatique
+    if calls is not None and cfg.audio.remote and hasattr(source, "on_status"):
+        from jarvis.call.notices import PcOnlineNotice
+
+        # Micro du PC revenu après une vraie absence : « Votre PC est allumé. » par message Linphone.
+        notice, reported = PcOnlineNotice(calls.reply), source.on_status
+        source.on_status = lambda ok: (reported(ok) if reported else None, notice.status(ok))
     if calls is not None and presence is not None and cfg.call.away_events:
         from jarvis.call.trigger import AwayCallTrigger
 
