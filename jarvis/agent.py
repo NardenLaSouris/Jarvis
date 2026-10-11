@@ -1085,6 +1085,12 @@ class Agent:
             messages[-1] = Message("user", web_request(text, web_context))
         if tool_result is not None:
             messages[-1] = Message("user", tool_request(text, tool_result))
+        elif not searched and self._learning is not None:
+            reminders = self._learning.matching(text)
+            if reminders:  # consigne durable qui concerne cette demande : rappelée juste avant elle
+                notes = " ; ".join(f"« {r} »" for r in reminders[:3])
+                messages[-1] = Message("user", f"{text}\n\n(Consigne durable de l'utilisateur qui s'applique ici, à "
+                                               f"suivre directement : {notes})")
         succeeded = tool_result is not None and tool_result.success
         fallback = tool_result.message if tool_result is not None and not tool_result.success else None
         if fallback is None and self._action_unclear:

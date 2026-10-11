@@ -74,3 +74,28 @@ def test_agent_adds_a_reaction_and_an_instruction_by_message(tmp_path):
     assert routine["trigger"] == {"type": "event", "event": "arrival"} and routine["actions"][0]["tool"] == "unmute_volume"
     assert spoken[0].startswith("C'est programmé à chacun de vos retours")
     assert learning.instructions() == ["réponds-moi plus brièvement"] and "je m'y tiendrai" in spoken[1]
+
+
+def test_behavior_added_in_free_form_and_recalled_when_it_applies(tmp_path):
+    text = ("Ajoute ça dans ton comportement récurrent : quand je demande pourquoi une de ces couleurs "
+            "(orange,bleu,vert,jaune,violet,rose) est un fils de pute ou autre insulte, comprends que je parle de CS2 "
+            "donc taille le en disant qu'il ne sait pas jouer, etc")
+    instruction = instruction_of(text)
+    assert instruction.startswith("quand je demande pourquoi une de ces couleurs") and instruction.endswith("etc")
+    assert instruction_of("Quand je te demande la météo, donne la température ressentie").startswith("Quand je te")
+    assert instruction_of("Nouvelle consigne : sois plus brève") == "sois plus brève"
+    learning = Learning(tmp_path / "learned.json")
+    learning.add_instruction(instruction)  # plus de 200 caractères : accepté
+    assert learning.matching("Pourquoi le violet est un gros nul ?") == [instruction]
+    assert learning.matching("Quelle est la capitale de l'Australie ?") == []
+
+
+def test_parameter_errors_are_said_plainly():
+    from jarvis.tools.base import Param, Risk, Tool
+
+    core = ToolCore(ToolRegistry(), PermissionManager())
+    core.registry.register(Tool("remember", "Retient.", {"fact": Param(str, "fait", max_length=10)}, {}, Risk.SAFE,
+                                lambda fact: {}))
+    outcome = core.submit({"type": "tool_call", "tool": "remember", "parameters": {"fact": "x" * 50}})
+    assert outcome.result.message == "C'est un peu long pour moi, monsieur : pouvez-vous le dire plus brièvement ?"
+    assert "fact" not in outcome.result.message

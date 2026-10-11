@@ -7,11 +7,14 @@ Seuls les champs ``type``, ``tool`` et ``parameters`` sont acceptés : aucun cha
 from __future__ import annotations
 
 import json
+import logging
 import re
 from typing import Any
 
 from jarvis.tools.base import INVALID_PARAMETERS, ToolError, ToolRequest
 from jarvis.tools.registry import ToolRegistry
+
+log = logging.getLogger(__name__)
 
 ALLOWED_KEYS = {"type", "tool", "parameters"}
 CONTROL = re.compile(r"[\x00-\x1f\x7f]")
@@ -76,20 +79,31 @@ def parse_request(data: Any, registry: ToolRegistry) -> ToolRequest:
         raise _malformed("Paramètres inconnus pour cet outil.")
     clean: dict[str, Any] = {}
     for name, spec in tool.parameters.items():
+        # Messages dits à l'utilisateur (le nom technique du paramètre va seulement au journal).
         if name not in params:
             if spec.required:
-                raise _invalid(f"Le paramètre « {name} » est obligatoire.")
+                log.info("Outil %s : paramètre « %s » manquant", tool.name, name)
+                raise _invalid("Il me manque une précision pour faire cela, monsieur.")
             continue
         value = _typed(name, params[name], spec.kind)
         if isinstance(value, str):
             value = value.strip()
-            if not value or len(value) > spec.max_length or CONTROL.search(value):
-                raise _invalid(f"Valeur invalide pour « {name} ».")
+            if len(value) > spec.max_length:
+                log.info("Outil %s : « %s » trop long (%d caractères)", tool.name, name, len(value))
+                raise _invalid("C'est un peu long pour moi, monsieur : pouvez-vous le dire plus brièvement ?")
+            if not value or CONTROL.search(value):
+                log.info("Outil %s : « %s » vide ou illisible", tool.name, name)
+                raise _invalid("Je n'ai pas bien compris cette demande, monsieur.")
         if isinstance(value, (int, float)) and not isinstance(value, bool):
             if (spec.minimum is not None and value < spec.minimum) or (spec.maximum is not None and value > spec.maximum):
-                raise _invalid(f"Valeur hors limites pour « {name} ».")
+                log.info("Outil %s : « %s » hors limites", tool.name, name)
+                if spec.minimum is not None and spec.maximum is not None:
+                    low, high = (f"{v:g}" for v in (spec.minimum, spec.maximum))
+                    raise _invalid(f"Je ne peux pas, monsieur : {name} de {low} à {high} seulement.")
+                raise _invalid("Cette valeur est en dehors de ce que je peux faire, monsieur.")
         if spec.choices and value not in spec.choices:
-            raise _invalid(f"Valeur non autorisée pour « {name} ».")
+            log.info("Outil %s : « %s » non autorisé", tool.name, name)
+            raise _invalid("Je ne peux pas utiliser cette valeur, monsieur.")
         if spec.check is not None:
             value = spec.check(value)
         clean[name] = value

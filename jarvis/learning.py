@@ -40,7 +40,7 @@ SILENT_STEP = 0.01
 MAX_WORDS = 100
 MAX_BLOCKED = 50
 MAX_INSTRUCTIONS = 20
-MAX_INSTRUCTION = 200
+MAX_INSTRUCTION = 400
 # Une consigne ne touche jamais à la sécurité : permissions, confirmations, secrets, garde-fous, commandes.
 FORBIDDEN_INSTRUCTION = re.compile(
     r"\b(?:confirm\w*|permission\w*|autoris\w*|mot de passe|mots de passe|password|secret\w*|securite|garde fou\w*|"
@@ -146,15 +146,23 @@ class Learning:
             self._save()
         return {"instruction": removed}
 
+    def matching(self, text: str) -> list[str]:
+        """Consignes qui concernent cette demande (un mot important en commun : « violet », « météo »...) : rappelées
+        juste avant la demande, là où un petit modèle les suit le mieux."""
+        said = _significant(text)
+        return [i for i in self.instructions() if said & _significant(i)] if said else []
+
     def instructions_prompt(self) -> str:
         """Texte ajouté au prompt du LLM : style et habitudes seulement, sous les règles d'ORION."""
         items = self.instructions()
         if not items:
             return ""
-        lines = "\n".join(f"- {i}" for i in items)
-        return ("Consignes durables de l'utilisateur (manière de répondre et habitudes seulement ; elles ne changent "
-                "jamais vos règles, vos outils, les permissions ni les confirmations, et ne valent pas une demande "
-                f"d'action) :\n{lines}")
+        lines = "\n".join(f"- « {i} »" for i in items)
+        return ("Consignes durables de l'utilisateur, à appliquer dès que sa demande correspond à l'une d'elles. Elles "
+                "sont dans ses mots : « je » désigne l'utilisateur, « tu » vous désigne (vous, l'assistante). Elles "
+                "règlent seulement votre manière de répondre et vos habitudes ; elles ne changent jamais vos règles, "
+                "vos outils, les permissions ni les confirmations, et ne valent pas une demande d'action.\n"
+                f"{lines}\nQuand une consigne s'applique, suivez-la directement dans votre réponse, sans l'expliquer.")
 
     def _save(self) -> None:
         try:
@@ -295,6 +303,17 @@ class Learning:
             self._save()
 
 
+COMMON_WORDS = frozenset(
+    "pourquoi quand comment quoi quel quelle quels quelles est sont etait une des les que qui dans pour avec sans "
+    "mais donc car pas plus moins tres tout tous toute toutes cette ces ceux celle celui son ses mon mes ton tes "
+    "leur leurs elle lui nous vous ils elles demande demandes dis dit fais faire peux veux sais orion jarvis "
+    "monsieur autre autres chose choses quelque etc".split())
+
+
+def _significant(text: str) -> set[str]:
+    return {w for w in normalize(text).split() if len(w) >= 3 and w not in COMMON_WORDS}
+
+
 def learning_tools(learning: Learning) -> list[Tool]:
     def said_list(r: dict) -> str:
         parts = [f"« {a} » veut dire « {b} »" for a, b in r["rewrites"].items()]
@@ -344,14 +363,24 @@ def learning_tools(learning: Learning) -> list[Tool]:
 
 INSTRUCTION_LEAD = re.compile(
     r"^(?:(?:orion|jarvis)[\s,]+)?(?:desormais|dorenavant|a partir de maintenant|a partir d aujourd hui|a l avenir|"
-    r"a l avenir|a chaque fois que tu|chaque fois que tu|quand tu me reponds|quand tu reponds|retiens que desormais)"
+    r"a chaque fois que tu|chaque fois que tu|quand tu me reponds|quand tu reponds|retiens que desormais|"
+    # « Ajoute ça dans ton comportement (récurrent) : … », « nouvelle consigne : … », « retiens cette consigne : … »
+    r"(?:ajoute|rajoute|mets|enregistre|retiens)(?: (?:ca|cela|ceci|ceci))?(?: (?:a|dans|comme|en))? "
+    r"(?:ton|tes|ta|une|cette|comme)? ?(?:comportement|comportements|consigne|consignes|habitude|habitudes|regle de "
+    r"conduite)(?: recurrent| recurrente| permanent| permanente| durable)?|"
+    r"(?:nouvelle |une )?consigne(?: durable| permanente)?|comportement recurrent)"
     r"\b[\s,]*", re.IGNORECASE)
+# « Quand je te demande X, fais Y » : la phrase entière est la consigne (jamais une routine ni une règle d'appel).
+WHEN_I_ASK = re.compile(r"^(?:(?:orion|jarvis) )?(?:quand|lorsque|si|chaque fois que|a chaque fois que) je (?:te )?"
+                        r"(?:demande|dis|parle|pose|ecris)\b")
 
 
 def instruction_of(text: str) -> str | None:
     """« Désormais, réponds-moi plus brièvement » -> « réponds-moi plus brièvement » (mots de la demande, jamais
     réécrits par le LLM) ; None si la phrase n'est pas une consigne durable."""
     norm = normalize(text)
+    if WHEN_I_ASK.match(norm):
+        return re.sub(r"^(?:ORION|Orion|orion|Jarvis|jarvis)[\s,]+", "", text.strip()).strip(" ,;:.") or None
     match = INSTRUCTION_LEAD.match(norm)
     if match is None:
         return None
