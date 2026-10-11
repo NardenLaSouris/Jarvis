@@ -180,6 +180,26 @@ def build_corrector(cfg: Config, personality):
                             rewrite=personality.canonical)
 
 
+def build_learning(cfg: Config, personality, stt=None):
+    """Ce qu'ORION apprend à l'usage (vocabulaire, mot de réveil), à côté de sa mémoire ; None si elle est coupée."""
+    if not cfg.memory.enabled:
+        return None
+    from jarvis.learning import Learning
+
+    learning = Learning(Path(cfg.memory.path).parent / "learned.json",
+                        protected=(*personality.confirm_yes, *personality.confirm_no),
+                        names=(personality.assistant_name, *personality.former_names, cfg.wake_word.phrase))
+    if stt is not None and hasattr(stt, "hotwords"):
+        base = stt.hotwords
+
+        def refresh() -> None:  # mots appris donnés à Whisper en plus du vocabulaire d'ORION
+            stt.hotwords = ", ".join(x for x in (base, learning.hotwords()) if x)
+
+        learning.on_change = refresh
+        refresh()
+    return learning
+
+
 def build_web(cfg: Config):
     """Recherche Web configurée, ou None si elle est désactivée ou sans moteur."""
     w = cfg.web
@@ -751,6 +771,11 @@ def build_agent(
         from jarvis.memory import memory_tools
 
         extra += memory_tools(memory, current_user)
+    learning = build_learning(cfg, personality, stt)
+    if learning is not None and cfg.tools.enabled:
+        from jarvis.learning import learning_tools
+
+        extra += learning_tools(learning)
     spotify = build_spotify(cfg)
     music = build_music_relay(cfg) if spotify is not None else None
     if spotify is not None:
@@ -875,7 +900,7 @@ def build_agent(
                                 if s is not None),
                  fast_path=cfg.tools.fast_path, routines=routines, profiles=build_profiles(cfg),
                  wake_verifier=build_wake_verifier(cfg), wake_captures=build_wake_captures(cfg),
-                 content_guard=build_content_guard(cfg, llm), calls=calls)
+                 content_guard=build_content_guard(cfg, llm), calls=calls, learning=learning)
     # Échéance proche (rendez-vous, minuteur, rappel) pour l'anneau du visage.
     agent.upcoming = Upcoming(calendar, timers) if calendar is not None or timers is not None else None
     return agent

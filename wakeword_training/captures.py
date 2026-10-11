@@ -22,7 +22,7 @@ def run(spec: Spec, source: Path) -> dict[str, int]:
     counts = {"positive": 0, "negative": 0, "skipped": 0}
     for capture in load_captures(source):
         outcome = capture.get("outcome")
-        if outcome in ("silent", "rejected"):
+        if outcome in ("silent", "rejected", "false"):
             kind = "negative"
         elif outcome == "used" and capture.get("verified") is True:
             kind = "positive"

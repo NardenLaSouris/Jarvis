@@ -50,6 +50,9 @@ EXAMPLES = (
     ("Remets le son", "unmute_volume", {}),
     ("Verrouille le PC", "lock_pc", {}),
     ("Éteins mon PC", "shutdown_pc", {}),
+    ("Quand je dis la lampe du fond, je veux dire la chambre", "learn_word",
+     {"heard": "la lampe du fond", "meaning": "la chambre"}),
+    ("Retiens le mot Katana", "learn_word", {"heard": "Katana"}),
     ("Allume mon ordinateur", "wake_pc", {}),
     ("Quelles applications sont ouvertes ?", "list_running_applications", {}),
     ("Quelle machine utilises-tu ?", "system_info", {}),
@@ -359,6 +362,10 @@ DOMAIN_WORDS = {
     # Allumer ou éteindre un PC : l'ordinateur doit être nommé (« éteins tout » ne vise que les lumières).
     "shutdown_pc": ("pc", "ordinateur", "ordi", "portable", "katana", "laptop", "tour", "machine", "shutdown"),
     "wake_pc": ("pc", "ordinateur", "ordi", "portable", "katana", "laptop", "tour", "machine"),
+    # Vocabulaire : seulement quand l'utilisateur l'enseigne ou le retire explicitement.
+    "learn_word": ("je dis", "veut dire", "veux dire", "signifie", "retiens le mot", "retiens l expression",
+                   "apprends", "apprend", "le mot", "l expression"),
+    "forget_word": ("oublie le mot", "oublie l expression", "oublie ce mot", "desapprends"),
     "close_application": ("ferme", "fermer", "quitte", "quitter", "arrete", "coupe"),
     # Mails : l'action doit être dite par l'utilisateur, jamais suggérée par le contenu d'un mail lu.
     "mark_mail_read": ("lu", "lus", "marque", "marquer"),

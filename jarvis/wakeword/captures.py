@@ -4,7 +4,8 @@ Chaque détection enregistre ses deux dernières secondes (``<date>_<score>.wav`
 images, vérification (transcription), puis l'issue de la conversation :
 - ``used`` : une demande a suivi (vrai « Jarvis ») ;
 - ``silent`` : rien n'a suivi (faux réveil probable) ;
-- ``rejected`` : écarté par la vérification (jarvis.wakeword.verify).
+- ``rejected`` : écarté par la vérification (jarvis.wakeword.verify) ;
+- ``false`` : faux réveil signalé par l'utilisateur (« ce n'était pas pour toi », jarvis.learning).
 
 ``python -m jarvis --wake-report`` résume ces fiches et ce que donnerait un autre seuil ;
 ``python -m wakeword_training import-captures`` les verse dans les enregistrements réels de l'entraînement
@@ -22,7 +23,7 @@ import numpy as np
 
 log = logging.getLogger(__name__)
 
-OUTCOMES = ("used", "silent", "rejected")
+OUTCOMES = ("used", "silent", "rejected", "false")
 
 
 class WakeCaptures:
@@ -89,13 +90,13 @@ def report(folder: Path) -> str:
         return f"Aucun réveil capturé dans {folder} pour le moment."
     counts = {o: sum(c["outcome"] == o for c in captures) for o in OUTCOMES}
     lines = [f"{len(captures)} réveils : {counts['used']} suivis d'une demande, {counts['silent']} sans suite, "
-             f"{counts['rejected']} écartés par la vérification.", "",
+             f"{counts['rejected']} écartés par la vérification, {counts['false']} faux réveils signalés.", "",
              "seuil   demandes gardées   réveils sans suite évités   écartés par la vérification évités"]
     for threshold in (0.70, 0.75, 0.80, 0.85, 0.90, 0.95, 0.98):
         kept = sum(c["outcome"] == "used" and c.get("score", 0) >= threshold for c in captures)
-        silent = sum(c["outcome"] == "silent" and c.get("score", 0) < threshold for c in captures)
+        silent = sum(c["outcome"] in ("silent", "false") and c.get("score", 0) < threshold for c in captures)
         rejected = sum(c["outcome"] == "rejected" and c.get("score", 0) < threshold for c in captures)
-        lines.append(f"{threshold:.2f}    {kept:>3} / {counts['used']:<3}          {silent:>3} / {counts['silent']:<3}"
+        lines.append(f"{threshold:.2f}    {kept:>3} / {counts['used']:<3}          {silent:>3} / {counts['silent'] + counts['false']:<3}"
                      f"                   {rejected:>3} / {counts['rejected']}")
     heard = [c.get("heard", "") for c in captures if c["outcome"] == "rejected" and c.get("heard")]
     if heard:

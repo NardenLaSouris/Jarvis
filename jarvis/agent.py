@@ -261,6 +261,7 @@ class Agent:
         wake_captures=None,
         content_guard=None,
         calls=None,
+        learning=None,
     ):
         self.settings = settings
         self._source = source
@@ -290,6 +291,10 @@ class Agent:
         self._wake_verifier = wake_verifier
         self._wake_captures = wake_captures
         self._wake_capture: Path | None = None
+        # Ce qu'ORION apprend (jarvis.learning) : vocabulaire, seuil et règles du mot de réveil.
+        self._learning = learning
+        self._last_wake: dict | None = None  # fiche du réveil qui a ouvert la conversation en cours
+        self._false_wake = False
         self._since_rejection: float | None = None  # secondes d'audio écoutées depuis le dernier rejet
         self._lead: list[np.ndarray] = []  # audio lu après le mot de réveil, début de la demande
         # Actions restantes d'une demande enchaînée arrêtée sur une confirmation (« ferme Chrome et ouvre le
@@ -371,7 +376,7 @@ class Agent:
     def _wait_for_wake_word(self) -> bool:
         self._event("sleep", f"En veille — dites « {self.settings.wake_phrase} »")
         self._wake_word.reset()
-        trigger = WakeTrigger(self.settings.wake_threshold, self.settings.wake_patience)
+        trigger = WakeTrigger(self._wake_threshold(), self.settings.wake_patience)
         rate = getattr(self._source, "sample_rate", 16000)
         recent: deque = deque(maxlen=max(1, round(WAKE_WINDOW * rate / max(1, getattr(self._source, "frame_samples",
                                                                                        1280)))))
@@ -449,9 +454,10 @@ class Agent:
         """Seconde vérification (« Jarvis » bien entendu dans l'audio du déclenchement) ; un réveil franc (``sure``)
         et un second appel peu après un rejet sont acceptés sans elle (le mot écarté à tort se rattrape en le
         redisant)."""
-        meta = {"score": round(trigger.peak, 3), "frames": trigger.run, "threshold": self.settings.wake_threshold}
+        meta = {"score": round(trigger.peak, 3), "frames": trigger.run, "threshold": trigger.threshold}
         retry = self._since_rejection is not None
-        if sure and self._wake_verifier is not None:
+        always_verify = self._learning is not None and self._learning.always_verify  # règle apprise
+        if sure and self._wake_verifier is not None and not always_verify:
             meta["sure"] = True
         elif self._wake_verifier is not None and not retry:
             started = time.perf_counter()
@@ -461,6 +467,9 @@ class Agent:
                 log.exception("Vérification du wake word impossible : réveil accepté")
                 confirmed, heard = True, ""
             meta.update(verified=confirmed, heard=heard[:120], verify_s=round(time.perf_counter() - started, 2))
+            if confirmed and self._learning is not None and self._learning.blocked(heard):
+                confirmed = False  # déjà signalé comme faux réveil (« ce n'était pas pour toi »)
+                meta["blocked"] = True
             if not confirmed:
                 self._since_rejection = 0.0
                 self._event("wake_rejected", f"Wake word écarté ({trigger.detail}, entendu « {heard[:60]} »)")
@@ -471,13 +480,23 @@ class Agent:
             meta["retry"] = True
         self._since_rejection = None
         self._wake_capture = self._wake_captures.save(audio, rate, meta) if self._wake_captures is not None else None
+        self._last_wake = meta
         return True
+
+    def _wake_threshold(self) -> float:
+        """Seuil du mot de réveil : celui du réglage, relevé après des faux réveils (jarvis.learning)."""
+        base = self.settings.wake_threshold
+        return self._learning.wake_threshold(base) if self._learning is not None else base
 
     def _conversation(self) -> None:
         understood = self._listen_and_answer()
+        outcome = "false" if self._false_wake else "used" if understood else "silent"
         if self._wake_captures is not None:
-            self._wake_captures.finish(self._wake_capture, "used" if understood else "silent")
+            self._wake_captures.finish(self._wake_capture, outcome)
             self._wake_capture = None
+        if outcome == "silent" and self._last_wake is not None and self._learning is not None:
+            self._learning.silent_wake()
+        self._last_wake, self._false_wake = None, False
 
     def _listen_and_answer(self) -> bool:
         """Conversation ouverte par le wake word, une annonce ou un appel décroché ; True si au moins une demande a
@@ -518,6 +537,8 @@ class Agent:
         if self.request_context is not None and self._tools is not None and hasattr(self._tools, "set_user"):
             self._tools.set_user(self.request_context.user_id)
         self._event("message", text)
+        if self._learning is not None:
+            text = self._learning.rewrite(text)
         saved, pipeline = self._pipeline, TextPipeline()
         self._pipeline, self._texting = pipeline, True
         try:
@@ -567,6 +588,9 @@ class Agent:
                 if corrected != text:
                     self._event("correction", f"« {text} » -> « {corrected} »")
                     text = corrected
+            if self._learning is not None and (learned := self._learning.rewrite(text)) != text:
+                self._event("correction", f"« {text} » -> « {learned} » (vocabulaire appris)")
+                text = learned
             self._event("user", text)
             understood = True
             confidence = getattr(self._stt, "last_confidence", None)
@@ -635,11 +659,22 @@ class Agent:
                 return None, False
         if route.name == "stop":
             self._stop_alarm()
+        if route.name == "false_wake":
+            self._report_false_wake()
         if route.source == "llm" and self._unsure():
             route = Route("unsure", reply=self._router.phrase("not_understood"))
         latency["route"] = route.label
         self._event("routing", route.label)
         return self._answer(history, follow_up or text, route, latency), route.end_conversation
+
+    def _report_false_wake(self) -> None:
+        """« Ce n'était pas pour toi » juste après un réveil : le mot de réveil se durcit (jarvis.learning)."""
+        if self._texting or self._in_call is not None or self._last_wake is None or self._learning is None:
+            return
+        learned = self._learning.false_wake(self._last_wake)
+        self._false_wake = True
+        self._event("learning", f"Faux réveil : seuil relevé de {learned['raise']:.2f}"
+                                + (f", nouvelle règle ({learned['rule']})" if learned["rule"] else ""))
 
     def _answer(self, history: list[Message], text: str, route, latency: dict) -> str:
         if route.source == "tool" and self._tools is not None:
@@ -1037,7 +1072,7 @@ class Agent:
         return reply
 
     def _speak(self, sentences, latency: dict, marks: dict | None = None) -> str:
-        watcher = (WakeWatcher(self._source, self._wake_word, self.settings.wake_threshold, self._interrupt,
+        watcher = (WakeWatcher(self._source, self._wake_word, self._wake_threshold(), self._interrupt,
                                self.settings.wake_patience).start()
                    if self.settings.barge_in and not self._texting else None)
         try:
