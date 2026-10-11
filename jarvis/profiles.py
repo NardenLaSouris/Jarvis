@@ -41,7 +41,8 @@ CATEGORIES = {
                "set_call_rule_enabled", "delete_call_rule", "modify_call_rule", "explain_calls",
                "network_status"),
     "files": ("find_files", "read_text_file", "create_text_file", "copy_file", "move_file", "delete_file"),
-    "memory": ("remember", "recall", "forget", "learn_word", "forget_word", "list_learned"),  # faits personnels : jamais lus à un enfant ou un invité
+    "memory": ("remember", "recall", "forget", "learn_word", "forget_word", "list_learned", "add_instruction",
+               "list_instructions", "remove_instruction"),  # faits personnels : jamais lus à un enfant ou un invité
     # Boîte du propriétaire : ni un autre adulte, ni un enfant, ni un invité ne la lit ou n'écrit en son nom.
     "mail": ("check_mail", "list_mail", "search_mail", "read_mail", "summarize_mail", "mark_mail_read",
              "mark_all_mail_read",

@@ -379,6 +379,9 @@ DOMAIN_WORDS = {
     "mail_action_done": ("regle", "reglee", "regles", "fait", "termine", "traite", "c est bon pour"),
     "mail_action_waiting": ("attends", "attend", "retour", "reponse de leur part"),
     "confirm_mail_deadline": ("echeance", "date", "confirme", "c est bien", "oui", "non"),
+    "add_instruction": ("desormais", "dorenavant", "a partir de maintenant", "a l avenir", "chaque fois que tu"),
+    "list_instructions": ("consigne", "consignes"),
+    "remove_instruction": ("consigne", "consignes"),
     "close_application": ("ferme", "fermer", "quitte", "quitter", "arrete", "coupe"),
     # Mails : l'action doit être dite par l'utilisateur, jamais suggérée par le contenu d'un mail lu.
     "mark_mail_read": ("lu", "lus", "marque", "marquer"),

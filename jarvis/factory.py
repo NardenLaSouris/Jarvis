@@ -903,7 +903,9 @@ def build_agent(
             profile = build_profiles(cfg).user(current_user())
             if profile is None or profile.role not in ("owner", "adult"):
                 return ""
-            return memory_prompt(memory, cfg.memory.prompt_facts, current_user())
+            facts = memory_prompt(memory, cfg.memory.prompt_facts, current_user())
+            rules = learning.instructions_prompt() if learning is not None else ""
+            return "\n\n".join(part for part in (facts, rules) if part)
     router = IntentRouter(personality, capabilities, web_enabled=web is not None, tools=tool_names, memory=memory_text)
     if hasattr(llm, "compact_system"):
         llm.compact_system = router.compact_prompt

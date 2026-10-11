@@ -114,7 +114,23 @@ technique, refusé, message envoyé, annulé, résolu, abandonné.
   - « Le dossier 1 est réglé » ;
   - « J'attends leur retour pour le 2 ».
 
-## 4. Identité
+## 4. Comportements ajoutés par la voix ou par message Linphone
+
+Vos messages Linphone passent par la même compréhension que la voix. Vous pouvez y ajouter :
+
+- **Réactions à vos retours et départs** :
+  - exemples : « Quand je rentre, allume l'entrée et mets de la musique », « Quand je pars, éteins tout » ;
+  - elles deviennent des routines déclenchées par le moteur de présence (retour ou départ confirmé, ou « je sors ») ;
+  - la commande est comprise et validée comme une demande normale ; une action qui demande une confirmation ne peut pas être programmée ;
+  - pour les gérer : « Quelles sont mes routines ? », « Supprime la routine… ».
+- **Consignes durables** :
+  - exemples : « Désormais, réponds-moi plus brièvement », « À partir de maintenant, ne fais plus de blagues », « Chaque fois que tu me donnes la météo, donne aussi la température ressentie » ;
+  - elles sont données au modèle à chaque réponse, comme règles de style et d'habitude seulement ;
+  - le Core refuse toute consigne qui touche aux confirmations, permissions, secrets, règles de sécurité, commandes ou suppressions ;
+  - pour les gérer : « Quelles sont tes consignes ? », « Retire la consigne 2 ».
+- Règles d'appel, vocabulaire (« quand je dis X, je veux dire Y ») et « je sors » : voir plus haut.
+
+## 5. Identité
 
 ORION est une femme : présentation (« votre assistante personnelle »), prompts du LLM (accords au féminin) et
 phrases toutes faites (désolée, navrée, ravie…). Elle vous vouvoie et vous appelle « monsieur », sans jamais

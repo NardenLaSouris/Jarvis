@@ -94,6 +94,42 @@ def _trigger(kind: str, extra, segment: str, lead: tuple[str, ...], now: datetim
     return {"type": "at", "at": when.isoformat()}, f"{day} à {clock}"
 
 
+ARRIVAL_LEADS = ("quand je rentre", "quand je reviens", "quand j arrive", "lorsque je rentre", "lorsque je reviens",
+                 "des que je rentre", "des que je reviens", "a mon retour", "chaque fois que je rentre",
+                 "a chaque fois que je rentre", "chaque fois que je reviens", "a chaque retour")
+DEPARTURE_LEADS = ("quand je pars", "quand je sors", "quand je quitte la maison", "lorsque je pars",
+                   "lorsque je sors", "des que je pars", "des que je sors", "a mon depart", "chaque fois que je pars",
+                   "a chaque fois que je pars", "chaque fois que je sors", "a chaque fois que je sors",
+                   "a chaque depart")
+EVENT_EXCLUDED = ("appelle", "appelez", "previens", "ecris", "ecrivez", "telephone", "rappelle")
+
+
+def split_event(text: str) -> Schedule | None:
+    """« Quand je rentre, allume l'entrée » : comportement à chaque retour (ou départ) confirmé par le moteur de
+    présence ; la commande est comprise comme d'habitude, puis enregistrée comme routine. None sinon."""
+    words = _words(text)
+    while words and words[0][2] in ("orion", "jarvis", "desormais", "dorenavant", "et"):
+        words = words[1:]
+    names = [w for _, _, w in words]
+    for leads, event, said in ((ARRIVAL_LEADS, "arrival", "à chacun de vos retours"),
+                               (DEPARTURE_LEADS, "departure", "à chacun de vos départs")):
+        for lead in sorted(leads, key=lambda x: -len(x.split())):
+            n = len(lead.split())
+            if tuple(names[:n]) != tuple(lead.split()):
+                continue
+            rest = names[n:]
+            while rest and rest[0] in ("a", "la", "maison", "chez", "moi", "de", "du", "travail", "alors", "le",
+                                       "soir", "matin"):
+                rest, n = rest[1:], n + 1
+            if len(words) <= n:
+                return None
+            command = text[words[n][0]:].strip(" ,;:.")
+            if not command or normalize(command).split()[0] in EVENT_EXCLUDED:
+                return None
+            return Schedule({"type": "event", "event": event}, command, said)
+    return None
+
+
 def split_schedule(text: str, now: datetime) -> Schedule | None:
     """Expression de temps + commande, ou None (pas d'expression de temps, ou rappel/minuteur/réveil)."""
     norm = f" {normalize(text)} "

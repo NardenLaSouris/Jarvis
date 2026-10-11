@@ -29,7 +29,8 @@ from jarvis.call.rule_tools import NEEDS_DETAILS
 from jarvis.call.rules import is_acknowledgement
 from jarvis.presence.declaration import parse_declaration
 from jarvis.router import IntentRouter, Route
-from jarvis.scheduling.actions import split_schedule
+from jarvis.learning import instruction_of
+from jarvis.scheduling.actions import split_event, split_schedule
 from jarvis.streaming import SpeechPipeline, TextPipeline, sentences_from_llm
 from jarvis.personality import normalize
 from jarvis.tools.base import Risk
@@ -673,6 +674,15 @@ class Agent:
         if (self._call_rules is not None and self._texting and is_acknowledgement(text)
                 and self._call_rules.acknowledge()):
             return self._say_text(history, text, "C'est noté, monsieur.", latency), False
+        reaction = split_event(text) if self._routines is not None and self._tools is not None else None
+        if reaction is not None:  # « Quand je rentre, allume l'entrée » : routine à chaque retour (ou départ)
+            return self._schedule(history, text, reaction, latency), False
+        if (self._tools is not None and self._tools.registry.exists("add_instruction")
+                and instruction_of(text) is not None and split_schedule(text, datetime.now()) is None):
+            latency["route"] = "tool:consigne"  # « Désormais, réponds-moi plus brièvement »
+            self._event("routing", latency["route"])
+            return self._run_call(history, text, {"type": "tool_call", "tool": "add_instruction", "parameters": {}},
+                                  latency), False
         if (self._tools is not None and self._tools.registry.exists("create_call_rule")
                 and CALL_RULE.search(normalize(text))):
             latency["route"] = "tool:règle d'appel"
