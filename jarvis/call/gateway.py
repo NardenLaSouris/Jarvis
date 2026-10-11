@@ -51,6 +51,8 @@ DIAL_TIMEOUT = 10.0  # s pour que le Core décroche un appel du téléphone
 MAX_CALL_SECONDS = 20 * 60  # durée maximale de secours (le Core arrête à [call] max_minutes)
 MESSAGES_PER_MINUTE = 20  # messages Linphone transmis au Core : contre une boucle (application qui s'emballe)
 APP_ACTIONS = ("accept", "refuse", "hangup")
+ONLINE_NOTICE = "ORION est en ligne et disponible."
+NOTICE_GAP = 10 * 60  # s entre deux messages « en ligne » : pas de rafale si un service redémarre en boucle
 
 
 class Mailbox:
@@ -107,6 +109,8 @@ class CallGateway:
         self.media = media_factory(self._media_connected, self._media_failed) if media_factory else None
         self.linphone = None  # LinphoneChannel (jarvis/call/linphone.py) : appareil « linphone », votre adresse
         self._messages: deque[float] = deque()  # heures des derniers messages Linphone reçus
+        self._available = False  # Core en vie et compte Linphone enregistré, au dernier passage de watch()
+        self._notice_at: float | None = None  # dernier message « en ligne » envoyé
 
     def current_media(self):
         """Son de l'appel en cours : le sien (Linphone) ou celui de la passerelle (WebRTC, ou simulé si None)."""
@@ -178,8 +182,9 @@ class CallGateway:
 
     def watch(self, now: float | None = None) -> None:
         """Délais de la passerelle (appelé chaque seconde) : Core qui ne décroche pas, Core disparu en plein appel,
-        durée maximale de secours."""
+        durée maximale de secours ; message « en ligne » quand ORION redevient joignable."""
         now = self._clock() if now is None else now
+        self._announce(now)
         call = self.call
         if call is None or call.state == "terminé":
             return
@@ -189,6 +194,18 @@ class CallGateway:
             self._end_here(call, "ORION injoignable", tell_core=False)
         elif now - call.created >= MAX_CALL_SECONDS:
             self._end_here(call, "durée maximale atteinte", tell_core=True)
+
+    def _announce(self, now: float) -> None:
+        """Message Linphone « en ligne et disponible » quand ORION devient joignable (Core en vie et compte
+        Linphone enregistré) : au démarrage, puis après chaque arrêt ; au plus un toutes les NOTICE_GAP."""
+        if self.linphone is None:
+            return
+        available = self.core_alive() and self.linphone.account.registered
+        if available and not self._available and (self._notice_at is None or now - self._notice_at >= NOTICE_GAP):
+            self._notice_at = now
+            threading.Thread(target=self.linphone.send, args=(ONLINE_NOTICE,), daemon=True).start()
+            log.info("Passerelle : ORION en ligne et disponible, message envoyé sur Linphone")
+        self._available = available
 
     def _end_here(self, call: GatewayCall, why: str, tell_core: bool) -> None:
         call.state = "terminé"

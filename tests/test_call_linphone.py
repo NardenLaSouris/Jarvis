@@ -193,3 +193,40 @@ def test_messages_are_limited_per_minute(world):
     for i in range(MESSAGES_PER_MINUTE + 5):
         account.on_message(f"message {i}")
     assert len(gateway.core_events.take(1)) == MESSAGES_PER_MINUTE
+
+
+def test_online_message_when_orion_becomes_available_without_bursts(world):
+    from jarvis.call.gateway import NOTICE_GAP, ONLINE_NOTICE
+
+    gateway, _ = world()
+    account = Sent()
+    gateway.linphone = linphone.LinphoneChannel(account, gateway)
+    account.registered = False
+    gateway.watch(0.0)  # compte Linphone pas encore enregistré : rien
+    account.registered = True
+    gateway.watch(1.0)
+    gateway.watch(2.0)  # toujours disponible : pas de second message
+    time.sleep(0.3)
+    assert account.messages == [ONLINE_NOTICE]
+    gateway._core_seen = None  # ORION s'arrête puis revient vite : pas de rafale
+    gateway.watch(3.0)
+    gateway._core_seen = gateway._clock()
+    gateway.watch(4.0)
+    time.sleep(0.2)
+    assert account.messages == [ONLINE_NOTICE]
+    gateway._core_seen = None  # nouvel arrêt, retour après le délai : nouveau message
+    gateway.watch(NOTICE_GAP)
+    gateway._core_seen = gateway._clock()
+    gateway.watch(NOTICE_GAP + 2.0)
+    time.sleep(0.3)
+    assert account.messages == [ONLINE_NOTICE, ONLINE_NOTICE]
+
+
+def test_no_online_message_while_the_core_is_down(world):
+    gateway, _ = world()
+    account = Sent()
+    gateway.linphone = linphone.LinphoneChannel(account, gateway)
+    gateway._core_seen = None
+    gateway.watch(0.0)
+    time.sleep(0.2)
+    assert account.messages == []
