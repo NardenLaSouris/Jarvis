@@ -211,6 +211,11 @@ class CallConfig:
     listen_host: str = "0.0.0.0"  # passerelle : écoute (le téléphone la joint par le réseau local ou le VPN)
     app_networks: tuple = ("192.168.1.0/24",)  # passerelle : seuls ces réseaux joignent la face « application »
     devices_path: Path = Path("data/call_devices.json")  # appareils jumelés (empreinte des jetons, fichier en 600)
+    # Linphone (jarvis/call/linphone.py) : compte SIP d'ORION et seul correspondant (votre adresse). Mot de passe :
+    # LINPHONE_ORION_PASSWORD dans l'environnement de la passerelle. Vide : pas d'appareil « linphone ».
+    sip_user: str = ""
+    sip_domain: str = "sip.linphone.org"
+    sip_peer: str = ""
     # Événements qui font appeler ORION quand la maison est vide (jarvis/call/trigger.py) ; vide : jamais.
     away_events: tuple = ("leak.detected", "smoke.detected", "presence.motion_while_away", "door.left_open")
     ring_timeout: float = 40.0

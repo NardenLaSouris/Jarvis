@@ -37,6 +37,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 from jarvis.call.devices import DeviceRegistry, PairingError
+from jarvis.call.sip import DEVICE as LINPHONE_DEVICE
 from jarvis.net import ExclusiveServer, JsonHandler, bearer_ok, client_ip
 
 log = logging.getLogger(__name__)
@@ -79,6 +80,9 @@ class GatewayCall:
     state: str = "sonnerie"  # sonnerie | composé (le téléphone appelle, le Core n'a pas encore décroché),
     #                          accepté, connecté, terminé
     created: float = field(default_factory=time.monotonic)
+    media: object = None  # son propre à l'appel (Linphone : SipMedia) ; None : le son WebRTC de la passerelle
+    sip: object = None  # appel SIP en cours (jarvis/call/sip.py), pour l'appareil « linphone »
+    cancel: object = None  # annulation de la sonnerie d'un appel Linphone sortant
 
 
 class CallGateway:
@@ -99,6 +103,19 @@ class CallGateway:
         self._stopping = threading.Event()
         # media_factory(on_connected, on_failed) -> CallMedia ; None : audio simulé.
         self.media = media_factory(self._media_connected, self._media_failed) if media_factory else None
+        self.linphone = None  # LinphoneChannel (jarvis/call/linphone.py) : appareil « linphone », votre adresse
+
+    def current_media(self):
+        """Son de l'appel en cours : le sien (Linphone) ou celui de la passerelle (WebRTC, ou simulé si None)."""
+        call = self.call
+        if call is not None and call.media is not None:
+            return call.media
+        return self.media
+
+    def _is_sip(self, call: GatewayCall) -> bool:
+        """Appel de l'appareil « linphone » (seulement si Linphone est configuré : sans lui, rien de SRTP n'est
+        importé, la passerelle tourne aussi sans pylibsrtp)."""
+        return self.linphone is not None and call.device == LINPHONE_DEVICE
 
     # --- Logique -------------------------------------------------------------------------------------------
 
@@ -107,6 +124,12 @@ class CallGateway:
             return self._app_events.setdefault(device_id, Mailbox())
 
     def ring(self, call_id: str, device_id: str, reason: str) -> bool:
+        call = GatewayCall(str(call_id)[:64], device_id, str(reason or "")[:300])
+        if self._is_sip(call):  # votre adresse Linphone : la passerelle la compose
+            with self._lock:
+                self.call = call
+            log.info("Passerelle : appel %s, sonnerie sur Linphone", call.id)
+            return self.linphone.ring(call)
         if self.registry.get(device_id) is None:
             return False
         with self._lock:
@@ -137,6 +160,14 @@ class CallGateway:
         call = self._current(call_id)
         if call is None or call.state != "composé":
             return False
+        if self._is_sip(call):  # appel venu de Linphone : ORION répond avec le son, connecté aussitôt
+            if not self.linphone.answer(call):
+                call.state = "terminé"
+                return False
+            call.state = "connecté"
+            self.core_events.put({"type": "connected", "call_id": call.id})
+            log.info("Passerelle : appel %s de Linphone décroché par ORION", call.id)
+            return True
         call.state = "accepté"
         self.app_mailbox(call.device).put({"type": "answered", "call_id": call.id})
         log.info("Passerelle : appel %s décroché par ORION", call.id)
@@ -161,7 +192,7 @@ class CallGateway:
         if tell_core:
             self.core_events.put({"type": "failed", "call_id": call.id, "reason": why})
         self.app_mailbox(call.device).put({"type": "ended", "call_id": call.id, "reason": why})
-        threading.Thread(target=self._close_media, daemon=True).start()
+        threading.Thread(target=self._close_media, args=(call,), daemon=True).start()
         log.info("Passerelle : appel %s terminé (%s)", call.id, why)
 
     def end_from_core(self, call_id: str, why: str) -> None:
@@ -169,7 +200,7 @@ class CallGateway:
         if call is None:
             return
         call.state = "terminé"
-        self._close_media()
+        self._close_media(call)
         self.app_mailbox(call.device).put({"type": "ended", "call_id": call.id, "reason": why})
         log.info("Passerelle : appel %s %s", call.id, why)
 
@@ -193,11 +224,62 @@ class CallGateway:
         call.state = "terminé"
         self.core_events.put({"type": "failed", "call_id": call.id, "reason": why})
         self.app_mailbox(call.device).put({"type": "ended", "call_id": call.id, "reason": why})
-        threading.Thread(target=self._close_media, daemon=True).start()
+        threading.Thread(target=self._close_media, args=(call,), daemon=True).start()
 
-    def _close_media(self) -> None:
-        if self.media is not None:
+    def _close_media(self, call: GatewayCall | None = None) -> None:
+        """Fin du son d'un appel : Linphone (annulation ou raccrochage SIP, son de l'appel), sinon WebRTC."""
+        call = call if call is not None else self.call
+        if call is not None and self._is_sip(call):
+            self.linphone.end(call)
+        elif self.media is not None:
             self.media.close()
+
+    # --- Linphone (jarvis/call/linphone.py) ----------------------------------------------------------------
+
+    def sip_answered(self, call: GatewayCall) -> None:
+        """Vous avez décroché sur Linphone : décroché et son établi pour le Core."""
+        if self._current(call.id) is not call:
+            self.linphone.end(call)
+            return
+        call.state = "connecté"
+        self.core_events.put({"type": "accepted", "call_id": call.id})
+        self.core_events.put({"type": "connected", "call_id": call.id})
+
+    def sip_refused(self, call: GatewayCall) -> None:
+        if self._current(call.id) is call:
+            call.state = "terminé"
+            self.core_events.put({"type": "refused", "call_id": call.id})
+            log.info("Passerelle : appel %s refusé sur Linphone", call.id)
+
+    def sip_failed(self, call: GatewayCall, why: str) -> None:
+        if self._current(call.id) is call:
+            call.state = "terminé"
+            self.core_events.put({"type": "failed", "call_id": call.id, "reason": why})
+            log.info("Passerelle : appel %s sans suite sur Linphone (%s)", call.id, why)
+
+    def sip_dialed(self, dialog) -> tuple[GatewayCall | None, str]:
+        """Vous appelez ORION depuis Linphone : le Core est prévenu et décide (``answer_from_core``)."""
+        if not self.core_alive():
+            return None, "ORION est injoignable"
+        with self._lock:
+            if self.call is not None and self.call.state != "terminé":
+                return None, "ORION est déjà en ligne"
+            call = self.call = GatewayCall(secrets.token_urlsafe(12), LINPHONE_DEVICE, "", state="composé", sip=dialog)
+        self.core_events.put({"type": "dialed", "call_id": call.id, "device": LINPHONE_DEVICE})
+        log.info("Passerelle : appel %s de Linphone, en attente d'ORION", call.id)
+        return call, ""
+
+    def sip_ended(self, dialog, why: str) -> None:
+        """Vous avez raccroché (ou annulé) sur Linphone."""
+        call = self.call
+        if call is None or call.sip is not dialog or call.state == "terminé":
+            return
+        state, call.state = call.state, "terminé"
+        if call.media is not None:
+            call.media.close()
+        self.core_events.put({"type": "hung_up" if state in ("accepté", "connecté") else "failed", "call_id": call.id,
+                              "reason": "annulé sur Linphone"})
+        log.info("Passerelle : appel %s %s sur Linphone", call.id, why)
 
     def from_app(self, device_id: str, call_id: str, action: str) -> bool:
         call = self._current(call_id)
@@ -401,7 +483,7 @@ class CallGateway:
                 body = self._body(MAX_AUDIO)
                 if body is None:
                     return
-                media = gateway.media
+                media = gateway.current_media()
                 if media is not None:
                     if path == "/audio/output":
                         import numpy as np
@@ -430,7 +512,7 @@ class CallGateway:
                 block = bytes(2 * frame)
                 try:
                     while gateway.call is not None and gateway.call.state != "terminé":
-                        media = gateway.media
+                        media = gateway.current_media()
                         if media is None:  # audio simulé
                             chunk = block
                             time.sleep(gateway._frame_seconds)
@@ -487,6 +569,15 @@ def main(argv: list[str] | None = None) -> int:
     gateway = CallGateway(DeviceRegistry(Path(c.devices_path)), token, list(c.app_networks),
                           c.listen_host, url.port or 8770, media_factory=media_factory)
     log.info("Audio des appels : %s", "WebRTC" if gateway.media is not None else "simulé")
+    sip_password = secret("LINPHONE_ORION_PASSWORD", env_file)
+    if c.sip_user and c.sip_peer and sip_password:  # appareil « linphone » : votre adresse Linphone
+        from jarvis.call.linphone import LinphoneChannel
+        from jarvis.call.sip import SipAccount
+
+        account = SipAccount(c.sip_user, sip_password, c.sip_peer, domain=c.sip_domain)
+        gateway.linphone = LinphoneChannel(account, gateway)
+        account.start()
+        log.info("Linphone : compte sip:%s@%s, seul correspondant %s", c.sip_user, c.sip_domain, c.sip_peer)
     gateway.start()
     try:
         while True:

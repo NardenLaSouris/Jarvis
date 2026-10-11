@@ -26,6 +26,7 @@ from typing import Callable
 
 log = logging.getLogger(__name__)
 
+DEVICE = "linphone"  # nom de l'appareil de la passerelle pour votre adresse Linphone ([call] device du Core)
 REGISTER_EXPIRES = 600
 KEEPALIVE = 30.0
 RECONNECT = 10.0
