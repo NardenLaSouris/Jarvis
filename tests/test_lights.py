@@ -235,6 +235,8 @@ def test_invented_brightness_is_dropped_and_the_light_still_turns_on():
 
 def test_brightness_alone_sets_every_light():
     driver = FakeDriver()
+    for light in driver.lights.values():
+        light["on"] = True
     spoken, events, _ = converse(["Luminosité 30 %.", "Mets la luminosité au maximum."],
                                  [("set_brightness", {"brightness": 30}), ("set_brightness", {"brightness": 100})], driver)
     assert spoken == ["Toutes les lumières sont à 30 %.", "Toutes les lumières sont à 100 %."]
@@ -403,3 +405,14 @@ def test_one_command_at_a_time_per_bulb_with_one_retry():
     for thread in threads:
         thread.join()
     assert bulb.overlaps == 0 and bulb.calls == 13  # 12 lectures, une erreur rattrapée, jamais deux à la fois
+
+
+def test_brightness_never_turns_on_a_light_that_is_off():
+    driver = FakeDriver()
+    spoken, _, _ = converse(["Mets la lumière de la chambre à 30 %."], [("set_brightness", {"brightness": 30})], driver)
+    assert spoken == ["La lumière de la chambre est éteinte : je n'ai pas changé sa luminosité."]
+    assert driver.lights["chambre"]["on"] is False and driver.calls == []
+    driver.lights["entree"]["on"] = True
+    spoken, _, _ = converse(["Luminosité 50 %."], [("set_brightness", {"brightness": 50})], driver)
+    assert spoken[0].startswith("La lumière de l'entrée est à 50 %.") and "laissée ainsi" in spoken[0]
+    assert [light["on"] for key, light in driver.lights.items() if key != "entree"] == [False] * (len(driver.lights) - 1)

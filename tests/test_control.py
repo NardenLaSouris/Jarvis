@@ -100,6 +100,7 @@ def test_bridge_relays_to_the_core(bridge, world):
     assert call(bridge, "POST", f"/routines/{rid}/duplicate")[1]["ok"]
     assert len(call(bridge, "GET", "/routines")[1]["data"]) == 2
     assert call(bridge, "DELETE", f"/routines/{rid}")[1]["ok"]
+    world.driver.lights["chambre"]["on"] = True
     result = call(bridge, "POST", "/tools/set_brightness", {"parameters": {"room": "chambre", "brightness": 25}})[1]
     assert result["ok"] and world.driver.lights["chambre"]["brightness"] == 25
     refused = call(bridge, "POST", "/routines", {**SOIR, "name": ""})[1]

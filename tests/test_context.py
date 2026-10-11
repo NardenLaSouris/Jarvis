@@ -22,10 +22,11 @@ def test_light_complements_follow_the_previous_action():
                                llm, full_core(driver), fast_path=True)
     assert llm.planned == [] and llm.calls == []
     assert spoken == ["La lumière de la chambre est allumée.", "La lumière de la chambre est à 30 %.",
-                      "La lumière de l'entrée est à 30 %.", "La lumière de l'entrée est en bleu.",
+                      "La lumière de l'entrée est éteinte : je n'ai pas changé sa luminosité.",
+                      "La lumière de l'entrée est en bleu.",
                       "La lumière de la chambre est en bleu."]
     assert routes(events).count("tool:context") == 4
-    assert driver.lights["entree"]["brightness"] == 30 and driver.lights["chambre"]["hue"] == 240
+    assert driver.lights["chambre"]["brightness"] == 30 and driver.lights["chambre"]["hue"] == 240
 
 
 def test_and_tomorrow_after_the_time_gives_tomorrows_date():

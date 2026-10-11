@@ -339,9 +339,33 @@ def light_tools(rooms: Rooms, driver: LightDriver, scenes: dict[str, dict] | Non
         return result(each(room, lambda r: driver.power(r, on), {"power": on}), on=on)
 
     def set_brightness(room: str | None = None, brightness: int = 100) -> dict:
-        done = each(room, lambda r: (driver.power(r, True), driver.brightness(r, brightness)),
-                    {"power": True, "brightness": brightness})
-        return result(done, brightness=brightness)
+        """Luminosité des lumières allumées seulement : une lumière éteinte le reste (régler n'est pas allumer)."""
+        off: list[str] = []
+
+        def action(r: Room) -> None:
+            if not driver.state(r)["on"]:
+                off.append(r.name)
+                return
+            driver.brightness(r, brightness)
+            remember(r, {"power": True, "brightness": brightness}, confirmed=False)
+
+        targets, failed = each(room, action)
+        data = result(([t for t in targets if t.name not in off], failed), brightness=brightness)
+        if off:
+            data["off"] = off
+        return data
+
+    def said_brightness(r: dict) -> str:
+        off = r.get("off") or []
+        if not r["rooms"]:
+            if len(off) == 1:
+                return f"La lumière {of(off[0])} est éteinte : je n'ai pas changé sa luminosité." + _failed_said(r)
+            return "Les lumières sont éteintes : je n'ai pas changé la luminosité." + _failed_said(r)
+        text = said_level(r, f"à {r['brightness']} %")
+        if off:
+            text += (f" La lumière {of(off[0])} est éteinte, je l'ai laissée ainsi." if len(off) == 1
+                     else f" {len(off)} lumières éteintes sont restées éteintes.")
+        return text
 
     def set_color(color: str, room: str | None = None) -> dict:
         if color in WHITES:
@@ -410,7 +434,7 @@ def light_tools(rooms: Rooms, driver: LightDriver, scenes: dict[str, dict] | Non
              returns, Risk.SAFE, light_toggle, say=said_power),
         Tool("set_brightness", "Règle la luminosité d'une lumière sur un pourcentage précis.",
              {"room": room_param(), "brightness": percent_param(True)}, returns, Risk.SAFE, set_brightness,
-             say=lambda r: said_level(r, f"à {r['brightness']} %")),
+             say=said_brightness),
         Tool("set_color", "Change la couleur d'une lumière.",
              {"room": room_param(), "color": Param(str, "couleur dite", choices=COLORS, max_length=20)},
              {"rooms": "pièces", "color": "couleur"}, Risk.SAFE, set_color,

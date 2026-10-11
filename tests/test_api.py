@@ -122,6 +122,7 @@ def test_status_survives_an_offline_llm(tmp_path):
 def test_only_safe_tools_run(world):
     tools = {t["name"]: t for t in world.call("GET", "/tools")[1]}
     assert tools["light_on"]["safe"] and not tools["lock_pc"]["safe"] and tools["light_on"]["parameters"]["room"]["hidden"]
+    world.driver.lights["chambre"]["on"] = True  # régler la luminosité n'allume pas une lumière éteinte
     status, data = world.call("POST", "/tools/set_brightness", {"parameters": {"room": "chambre", "brightness": 40}})
     assert status == 200 and data["message"] == "La lumière de la chambre est à 40 %."
     assert world.driver.lights["chambre"]["brightness"] == 40
@@ -149,6 +150,7 @@ def test_routine_lifecycle_and_history(world):
     assert status == 400 and "confirmation" in error["message"]
     assert world.call("POST", "/routines", ["pas", "un", "objet"])[0] == 400
 
+    world.driver.lights["chambre"]["on"] = True
     assert world.call("POST", "/routines/" + rid + "/run")[0] == 202
     deadline = time.monotonic() + 5
     while world.routines.get(rid)["running"] or world.routines.get(rid)["last_status"] is None:

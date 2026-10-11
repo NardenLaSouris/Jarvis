@@ -122,6 +122,8 @@ def test_invalid_stored_routines_are_kept_but_ignored():
 
 def test_manual_run_executes_every_step_through_the_tool_core():
     setup = Setup(routines=[{**SOIR, "id": "soir"}])
+    for light in setup.driver.lights.values():
+        light["on"] = True  # régler la luminosité n'allume pas une lumière éteinte
     assert setup.engine.run("soir", wait=True)
     assert setup.driver.lights["chambre"]["brightness"] == 30 and setup.driver.lights["entree"]["brightness"] == 20
     assert setup.slept == [2] and setup.said == ["Bonne soirée, monsieur."]
