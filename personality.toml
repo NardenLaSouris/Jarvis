@@ -38,7 +38,7 @@ guard_error = ["Je ne peux pas vous répondre pour le moment, {title}."]
 not_understood = ["Pardon, je n'ai pas bien compris. Pouvez-vous répéter ?", "Je n'ai pas saisi, {title}. Vous pouvez répéter ?"]
 # Phrase peu sûre qui redemandait l'information donnée à l'instant (voir [stt] repeat_confidence).
 unsure_repeat = [
-    "Pardon, {title}, je ne suis pas sûr d'avoir compris. Vous voulez que je répète, ou autre chose ?",
+    "Pardon, {title}, je ne suis pas sûre d'avoir compris. Vous voulez que je répète, ou autre chose ?",
     "Je crains d'avoir mal entendu, {title}. Pouvez-vous reformuler ?",
 ]
 # Début d'un appel d'ORION vers le téléphone jumelé, suivi de la raison de l'appel.
@@ -62,7 +62,7 @@ degraded_web = [
 ]
 # Le LLM local ne répond pas.
 llm_unavailable = [
-    "Je suis navré, {title}, je n'arrive pas à joindre mon module de réflexion.",
+    "Je suis navrée, {title}, je n'arrive pas à joindre mon module de réflexion.",
     "Mon module de réflexion ne répond pas pour le moment, {title}. Je vous prie de m'en excuser.",
 ]
 # Le LLM a prétendu avoir agi alors qu'aucun outil n'a été exécuté.
@@ -93,6 +93,8 @@ tool_cancelled = ["Très bien, {title}, je n'en fais rien.", "Entendu, j'annule.
 filler_openings = ["bien sur", "bien entendu", "certainement", "avec plaisir", "tout a fait", "absolument",
                    "tres bien", "d accord", "volontiers", "bonne question", "a votre service",
                    "je suis heureux de vous aider", "je suis ravi de vous aider", "je suis heureux de vous servir",
+                   "je suis heureuse de vous aider", "je suis ravie de vous aider",
+                   "je suis heureuse de vous servir",
                    "je suis la pour vous aider", "c est un plaisir de vous aider"]
 # Phrases de clôture creuses retirées en fin de réponse du LLM (s'il reste du contenu).
 filler_closings = ["n hesitez pas", "si vous avez besoin", "je reste a votre disposition", "je reste a votre service",
@@ -197,7 +199,7 @@ match = "contains"
 patterns = ["qui t a cree", "qui t a concu", "qui t a programme", "qui t a fabrique", "qui t a fait",
             "qui est ton createur", "qui vous a cree", "qui vous a concu"]
 responses = [
-    "Vous, {title}. Je suis développé progressivement pour répondre à vos besoins.",
+    "Vous, {title}. Je suis développée progressivement pour répondre à vos besoins.",
     "C'est vous. Je progresse au rythme de vos besoins.",
 ]
 
@@ -229,9 +231,9 @@ patterns = ["qui es tu", "qui tu es", "tu es qui", "tu es quoi", "qu est ce que 
             "comment tu t appelles", "tu t appelles comment", "quel est ton nom", "c est quoi ton nom",
             "comment vous appelez vous", "quel est votre nom"]
 responses = [
-    "Je suis {assistant_name}, votre assistant personnel.",
-    "Je suis {assistant_name}, {title}. Votre assistant personnel vocal.",
-    "Je m'appelle {assistant_name}. Votre assistant personnel.",
+    "Je suis {assistant_name}, votre assistante personnelle.",
+    "Je suis {assistant_name}, {title}. Votre assistante vocale personnelle.",
+    "Je m'appelle {assistant_name}. Votre assistante personnelle.",
 ]
 
 [intents.date]
@@ -266,7 +268,7 @@ after = ["how_are_you"]
 patterns = ["moi ca va", "ca va", "ca va merci", "ca va bien", "moi aussi", "tres bien", "tres bien merci",
             "bien merci", "super", "pas mal", "impeccable", "nickel", "ca roule", "tranquille", "la forme",
             "en forme", "oui ca va", "oui tres bien", "parfaitement"]
-responses = ["Parfait.", "Tant mieux.", "Parfait. Que puis-je faire pour vous ?", "Ravi de l'entendre, {title}."]
+responses = ["Parfait.", "Tant mieux.", "Parfait. Que puis-je faire pour vous ?", "Ravie de l'entendre, {title}."]
 
 [intents.how_are_you]
 match = "exact"
@@ -298,7 +300,7 @@ patterns = ["c etait pas pour toi", "c est pas pour toi", "ce n etait pas pour t
             "je te parlais pas", "je parlais pas a toi", "je ne parlais pas a toi", "personne ne t a appele",
             "on t a pas appele", "on ne t a pas appele", "faux reveil", "fausse alerte", "t es pas concerne",
             "tu n es pas concerne", "c etait pas a toi", "ce n etait pas a toi", "rendors toi", "retourne dormir"]
-responses = ["Pardon, {title}. Je serai plus attentif.", "Pardon, je me suis réveillé pour rien. Je m'en souviendrai.",
+responses = ["Pardon, {title}. Je serai plus attentive.", "Pardon, je me suis réveillée pour rien. Je m'en souviendrai.",
              "Entendu, je me rendors. Je ferai mieux la prochaine fois."]
 
 # Réaction après une action ou une réponse (« Niquel », « Parfait ») : une réponse, jamais une action à deviner.
@@ -308,7 +310,7 @@ patterns = ["nickel", "niquel", "nikel", "parfait", "super", "genial", "cool", "
             "bien joue", "bravo", "trop bien", "c est parfait", "c est top", "c est super", "c est genial",
             "c est nickel", "c est niquel", "parfait c est nickel", "au top", "magnifique", "trop cool", "ca marche",
             "ok", "ok super", "ok parfait", "ok nickel", "ok niquel", "c est bien", "tres bien"]
-responses = ["Ravi que cela vous convienne, {title}.", "Parfait.", "Avec plaisir, {title}.",
+responses = ["Ravie que cela vous convienne, {title}.", "Parfait.", "Avec plaisir, {title}.",
              "Toujours à votre service."]
 
 [intents.goodnight]

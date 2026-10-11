@@ -225,7 +225,7 @@ def planner_prompt(registry: ToolRegistry) -> str:
         f"\n« {text} » -> " + json.dumps({"type": "tool_calls", "calls": [
             {"tool": tool, "parameters": params, "segment": segment} for tool, params, segment in calls]},
             ensure_ascii=False) for text, calls in multi)
-    return f"""Vous êtes le module de décision d'action de l'assistant vocal ORION. Vous ne répondez pas à
+    return f"""Vous êtes le module de décision d'action de l'assistante vocale ORION. Vous ne répondez pas à
 l'utilisateur : vous indiquez seulement si sa demande correspond à l'un de ces outils.
 
 Outils disponibles :

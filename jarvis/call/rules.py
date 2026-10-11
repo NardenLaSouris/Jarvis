@@ -558,7 +558,7 @@ class CallRules:
     def _fallback(self, job: dict, entry: dict) -> None:
         """Pas joint : message de secours (une fois), jamais de nouvelle série d'appels."""
         if job["channel"] == "call" and job["attempts"]:
-            self._send(f"Je n'ai pas réussi à vous joindre. {job['reason']}")
+            self._send(f"Je suis désolée, monsieur, je n'ai pas réussi à vous joindre. {job['reason']}")
             self._log(entry, "message de secours envoyé")
 
     def _send(self, text: str) -> None:

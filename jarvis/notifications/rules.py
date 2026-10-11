@@ -18,7 +18,7 @@ from jarvis.scheduling.manager import REMINDER_FINISHED, TIMER_FINISHED
 DEFAULT_PHRASES = {
     "timer_finished": ("{Title}, votre minuteur{of_duration} est terminé.",),
     "reminder_finished": ("{Title}, vous m'aviez demandé de vous rappeler {de_message}.",),
-    "reminder_late": ("{Title}, pendant que j'étais arrêté, j'aurais dû vous rappeler {de_message}.",),
+    "reminder_late": ("{Title}, pendant que j'étais arrêtée, j'aurais dû vous rappeler {de_message}.",),
 }
 
 
