@@ -25,6 +25,8 @@ from jarvis.context import ConversationContext
 from jarvis.interfaces import (
     AudioSink, AudioSource, LanguageModel, Message, SpeechToText, TextToSpeech, WakeWordDetector,
 )
+from jarvis.call.rule_tools import NEEDS_DETAILS
+from jarvis.call.rules import is_acknowledgement
 from jarvis.presence.declaration import parse_declaration
 from jarvis.router import IntentRouter, Route
 from jarvis.scheduling.actions import split_schedule
@@ -198,6 +200,12 @@ STALE_UNAVAILABLE = {
 # question plutôt qu'une réponse libre, qui inventerait le contenu d'un mail ou le temps restant.
 ORION_OBJECTS = re.compile(r"\b(mon|ma|mes|le|la|les|ce|cette|ces|du|des)\s+(mails?|courriers?|minuteurs?|rappels?|"
                            r"reveils?|alarmes?)\b")
+CLARIFY_WINDOW = 180.0  # s pour répondre à une question de précision
+CANCEL = re.compile(r"^(?:non|annule|laisse tomber|oublie|rien|stop|pas grave)\b")
+# « Appelle-moi quand… », « préviens-moi par message si… » : une règle d'appel, jamais un rappel (« rappelle-moi »).
+CALL_RULE = re.compile(r"^(?:(?:orion|jarvis) )?(?:appelle|appelez|telephone|telephonez|previens|previenez|ecris|"
+                       r"ecrivez|envoie|envoyez)(?: moi)?(?: un message| par message| un sms)? "
+                       r"(?:quand|si|lorsque|lorsqu|des que|au cas ou|demain|ce soir|dans|a \d|vers)\b")
 SOURCES = re.compile(r"\b(tes|vos|quelles sont les|quelle est la|cite moi les|cite tes) sources?\b|\bd ou vient (cette|l) info")
 
 LATENCY_LABELS = (
@@ -264,6 +272,7 @@ class Agent:
         content_guard=None,
         calls=None,
         learning=None,
+        call_rules=None,
     ):
         self.settings = settings
         self._source = source
@@ -307,6 +316,8 @@ class Agent:
         self._notifications = notifications
         self._follow_up: dict | None = None  # suite proposée par une annonce (écoute sans mot de réveil)
         self._calls = calls  # appels vers le téléphone jumelé (jarvis/call) ; None : désactivés
+        self._call_rules = call_rules  # règles d'appel (jarvis/call/rules.py) : accusé « c'est noté »
+        self._clarify: dict | None = None  # outil en attente d'une précision (règle d'appel incomplète)
         self._in_call = None  # appel décroché, pris par la prochaine conversation
         # Messages Linphone : réponse écrite (rien n'est prononcé), fil gardé MESSAGE_THREAD secondes.
         self._texting = False
@@ -559,6 +570,8 @@ class Agent:
             greeting = self._router.phrase("wake")
         else:
             greeting = " ".join(t for t in (self._router.phrase("call_greeting"), call.reason) if t)
+            if self._call_rules is not None and self._call_rules.awaiting_ack(call.id):
+                greeting += " Dites « c'est noté » pour que je ne vous rappelle pas à ce sujet."
         self._event("assistant", greeting)
         self._pipeline.speak([greeting])
         self._source.flush()
@@ -646,6 +659,26 @@ class Agent:
             if contextual.get("type") == "tool_calls":
                 return self._use_tools(history, text, contextual["calls"], latency), False
             return self._run_call(history, text, contextual, latency), False
+        clarify, self._clarify = self._clarify, None
+        if (clarify is not None and time.monotonic() - clarify["at"] < CLARIFY_WINDOW and self._tools is not None
+                and not CANCEL.search(normalize(text))):
+            latency["route"] = "tool:précision"
+            self._event("routing", latency["route"])
+            return self._run_call(history, f"{clarify['text']} ; précision : {text}",
+                                  {"type": "tool_call", "tool": clarify["tool"], "parameters": {}}, latency), False
+        if (self._call_rules is not None and self._in_call is not None and is_acknowledgement(text)
+                and self._call_rules.acknowledge(self._in_call.id)):
+            return self._say_text(history, text, "C'est noté, monsieur. Je ne vous rappellerai pas à ce sujet.",
+                                  latency), True
+        if (self._call_rules is not None and self._texting and is_acknowledgement(text)
+                and self._call_rules.acknowledge()):
+            return self._say_text(history, text, "C'est noté, monsieur.", latency), False
+        if (self._tools is not None and self._tools.registry.exists("create_call_rule")
+                and CALL_RULE.search(normalize(text))):
+            latency["route"] = "tool:règle d'appel"
+            self._event("routing", latency["route"])
+            return self._run_call(history, text, {"type": "tool_call", "tool": "create_call_rule", "parameters": {}},
+                                  latency), False
         if self._tools is not None and self._tools.registry.exists("declare_departure") and \
                 parse_declaration(text, datetime.now()) is not None:
             # « Je sors » : reconnu sans LLM, appliqué par le Core (outil declare_departure, moteur de présence).
@@ -811,6 +844,10 @@ class Agent:
         started = time.perf_counter()
         outcome = self._last_outcome = self._tools.submit(data)
         latency["tool"] = time.perf_counter() - started
+        error = outcome.result.error if outcome.result is not None else None
+        # Règle d'appel incomplète : la question est posée, la réponse suivante complète la demande.
+        self._clarify = ({"tool": data.get("tool"), "text": text, "at": time.monotonic()}
+                         if error == NEEDS_DETAILS else None)
         reply = self._after_tool(history, text, outcome, latency)
         if outcome.status == DONE and outcome.result.success:
             self._record(data, outcome.result.result)

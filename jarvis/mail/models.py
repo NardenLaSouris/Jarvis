@@ -15,6 +15,17 @@ class MailError(ToolError):
     pass
 
 
+def thread_key(message: "MailMessage") -> str:
+    """Fil de discussion d'un mail, d'après ses en-têtes (le premier message cité par References, sinon celui
+    auquel il répond, sinon lui-même) ; sans en-tête, le mail seul (jamais rattaché par son objet)."""
+    headers = message.headers or {}
+    for name in ("References", "In-Reply-To", "Message-ID"):
+        value = str(headers.get(name) or "").split()
+        if value:
+            return value[0][:200]
+    return f"uid:{message.id}"
+
+
 @dataclass(frozen=True)
 class Attachment:
     name: str

@@ -19,7 +19,7 @@ from jarvis.scheduling.clock import parse_clock, spoken_clock
 from jarvis.scheduling.durations import SMALL, TENS, DurationError, parse_duration, spoken_duration, tokens
 
 EXCLUDED = ("rappelle", "rappelez", "rappel", "minuteur", "timer", "minuterie", "reveil", "reveille", "alarme",
-            "fais moi penser", "previens moi",
+            "fais moi penser", "previens moi", "appelle moi", "appelez moi", "ecris moi", "ecrivez moi",
             # Le calendrier a ses dates à lui : « ajoute un rendez-vous dentiste demain à 10 heures » n'est pas une
             # action à programmer (session QA).
             "rendez vous", "rdv", "agenda", "calendrier", "evenement", "reunion", "de prevu", "suis je libre")

@@ -8,7 +8,7 @@ par durée / message, ou sans précision s'il n'y a qu'une seule échéance en c
 from __future__ import annotations
 
 import re
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Callable
 
 from jarvis.personality import MONTHS, WEEKDAYS, normalize, second_person, with_de
@@ -52,6 +52,16 @@ def _reminder_day(text: str) -> str | None:
     if any(f" {normalize(w)} " in norm for w in (*MONTHS, *WEEKDAYS)) or re.search(r" le \d{1,2} ", norm):
         return OTHER_DAY
     return None
+
+
+def _until(text: str, now) -> str | None:
+    """« reporte-le à demain 9 h » : moment dit (jamais deviné), sauf un délai (« de 30 minutes », param. delay)."""
+    from jarvis.scheduling.when import parse_when
+
+    if re.search(r"\bde \S+ (?:minutes?|heures?|h)\b", normalize(text)):
+        return None
+    when = parse_when(re.sub(r"\breporte\w*\b", "", text), now)
+    return when.at.isoformat() if when is not None and when.at > now else None
 
 
 def _clock_text(value: str) -> str:
@@ -201,6 +211,31 @@ def timer_tools(manager: TimerManager) -> list[Tool]:
         reminders = [_reminder_view(r, manager) for r in manager.reminders()]
         return {"count": len(reminders), "reminders": reminders}
 
+    def postpone_reminder(reminder_id: str | None = None, message: str | None = None, delay: int | None = None,
+                          until: str | None = None) -> dict:
+        """« Reporte ce rappel de 30 minutes », « reporte-le à demain 9 h » : juste après qu'il a sonné, ou un
+        rappel prévu désigné comme pour l'annulation."""
+        now = manager.now()
+        recent = manager.last_finished
+        if reminder_id is None and message is None and recent is not None and                 (now - recent.expires_at).total_seconds() < 1800:
+            # Déjà reprogrammé une fois : c'est ce rappel-là qu'on reporte encore.
+            reminder = manager.keyed(recent.key or f"report:{recent.id}") or recent
+        else:
+            wanted = _words(message) if message else set()
+            matches = (lambda r: bool(wanted) and wanted <= _words(r.message)) if message else None
+            chosen = _pick(manager.reminders(), reminder_id, matches, "rappel", REMINDER_NOT_FOUND,
+                           lambda r: f"n° {r.id} : {r.message}")
+            reminder = manager.get(Reminder.kind, chosen)
+        if delay:
+            base = reminder.expires_at if reminder.expires_at > now else now
+            when = base + timedelta(seconds=delay)
+        elif until:
+            when = datetime.fromisoformat(until)
+        else:
+            raise ToolError(INVALID_PARAMETERS, "De combien, ou à quand, dois-je le reporter ?")
+        moved = _call(lambda: manager.postpone(reminder, when))
+        return _reminder_view(moved, manager)
+
     return [
         Tool("create_timer", f"Lance un minuteur (jusqu'à {limit}).",
              {"duration": _duration_param("durée telle qu'elle a été dite, par exemple « 10 minutes »")},
@@ -233,6 +268,18 @@ def timer_tools(manager: TimerManager) -> list[Tool]:
               "message": Param(str, "mots du rappel à annuler, s'ils ont été dits", required=False, max_length=200)},
              {"reminder_id": "numéro", "message": "message", "cancelled": "true"}, Risk.SAFE, cancel_reminder,
              say=lambda r: f"Le rappel {with_de(r['message'])} est annulé."),
+        Tool("postpone_reminder", "Reporte un rappel (celui qui vient de sonner, ou un rappel prévu) d'un délai ou "
+             "à un moment dit.",
+             {"reminder_id": Param(str, "numéro du rappel, s'il a été dit", required=False, max_length=6,
+                                   check=_identifier),
+              "message": Param(str, "mots du rappel à reporter, s'ils ont été dits", required=False, max_length=200),
+              "delay": _duration_param("délai du report tel qu'il a été dit, par exemple « 30 minutes »",
+                                       required=False),
+              "until": Param(str, "moment dit", required=False, hidden=True, max_length=32,
+                             resolve=lambda text: _until(text, manager.now()))},
+             {"reminder_id": "numéro", "message": "message", "remaining": "délai", "at": "HH:MM"}, Risk.SAFE,
+             postpone_reminder, say=lambda r: f"C'est reporté : je vous rappellerai {with_de(r['message'])} "
+                                              f"{_when(r)}."),
         Tool("list_reminders", "Liste les rappels prévus.", {},
              {"count": "nombre", "reminders": "liste de {reminder_id, message, remaining, at}"}, Risk.SAFE,
              list_reminders, say=_reminders_said),

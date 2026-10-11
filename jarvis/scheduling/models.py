@@ -5,7 +5,7 @@ Ils partagent leur cycle de vie (actif -> terminé ou annulé) ; un rappel porte
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 
@@ -36,4 +36,10 @@ class Timer(Scheduled):
 @dataclass
 class Reminder(Scheduled):
     message: str = ""
+    # Rappel créé par ORION pour un objet suivi (échéance d'un mail...) : ``key`` évite les doublons, ``link`` mène
+    # à l'objet d'origine, ``adjusted`` garde un report demandé par l'utilisateur (jamais écrasé par une mise à jour).
+    key: str = ""
+    important: bool = False
+    link: dict = field(default_factory=dict)
+    adjusted: bool = False
     kind = "reminder"

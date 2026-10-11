@@ -35,7 +35,8 @@ GMAIL_LABELS = re.compile(rb"X-GM-LABELS \(([^)]*)\)")
 CATEGORIES = ("promotions", "social")  # catégories Gmail jamais annoncées
 FLAGS = re.compile(rb"FLAGS \(([^)]*)\)")
 TAGS = re.compile(r"<(script|style)[^>]*>.*?</\1>|<[^>]+>", re.IGNORECASE | re.DOTALL)
-KEPT_HEADERS = ("List-Unsubscribe", "Precedence", "Auto-Submitted", "X-Priority", "Importance", "Message-ID")
+KEPT_HEADERS = ("List-Unsubscribe", "Precedence", "Auto-Submitted", "X-Priority", "Importance", "Message-ID",
+                "In-Reply-To", "References")
 
 
 class MailProvider(Protocol):

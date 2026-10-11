@@ -368,6 +368,14 @@ DOMAIN_WORDS = {
     "forget_word": ("oublie le mot", "oublie l expression", "oublie ce mot", "desapprends"),
     "declare_departure": ("je sors", "je pars", "je m en vais", "je quitte", "je m absente", "je file", "je reste",
                           "courses", "je vais y aller", "j y vais"),
+    # Règles d'appel : seulement quand l'utilisateur parle d'appel ou de règle.
+    "create_call_rule": ("appelle moi", "appelez moi", "previens moi", "ecris moi", "telephone moi"),
+    "list_call_rules": ("regle", "regles"),
+    "describe_call_rule": ("regle", "regles"),
+    "set_call_rule_enabled": ("regle", "regles"),
+    "delete_call_rule": ("regle", "regles"),
+    "modify_call_rule": ("regle", "regles"),
+    "explain_calls": ("appele", "appel", "appels", "appeler", "pourquoi"),
     "close_application": ("ferme", "fermer", "quitte", "quitter", "arrete", "coupe"),
     # Mails : l'action doit être dite par l'utilisateur, jamais suggérée par le contenu d'un mail lu.
     "mark_mail_read": ("lu", "lus", "marque", "marquer"),

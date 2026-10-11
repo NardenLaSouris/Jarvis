@@ -305,7 +305,8 @@ def call(tool, **parameters):
 def test_all_timer_tools_are_safe_and_never_ask(manager):
     tools = timer_tools(manager)
     assert {t.name: t.risk for t in tools} == {name: Risk.SAFE for name in (
-        "create_timer", "cancel_timer", "list_timers", "create_reminder", "cancel_reminder", "list_reminders")}
+        "create_timer", "cancel_timer", "list_timers", "create_reminder", "cancel_reminder", "list_reminders",
+        "postpone_reminder")}
     core = make_core(manager)
     assert core.submit(call("create_timer", duration="10 minutes")).status == DONE
     assert core.submit(call("create_reminder", delay="20 minutes", message="sortir le linge")).status == DONE
@@ -593,3 +594,37 @@ def test_a_short_reminder_stays_relative_across_midnight():
 
     assert _when({"remaining": "20 minutes", "at": "00:18", "day": 1, "far": False}) == "dans 20 minutes"
     assert _when({"remaining": "9 heures", "at": "09:00", "day": 1, "far": True}) == "demain à 9 heures"
+
+
+def test_linked_reminders_are_unique_survive_restarts_and_keep_a_postponement(tmp_path):
+    from datetime import datetime, timedelta
+
+    from jarvis.scheduling.manager import JsonScheduleStore
+
+    now = datetime(2026, 10, 11, 15, 30)
+    store_path = tmp_path / "echeances.json"
+    m = TimerManager(EventBus(), store=JsonScheduleStore(store_path), clock=lambda: now)
+    first = m.create_reminder_at(now + timedelta(days=3), "répondre à la banque", "mail:<a@b>:j-1", True,
+                                 {"mail": "<a@b>"})
+    again = m.create_reminder_at(now + timedelta(days=4), "répondre à la banque", "mail:<a@b>:j-1")
+    assert again is first and len(m.reminders()) == 1  # nouvelle analyse du même mail : pas de doublon
+    m.move_reminder(first.id, now + timedelta(days=5), by_user=True)  # reporté par l'utilisateur
+    m.move_reminder(first.id, now + timedelta(days=2))  # échéance du mail modifiée : le report est gardé
+    assert m.keyed("mail:<a@b>:j-1").expires_at == now + timedelta(days=5)
+    restored = TimerManager(EventBus(), store=JsonScheduleStore(store_path), clock=lambda: now).keyed("mail:<a@b>:j-1")
+    assert restored.important and restored.adjusted and restored.link == {"mail": "<a@b>"}
+
+
+def test_postpone_the_reminder_that_just_rang(manager):
+    from datetime import timedelta
+
+    tools = {t.name: t for t in timer_tools(manager)}
+    reminder = manager.create_reminder(1, "sortir le linge")
+    manager._expire(f"reminder:{reminder.id}")
+    result = tools["postpone_reminder"].execute({"delay": 1800})
+    moved = manager.reminders()[0]
+    assert moved.message == "sortir le linge" and moved.adjusted and "sortir le linge" in result["message"]
+    assert abs((moved.expires_at - manager.now()).total_seconds() - 1800) < 5
+    tools["postpone_reminder"].execute({"delay": 600})  # reporté de nouveau : toujours un seul rappel, déplacé
+    assert len(manager.reminders()) == 1
+    assert abs((manager.reminders()[0].expires_at - manager.now()).total_seconds() - 2400) < 5

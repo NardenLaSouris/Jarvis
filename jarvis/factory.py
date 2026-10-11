@@ -200,6 +200,26 @@ def build_learning(cfg: Config, personality, stt=None):
     return learning
 
 
+def build_call_rules(cfg: Config, llm, presence, timers, mailbox):
+    """Règles d'appel ([call] activé) et leurs outils ; le gestionnaire d'appels est branché ensuite (connect)."""
+    from jarvis.call.rule_parser import RuleParser
+    from jarvis.call.rule_tools import call_rule_tools
+    from jarvis.call.rules import CallRules
+    from jarvis.mail.models import thread_key
+
+    rules = CallRules(Path(cfg.memory.path).parent / "call_rules.json", calls=None,
+                      presence=presence.engine if presence is not None else None, reminders=timers)
+
+    def context() -> dict:
+        """« Ce mail » : le dernier lu ou annoncé ; « ce rappel » : le dernier programmé (jamais deviné)."""
+        mail = mailbox.current() if mailbox is not None else None
+        reminders = sorted(timers.reminders(), key=lambda r: r.created_at) if timers is not None else []
+        return {"mail": {"thread": thread_key(mail), "subject": mail.subject[:80] or "(sans objet)"} if mail else None,
+                "reminder": {"id": reminders[-1].id, "message": reminders[-1].message[:80]} if reminders else None}
+
+    return rules, call_rule_tools(rules, RuleParser(llm), context)
+
+
 def build_web(cfg: Config):
     """Recherche Web configurée, ou None si elle est désactivée ou sans moteur."""
     w = cfg.web
@@ -809,6 +829,10 @@ def build_agent(
         watcher = build_mail_watcher(cfg, mailbox, events, notifications, presence, personality)
     if cfg.tools.enabled:
         extra.append(build_network_tool(cfg, rooms))
+    call_rules = None
+    if cfg.call.enabled and cfg.tools.enabled:  # règles d'appel dites par l'utilisateur (le gestionnaire vient après)
+        call_rules, rule_tools = build_call_rules(cfg, llm, presence, timers, mailbox)
+        extra += rule_tools
     tools = build_tools(cfg, personality, events, timers, weather, devices,
                         light_tools_for(rooms, driver, cfg.lights.scenes, home), extra)
     speaker["core"] = tools
@@ -883,6 +907,8 @@ def build_agent(
     from jarvis.face.upcoming import Upcoming
 
     calls = build_calls(cfg, source, sink, events)
+    if call_rules is not None and calls is not None:
+        call_rules.connect(calls, events)
     if calls is not None and api is not None:
         api.calls = calls  # appel d'essai par l'API d'administration (POST /api/call), jamais automatique
     if calls is not None and cfg.audio.remote and hasattr(source, "on_status"):
@@ -899,11 +925,13 @@ def build_agent(
     agent = Agent(settings, source, sink, wake_word, recorder, stt, llm, tts, router, on_event,
                  stream_audio=cfg.tts.stream_audio, merge_under=cfg.tts.merge_under, web=web,
                  tools=tools, corrector=corrector, notifications=voice, alarm=routines.alarm if routines else None,
-                 services=tuple(s for s in (api, routines, timers, notifications, worker, presence, calls)
+                 services=tuple(s for s in (api, routines, timers, notifications, worker, presence, calls,
+                                                 call_rules if calls is not None else None)
                                 if s is not None),
                  fast_path=cfg.tools.fast_path, routines=routines, profiles=build_profiles(cfg),
                  wake_verifier=build_wake_verifier(cfg), wake_captures=build_wake_captures(cfg),
-                 content_guard=build_content_guard(cfg, llm), calls=calls, learning=learning)
+                 content_guard=build_content_guard(cfg, llm), calls=calls, learning=learning,
+                 call_rules=call_rules if calls is not None else None)
     # Échéance proche (rendez-vous, minuteur, rappel) pour l'anneau du visage.
     agent.upcoming = Upcoming(calendar, timers) if calendar is not None or timers is not None else None
     return agent

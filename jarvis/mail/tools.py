@@ -70,6 +70,11 @@ class MailBox:
             if len(messages) == 1:
                 self._current = messages[0]
 
+    def current(self) -> MailMessage | None:
+        """Dernier mail lu ou annoncé seul (« ce mail »), s'il y en a un."""
+        with self._lock:
+            return self._current
+
     def target(self, position: int | None) -> MailMessage:
         """Mail désigné : par son rang dans la dernière liste, sinon le dernier lu (ou le seul listé)."""
         with self._lock:

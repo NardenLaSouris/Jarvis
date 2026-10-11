@@ -26,7 +26,11 @@ from jarvis.scheduling.scheduler import Scheduler
 
 TIMER_CREATED, TIMER_CANCELLED, TIMER_FINISHED = "timer.created", "timer.cancelled", "timer.finished"
 REMINDER_CREATED, REMINDER_CANCELLED, REMINDER_FINISHED = "reminder.created", "reminder.cancelled", "reminder.finished"
-EVENT_TYPES = (TIMER_CREATED, TIMER_CANCELLED, TIMER_FINISHED, REMINDER_CREATED, REMINDER_CANCELLED, REMINDER_FINISHED)
+REMINDER_MOVED = "reminder.moved"  # reporté par l'utilisateur, ou échéance d'origine changée
+EVENT_TYPES = (TIMER_CREATED, TIMER_CANCELLED, TIMER_FINISHED, REMINDER_CREATED, REMINDER_CANCELLED, REMINDER_FINISHED,
+               REMINDER_MOVED)
+MAX_LINKED = 60  # rappels créés pour des objets suivis (mails), en plus des échéances dites
+MAX_LINKED_SECONDS = 120 * 86400
 
 INVALID_DURATION = "invalid_duration"
 INVALID_MESSAGE = "invalid_message"
@@ -89,7 +93,10 @@ class JsonScheduleStore(MemoryScheduleStore):
         for entry in raw:
             try:
                 cls = Reminder if entry["kind"] == Reminder.kind else Timer
-                fields = {"message": entry.get("message", "")} if cls is Reminder else {}
+                fields = {"message": entry.get("message", ""), "key": str(entry.get("key", "")),
+                          "important": bool(entry.get("important", False)),
+                          "link": entry.get("link") if isinstance(entry.get("link"), dict) else {},
+                          "adjusted": bool(entry.get("adjusted", False))} if cls is Reminder else {}
                 item = cls(str(entry["id"]), datetime.fromisoformat(entry["created_at"]),
                            datetime.fromisoformat(entry["expires_at"]), float(entry["seconds"]), **fields)
             except (KeyError, TypeError, ValueError):
@@ -98,7 +105,9 @@ class JsonScheduleStore(MemoryScheduleStore):
 
     def changed(self) -> None:
         active = [{"kind": i.kind, "id": i.id, "created_at": i.created_at.isoformat(), "expires_at": i.expires_at.isoformat(),
-                   "seconds": i.seconds, **({"message": i.message} if isinstance(i, Reminder) else {})}
+                   "seconds": i.seconds, **({"message": i.message, "key": i.key, "important": i.important,
+                                             "link": i.link, "adjusted": i.adjusted}
+                                            if isinstance(i, Reminder) else {})}
                   for i in self._items.values() if i.status is Status.ACTIVE]
         self._items = {key: item for key, item in self._items.items() if item.status is Status.ACTIVE}
         self._path.parent.mkdir(parents=True, exist_ok=True)
@@ -116,7 +125,8 @@ def _timer_payload(timer: Timer) -> dict:
 def _reminder_payload(reminder: Reminder) -> dict:
     return {"reminder_id": reminder.id, "message": reminder.message, "delay_seconds": round(reminder.seconds),
             "expires_at": reminder.expires_at.isoformat(timespec="seconds"),
-            "subject": f"rappel {reminder.id} : {reminder.message}"}
+            "subject": f"rappel {reminder.id} : {reminder.message}", "important": reminder.important,
+            "key": reminder.key, "link": dict(reminder.link)}
 
 
 class TimerManager:
@@ -133,6 +143,7 @@ class TimerManager:
         self._lock = threading.Lock()
         self._numbers = {Timer.kind: itertools.count(1), Reminder.kind: itertools.count(1)}
         self._scheduler = Scheduler(self._expire, monotonic)
+        self.last_finished: Reminder | None = None  # dernier rappel annoncé (« reporte-le » juste après)
 
     @property
     def max_seconds(self) -> float:
@@ -188,6 +199,73 @@ class TimerManager:
         reminder = self._create(Reminder, seconds, message=message)
         self._publish(REMINDER_CREATED, _reminder_payload(reminder))
         return reminder
+
+    def create_reminder_at(self, when: datetime, message: str, key: str, important: bool = False,
+                           link: dict | None = None) -> Reminder:
+        """Rappel à une date précise pour un objet suivi (échéance d'un mail) : un seul par ``key`` (rappel actif
+        existant rendu tel quel), horizon et nombre propres, hors limite des échéances dites."""
+        message = self._clean_message(message)
+        if not key or len(key) > 200:
+            raise SchedulingError(INVALID_MESSAGE, "Clé de rappel invalide.")
+        with self._lock:
+            existing = self._keyed_unlocked(key)
+            if existing is not None:
+                return existing
+            now = self._clock()
+            seconds = (when - now).total_seconds()
+            if not 0 < seconds <= MAX_LINKED_SECONDS:
+                raise SchedulingError(INVALID_DURATION, "Cette date de rappel n'est pas valable.")
+            if sum(1 for i in self._active_unlocked(Reminder.kind) if i.key) >= MAX_LINKED:
+                raise SchedulingError(LIMIT_REACHED, "Trop de rappels de suivi sont déjà programmés.")
+            item = Reminder(str(next(self._numbers[Reminder.kind])), now, when.replace(microsecond=0), seconds,
+                            message=message, key=key, important=important, link=dict(link or {}))
+            self._store.add(item)
+            self._scheduler.schedule(f"{Reminder.kind}:{item.id}", seconds)
+        self._publish(REMINDER_CREATED, _reminder_payload(item))
+        return item
+
+    def postpone(self, reminder: Reminder, when: datetime) -> Reminder:
+        """Report demandé par l'utilisateur : rappel actif déplacé, ou rappel qui vient de sonner reprogrammé (même
+        clé : jamais de doublon), marqué comme ajusté."""
+        if reminder.status is Status.ACTIVE:
+            return self.move_reminder(reminder.id, when, by_user=True)
+        existing = self.keyed(reminder.key or f"report:{reminder.id}")
+        if existing is not None:  # déjà reprogrammé une fois : on le déplace
+            return self.move_reminder(existing.id, when, by_user=True)
+        again = self.create_reminder_at(when, reminder.message, reminder.key or f"report:{reminder.id}",
+                                        reminder.important, reminder.link)
+        with self._lock:
+            again.adjusted = True
+            self._store.changed()
+        return again
+
+    def keyed(self, key: str) -> Reminder | None:
+        """Rappel actif créé pour ``key``, s'il y en a un."""
+        with self._lock:
+            return self._keyed_unlocked(key)
+
+    def _keyed_unlocked(self, key: str) -> Reminder | None:
+        return next((i for i in self._active_unlocked(Reminder.kind) if i.key == key), None)
+
+    def move_reminder(self, reminder_id: str, when: datetime, by_user: bool = False) -> Reminder:
+        """Nouvelle heure d'un rappel actif : report demandé (``by_user``, gardé ensuite) ou échéance d'origine
+        changée (ignorée si l'utilisateur l'a déjà reporté lui-même)."""
+        with self._lock:
+            item = self._store.get(Reminder.kind, str(reminder_id))
+            if item is None or item.status is not Status.ACTIVE:
+                raise SchedulingError(REMINDER_NOT_FOUND, f"Je ne trouve pas de rappel numéro {str(reminder_id)[:10]}.")
+            if item.adjusted and not by_user:
+                return item
+            seconds = (when - self._clock()).total_seconds()
+            if seconds <= 0:
+                raise SchedulingError(INVALID_DURATION, "Cette heure est déjà passée.")
+            item.expires_at = when.replace(microsecond=0)
+            item.adjusted = item.adjusted or by_user
+            self._scheduler.cancel(f"{Reminder.kind}:{item.id}")
+            self._scheduler.schedule(f"{Reminder.kind}:{item.id}", seconds)
+            self._store.changed()
+        self._publish(REMINDER_MOVED, {**_reminder_payload(item), "by_user": by_user})
+        return item
 
     def cancel_timer(self, timer_id: str) -> Timer:
         timer = self._cancel(Timer.kind, timer_id, TIMER_NOT_FOUND, "minuteur")
@@ -249,6 +327,7 @@ class TimerManager:
             item.status = Status.COMPLETED
             self._store.changed()
         if isinstance(item, Reminder):
+            self.last_finished = item
             self._publish(REMINDER_FINISHED, _reminder_payload(item))
         else:
             self._publish(TIMER_FINISHED, _timer_payload(item))
