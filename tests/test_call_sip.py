@@ -288,3 +288,29 @@ def test_phone_relaunching_the_call_gets_our_audio_and_its_new_offer_is_applied(
     ok = proxy.next()
     assert ok.status == 200 and "m=audio 6000" in ok.body and ok.header("to").count("tag=") == 1
     assert updates == ["v=0\r\nm=audio 7000 RTP/SAVP 96\r\n"]
+
+
+def test_ack_and_bye_reach_the_exact_device_and_a_repeated_200_is_acked_again(setup):
+    """L'iPhone (Linphone) donne un Contact avec « gr » : l'ACK doit y aller tel quel, sinon le serveur ne le remet
+    pas, l'iPhone répète son 200 et raccroche au bout de 32 s (appels Flex du 12 octobre)."""
+    proxy, account, _ = setup
+    result = {}
+    thread = threading.Thread(target=lambda: result.update(r=account.invite("v=0\r\n")))
+    thread.start()
+    invite = proxy.next()
+    proxy.challenge(invite, proxy=True)
+    proxy.next()
+    invite = proxy.next()
+    contact = "Contact: <sip:Jules.Nvu@sip.linphone.org;gr=urn:uuid:A1B2-c3d4>;+sip.instance=\"<urn:uuid:A1B2>\"\n"
+    proxy.reply(invite, 200, "OK", contact + "Record-Route: <sip:proxy.test;lr>\n", body="v=0\r\nm=audio 4000 RTP/SAVP 0\r\n")
+    thread.join(5)
+    dialog, code = result["r"]
+    ack = proxy.next()
+    assert ack.first.split()[1] == "sip:Jules.Nvu@sip.linphone.org;gr=urn:uuid:A1B2-c3d4"
+    proxy.reply(invite, 200, "OK", contact + "Record-Route: <sip:proxy.test;lr>\n", body="v=0\r\n")  # répété
+    again = proxy.next()
+    assert again.method == "ACK" and again.first.split()[1] == ack.first.split()[1]
+    threading.Thread(target=account.hang_up, args=(dialog,)).start()
+    bye = proxy.next()
+    assert bye.method == "BYE" and bye.first.split()[1] == "sip:Jules.Nvu@sip.linphone.org;gr=urn:uuid:A1B2-c3d4"
+    proxy.reply(bye, 200, "OK")

@@ -40,6 +40,18 @@ def uri_of(header: str) -> str:
     return match.group(1).lower() if match else ""
 
 
+def target_of(header: str) -> str:
+    """Adresse exacte où joindre l'autre côté (en-tête Contact), paramètres compris et casse gardée :
+    « <sip:jules@sip.linphone.org;gr=urn:uuid:…> » -> « sip:jules@sip.linphone.org;gr=urn:uuid:… ». Le serveur
+    Linphone a besoin de ce « gr » pour remettre l'ACK et le BYE au bon appareil (sans lui, l'iPhone ne reçoit
+    jamais l'ACK de son « décroché » et raccroche au bout de 32 s)."""
+    header = (header or "").strip()
+    bracketed = re.search(r"<([^<>]+)>", header)
+    if bracketed:
+        return bracketed.group(1).strip()
+    return header.split(";", 1)[0].split(",", 1)[0].strip()  # sans <> : les paramètres sont ceux de l'en-tête
+
+
 def tag_of(header: str) -> str:
     match = re.search(r";\s*tag=([^;>\s]+)", header or "")
     return match.group(1) if match else ""
@@ -345,7 +357,7 @@ class SipAccount:
         if response.status >= 300:
             return None, response.status
         record = [r.strip() for value in response.all("record-route") for r in value.split(",") if r.strip()]
-        dialog = Dialog(call_id, tag, uri_of(response.header("contact")) or self.peer, response.header("to"),
+        dialog = Dialog(call_id, tag, target_of(response.header("contact")) or self.peer, response.header("to"),
                         list(reversed(record)), response.body, True, int(response.header("cseq").split()[0]),
                         local_sdp=sdp)
         self._dialogs[call_id] = dialog
@@ -477,6 +489,12 @@ class SipAccount:
             waiter = self._waiters.get(f"{branch.group(1)} {message.method}") if branch else None
             if waiter is not None:
                 waiter.put(message)
+                return
+            dialog = self._dialogs.get(message.header("call-id"))
+            if message.method == "INVITE" and message.status == 200 and dialog is not None and dialog.outgoing:
+                # « Décroché » répété : notre ACK n'est pas arrivé. On le renvoie (sinon le téléphone raccroche).
+                log.info("Compte SIP : décroché répété par le téléphone, ACK renvoyé")
+                self._ack(dialog)
             return
         method, call_id = message.method, message.header("call-id")
         if method == "INVITE":
@@ -557,7 +575,7 @@ class SipAccount:
             log.warning("Compte SIP : appel d'un correspondant non autorisé refusé")
             self._respond(invite, 403, "Forbidden", to_tag=secrets.token_hex(4))
             return
-        dialog = Dialog(call_id, secrets.token_hex(4), uri_of(invite.header("contact")) or caller,
+        dialog = Dialog(call_id, secrets.token_hex(4), target_of(invite.header("contact")) or caller,
                         invite.header("from"), remote_sdp=invite.body, outgoing=False, invite=invite)
         self._dialogs[call_id] = dialog
         self._respond(invite, 180, "Ringing", to_tag=dialog.local_tag)
