@@ -207,7 +207,8 @@ def test_source_waits_for_the_agent_and_reconnects(caplog):
         with caplog.at_level(logging.WARNING):
             wait(lambda: any("Micro distant injoignable" in r.message for r in caplog.records))
         first = agent(devices, port)
-        assert int(source.read()[0]) == 1
+        frames = (source.read() for _ in range(50))  # silence tant que l'agent n'est pas encore joint
+        assert int(next(f for f in frames if f.any())[0]) == 1
         first.stop()
         source.flush()
         second = agent(devices, port)
@@ -216,6 +217,18 @@ def test_source_waits_for_the_agent_and_reconnects(caplog):
             assert source.read().shape == (FRAME,)
         finally:
             second.stop()
+    finally:
+        source.close()
+
+
+def test_source_gives_silence_while_the_pc_is_off():
+    """PC éteint : la veille d'ORION continue (messages Linphone, appels, annonces) avec du silence."""
+    source = NetworkSource(f"http://127.0.0.1:{free_port()}", TOKEN, 16000, FRAME, retry_s=0.05)
+    try:
+        started = time.monotonic()
+        frames = [source.read() for _ in range(2)]
+        assert all(f.shape == (FRAME,) and not f.any() for f in frames)
+        assert time.monotonic() - started < 3
     finally:
         source.close()
 

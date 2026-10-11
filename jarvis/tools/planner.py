@@ -49,6 +49,8 @@ EXAMPLES = (
     ("Coupe le son", "mute_volume", {}),
     ("Remets le son", "unmute_volume", {}),
     ("Verrouille le PC", "lock_pc", {}),
+    ("Éteins mon PC", "shutdown_pc", {}),
+    ("Allume mon ordinateur", "wake_pc", {}),
     ("Quelles applications sont ouvertes ?", "list_running_applications", {}),
     ("Quelle machine utilises-tu ?", "system_info", {}),
     ("Combien d'espace disque me reste-t-il ?", "system_info", {}),
@@ -354,6 +356,9 @@ DOMAIN_WORDS = {
                          "mettre", "relance", "rouvre", "joue", "jouer", "affiche", "afficher", "va sur", "allume",
                          "start", "open"),
     "lock_pc": ("verrouille", "verrouiller", "verrouillage", "verrouilles", "bloque", "lock"),
+    # Allumer ou éteindre un PC : l'ordinateur doit être nommé (« éteins tout » ne vise que les lumières).
+    "shutdown_pc": ("pc", "ordinateur", "ordi", "portable", "katana", "laptop", "tour", "machine", "shutdown"),
+    "wake_pc": ("pc", "ordinateur", "ordi", "portable", "katana", "laptop", "tour", "machine"),
     "close_application": ("ferme", "fermer", "quitte", "quitter", "arrete", "coupe"),
     # Mails : l'action doit être dite par l'utilisateur, jamais suggérée par le contenu d'un mail lu.
     "mark_mail_read": ("lu", "lus", "marque", "marquer"),
@@ -422,6 +427,11 @@ def _named(tool: str, text: str, registry: ToolRegistry | None = None) -> bool:
         return bool(room is not None and room.resolve is not None and room.resolve(text) != room.resolve(""))
     words = DOMAIN_WORDS.get(tool)
     return words is None or any(f" {w} " in norm for w in words)
+
+
+def named(tool: str, text: str, registry: ToolRegistry | None = None) -> bool:
+    """L'action ``tool`` est-elle nommée par ``text`` (mot de l'action, de l'éclairage ou pièce citée) ?"""
+    return _named(tool, text, registry)
 
 
 def _grounded(data: dict, text: str, registry: ToolRegistry, clause: str | None = None) -> dict | None:
@@ -521,6 +531,7 @@ class ToolsCapability:
         (("spotify_play", "media_play_pause"), "piloter la musique"),
         (("system_info", "list_running_applications"), "décrire la machine"),
         (("lock_pc",), "verrouiller l'ordinateur"),
+        (("shutdown_pc", "wake_pc"), "éteindre et allumer vos ordinateurs"),
         (("find_files",), "chercher, lire et ranger vos fichiers"),
         (("list_events",), "consulter et compléter votre agenda"),
         (("remember",), "retenir ce que vous me demandez de retenir"),

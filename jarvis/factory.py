@@ -564,6 +564,10 @@ def build_tools(cfg: Config, personality, events: EventBus | None = None, timers
 
         client = AgentClient(secret("JARVIS_AGENT_TOKEN", ENV_FILE), timeout=max(1.0, cfg.tools.timeout - 2))
         tools = [remote_tool(tool, devices, client) if tool.name in PC_TOOLS else tool for tool in tools]
+        if any(devices[key].mac for key in devices.keys()):  # allumage par le réseau, envoyé par le Core
+            from jarvis.tools.power import wake_tool
+
+            tools.append(wake_tool(devices))
     registry = ToolRegistry()
     tools = [*tools, *lights, *extra]
     for tool in tools:

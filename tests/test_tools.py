@@ -47,7 +47,7 @@ EXPECTED_RISKS = {
     "get_time": Risk.SAFE, "get_date": Risk.SAFE, "system_info": Risk.SAFE, "open_url": Risk.SAFE,
     "open_application": Risk.SAFE, "close_application": Risk.CONFIRMATION_REQUIRED,
     "list_running_applications": Risk.SAFE, "set_volume": Risk.SAFE, "mute_volume": Risk.SAFE,
-    "unmute_volume": Risk.SAFE, "lock_pc": Risk.CONFIRMATION_REQUIRED,
+    "unmute_volume": Risk.SAFE, "lock_pc": Risk.CONFIRMATION_REQUIRED, "shutdown_pc": Risk.CONFIRMATION_REQUIRED,
     "media_play_pause": Risk.SAFE, "media_next": Risk.SAFE, "media_previous": Risk.SAFE,
 }
 

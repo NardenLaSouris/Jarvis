@@ -31,7 +31,7 @@ from jarvis.personality import normalize
 from jarvis.tools.base import Risk
 from jarvis.tools.core import CANCELLED, CONFIRM, DONE
 from jarvis.tools.request import MALFORMED_MESSAGES
-from jarvis.tools.planner import plan, quoted, tool_request
+from jarvis.tools.planner import named, plan, quoted, tool_request
 from jarvis.tools.quick import quick_plan
 from jarvis.weather.cities import mentioned_city
 from jarvis.web.research import names_pattern, web_request, without_name
@@ -670,6 +670,12 @@ class Agent:
         previous, report = self._previous_request, {}
         data = plan(self._llm, text, self._tools.registry, previous=previous, report=report)
         latency["tool_plan"] = time.perf_counter() - started
+        if data is None and report.get("proposed") and previous and not named(report["proposed"], text,
+                                                                               self._tools.registry):
+            # Action proposée seulement d'après la demande précédente (« c'est joli » après « passe en cyan ») :
+            # une remarque, pas une demande ; la conversation libre y répond.
+            self._event("routing", f"tool:plan (remarque, pas d'action : {report['proposed']})")
+            return None
         if data is None and report.get("proposed"):
             # Une action était voulue mais pas assez précise (niveau non dit...) : on demande, sans rien inventer.
             self._event("routing", f"tool:plan (à préciser : {report['proposed']})")

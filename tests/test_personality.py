@@ -489,3 +489,10 @@ def test_more_false_action_claims_found_by_the_qa_session():
 def test_first_person_present_claims_are_detected():
     for claim in ("J'ouvre Without Me d'Eminem pour vous.", "Je lance la musique.", "J'allume la chambre."):
         assert claims_action(claim), claim
+
+
+def test_a_reaction_gets_a_reply_not_an_action():
+    r = router()
+    for text in ("Niquel", "Nickel !", "Parfait", "C'est top", "Bien joué"):
+        route = r.route(text)
+        assert route.name == "approval" and route.reply, (text, route)

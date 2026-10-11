@@ -31,6 +31,7 @@ class Device:
     url: str
     aliases: tuple[str, ...]
     default: bool = False
+    mac: str = ""  # adresse matérielle, pour l'allumer par le réseau (wake_pc) ; vide : ORION ne l'allume pas
 
     @property
     def Name(self) -> str:  # noqa: N802 - nom en tête de phrase
@@ -80,8 +81,11 @@ def load_devices(table: dict) -> Devices | None:
         url = str(spec.get("url", "")).rstrip("/")
         if url and not re.match(r"^https?://[\w.\-]+(:\d+)?$", url):
             raise ValueError(f"[tools.devices.{key}] url invalide : {url!r}")
+        mac = str(spec.get("mac", "")).strip().lower().replace("-", ":")
+        if mac and not re.match(r"^[0-9a-f]{2}(?::[0-9a-f]{2}){5}$", mac):
+            raise ValueError(f"[tools.devices.{key}] mac invalide : {mac!r}")
         devices.append(Device(key, str(spec.get("name", key)), url, tuple(str(a) for a in spec.get("aliases", [])),
-                              bool(spec.get("default", False))))
+                              bool(spec.get("default", False)), mac))
     return Devices(devices)
 
 

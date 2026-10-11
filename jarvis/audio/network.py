@@ -18,6 +18,9 @@ import numpy as np
 log = logging.getLogger(__name__)
 
 
+SILENCE_EVERY = 0.5  # s sans audio du micro distant déconnecté avant un bloc de silence
+
+
 class FrameQueue(queue.Queue):
     """Blocs audio en attente. Plein (ORION occupé à réfléchir ou à parler) : le bloc le plus ancien est oublié,
     avec un seul message tant que le débordement dure."""
@@ -90,6 +93,7 @@ class NetworkSource:
         self._queue = FrameQueue(int(max_buffered_s * sample_rate / frame_samples), "distant")
         self._stopping = threading.Event()
         self._response = None
+        self._connected = False  # micro du PC joint (sinon : silence, la veille continue sans lui)
         self.on_status: Callable[[bool], None] | None = None  # micro connecté (True) ou perdu (False)
         self._thread = threading.Thread(target=self._run, name="micro-distant", daemon=True)
         self._thread.start()
@@ -102,6 +106,7 @@ class NetworkSource:
             try:
                 with self._agent.open(path, timeout=self._timeout) as response:
                     self._response = response
+                    self._connected = True
                     log.info("Micro distant connecté (%s)", self._agent.url)
                     if failing:
                         self._status(True)
@@ -125,6 +130,7 @@ class NetworkSource:
                 failing = True
             finally:
                 self._response = None
+                self._connected = False
             self._stopping.wait(self._retry)
 
     def _status(self, connected: bool) -> None:
@@ -135,7 +141,15 @@ class NetworkSource:
                 log.debug("Notification d'état du micro impossible", exc_info=True)
 
     def read(self) -> np.ndarray | None:
-        return self._queue.get()
+        """Bloc suivant du micro. PC éteint ou agent arrêté : un bloc de silence toutes les SILENCE_EVERY s, pour
+        que la veille d'ORION continue (messages, appels, annonces) au lieu d'attendre le retour du PC."""
+        while not self._stopping.is_set():
+            try:
+                return self._queue.get(timeout=SILENCE_EVERY)
+            except queue.Empty:
+                if not self._connected:
+                    return np.zeros(self.frame_samples, dtype=np.int16)
+        return None
 
     def flush(self) -> None:
         self._queue.clear()

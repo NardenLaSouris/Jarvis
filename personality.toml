@@ -285,6 +285,16 @@ patterns = ["merci", "merci beaucoup", "merci bien", "je te remercie", "je vous 
 responses = ["Je vous en prie, {title}.", "Avec plaisir, {title}.", "Tout le plaisir est pour moi.",
              "À votre service, {title}."]
 
+# Réaction après une action ou une réponse (« Niquel », « Parfait ») : une réponse, jamais une action à deviner.
+[intents.approval]
+match = "exact"
+patterns = ["nickel", "niquel", "nikel", "parfait", "super", "genial", "cool", "impeccable", "excellent",
+            "bien joue", "bravo", "trop bien", "c est parfait", "c est top", "c est super", "c est genial",
+            "c est nickel", "c est niquel", "parfait c est nickel", "au top", "magnifique", "trop cool", "ca marche",
+            "ok", "ok super", "ok parfait", "ok nickel", "ok niquel", "c est bien", "tres bien"]
+responses = ["Ravi que cela vous convienne, {title}.", "Parfait.", "Avec plaisir, {title}.",
+             "Toujours à votre service."]
+
 [intents.goodnight]
 match = "exact"
 end_conversation = true
