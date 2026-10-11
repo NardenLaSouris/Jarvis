@@ -97,6 +97,8 @@ technique, refusé, message envoyé, annulé, résolu, abandonné.
   - elle dit un délai (« avant », « au plus tard », « sous », « d'ici », « date limite »…).
 
   Une date seulement mentionnée n'en est pas une. Les délais relatifs partent de la date de réception (« sous 48 heures », « avant vendredi prochain »). Un jour sans heure vaut 18 h ce jour-là. « Au plus vite » : urgent, sans date.
+
+  Si la citation du modèle est absente ou inexacte, le Core cherche lui-même la première phrase du mail qui dit un délai lisible. Lors de l'essai réel avec le modèle du Katana (`scripts/essai_comprehension.py`), cela a fait passer de 3 à 0 les échéances manquées sur 7 mails.
 - Échéance écrite et action attendue :
   - un rappel à J-1 et un rappel à H-1 h 30, créés une seule fois ;
   - ORION l'annonce s'il est à la maison et hors heures calmes : « J'ai identifié une échéance… Je vous ai préparé deux rappels. » ;
