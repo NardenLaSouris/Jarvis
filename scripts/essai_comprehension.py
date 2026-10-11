@@ -34,6 +34,7 @@ RULES = [
     "Appelle-moi quand le serveur est en panne et que je suis absent.",
     "Appelle-moi si ce rappel est toujours en attente dans une heure.",
     "Appelle-moi quand il se passe un truc.",
+    "Appelle-moi dans 3 minutes pour me dire que tu fais un test",
 ]
 MAILS = [
     "Bonjour, merci de nous répondre avant le 20 octobre concernant votre dossier de location. Cordialement.",

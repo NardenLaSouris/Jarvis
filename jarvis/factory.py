@@ -218,6 +218,10 @@ def build_call_rules(cfg: Config, llm, presence, timers, mailbox, mail_actions=N
         return {"mail": {"thread": thread_key(mail), "subject": mail.subject[:80] or "(sans objet)"} if mail else None,
                 "reminder": {"id": reminders[-1].id, "message": reminders[-1].message[:80]} if reminders else None}
 
+    if cfg.call.remind_when_away:
+        from jarvis.call.rules import BUILTIN_REMINDERS, BUILTIN_RULE
+
+        rules.ensure_builtin(BUILTIN_REMINDERS, BUILTIN_RULE, "rappel qui sonne pendant votre absence (réglage)")
     return rules, call_rule_tools(rules, RuleParser(llm), context)
 
 

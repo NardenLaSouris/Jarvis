@@ -62,6 +62,11 @@ PRIORITIES = ("normal", "important", "urgent")
 CHANNELS = ("call", "message")
 RESOLVE = ("arrival", "acknowledged")
 MAX_RULES = 30
+MAX_SAY = 160
+# Règle intégrée ([call] remind_when_away) : un rappel qui sonne pendant votre absence vous est dit au téléphone.
+BUILTIN_REMINDERS = "rappels-absence"
+BUILTIN_RULE = {"trigger": {"type": "event", "event": "reminder_due"}, "conditions": [{"type": "away"}],
+                "repeat": {"attempts": 2, "interval_minutes": 15}}
 MAX_ACTIVE_JOBS = 10
 MAX_JOB_AGE = 3 * 3600.0  # s : au-delà, un appel encore en attente est abandonné
 MAX_LOG = 20  # décisions gardées par règle (« pourquoi m'as-tu appelé ? »)
@@ -163,9 +168,15 @@ def validate_rule(data, now: datetime | None) -> dict:
     resolve = [r for r in (data.get("resolve") or ["arrival", "acknowledged"]) if r in RESOLVE]
     once = bool(data.get("once", clean_trigger["type"] == "at" or "ref" in clean_trigger
                          or kinds & {"reminder_pending", "mail_unanswered"}))
-    return {"trigger": clean_trigger, "conditions": conditions, "until": until, "priority": priority,
+    say = " ".join(str(data.get("say") or "").split())
+    if len(say) > MAX_SAY or re.search(r"[\x00-\x1f]", say):
+        raise RuleError("Ce que je dois vous dire est trop long.")
+    rule = {"trigger": clean_trigger, "conditions": conditions, "until": until, "priority": priority,
             "channel": channel, "repeat": {"attempts": attempts, "interval_minutes": interval},
             "resolve": resolve, "once": once}
+    if say:
+        rule["say"] = say  # ce qu'ORION dit au décroché, dans vos mots (« que je fais un test »)
+    return rule
 
 
 def describe_rule(rule: dict, labels: dict | None = None) -> str:
@@ -191,6 +202,9 @@ def describe_rule(rule: dict, labels: dict | None = None) -> str:
                                          + (f"« {labels[c['thread']]} »" if labels.get(c.get("thread", ""))
                                             else "ce mail")}[c["type"]])
     text = head + (", " + " et ".join(parts) if parts else "")
+    if rule.get("say"):
+        said = spoken_say(rule["say"]).rstrip(" .")
+        text += f", {said}" if said.startswith(("pour", "au sujet")) else f", pour vous dire : {said}"
     if rule["until"]:
         text += f", jusqu'au {datetime.fromisoformat(rule['until']):%d/%m à %H:%M}"
     repeat = rule["repeat"]
@@ -216,6 +230,7 @@ class CallRules:
         self._time = monotonic
         self._lock = threading.RLock()
         self.labels: dict[str, str] = {}  # fil d'un mail -> objet (pour les phrases), gardé avec les règles
+        self.removed: set[str] = set()  # règles intégrées supprimées par vous : jamais recréées
         self.rules: list[dict] = []
         self.jobs: list[dict] = []
         self._stopping = threading.Event()
@@ -231,6 +246,7 @@ class CallRules:
                 continue
             if record.get("kind") == "labels" and isinstance(record.get("labels"), dict):
                 self.labels = {str(k)[:200]: str(v)[:80] for k, v in record["labels"].items()}
+                self.removed = {str(x) for x in record.get("removed", [])}
             elif record.get("kind") == "rule":
                 try:
                     rule = validate_rule(record.get("rule"), None)
@@ -252,7 +268,7 @@ class CallRules:
                 self.jobs.append(job)
 
     def _save(self) -> None:
-        records = [{"kind": "labels", "labels": self.labels}]
+        records = [{"kind": "labels", "labels": self.labels, "removed": sorted(self.removed)}]
         records += [{"kind": "rule", **{k: r[k] for k in ("id", "text", "enabled", "rule", "created", "log",
                                                          "keys", "done")}} for r in self.rules]
         records += [{"kind": "job", **job} for job in self.jobs]
@@ -308,10 +324,23 @@ class CallRules:
             self._save()
             return entry
 
+    def ensure_builtin(self, rule_id: str, rule: dict, text: str) -> None:
+        """Règle intégrée (réglage du mini) : créée une fois ; désactivée ou supprimée par vous, elle le reste."""
+        with self._lock:
+            if rule_id in self.removed or any(r["id"] == rule_id for r in self.rules):
+                return
+            self.rules.insert(0, {"id": rule_id, "text": text, "enabled": True, "rule": validate_rule(rule, None),
+                                  "created": self._clock().isoformat(timespec="seconds"), "log": [], "keys": [],
+                                  "done": False})
+            self._save()
+        log.info("Règle d'appel intégrée « %s » ajoutée", rule_id)
+
     def remove(self, position: int) -> dict:
         with self._lock:
             entry = self.at(position)
             self.rules.remove(entry)
+            if entry["id"] == BUILTIN_REMINDERS:
+                self.removed.add(entry["id"])
             self._cancel_jobs(entry["id"], CANCELLED, "règle supprimée")
             self._save()
             return entry
@@ -609,9 +638,25 @@ def _event_key(event: Event) -> str:
     return f"{event.type}:{p.get('sensor', p.get('source', ''))}:{int(event.timestamp // 60)}"
 
 
+TU_VERBS = {"es": "suis", "as": "ai", "vas": "vais", "peux": "peux", "dois": "dois", "veux": "veux"}
+
+
+def spoken_say(text: str) -> str:
+    """Vos mots redits par ORION : « me dire que tu fais un test » -> « vous dire que je fais un test »."""
+    from jarvis.personality import second_person
+
+    text = second_person(text)
+    text = re.sub(r"\btu (\w+)", lambda m: "j'ai" if m.group(1) == "as" else f"je {TU_VERBS.get(m.group(1), m.group(1))}",
+                  text)
+    return re.sub(r"\b(?:te\s+|t['’])(?=\w)", "me ", text)
+
+
 def _reason(rule: dict, payload: dict) -> str:
     """Ce qu'ORION dit en décrochant : le fait (texte du Core), jamais un texte libre venu d'un mail."""
     trigger = rule["trigger"]
+    if rule.get("say"):  # vos mots, dits au décroché (« pour me dire que tu fais un test »)
+        said = spoken_say(rule["say"]).rstrip(" .")
+        return f"Vous m'aviez demandé de vous appeler{' ' if said.startswith(('pour', 'au sujet')) else ' : '}{said}."
     if trigger["type"] == "at":
         return "Vous m'aviez demandé de vous appeler à cette heure-ci."
     event = trigger["event"]

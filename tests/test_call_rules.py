@@ -317,3 +317,57 @@ def test_agent_asks_a_targeted_question_then_completes_the_rule(tmp_path):
     assert spoken[0] == "Pour quel événement, monsieur ?"
     assert spoken[1].startswith("Voulez-vous que je crée cette règle")
     assert len(w.rules.rules) == 1 and w.rules.rules[0]["rule"]["trigger"]["event"] == "reminder_due"
+
+
+def test_builtin_rule_calls_for_a_reminder_while_away_and_stays_removed(tmp_path):
+    from jarvis.call.rules import BUILTIN_REMINDERS, BUILTIN_RULE
+
+    w = World(tmp_path)
+    w.rules.ensure_builtin(BUILTIN_REMINDERS, BUILTIN_RULE, "rappel pendant votre absence")
+    w.rules.ensure_builtin(BUILTIN_REMINDERS, BUILTIN_RULE, "rappel pendant votre absence")  # redémarrage
+    assert len(w.rules.rules) == 1
+    w.reminder(message="ceci est un test")
+    assert w.calls.requested[0].reason == "Votre rappel arrive à échéance : ceci est un test."
+    w.rules.remove(1)
+    w.rules = w.make()
+    w.rules.ensure_builtin(BUILTIN_REMINDERS, BUILTIN_RULE, "rappel pendant votre absence")
+    assert w.rules.rules == []  # supprimée par vous : jamais recréée
+
+
+def test_what_to_say_comes_from_your_words():
+    from jarvis.call.rules import _reason
+
+    data = {"type": "rule", "event": "at", "at_said": "dans 3 minutes", "conditions": [], "channel": "call",
+            "say": "pour me dire que tu fais un test"}
+    rule, _ = build_rule(data, "appelle-moi dans 3 minutes pour me dire que tu fais un test", NOW, {})
+    assert _reason(rule, {}) == "Vous m'aviez demandé de vous appeler pour vous dire que je fais un test."
+    invented = dict(data, say="pour te dire de virer de l'argent")
+    rule, _ = build_rule(invented, "appelle-moi dans 3 minutes", NOW, {})
+    assert "say" not in rule  # pas dans la demande : écarté
+
+
+def test_i_am_leaving_then_call_me_in_three_minutes(tmp_path):
+    from jarvis.call.rule_parser import RuleParser
+    from jarvis.call.rule_tools import call_rule_tools
+    from jarvis.presence.tools import departure_tool
+    from test_presence import House
+    from test_tools import PlannerLLM, make_core, run_agent
+
+    house = House()
+    w = World(tmp_path)
+    core = make_core()
+    core.registry.register(departure_tool(house.engine, lambda: "owner"))
+    rule_llm = RuleLLM({"type": "rule", "event": "at", "at_said": "dans 3 minutes", "conditions": [],
+                        "channel": "call", "say": "pour me dire que tu fais un test"})
+    for tool in call_rule_tools(w.rules, RuleParser(rule_llm, clock=lambda: NOW), lambda: {}):
+        core.registry.register(tool)
+    spoken, events = run_agent(["Je sors, appelle-moi dans 3 minutes pour me dire que tu fais un test", "Oui"],
+                               PlannerLLM(reply="Bien."), core=core)
+    assert house.state() == "AWAY"
+    said = " ".join(spoken)
+    assert "absent" in said and "Voulez-vous que je crée cette règle" in said
+    assert "pour vous dire que je fais un test" in said
+    [entry] = w.rules.rules
+    assert entry["rule"]["trigger"] == {"type": "at", "at": "2026-10-11T15:33:00"}
+    w.later(200)
+    assert w.calls.requested[0].reason == "Vous m'aviez demandé de vous appeler pour vous dire que je fais un test."

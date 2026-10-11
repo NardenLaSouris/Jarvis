@@ -202,6 +202,10 @@ STALE_UNAVAILABLE = {
 ORION_OBJECTS = re.compile(r"\b(mon|ma|mes|le|la|les|ce|cette|ces|du|des)\s+(mails?|courriers?|minuteurs?|rappels?|"
                            r"reveils?|alarmes?)\b")
 CLARIFY_WINDOW = 180.0  # s pour répondre à une question de précision
+# « Je sors, appelle-moi dans 3 minutes », « je pars et éteins tout » : départ annoncé, puis une autre demande.
+COMPOUND_DEPARTURE = re.compile(
+    r"^\s*((?:(?:orion|jarvis)\W+)?je (?:sors|pars|m['’]en vais|quitte la maison|vais sortir|vais partir)"
+    r"[^,.;!?]*?)\s*(?:[,.;!?]+|\set\s)\s*(\S.+)$", re.IGNORECASE)
 CANCEL = re.compile(r"^(?:non|annule|laisse tomber|oublie|rien|stop|pas grave)\b")
 # « Appelle-moi quand… », « préviens-moi par message si… » : une règle d'appel, jamais un rappel (« rappelle-moi »).
 CALL_RULE = re.compile(r"^(?:(?:orion|jarvis) )?(?:appelle|appelez|telephone|telephonez|previens|previenez|ecris|"
@@ -674,6 +678,20 @@ class Agent:
         if (self._call_rules is not None and self._texting and is_acknowledgement(text)
                 and self._call_rules.acknowledge()):
             return self._say_text(history, text, "C'est noté, monsieur.", latency), False
+        compound = COMPOUND_DEPARTURE.match(text)
+        if compound and self._tools is not None and self._tools.registry.exists("declare_departure"):
+            # « Je sors, appelle-moi dans 3 minutes » : le départ, puis la suite comme une demande à part entière.
+            declaration = parse_declaration(compound.group(1), datetime.now())
+            if declaration is not None and declaration.kind in ("now", "later", "short"):
+                first = ""
+                if declaration.kind != "short":
+                    latency["route"] = "tool:départ"
+                    self._event("routing", latency["route"])
+                    first = self._run_call(history, compound.group(1),
+                                           {"type": "tool_call", "tool": "declare_departure", "parameters": {}},
+                                           latency)
+                rest, end = self._reply_to(history, compound.group(2), None, latency, speech_ended_at)
+                return " ".join(part for part in (first, rest) if part) or None, end
         reaction = split_event(text) if self._routines is not None and self._tools is not None else None
         if reaction is not None:  # « Quand je rentre, allume l'entrée » : routine à chaque retour (ou départ)
             return self._schedule(history, text, reaction, latency), False

@@ -12,7 +12,7 @@ import logging
 import re
 from datetime import datetime
 
-from jarvis.call.rules import CONDITIONS, EVENTS, RuleError, validate_rule
+from jarvis.call.rules import CONDITIONS, EVENTS, MAX_SAY, RuleError, validate_rule
 from jarvis.interfaces import Message
 from jarvis.personality import normalize
 from jarvis.scheduling.when import parse_when
@@ -41,6 +41,12 @@ CONDITION_WORDS = {
 }
 
 
+def _quoted_from(said: str, text: str) -> bool:
+    """Ce qu'ORION dira vient de vos mots (au moins 80 % des mots de « say » sont dans la demande)."""
+    words, request = normalize(said).split(), set(normalize(text).split())
+    return bool(words) and sum(w in request for w in words) >= 0.8 * len(words)
+
+
 class RuleQuestion(RuleError):
     """La demande ne suffit pas : ORION pose cette question au lieu de créer une règle incertaine."""
 
@@ -62,7 +68,8 @@ SCHEMA = {
             "priority": {"enum": ["normal", "important", "urgent"]},
             "channel": {"enum": ["call", "message"]},
             "attempts": {"type": "integer"},
-            "interval_minutes": {"type": "integer"}},
+            "interval_minutes": {"type": "integer"},
+            "say": {"type": "string"}},
          "required": ["type", "event", "conditions", "channel"], "additionalProperties": False},
         {"type": "object", "properties": {"type": {"const": "question"}, "question": {"type": "string"}},
          "required": ["type", "question"], "additionalProperties": False},
@@ -84,6 +91,8 @@ away_minutes minutes), home (il est à la maison), important (le rappel ou le ma
 (le rappel désigné est toujours en attente), mail_unanswered (il n'a pas répondu au mail désigné).
 channel : call (appel, par défaut) ou message (« écris-moi », « envoie-moi un message »).
 until_said : fin de la règle si elle est dite (« jusqu'à vendredi »), mot pour mot.
+say : ce que l'utilisateur veut que vous lui disiez au téléphone, recopié mot pour mot depuis sa demande
+(« pour me dire que tu fais un test ») ; "" s'il ne le précise pas.
 « ce mail » désigne {('le mail « ' + mail['subject'] + ' »') if mail else 'aucun mail : il faut le demander'} ;
 « ce rappel » désigne {('le rappel numéro ' + reminder['id'] + ' (' + reminder['message'] + ')') if reminder else 'aucun rappel : demandez son numéro'}.
 N'ajoutez aucune condition que l'utilisateur n'a pas dite. Si l'événement ou le moment n'est pas clair, répondez
@@ -97,6 +106,8 @@ Exemples :
 {{"type": "rule", "event": "at", "at_said": "demain à 18 h", "conditions": ["away"], "channel": "call"}}
 « Appelle-moi si je n'ai pas répondu à ce message avant vendredi » ->
 {{"type": "rule", "event": "at", "at_said": "vendredi", "conditions": ["mail_unanswered"], "channel": "call"}}
+« Appelle-moi dans 3 minutes pour me dire que tu fais un test » ->
+{{"type": "rule", "event": "at", "at_said": "dans 3 minutes", "conditions": [], "channel": "call", "say": "pour me dire que tu fais un test"}}
 « Appelle-moi quand quelque chose se passe » -> {{"type": "question", "question": "Pour quel événement, monsieur ?"}}"""
 
 
@@ -185,7 +196,11 @@ def build_rule(data, text: str, now: datetime, context: dict, previous: dict | N
     channel = data.get("channel") if data.get("channel") in ("call", "message") else "call"
     if channel == "message" and not re.search(r"\b(?:message|ecris|ecrire|sms|texto)\b", norm):
         channel = "call"
-    rule = {"trigger": trigger, "conditions": conditions, "until": until,
+    say = " ".join(str(data.get("say") or "").split())[:MAX_SAY]
+    if say and not _quoted_from(say, text):
+        log.info("Message d'appel proposé sans venir de la demande : écarté")
+        say = ""
+    rule = {"trigger": trigger, "conditions": conditions, "until": until, "say": say,
             "priority": data.get("priority") if data.get("priority") in ("normal", "important", "urgent")
             else "normal", "channel": channel,
             "repeat": {"attempts": min(5, max(1, int(data.get("attempts") or 2))),

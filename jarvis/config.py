@@ -218,6 +218,8 @@ class CallConfig:
     sip_peer: str = ""
     # Événements qui font appeler ORION quand la maison est vide (jarvis/call/trigger.py) ; vide : jamais.
     away_events: tuple = ("leak.detected", "smoke.detected", "presence.motion_while_away", "door.left_open")
+    # Rappel qui sonne pendant votre absence : ORION vous appelle (règle d'appel intégrée, désactivable par la voix).
+    remind_when_away: bool = False
     ring_timeout: float = 40.0
     connect_timeout: float = 15.0
     max_minutes: float = 15.0
