@@ -21,7 +21,7 @@ from jarvis.events import TOOL_EXECUTED, TOOL_FAILED, TOOL_STARTED, Event, Event
 from jarvis.tools.base import (
     CONFIRMATION_REFUSED, EXECUTION_FAILED, PERMISSION_DENIED, TIMEOUT, Tool, ToolError, ToolRequest, ToolResult,
 )
-from jarvis.tools.confirmation import NO, NONE, OTHER, YES, ConfirmationManager
+from jarvis.tools.confirmation import NO, NONE, OTHER, UNCLEAR, YES, ConfirmationManager
 from jarvis.tools.permissions import OWNER, Decision, PermissionManager
 from jarvis.tools.registry import ToolRegistry
 from jarvis.tools.request import parse_request
@@ -140,6 +140,11 @@ class ToolCore:
         request = pending.request
         if pending.user and pending.user != who:
             verdict = OTHER  # un autre utilisateur ne peut pas confirmer à la place du demandeur
+        if verdict == UNCLEAR:
+            self._log(request.tool, request.parameters, "confirmation", "requires_confirmation", "asked_again", None,
+                      started, who)
+            return Outcome(CONFIRM, request, question=f"Je n'ai pas compris. {pending.question.rstrip()} "
+                                                      "Répondez oui ou non.")
         if verdict == OTHER:
             self._log(request.tool, request.parameters, "confirmation", "requires_confirmation", "abandoned", None,
                       started, who)

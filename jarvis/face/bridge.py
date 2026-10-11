@@ -28,6 +28,8 @@ EVENT_STATES = {
     "routing": "thinking",
     "web": "thinking",
     "tool": "thinking",
+    "message": "thinking",
+    "message_reply": "standby",  # message Linphone traité pendant la veille : le visage y revient
 }
 
 # Échecs techniques (le visage passe en rouge) ; un refus, une pièce inconnue ou un titre introuvable n'en sont pas.

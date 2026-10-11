@@ -1,19 +1,20 @@
 """Confirmation d'une action par l'utilisateur, gérée par le Core.
 
 La question est posée par ORION (formulée par l'outil, pas par le LLM) ; la réponse est comparée à
-des listes fixes de « oui » et de « non ». Toute autre phrase annule la demande en attente.
+des listes fixes de « oui » et de « non ». Un seul mot inconnu (« Yep ») fait reposer la question, une fois ;
+toute autre phrase annule la demande en attente.
 """
 
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Callable, Iterable
 
 from jarvis.personality import normalize
 from jarvis.tools.base import ToolRequest
 
-YES, NO, OTHER, NONE = "yes", "no", "other", "none"
+YES, NO, OTHER, NONE, UNCLEAR = "yes", "no", "other", "none", "unclear"
 
 
 @dataclass(frozen=True)
@@ -23,6 +24,7 @@ class Pending:
     asked_at: float
     user: str = ""  # qui a demandé : seul lui peut confirmer
     origin: str = "user"  # origine de la demande, réévaluée à la confirmation
+    asked_again: bool = False  # question déjà reposée après une réponse incomprise
 
 
 class ConfirmationManager:
@@ -56,6 +58,9 @@ class ConfirmationManager:
             return YES, pending
         if said in self._no:
             return NO, pending
+        if len(words) == 1 and not pending.asked_again:  # « Yep », « Carrément » : ni oui ni non reconnu
+            self._pending = replace(pending, asked_at=self._clock(), asked_again=True)
+            return UNCLEAR, pending
         return OTHER, pending
 
     def clear(self) -> None:

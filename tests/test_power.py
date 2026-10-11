@@ -71,3 +71,46 @@ def test_power_actions_must_name_a_computer():
     assert named("shutdown_pc", "Éteins mon PC") and named("wake_pc", "Allume le Katana")
     assert not named("shutdown_pc", "Éteins tout") and not named("wake_pc", "Allume la lumière")
     assert not named("set_color", "Niquel")  # remarque après une action : pas une nouvelle action
+
+
+def test_unclear_single_word_asks_again_once_then_gives_up():
+    calls = []
+    core = core_with(shutdown_tool(lambda: calls.append(1) or True))
+    core.submit({"type": "tool_call", "tool": "shutdown_pc", "parameters": {}})
+    again = core.answer("Bof")
+    assert again.status == "confirm" and "Répondez oui ou non" in again.question and calls == []
+    assert core.answer("oui").result.success and calls == [1]
+    core.submit({"type": "tool_call", "tool": "shutdown_pc", "parameters": {}})
+    core.answer("Bof")
+    assert core.answer("Bof") is None and core.answer("oui") is None and calls == [1]  # abandonnée
+
+
+def test_yep_confirms_with_the_personality_lists():
+    from jarvis.personality import load_personality
+    from jarvis.tools import ConfirmationManager
+
+    personality = load_personality(ROOT / "personality.toml")
+    calls = []
+    core = core_with(shutdown_tool(lambda: calls.append(1) or True))
+    core.confirmations = ConfirmationManager(personality.confirm_yes, personality.confirm_no)
+    core.submit({"type": "tool_call", "tool": "shutdown_pc", "parameters": {}})
+    assert core.answer("Yep").result.success and calls == [1]
+
+
+def test_face_returns_to_standby_after_a_message():
+    from jarvis.face.bridge import FaceBridge
+
+    class Visual:
+        state = "standby"
+
+        def set_state(self, state):
+            self.state = state
+
+        def snapshot(self):
+            return {"state": self.state}
+
+    visual = Visual()
+    bridge = FaceBridge(visual)
+    for kind in ("message", "routing", "tool", "message_reply"):
+        bridge.on_event(kind, "")
+    assert visual.state == "standby"

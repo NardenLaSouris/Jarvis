@@ -110,7 +110,11 @@ greeting_openings = ["bonjour", "bonsoir", "salut", "rebonjour", "bonjour a vous
 yes = ["oui", "oui oui", "ouais", "oui vas y", "vas y", "allez y", "ok", "okay", "oui ok", "d accord", "oui d accord",
        "confirme", "je confirme", "oui je confirme", "fais le", "oui fais le", "oui s il te plait",
        "oui s il vous plait", "oui merci", "oui bien sur", "bien sur", "absolument", "exactement", "c est ca",
-       "oui c est ca", "ouvre", "ouvre le", "ouvre la", "oui ouvre le", "oui ouvre la", "lance", "lance le", "go"]
+       "oui c est ca", "ouvre", "ouvre le", "ouvre la", "oui ouvre le", "oui ouvre la", "lance", "lance le", "go",
+       "yep", "yes", "yup", "ouaip", "ouai", "oui oui oui", "carrement", "affirmatif", "evidemment", "volontiers",
+       "ok vas y", "oui go", "vas y fais le", "eteins", "eteins le", "oui eteins le", "eteins la", "allume",
+       "allume le", "oui allume le", "verrouille", "verrouille le", "oui verrouille le", "ferme", "ferme le",
+       "oui ferme le", "envoie", "envoie le", "oui envoie le", "supprime", "supprime le", "oui supprime le"]
 no = ["non", "non non", "non merci", "annule", "annuler", "non annule", "laisse tomber", "non laisse tomber",
       "pas maintenant", "non pas maintenant", "surtout pas", "stop", "oublie", "ne fais rien", "non ne fais rien",
       "je ne veux pas", "non c est bon"]
