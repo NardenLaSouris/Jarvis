@@ -138,8 +138,8 @@ ou par message Linphone. « Présente-toi » garde sa réponse courte habituelle
 - Vous êtes à la maison : la présentation passe par la sortie audio de la maison, les haut-parleurs du PC via
   l'agent Windows. Elle est découpée en 8 séquences courtes, dites l'une après l'autre dès qu'ORION est libre.
   Si le PC ne répond pas, ORION vous appelle à la place.
-- Vous êtes absent : ORION attend `flex_delay_seconds` (60 s par défaut), revérifie votre présence, puis vous appelle.
-  Au téléphone, elle donne une version plus courte, qui commence au décroché.
+- Vous êtes absent : ORION attend `flex_delay_seconds` (20 s par défaut), revérifie votre présence, puis vous appelle.
+  Au téléphone, elle donne la présentation entière, qui commence au décroché par « Bonjour, monsieur. ».
 - Vous rentrez pendant cette minute : l'appel est annulé, la présentation passe par les enceintes.
 - Une seule présentation à la fois : un deuxième « Flex » pendant l'attente, ou dans les 2 minutes qui suivent une
   présentation à la maison, ne relance rien. Un appel sans réponse n'est pas répété ; un message le signale.
@@ -155,6 +155,7 @@ présence, des appels, du suivi des mails, de la recherche et de l'apprentissage
 - indisponible (plusieurs enceintes : une seule sortie audio à la maison) : jamais présentée.
 
 Chaque séquence a plusieurs tournures, donc deux présentations diffèrent. Aucun renseignement privé n'y figure.
+Elle s'adresse toujours à vous, « monsieur », même quand vous la montrez à quelqu'un.
 
 ## 6. Identité
 

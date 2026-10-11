@@ -86,6 +86,6 @@ def test_factory_connects_flex_to_the_voice_channel_with_the_real_inventory(tmp_
     rules.connect(Calls(), bus)
     assert rules.trigger_flex() == "home"
     texts = [n.message for n in notifications.sent]
-    assert len(texts) >= 4 and texts[0].startswith(("Bonjour", "Je m'appelle"))
+    assert len(texts) >= 4 and texts[0].startswith(("Bonjour", "Bonsoir", "Je m'appelle"))
     joined = " ".join(texts)
     assert "Katana" not in joined and "éclairage" not in joined  # rien de branché dans ce test : rien d'affirmé

@@ -23,6 +23,7 @@ from jarvis.personality import normalize
 from jarvis.tools.base import Param, Risk, Tool
 
 FLEX_RULE = "flex"
+PHONE_OPENING = "Bonjour, monsieur. Permettez-moi de me présenter : je suis ORION, votre assistante personnelle."
 OPERATIONAL, CONDITIONAL, UNAVAILABLE = "opérationnel", "sous conditions", "indisponible"
 
 
@@ -95,12 +96,14 @@ def _join(parts: list[str]) -> str:
 
 
 def presentation(f: Facts, phone: bool = False, rng: random.Random | None = None) -> list[str]:
-    """Séquences courtes de la présentation (enceintes) ou sa version resserrée (téléphone), adressées à monsieur."""
+    """Séquences courtes de la présentation, aux enceintes ou au téléphone (même contenu, toujours adressé à
+    monsieur ; au téléphone, l'ouverture fixe ``PHONE_OPENING`` sert de salut au décroché)."""
     rng = rng or random.Random()
     have = _available(f)
-    opening = "Permettez-moi de me présenter : je suis ORION, votre assistante personnelle." if phone else \
+    # Toujours à monsieur (aux enceintes comme au téléphone) ; au téléphone, elle ouvre l'appel par ce salut.
+    opening = PHONE_OPENING if phone else \
         _pick(rng, "Bonjour, monsieur. Permettez-moi de me présenter : je suis ORION, votre assistante personnelle.",
-              "Bonjour à tous. Je suis ORION, l'assistante personnelle de monsieur.",
+              "Bonsoir, monsieur. Je suis ORION, votre assistante personnelle, et je suis ravie de me présenter.",
               "Je m'appelle ORION, monsieur. Je suis votre assistante personnelle.")
     role = _pick(rng, "Je coordonne vos outils numériques et votre maison connectée, pour que vous gardiez le contrôle "
                       "sans avoir à vous soucier de chaque détail.",
@@ -128,9 +131,7 @@ def presentation(f: Facts, phone: bool = False, rng: random.Random | None = None
     if "recherche d'informations" in have or "météo" in have:
         abilities.append("je trouve l'information qu'il vous faut" + (", météo comprise" if "météo" in have else ""))
     head = _pick(rng, "Concrètement, ", "Au quotidien, ", "Dans les faits, ")
-    if phone:  # au téléphone, l'essentiel seulement
-        skills = [head + _join(abilities[:3]) + "."] if abilities else []
-    elif len(abilities) > 3:  # deux séquences courtes plutôt qu'une énumération
+    if len(abilities) > 3:  # deux séquences courtes plutôt qu'une énumération
         skills = [f"{head}{_join(abilities[:3])}.",
                   f"{_pick(rng, 'Et puis, ', 'Par ailleurs, ', 'Enfin, ')}{_join(abilities[3:])}."]
     else:
@@ -159,10 +160,6 @@ def presentation(f: Facts, phone: bool = False, rng: random.Random | None = None
                          "après l'autre.",
                     "Ce n'est qu'un aperçu, monsieur. De nouvelles fonctions me rejoindront au fil du temps.",
                     "Voilà pour aujourd'hui. Demain, j'en saurai davantage.")
-    if phone:
-        return [s for s in (f"{opening} {role}", " ".join(x for x in (*skills, calls) if x),
-                            "Je comprends le langage naturel et j'enchaîne plusieurs actions dans une même demande.",
-                            "Ceci n'est qu'un aperçu de mes capacités actuelles, monsieur.") if s]
     return [s for s in (f"{opening} {role}", architecture, *skills, calls, intelligence, autonomy, conditional,
                         closing) if s]
 

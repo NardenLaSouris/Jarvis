@@ -49,13 +49,14 @@ def test_inventory_separates_operational_conditional_and_unavailable():
     assert {name: state for name, state, _ in inventory(BARE)}["lumières"] == "indisponible"
 
 
-def test_voice_is_a_woman_addressing_monsieur_and_the_phone_version_is_shorter():
+def test_voice_is_a_woman_always_addressing_monsieur():
     for seed in range(6):
         home = presentation(FULL, rng=random.Random(seed))
         phone = presentation(FULL, phone=True, rng=random.Random(seed))
         text = " ".join(home)
         assert "monsieur" in text and "Jules" not in text and "assistante" in text and "muet " not in text
-        assert len(" ".join(phone)) < len(text) and len(home) >= 6
+        assert phone[0].startswith("Bonjour, monsieur.") and len(phone) == len(home) and len(home) >= 6
+        assert "à tous" not in text + " ".join(phone)  # toujours adressée à monsieur
         assert all(len(sequence) < 330 for sequence in home)  # séquences courtes, pas un monologue
 
 
@@ -89,7 +90,7 @@ def flex_job(w):
 def test_at_home_the_speakers_present_and_nobody_is_called(tmp_path):
     w = world(tmp_path)
     assert w.rules.trigger_flex() == "home"
-    assert len(w.home_said) == 1 and w.home_said[0][0].startswith(("Bonjour", "Je m'appelle"))
+    assert len(w.home_said) == 1 and w.home_said[0][0].startswith(("Bonjour", "Bonsoir", "Je m'appelle"))
     assert w.calls.requested == [] and flex_job(w)["state"] == PRESENTED
 
 
@@ -100,8 +101,8 @@ def test_away_waits_one_minute_then_calls_with_the_phone_version(tmp_path):
     assert w.calls.requested == []
     w.later(31)
     [call] = w.calls.requested
-    assert call.reason.startswith("Permettez-moi de me présenter : je suis ORION") and call.origin == "routine"
-    assert call.reason.count("monsieur") <= 1  # « Bonjour, monsieur. » est ajouté au décroché
+    assert call.reason.startswith("Bonjour, monsieur. Permettez-moi") and call.origin == "routine"
+    assert len(call.reason) > 600 and call.reason.endswith(".")  # présentation entière, jamais coupée
     w.call_event("call.connected")
     assert w.rules.awaiting_ack(call.id) is None  # pas de « dites c'est noté » pendant une présentation
     w.call_event("call.ended")

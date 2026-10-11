@@ -27,7 +27,8 @@ log = logging.getLogger(__name__)
 
 CORE_ORIGINS = ("user", "routine", "admin")
 MAX_DIALS_PER_HOUR = 30  # appels du téléphone vers ORION : seulement contre une boucle (application qui s'emballe)
-MAX_PENDING_MESSAGES = 10  # messages en attente pendant une conversation ou un appel
+MAX_PENDING_MESSAGES = 10
+MAX_REASON = 2400  # ce qu'ORION dit au décroché (une présentation Flex entière : jamais coupée en plein mot)  # messages en attente pendant une conversation ou un appel
 END_EVENTS = {ENDED: "call.ended", REFUSED: "call.refused", EXPIRED: "call.expired", FAILED: "call.failed"}
 
 
@@ -109,7 +110,8 @@ class CallManager:
             refusal = self._limits.refusal(now)
             if refusal:
                 raise CallRefused(refusal)
-            call = self.current = CallSession(self.settings.device, str(reason or "").strip()[:300], origin, now)
+            call = self.current = CallSession(self.settings.device, str(reason or "").strip()[:MAX_REASON], origin,
+                                              now)
             self._handed_over = False
             self._limits.started(now)
             self._event("call.requested", call)

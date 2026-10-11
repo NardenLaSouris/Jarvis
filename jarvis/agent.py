@@ -29,7 +29,7 @@ from jarvis.call.rule_tools import NEEDS_DETAILS
 from jarvis.call.rules import is_acknowledgement
 from jarvis.presence.declaration import parse_declaration
 from jarvis.router import IntentRouter, Route
-from jarvis.flex import FLEX_SWITCH, is_flex
+from jarvis.flex import FLEX_SWITCH, PHONE_OPENING, is_flex
 from jarvis.learning import instruction_of
 from jarvis.scheduling.actions import split_event, split_schedule
 from jarvis.streaming import SpeechPipeline, TextPipeline, sentences_from_llm
@@ -574,8 +574,8 @@ class Agent:
     def _greet_call(self, call) -> None:
         if call.origin == "user":  # vous appelez ORION : il répond comme à son nom (« Oui, monsieur ? »)
             greeting = self._router.phrase("wake")
-        elif call.reason.startswith("Permettez-moi"):  # mode Flex : la présentation fait office de salut
-            greeting = f"Bonjour, monsieur. {call.reason}"
+        elif call.reason.startswith(PHONE_OPENING):  # mode Flex : la présentation fait office de salut
+            greeting = call.reason
         else:
             greeting = " ".join(t for t in (self._router.phrase("call_greeting"), call.reason) if t)
             if self._call_rules is not None and self._call_rules.awaiting_ack(call.id):

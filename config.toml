@@ -271,7 +271,7 @@ remind_when_away = false
 # Mode Flex : « Flex » (ou « fais ta présentation ») -> ORION se présente sur les enceintes ; si vous êtes absent,
 # elle attend flex_delay_seconds, revérifie votre présence, puis vous appelle (annulé si vous rentrez entre-temps).
 flex = true
-flex_delay_seconds = 60
+flex_delay_seconds = 20
 ring_timeout = 40.0              # s sans réponse : appel expiré
 connect_timeout = 15.0           # s entre « décroché » et l'audio établi
 max_minutes = 15.0               # durée maximale d'un appel

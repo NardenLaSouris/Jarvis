@@ -397,3 +397,9 @@ def test_manager_keeps_pending_messages_and_sends_replies():
     sent = []
     world.calls._notifier.send_message = sent.append
     assert world.calls.reply("Il est midi.") and sent == ["Il est midi."]
+
+
+def test_long_call_reason_is_never_cut_mid_word():
+    from jarvis.call.manager import MAX_REASON
+
+    assert MAX_REASON >= 2000  # une présentation Flex entière (« éclairag » coupé à 300 caractères)
