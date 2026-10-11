@@ -119,14 +119,19 @@ class Session:
     def headers(self, method: str, to: str, branch: str, extra: str = "") -> str:
         self.cseq += 1
         via = f"SIP/2.0/TLS {self.link.local_ip}:{self.link.local_port};branch=z9hG4bK{branch};rport"
+        to = to if "<" in to else f"<{to}>"  # dans un dialogue : l'en-tête To reçu, balise de l'iPhone comprise
         return (f"Via: {via}\r\nMax-Forwards: 70\r\nFrom: <sip:{self.user}@{DOMAIN}>;tag={self.tag}\r\n"
-                f"To: <{to}>\r\nCall-ID: {self.call_id}\r\nCSeq: {self.cseq} {method}\r\n"
+                f"To: {to}\r\nCall-ID: {self.call_id}\r\nCSeq: {self.cseq} {method}\r\n"
                 f"Contact: <sip:{self.user}@{self.link.local_ip}:{self.link.local_port};transport=tls>\r\n"
                 f"User-Agent: ORION-sonde\r\n{extra}")
 
-    def request(self, method: str, uri: str, to: str, body: str = "", extra: str = "", auth: str = "") -> None:
-        content = f"Content-Type: application/sdp\r\n" if body else ""
-        authorization = f"Authorization: {auth}\r\n" if auth else ""
+    def request(self, method: str, uri: str, to: str, body: str = "", extra: str = "", auth: str = "",
+                proxy: bool = False, route: list[str] | None = None) -> None:
+        content = "Content-Type: application/sdp\r\n" if body else ""
+        if route:  # dans un dialogue : passer par les mêmes serveurs que l'appel (Record-Route inversé)
+            extra += f"Route: {', '.join(route)}\r\n"
+        # 401 (enregistrement) -> Authorization ; 407 (appel, défi du proxy) -> Proxy-Authorization.
+        authorization = f"{'Proxy-Authorization' if proxy else 'Authorization'}: {auth}\r\n" if auth else ""
         self.link.send(f"{method} {uri} SIP/2.0\r\n{self.headers(method, to, secrets.token_hex(6), extra)}"
                        f"{authorization}{content}Content-Length: {len(body.encode())}\r\n\r\n{body}")
 
@@ -136,8 +141,10 @@ class Session:
         reply = self.final_or_provisional()
         if reply and reply[0].split()[1] in ("401", "407"):
             show(f"{method} (défi)", reply)
-            challenge = (reply[1].get("www-authenticate") or reply[1].get("proxy-authenticate"))[0]
-            self.request(method, uri, to, body, extra, auth=digest(challenge, method, uri, self.user, self.password))
+            proxy = reply[0].split()[1] == "407"
+            challenge = (reply[1].get("proxy-authenticate") if proxy else reply[1].get("www-authenticate"))[0]
+            self.request(method, uri, to, body, extra, auth=digest(challenge, method, uri, self.user, self.password),
+                         proxy=proxy)
             reply = self.final_or_provisional()
         return reply
 
@@ -150,9 +157,12 @@ class Session:
 
 def main() -> int:
     parser = argparse.ArgumentParser(prog="python research/sip/probe.py")
-    parser.add_argument("action", choices=["register", "ring"])
-    parser.add_argument("target", nargs="?", help="adresse appelée (ring)")
+    parser.add_argument("action", choices=["register", "ring", "call"])
+    parser.add_argument("target", nargs="?", help="adresse appelée (ring, call)")
+    parser.add_argument("--voice", help="call : WAV mono 16 bits dit au décroché (voix d'ORION)")
+    parser.add_argument("--talk", type=float, default=20.0, help="call : secondes d'écho de votre voix")
     parser.add_argument("--seconds", type=float, default=25.0)
+    parser.add_argument("--srtp", action="store_true", help="propose un son chiffré (SDES-SRTP)")
     args = parser.parse_args()
     user, password = env("LINPHONE_ORION_USER", "orionproject"), env("LINPHONE_ORION_PASSWORD")
     if not password:
@@ -171,9 +181,17 @@ def main() -> int:
     if not args.target:
         print("Adresse à appeler manquante")
         return 2
+    if args.action == "call":
+        return call(session, args)
+    profile, crypto = "RTP/AVP", ""
+    if args.srtp:  # son chiffré (SDES-SRTP, RFC 4568) : clé maîtresse de 30 octets, transmise dans la signalisation TLS
+        import base64
+
+        profile = "RTP/SAVP"
+        crypto = f"a=crypto:1 AES_CM_128_HMAC_SHA1_80 inline:{base64.b64encode(secrets.token_bytes(30)).decode()}\r\n"
     sdp = (f"v=0\r\no=orion 1 1 IN IP4 {session.link.local_ip}\r\ns=ORION\r\nc=IN IP4 {session.link.local_ip}\r\n"
-           f"t=0 0\r\nm=audio 40000 RTP/AVP 0 101\r\na=rtpmap:0 PCMU/8000\r\na=rtpmap:101 telephone-event/8000\r\n"
-           f"a=sendrecv\r\n")
+           f"t=0 0\r\nm=audio 40000 {profile} 0 101\r\na=rtpmap:0 PCMU/8000\r\na=rtpmap:101 telephone-event/8000\r\n"
+           f"{crypto}a=sendrecv\r\n")
     session.call_id, session.cseq = secrets.token_hex(10), 0
     reply = session.authenticated("INVITE", args.target, args.target, body=sdp)
     invite_cseq = session.cseq
@@ -191,6 +209,10 @@ def main() -> int:
     status, headers, body = reply
     to = headers.get("to", [f"<{args.target}>"])[0]
     remote = re.search(r"<([^>]+)>", (headers.get("contact") or [f"<{args.target}>"])[0]).group(1)
+    if not status.startswith("SIP/2.0 2"):  # refus (488...) : l'INVITE se termine par un ACK, au même CSeq
+        session.cseq = invite_cseq - 1
+        session.request("ACK", args.target, to)
+        return 0
     if status.startswith("SIP/2.0 200"):
         session.cseq = invite_cseq - 1
         session.request("ACK", remote, to)
@@ -199,6 +221,135 @@ def main() -> int:
         time.sleep(3)
         session.request("BYE", remote, to)
         show("BYE", session.final_or_provisional())
+    return 0
+
+
+def masked_sdp(body: str) -> str:
+    """SDP affichable : clés de chiffrement, identités, adresses et ligne d'origine masquées."""
+    body = re.sub(r"inline:[^\s|]+", "inline:…", body)
+    body = re.sub(r"^(a=(?:Ik|lime-Iks|fingerprint|ice-pwd|ice-ufrag)):.*$", r"\1:…", body, flags=re.MULTILINE)
+    body = re.sub(r"^o=.*$", "o=…", body, flags=re.MULTILINE)
+    body = re.sub(r"\b\d+\.\d+\.\d+\.\d+\b", "x.x.x.x", body)
+    body = re.sub(r"\b[0-9a-f]{1,4}(?::[0-9a-f]{0,4}){2,7}\b", "x:x:x", body, flags=re.IGNORECASE)
+    return body.replace("\r\n", "\n    ")
+
+
+def address_kind(ip: str) -> str:
+    """Nature de l'adresse du son de l'iPhone, sans l'afficher : relais de Linphone, privée, ou publique."""
+    import ipaddress
+
+    try:
+        address = ipaddress.ip_address(ip)
+    except ValueError:
+        return "inconnue"
+    linphone = {a[4][0] for a in socket.getaddrinfo(DOMAIN, None)}
+    if ip in linphone or any(ip.rsplit(".", 1)[0] == l.rsplit(".", 1)[0] for l in linphone if "." in l):
+        return "relais de Linphone"
+    return "privée" if address.is_private else "publique"
+
+
+def call(session: Session, args) -> int:
+    """Appel avec le son : voix d'ORION au décroché, puis écho de votre voix, puis raccrochage par ORION."""
+    import base64
+    import threading
+    import wave
+
+    import numpy as np
+
+    from rtp import RATE, RtpLink
+
+    media = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    media.bind(("0.0.0.0", 0))
+    port = media.getsockname()[1]
+    key = base64.b64encode(secrets.token_bytes(30)).decode()
+    ip = session.link.local_ip
+    sdp = (f"v=0\r\no=orion 1 1 IN IP4 {ip}\r\ns=ORION\r\nc=IN IP4 {ip}\r\nt=0 0\r\n"
+           f"m=audio {port} RTP/SAVP 0 101\r\na=rtpmap:0 PCMU/8000\r\na=rtpmap:101 telephone-event/8000\r\n"
+           f"a=crypto:1 AES_CM_128_HMAC_SHA1_80 inline:{key}\r\na=sendrecv\r\n")
+    session.call_id, session.cseq = secrets.token_hex(10), 0
+    reply = session.authenticated("INVITE", args.target, args.target, body=sdp)
+    invite_cseq = session.cseq
+    started = time.monotonic()
+    while reply is not None and int(reply[0].split()[1]) < 200 and time.monotonic() - started < args.seconds:
+        show("INVITE", reply)
+        reply = session.link.receive(timeout=max(1.0, args.seconds - (time.monotonic() - started)))
+    if reply is None or int(reply[0].split()[1]) < 200:
+        session.cseq = invite_cseq - 1
+        session.request("CANCEL", args.target, args.target)
+        show("CANCEL (personne n'a décroché)", session.final_or_provisional())
+        return 0
+    show("INVITE (final)", reply)
+    status, headers, body = reply
+    to = headers.get("to", [f"<{args.target}>"])[0]
+    if not status.startswith("SIP/2.0 2"):
+        session.cseq = invite_cseq - 1
+        session.request("ACK", args.target, to)
+        return 0
+    remote_uri = re.search(r"<([^>]+)>", (headers.get("contact") or [f"<{args.target}>"])[0]).group(1)
+    record = [r.strip() for value in headers.get("record-route", []) for r in value.split(",") if r.strip()]
+    route = list(reversed(record))
+    session.cseq = invite_cseq - 1
+    session.request("ACK", remote_uri, to, route=route)  # ACK d'un 200 : même numéro que l'INVITE
+    session.cseq = invite_cseq
+    print("Réponse SDP de l'iPhone (masquée) :\n    " + masked_sdp(body))
+    media_ip = re.search(r"^c=IN IP4 (\S+)", body, re.MULTILINE)
+    media_port = re.search(r"^m=audio (\d+) RTP/SAVP", body, re.MULTILINE)
+    remote_key = re.search(r"a=crypto:\d+ AES_CM_128_HMAC_SHA1_80 inline:([^\s|]+)", body)
+    if not (media_ip and media_port and remote_key):
+        print("Réponse sans son chiffré exploitable : raccrochage")
+        session.request("BYE", remote_uri, to, route=route)
+        return 1
+    print(f"Son de l'iPhone : adresse {address_kind(media_ip.group(1))}, port distant indiqué")
+    echo: list[np.ndarray] = []
+    talking = threading.Event()
+    link = RtpLink(media, (media_ip.group(1), int(media_port.group(1))), key, remote_key.group(1),
+                   lambda pcm: echo.append(pcm) if talking.is_set() else None)
+    link.start()
+    hung_up = threading.Event()
+
+    def listen() -> None:  # BYE de l'iPhone (vous raccrochez) : réponse 200, fin de l'écho
+        while not hung_up.is_set():
+            message = session.link.receive(timeout=1.0)
+            if message is None:
+                continue
+            first, head, _ = message
+            if first.startswith("BYE "):
+                session.link.send("SIP/2.0 200 OK\r\n" + "".join(
+                    f"{name}: {value}\r\n" for name in ("via", "from", "to", "call-id", "cseq")
+                    for value in head.get(name, [])) + "Content-Length: 0\r\n\r\n")
+                print("L'iPhone a raccroché")
+                hung_up.set()
+            elif first.startswith("SIP/2.0") and "BYE" in head.get("cseq", [""])[0]:
+                show("BYE", message)
+                hung_up.set()
+
+    threading.Thread(target=listen, daemon=True).start()
+    if args.voice:
+        with wave.open(args.voice) as w:
+            rate, pcm = w.getframerate(), np.frombuffer(w.readframes(w.getnframes()), dtype="<i2")
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+        from jarvis.call.media import resample
+
+        link.play(resample(pcm, rate, RATE))
+        while link.pending() and not hung_up.is_set():
+            time.sleep(0.1)
+    print(f"Écho de votre voix pendant {args.talk:.0f} s")
+    talking.set()
+    until, lag = time.monotonic() + args.talk, 20  # 20 paquets de 20 ms : 0,4 s de décalage
+    while time.monotonic() < until and not hung_up.is_set():
+        if len(echo) > lag:
+            link.play(echo.pop(0))
+        time.sleep(0.01)
+    if not hung_up.is_set():
+        session.request("BYE", remote_uri, to, route=route)
+        hung_up.wait(5)
+        if not hung_up.is_set():
+            print("BYE : aucune réponse (délai dépassé)")
+        hung_up.set()
+    link.stop()
+    delay = f"{link.first_received - link.started:.2f} s après le décroché" if link.first_received else "jamais"
+    print(f"Bilan du son : {link.sent} paquets envoyés, {link.received} reçus (premier : {delay}), "
+          f"{link.rejected} rejetés au déchiffrement")
     return 0
 
 
