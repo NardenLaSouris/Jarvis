@@ -97,8 +97,9 @@ li.empty { color: var(--muted); font-style: italic; }
 #core-panel { left: 40px; top: 742px; width: 420px; height: 200px; overflow: hidden; }
 #core-panel canvas { width: 384px; height: 64px; display: block; margin-bottom: 6px; }
 #presence-panel { left: 40px; top: 956px; width: 420px; height: 108px; overflow: hidden; }
-#house { font-size: 16px; margin-bottom: 6px; }
-#lights { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; }
+#house { font-size: 15px; margin-bottom: 4px; }
+#lights { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 10px; font-size: 13px; }
+#lights li { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #lights li::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 50%;
   border: 1px solid var(--c); vertical-align: -1px; }
 #lights li.on::before { background: var(--c); box-shadow: var(--glow); }
@@ -166,7 +167,7 @@ li.empty { color: var(--muted); font-style: italic; }
 #w-days small { display: block; color: var(--muted); }
 svg.wi * { fill: none; stroke: var(--c); stroke-width: 2.4; stroke-linecap: round; filter: drop-shadow(0 0 3px var(--c)); }
 
-#agenda-panel { left: 1490px; top: 752px; width: 400px; height: 180px; overflow: hidden; }
+#agenda-panel { left: 1490px; top: 750px; width: 400px; height: 194px; overflow: hidden; padding: 10px 16px; }
 #agenda-panel ul { margin-bottom: 6px; }
 #agenda-panel h2 { margin-bottom: 4px; }
 #agenda-panel li { display: flex; gap: 12px; font-size: 14px; padding: 2px 0; }
@@ -174,7 +175,7 @@ svg.wi * { fill: none; stroke: var(--c); stroke-width: 2.4; stroke-linecap: roun
   padding-top: 2px; }
 #agenda-panel li .x { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-#net { left: 1490px; top: 946px; width: 400px; height: 114px; }
+#net { left: 1490px; top: 950px; width: 400px; height: 112px; }
 #net canvas { width: 368px; height: 56px; display: block; }
 .net-legend { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); }
 .net-legend .rx b { color: var(--c); } .net-legend .tx b { color: var(--gold); }
