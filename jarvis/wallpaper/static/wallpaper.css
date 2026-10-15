@@ -94,9 +94,9 @@ dd.ok { color: var(--c); } dd.warn { color: var(--warn); } dd.bad { color: var(-
 ul { list-style: none; }
 li.empty { color: var(--muted); font-style: italic; }
 
-#core-panel { left: 40px; top: 742px; width: 420px; height: 200px; overflow: hidden; }
+#core-panel { left: 40px; top: 740px; width: 420px; height: 198px; overflow: hidden; }
 #core-panel canvas { width: 384px; height: 64px; display: block; margin-bottom: 6px; }
-#presence-panel { left: 40px; top: 956px; width: 420px; height: 108px; overflow: hidden; }
+#presence-panel { left: 40px; top: 948px; width: 420px; height: 120px; overflow: hidden; }
 #house { font-size: 15px; margin-bottom: 4px; }
 #lights { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 10px; font-size: 13px; }
 #lights li { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
