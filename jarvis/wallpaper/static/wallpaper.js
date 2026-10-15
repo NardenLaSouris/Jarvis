@@ -149,7 +149,7 @@ function icon(slug) {
 
 // --- Orbite : appareils et services autour du visage ------------------------------------------------------
 function orbit(nodes) {
-  const center = 400, radius = 410, el = $("orbit");
+  const center = 400, radius = 395, el = $("orbit");
   const left = nodes.filter((n, i) => i % 2 === 0), right = nodes.filter((n, i) => i % 2 === 1);
   const place = (list, side) => list.map((n, i) => {
     const spread = 100, a = (side === "left" ? 180 : 0) + (i - (list.length - 1) / 2) * (spread / Math.max(1, list.length - 1 || 1));
@@ -204,7 +204,7 @@ function render(stats) {
   for (const d of val(stats, "devices") || []) nodes.push({ label: d.core ? "Cœur ORION" : short(d.name), state: d.online ? "" : "off" });
   if (orion) {
     nodes.push({ label: "Réflexion", state: orion.llm.state === "ONLINE" ? "" : "off" });
-    nodes.push({ label: "Transcription GPU", state: !orion.stt.remote ? "idle" : orion.stt.remote_up ? "" : "off" });
+    nodes.push({ label: "Transcription", state: !orion.stt.remote ? "idle" : orion.stt.remote_up ? "" : "off" });
   }
   const music = val(stats, "music");
   if (stats.music) nodes.push({ label: "Spotify", state: music && music.playing ? "" : "idle" });
