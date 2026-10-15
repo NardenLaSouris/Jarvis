@@ -821,6 +821,24 @@ def build_calls(cfg: Config, source, sink, events: EventBus | None):
     return manager
 
 
+def build_wallpaper(cfg: Config, **services):
+    """Mode fond d'écran (port [wallpaper] port) : lecture seule ; ORION continue sans s'il ne démarre pas."""
+    try:
+        from jarvis.wallpaper.collector import Collector
+        from jarvis.wallpaper.server import WallpaperServer
+        from jarvis.wallpaper.sources import build_sources
+
+        server = WallpaperServer(Collector(build_sources(cfg, **services)), cfg.wallpaper.host, cfg.wallpaper.port,
+                                 cfg.face.port, tuple(str(ip) for ip in cfg.wallpaper.allowed_ips))
+        url = server.start()
+    except Exception:  # noqa: BLE001 - le fond d'écran n'est jamais indispensable
+        log.exception("Fond d'écran indisponible")
+        return None
+    if url:
+        log.info("Fond d'écran : %s (visage sur le port %d)", url, cfg.face.port)
+    return server
+
+
 def build_agent(
     cfg: Config,
     source: AudioSource | None = None,
@@ -1071,6 +1089,10 @@ def build_agent(
                  wake_verifier=build_wake_verifier(cfg), wake_captures=build_wake_captures(cfg),
                  content_guard=build_content_guard(cfg, llm), calls=calls, learning=learning,
                  call_rules=call_rules if calls is not None else None)
+    if cfg.wallpaper.enabled:
+        build_wallpaper(cfg, llm=llm, stt=stt, devices=devices, presence=presence, weather=weather,
+                        calendar=calendar, timers=timers, rooms=rooms, driver=driver, spotify=spotify,
+                        watcher=watcher)
     # Échéance proche (rendez-vous, minuteur, rappel) pour l'anneau du visage.
     agent.upcoming = Upcoming(calendar, timers) if calendar is not None or timers is not None else None
     return agent

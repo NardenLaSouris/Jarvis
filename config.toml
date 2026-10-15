@@ -498,6 +498,15 @@ enabled = true
 path = "data/activity.jsonl"
 max_kb = 1024           # au-delà, le fichier est archivé en activity.1.jsonl
 
+[wallpaper]
+# Mode fond d'écran : tableau de bord de tout l'environnement (mini-PC, appareils, Katana, météo, agenda, rappels,
+# lumières, musique) avec le visage d'ORION au centre. Pour Wallpaper Engine : fond d'écran « Web », adresse
+# http://<mini-PC>:8767/. Lecture seule ; seules les adresses de allowed_ips (et le Core) peuvent l'afficher.
+enabled = false
+host = "0.0.0.0"
+port = 8767
+allowed_ips = []
+
 [face]
 # Visage graphique animé (page Web locale). Non critique : si le port est pris ou la page fermée,
 # ORION continue en vocal. host = "0.0.0.0" pour l'afficher sur tous les appareils du réseau local

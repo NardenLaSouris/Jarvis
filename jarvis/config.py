@@ -341,6 +341,16 @@ class ActivityConfig:
 
 
 @dataclass(frozen=True)
+class WallpaperConfig:
+    """Mode fond d'écran (jarvis.wallpaper) : statistiques de l'environnement, visage d'ORION au centre."""
+    enabled: bool = False
+    host: str = "0.0.0.0"
+    port: int = 8767
+    # Adresses autorisées (la page affiche l'agenda et les rappels) ; la machine du Core l'est toujours.
+    allowed_ips: list = field(default_factory=list)
+
+
+@dataclass(frozen=True)
 class FaceConfig:
     enabled: bool = False
     host: str = "127.0.0.1"
@@ -381,6 +391,7 @@ class Config:
     audio: AudioConfig
     web: WebConfig = WebConfig()
     face: FaceConfig = FaceConfig()
+    wallpaper: WallpaperConfig = WallpaperConfig()
     tools: ToolsConfig = ToolsConfig()
     activity: ActivityConfig = ActivityConfig()
     timers: TimersConfig = TimersConfig()
@@ -496,6 +507,7 @@ def load_config(path: str | Path = "config.toml", local: bool = True) -> Config:
         "audio": AudioConfig,
         "web": WebConfig,
         "face": FaceConfig,
+        "wallpaper": WallpaperConfig,
         "tools": ToolsConfig,
         "activity": ActivityConfig,
         "timers": TimersConfig,
