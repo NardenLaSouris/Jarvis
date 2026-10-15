@@ -82,3 +82,7 @@ environnement isolé C:\Users\theju\orion-stt sur le Katana. Le modèle de langa
 large-v3-turbo sur le Katana : 2,4 fois moins d erreurs et 16 fois plus rapide que l actuel ; l indice n y produit
 plus le biais « Quelle heure » -> « Quel temps ». Non branché à ORION : il faudrait un petit service de transcription
 sur le Katana, avec repli sur small du mini-PC quand le Katana est éteint.
+
+Ajout : large-v3 complet sur le Katana, 1,3 % d erreurs par mot, 0,43 s médian, 1,17 s p90 : retenu (le plus juste).
+Service : jarvis/stt/server.py sur le Katana (port 8766, jeton ORION_STT_TOKEN), client jarvis/stt/remote.py avec
+repli sur small du mini-PC ; activé par [stt] remote dans config.local.toml.

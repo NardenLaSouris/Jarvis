@@ -158,11 +158,21 @@ def build_stt(cfg: Config) -> SpeechToText:
     from jarvis.stt.faster_whisper import FasterWhisperSTT
 
     c = cfg.stt
-    return FasterWhisperSTT(
+    local = FasterWhisperSTT(
         c.model, cfg.assistant.language, c.device, c.compute_type, c.beam_size, c.download_root,
         c.fallback_device, c.fallback_compute_type, hotwords=vocabulary_hint(cfg) if c.vocabulary_hint else "",
         vad_filter=c.vad_filter, temperature_fallback=c.temperature_fallback,
     )
+    token = secret("ORION_STT_TOKEN", ENV_FILE) if c.remote else ""
+    if not (c.remote and token):
+        if c.remote:
+            log.warning("[stt] remote sans ORION_STT_TOKEN dans .env : Whisper local seul")
+        return local
+    from jarvis.stt.remote import RemoteSTT
+
+    log.info("STT : GPU distant %s, Whisper local %s en secours", c.remote, c.model)
+    return RemoteSTT(c.remote, token, local, cfg.assistant.language, c.beam_size, c.vad_filter,
+                     c.temperature_fallback, timeout=c.remote_timeout)
 
 
 def build_corrector(cfg: Config, personality):

@@ -56,6 +56,10 @@ class STTConfig:
     vad_filter: bool = False
     # Nouveaux décodages, plus « chauds », d'un audio peu clair (réglage de faster-whisper). False : un seul.
     temperature_fallback: bool = True
+    # Transcription sur le GPU d'une autre machine (jarvis.stt.server), Whisper local en secours. Vide : local seul.
+    # Jeton : ORION_STT_TOKEN dans .env.
+    remote: str = ""
+    remote_timeout: float = 6.0
 
 
 @dataclass(frozen=True)
