@@ -1090,9 +1090,14 @@ def build_agent(
                  content_guard=build_content_guard(cfg, llm), calls=calls, learning=learning,
                  call_rules=call_rules if calls is not None else None)
     if cfg.wallpaper.enabled:
+        wallpaper_agents = None
+        if devices is not None and secret("JARVIS_AGENT_TOKEN", ENV_FILE):
+            from jarvis.tools.devices import AgentClient
+
+            wallpaper_agents = AgentClient(secret("JARVIS_AGENT_TOKEN", ENV_FILE), timeout=4.0)
         build_wallpaper(cfg, llm=llm, stt=stt, devices=devices, presence=presence, weather=weather,
                         calendar=calendar, timers=timers, rooms=rooms, driver=driver, spotify=spotify,
-                        watcher=watcher)
+                        watcher=watcher, agents=wallpaper_agents)
     # Échéance proche (rendez-vous, minuteur, rappel) pour l'anneau du visage.
     agent.upcoming = Upcoming(calendar, timers) if calendar is not None or timers is not None else None
     return agent

@@ -341,7 +341,8 @@ def test_system_info_is_useful_and_leaks_nothing(monkeypatch):
     monkeypatch.setenv("JARVIS_TEST_SECRET", "sk-ne-doit-jamais-sortir")
     info = make_core().submit(call("system_info")).result.result
     assert set(info) == {"os", "os_version", "architecture", "python", "cpu", "cpu_cores", "memory_total_gb",
-                         "memory_available_gb", "disk_total_gb", "disk_free_gb", "gpu", "uptime_hours"}
+                         "memory_available_gb", "disk_total_gb", "disk_free_gb", "gpu", "uptime_hours",
+                         "cpu_percent", "gpu_stats"}
     dumped = json.dumps(info)
     assert "sk-ne-doit-jamais-sortir" not in dumped and os.environ.get("USERNAME", "§") not in dumped
     assert info["cpu_cores"] >= 1 and isinstance(info["gpu"], list)

@@ -1,7 +1,8 @@
 """Outils système : heure, date, informations non sensibles sur la machine, verrouillage de la session.
 
-Uniquement des API du système (registre en lecture, kernel32/user32 sous Windows, /proc sous Linux) :
-aucun shell, aucune variable d'environnement renvoyée, aucun fichier personnel lu.
+Uniquement des API du système (registre en lecture, kernel32/user32 sous Windows, /proc sous Linux) et, pour la
+charge de la carte graphique NVIDIA, son outil officiel ``nvidia-smi`` lancé avec des arguments fixes (sans shell) :
+aucune variable d'environnement renvoyée, aucun fichier personnel lu.
 """
 
 from __future__ import annotations
@@ -138,6 +139,67 @@ def _gpus() -> list[str]:
     return [n for n in dict.fromkeys(names) if not any(word in n.lower() for word in IGNORED_GPUS)]
 
 
+_CPU_SAMPLE: list = []  # dernier relevé (occupé, total) : la charge est l'écart entre deux appels
+
+
+def _cpu_times() -> tuple[int, int] | None:
+    """(temps occupé, temps total) du processeur depuis le démarrage."""
+    try:
+        if sys.platform == "win32":
+            idle, kernel, user = (ctypes.c_ulonglong(), ctypes.c_ulonglong(), ctypes.c_ulonglong())
+            if not ctypes.windll.kernel32.GetSystemTimes(ctypes.byref(idle), ctypes.byref(kernel), ctypes.byref(user)):
+                return None
+            total = kernel.value + user.value  # le temps noyau comprend le temps d'inactivité
+            return total - idle.value, total
+        values = [int(v) for v in Path("/proc/stat").read_text().splitlines()[0].split()[1:]]
+        total = sum(values)
+        return total - values[3] - (values[4] if len(values) > 4 else 0), total
+    except (OSError, ValueError, AttributeError, IndexError):
+        return None
+
+
+def _cpu_percent() -> float | None:
+    """Charge du processeur depuis l'appel précédent (None au premier appel)."""
+    sample = _cpu_times()
+    previous = _CPU_SAMPLE[0] if _CPU_SAMPLE else None
+    _CPU_SAMPLE[:] = [sample] if sample else []
+    if sample is None or previous is None or sample[1] <= previous[1]:
+        return None
+    return round(100.0 * (sample[0] - previous[0]) / (sample[1] - previous[1]), 1)
+
+
+def _nvidia_smi() -> str | None:
+    found = shutil.which("nvidia-smi")
+    if found:
+        return found
+    if sys.platform == "win32":
+        default = Path(os.environ.get("SystemRoot", "C:\\Windows")) / "System32" / "nvidia-smi.exe"
+        return str(default) if default.is_file() else None
+    return None
+
+
+def _gpu_stats() -> list[dict]:
+    """Utilisation, température et mémoire des cartes NVIDIA (vide sans carte NVIDIA ou sans pilote)."""
+    program = _nvidia_smi()
+    if program is None:
+        return []
+    try:
+        out = subprocess.run([program, "--query-gpu=name,utilization.gpu,temperature.gpu,memory.used,memory.total",
+                              "--format=csv,noheader,nounits"], capture_output=True, text=True, timeout=3,
+                             shell=False, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)).stdout
+    except (OSError, subprocess.SubprocessError):
+        return []
+    stats = []
+    for line in out.splitlines():
+        parts = [x.strip() for x in line.split(",")]
+        if len(parts) != 5:
+            continue
+        number = lambda v: float(v) if v.replace(".", "", 1).isdigit() else None  # noqa: E731 - « [N/A] »
+        stats.append({"name": parts[0][:60], "usage": number(parts[1]), "temperature": number(parts[2]),
+                      "memory_used_mb": number(parts[3]), "memory_total_mb": number(parts[4])})
+    return stats
+
+
 def _disk_gb() -> tuple[float | None, float | None]:
     root = (os.environ.get("SystemDrive", "C:") + "\\") if sys.platform == "win32" else "/"
     try:
@@ -175,14 +237,18 @@ def system_info_tool() -> Tool:
             "disk_free_gb": disk_free,
             "gpu": _gpus(),
             "uptime_hours": _uptime_hours(),
+            "cpu_percent": _cpu_percent(),
+            "gpu_stats": _gpu_stats(),
         }
 
-    return Tool("system_info", "Donne des informations non sensibles sur la machine : système, processeur, mémoire, "
-                "stockage, carte graphique, durée depuis le démarrage.", {},
+    return Tool("system_info", "Donne des informations non sensibles sur la machine : système, processeur et sa "
+                "charge, mémoire, stockage, carte graphique et sa charge, durée depuis le démarrage.", {},
                 {"os": "système", "os_version": "version", "architecture": "architecture", "python": "version de Python",
                  "cpu": "processeur", "cpu_cores": "cœurs logiques", "memory_total_gb": "mémoire totale (Go)",
                  "memory_available_gb": "mémoire disponible (Go)", "disk_total_gb": "disque système (Go)",
-                 "disk_free_gb": "espace libre (Go)", "gpu": "cartes graphiques", "uptime_hours": "allumé depuis (h)"},
+                 "disk_free_gb": "espace libre (Go)", "gpu": "cartes graphiques", "uptime_hours": "allumé depuis (h)",
+                 "cpu_percent": "charge du processeur depuis la dernière lecture (%)",
+                 "gpu_stats": "utilisation, température et mémoire des cartes NVIDIA"},
                 Risk.SAFE, run)
 
 

@@ -53,6 +53,35 @@ def devices_source(devices, presence, reachable: Callable[[str], bool]) -> Calla
     return read
 
 
+def pcs_source(devices, client, reachable: Callable[[str], bool]) -> Callable[[], list]:
+    """Charge et occupation de chaque PC allumé (outil system_info de son agent, lecture seule)."""
+    def read() -> list:
+        items = []
+        for key in devices.keys():
+            device = devices[key]
+            if not device.url:  # le mini-PC : c'est le cœur, déjà détaillé à part
+                continue
+            item = {"key": key, "name": device.name, "online": False}
+            if reachable(device.url):
+                try:
+                    info = client.call(device, "system_info", {})
+                except Exception:  # noqa: BLE001 - PC qui s'éteint, agent arrêté : hors ligne
+                    info = None
+                if isinstance(info, dict):
+                    total, free = info.get("memory_total_gb"), info.get("memory_available_gb")
+                    gpus = info.get("gpu_stats") or []
+                    item.update({
+                        "online": True, "cpu": (info.get("cpu") or "")[:48], "cpu_percent": info.get("cpu_percent"),
+                        "ram_total": total, "ram_percent": round(100 * (total - free) / total) if total and free is not None
+                        else None, "disk_free": info.get("disk_free_gb"), "disk_total": info.get("disk_total_gb"),
+                        "uptime_hours": info.get("uptime_hours"),
+                        "gpu": gpus[0] if gpus else ({"name": (info.get("gpu") or [""])[0]} if info.get("gpu") else None),
+                    })
+            items.append(item)
+        return items
+    return read
+
+
 def presence_source(presence) -> Callable[[], dict]:
     def read() -> dict:
         snap = presence.engine.snapshot()
@@ -148,7 +177,7 @@ def mail_source(watcher) -> Callable[[], dict]:
 
 
 def build_sources(cfg, *, llm=None, stt=None, devices=None, presence=None, weather=None, calendar=None, timers=None,
-                  rooms=None, driver=None, spotify=None, watcher=None, reachable=None) -> list[Source]:
+                  rooms=None, driver=None, spotify=None, watcher=None, reachable=None, agents=None) -> list[Source]:
     from jarvis.llm.failover import tcp_reachable
 
     reachable = reachable or (lambda url: tcp_reachable(url, 0.6))
@@ -157,6 +186,7 @@ def build_sources(cfg, *, llm=None, stt=None, devices=None, presence=None, weath
     optional: list[tuple[Any, str, float, Callable[[], Callable]]] = [
         (devices, "devices", 15.0, lambda: devices_source(devices, presence, reachable)),
         (presence, "presence", 5.0, lambda: presence_source(presence)),
+        (devices if agents is not None else None, "pcs", 5.0, lambda: pcs_source(devices, agents, reachable)),
         (weather, "weather", 900.0, lambda: weather_source(weather)),
         (calendar, "agenda", 60.0, lambda: agenda_source(calendar)),
         (timers, "schedule", 5.0, lambda: schedule_source(timers)),

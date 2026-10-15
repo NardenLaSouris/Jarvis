@@ -165,3 +165,31 @@ def test_the_page_embeds_the_existing_face_untouched():
     page = (ROOT / "jarvis" / "wallpaper" / "static" / "index.html").read_text(encoding="utf-8")
     script = (ROOT / "jarvis" / "wallpaper" / "static" / "wallpaper.js").read_text(encoding="utf-8")
     assert '<iframe id="face"' in page and "facePort" in script  # le visage, sur son propre port, tel quel
+
+
+def test_connected_pcs_report_their_load_through_their_agent():
+    from jarvis.wallpaper.sources import pcs_source
+
+    devices = {"pc": SimpleNamespace(name="votre PC", url="http://pc:8765"),
+               "portable": SimpleNamespace(name="votre PC portable", url="http://katana:8765"),
+               "mini": SimpleNamespace(name="le mini-PC", url="")}
+    fake = type("Devices", (), {"keys": lambda self: list(devices), "__getitem__": lambda self, k: devices[k]})()
+    info = {"cpu": "AMD Ryzen 7 3700X 8-Core Processor", "cpu_percent": 12.5, "memory_total_gb": 32.0,
+            "memory_available_gb": 8.0, "disk_free_gb": 140.0, "disk_total_gb": 930.0, "uptime_hours": 45.5,
+            "gpu": ["NVIDIA GeForce RTX 3060"], "gpu_stats": [{"name": "NVIDIA GeForce RTX 3060", "usage": 37.0,
+                                                              "temperature": 45.0}]}
+    calls = []
+
+    class Client:
+        def call(self, device, tool, parameters):
+            calls.append((device.name, tool, parameters))
+            if device.name == "votre PC portable":
+                raise OSError("agent arrêté")
+            return info
+
+    items = pcs_source(fake, Client(), lambda url: url != "http://nulle-part")()
+    assert calls == [("votre PC", "system_info", {}), ("votre PC portable", "system_info", {})]  # lecture seule
+    assert items[0]["online"] and items[0]["cpu_percent"] == 12.5 and items[0]["ram_percent"] == 75
+    assert items[0]["gpu"]["usage"] == 37.0
+    assert items[1] == {"key": "portable", "name": "votre PC portable", "online": False}  # agent tombé : hors ligne
+    assert [i["key"] for i in items] == ["pc", "portable"]  # le mini-PC est détaillé à part

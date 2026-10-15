@@ -160,6 +160,29 @@ function orbit(nodes) {
   el.innerHTML = place(left, "left") + place(right, "right");
 }
 
+// --- Machines connectées (PC fixe, PC portable) -----------------------------------------------------------
+function bar(label, percent, text, warnAt = 75, badAt = 90) {
+  const p = percent == null ? 0 : Math.max(0, Math.min(100, percent));
+  const level = percent >= badAt ? "bad" : percent >= warnAt ? "hot" : "";
+  return `<div class="bar ${level}"><span>${label}</span><i style="--v:${p}%"></i><b>${text}</b></div>`;
+}
+function machine(m) {
+  const name = esc(m.name.replace(/^votre /i, "").replace(/^./, (c) => c.toUpperCase()));
+  if (!m.online) return `<div class="machine off"><h3><i class="dot"></i>${name}<small>hors ligne</small></h3>` +
+    `<div class="off-note">Éteint ou agent arrêté</div></div>`;
+  const up = m.uptime_hours == null ? "" : `allumé ${duration(m.uptime_hours * 3600)}`;
+  const g = m.gpu || {};
+  const gpuText = g.usage == null ? esc((g.name || "–").replace(/NVIDIA GeForce /, "")) :
+    `${Math.round(g.usage)} %${g.temperature != null ? ` · ${Math.round(g.temperature)}°` : ""}`;
+  const vram = g.memory_total_mb ? ` · ${(g.memory_used_mb / 1024).toFixed(1)}/${Math.round(g.memory_total_mb / 1024)} Go` : "";
+  return `<div class="machine"><h3><i class="dot"></i>${name}<small>${up}</small></h3>` +
+    bar("CPU", m.cpu_percent, m.cpu_percent == null ? "–" : `${Math.round(m.cpu_percent)} %`) +
+    bar("RAM", m.ram_percent, m.ram_percent == null ? "–" : `${m.ram_percent} % · ${Math.round(m.ram_total)} Go`) +
+    bar("GPU", g.usage, gpuText + (g.usage != null ? vram : "")) +
+    bar("Disque", m.disk_total ? 100 - m.disk_free / m.disk_total * 100 : null,
+        m.disk_free == null ? "–" : `${Math.round(m.disk_free)} Go libres`, 85, 95) + "</div>";
+}
+
 // --- Mise à jour depuis /stats ----------------------------------------------------------------------------
 function val(stats, name) { return stats[name] && stats[name].value; }
 function stale(id, stats, name) { const el = $(id); if (el && stats[name]) el.classList.toggle("stale", !stats[name].ok); }
@@ -193,10 +216,9 @@ function render(stats) {
     stt.className = orion.stt.remote && orion.stt.remote_up ? "ok" : orion.stt.remote ? "warn" : "";
     $("wake").textContent = `« ${orion.wake_word} »`;
   }
-  if (katana) {
-    const vram = katana.models.reduce((s, m) => s + (m.vram || 0), 0);
-    $("vram").textContent = katana.models.length ? `${gb(vram)} Go · ${katana.models.length} modèle${katana.models.length > 1 ? "s" : ""}` : "aucun modèle chargé";
-  } else if (stats.katana) $("vram").textContent = "injoignable";
+  const pcs = val(stats, "pcs");
+  if (pcs) $("pcs").innerHTML = pcs.map(machine).join("");
+  stale("machines", stats, "pcs");
 
   // Orbite : appareils, puis services d'ORION
   const nodes = [];
@@ -275,7 +297,8 @@ async function start() {
   // ?face=<port> : visage joint par un autre port (aperçu à travers un tunnel SSH, par exemple).
   const asked = new URLSearchParams(location.search).get("face");
   if (asked && /^\d{2,5}$/.test(asked)) facePort = Number(asked);
-  $("face").src = `${location.protocol}//${location.hostname}:${facePort}/`;
+  // Thème de base imposé (le visage seul garde ses thèmes : fêtes, couleur demandée, nuit).
+  $("face").src = `${location.protocol}//${location.hostname}:${facePort}/?theme=day`;
   poll();
 }
 start();
