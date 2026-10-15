@@ -32,12 +32,20 @@ WAKE_SHAPE = re.compile(r"(?:dj|j|g|ch)[ae]?[rn]?vi[sc]")
 # entendu sur un vrai « Orion » le 9 octobre 2026) ; jamais « horizon », « oreille », « avion », « oignon », « Marion »
 # (« arion » sans o initial). « Nous aurions » s'entend pareil : Whisper l'écrit avec son sens, écarté.
 SHAPES = {"jarvis": WAKE_SHAPE, "orion": re.compile(r"(?:o|au|ou)r?(?:i|y|ill)+[oa]n")}
+# « Hey » tel que Whisper l'écrit devant « Orion » : hey, hé (he), eh, et, ey, ay, hei, hay, ai.
+HEY = {"hey", "he", "eh", "et", "ey", "ay", "hei", "hay", "ai", "hi", "hai"}
 
 
 def heard_wake(text: str, phrase: str = "Jarvis") -> bool:
     """La transcription contient-elle le mot de réveil (à l'oreille) ? Espaces et apostrophes ignorés (« J'arvisse »,
     « O'Rion »)."""
     norm = normalize(text)
+    if normalize(phrase) in ("hey orion", "he orion"):
+        # « Hey Orion » : un « hey » (hey, hé, eh, et, ey, ay…) juste avant la forme d'« Orion » ; « Orion » seul ne
+        # suffit pas (c'est tout l'intérêt de ce wake word).
+        words = re.findall(r"[a-z]+", norm.replace(" rion", "rion"))
+        return any(SHAPES["orion"].fullmatch(word) and i > 0 and words[i - 1] in HEY
+                   for i, word in enumerate(words)) or bool(re.search(r"\b(?:hey|he|eh)orion\b", norm.replace(" ", "")))
     if normalize(phrase) == "orion":
         # Mot par mot : « nous aurions », « aurions-nous » ne sont pas « Orion ».
         words = re.findall(r"[a-z]+", norm.replace(" rion", "rion"))
@@ -60,6 +68,9 @@ class WakeVerifier:
                                        cpu_threads=threads)
         self._language = language
         self._phrase = phrase
+        # « Hey Orion » : Whisper l'entend « Et on y va », « Eh oui » sans indice (0 de vos 30 enregistrements
+        # reconnus) ; avec l'indice, 26 sur 30, pour 2 faux réveils réels sur 297 (essai du 12 octobre 2026).
+        self._hotwords = phrase if normalize(phrase) in ("hey orion", "he orion") else None
         self.check(np.zeros(16000, dtype=np.int16), 16000)  # premier calcul (lent) fait au démarrage
         log.info("Vérification du wake word : whisper %s prêt (%.1f s)", model, time.perf_counter() - started)
 
@@ -70,6 +81,6 @@ class WakeVerifier:
         samples = audio.astype(np.float32) / (32768.0 if audio.dtype == np.int16 else 1.0)
         segments, _ = self._model.transcribe(samples, language=self._language, beam_size=1,
                                              condition_on_previous_text=False, without_timestamps=True,
-                                             vad_filter=False)
+                                             vad_filter=False, hotwords=self._hotwords)
         text = " ".join(s.text.strip() for s in segments).strip()
         return heard_wake(text, self._phrase), text

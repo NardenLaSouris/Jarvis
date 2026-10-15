@@ -226,3 +226,39 @@ def test_a_short_or_weaker_wake_is_still_checked():
     for frames, sure_score in ((3, 0.95), (6, 0.99), (6, 0.0)):
         verifier = Verifier((False, "Au revoir."))
         assert run_burst(frames, verifier, sure_score) == [] and verifier.calls == 1
+
+
+@pytest.mark.parametrize("text", ["Hey Orion.", "Hé Orion !", "Et Orion, allume la lumière", "Hey, Oryon",
+                                  "Eh Aurion", "Hey Orion, quelle heure est-il ?"])
+def test_hey_orion_is_recognised(text):
+    assert heard_wake(text, "Hey Orion")
+
+
+@pytest.mark.parametrize("text", ["Orion.", "Bon, Orion", "Hey Marion", "Hey Siri", "Nous aurions dû",
+                                  "On prie. J'arrête.", "Hey, ça va ?", "La constellation d'Orion"])
+def test_orion_alone_or_lookalikes_never_wake_hey_orion(text):
+    assert not heard_wake(text, "Hey Orion")
+
+
+@pytest.mark.parametrize("phrase, hint, woken", [("Hey Orion", "Hey Orion", True), ("Orion", None, True),
+                                                 ("Jarvis", None, False)])
+def test_whisper_gets_the_hey_orion_hint_only_for_that_wake_word(monkeypatch, phrase, hint, woken):
+    """Sans indice, Whisper entend « Et on y va » pour votre « Hey Orion » ; l'indice n'est donné qu'à ce mot."""
+    import faster_whisper
+
+    seen = {}
+
+    class Model:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def transcribe(self, samples, **kwargs):
+            seen.update(kwargs)
+            return iter([SimpleNamespace(text=" Hey Orion.")]), None
+
+    monkeypatch.setattr(faster_whisper, "WhisperModel", Model)
+    from jarvis.wakeword.verify import WakeVerifier
+
+    verifier = WakeVerifier(phrase=phrase)
+    confirmed, _ = verifier.check(np.zeros(16000, dtype=np.int16), 16000)
+    assert seen["hotwords"] == hint and confirmed is woken

@@ -20,12 +20,15 @@ from wakeword_training.spec import Spec
 
 def run(spec: Spec, source: Path) -> dict[str, int]:
     counts = {"positive": 0, "negative": 0, "skipped": 0}
+    # [captures] used = "negative" : pour un nouveau wake word (« Hey Orion »), les vrais réveils de l'ancien
+    # (« Orion » dit seul, votre voix) sont justement ce que le nouveau modèle doit ignorer.
+    used_as = str((getattr(spec, "raw", None) or {}).get("captures", {}).get("used", "positive"))
     for capture in load_captures(source):
         outcome = capture.get("outcome")
         if outcome in ("silent", "rejected", "false"):
             kind = "negative"
         elif outcome == "used" and capture.get("verified") is True:
-            kind = "positive"
+            kind = used_as
         else:
             counts["skipped"] += 1
             continue
@@ -36,6 +39,7 @@ def run(spec: Spec, source: Path) -> dict[str, int]:
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(wav, target)
         counts[kind] += 1
-    print(f"Importés : {counts['positive']} « Jarvis » de votre voix, {counts['negative']} faux réveils "
-          f"(mots pièges), {counts['skipped']} ignorés -> {spec.real_dir}")
+    print(f"Importés : {counts['positive']} « {getattr(spec, 'phrase', 'wake word')} » de votre voix, {counts['negative']} mots pièges "
+          f"(faux réveils{', « Orion » seul' if used_as == 'negative' else ''}), {counts['skipped']} ignorés "
+          f"-> {spec.real_dir}")
     return counts

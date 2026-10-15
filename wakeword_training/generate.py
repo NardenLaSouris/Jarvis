@@ -90,8 +90,23 @@ def transcribe(audio: np.ndarray) -> str:
     return " ".join(s.text for s in segments).strip()
 
 
+def _cuda_libraries() -> None:
+    """Bibliothèques CUDA installées par pip (nvidia-cublas-cu12, nvidia-cudnn-cu12) : rendues visibles à
+    CTranslate2, qui les cherche dans le PATH (Windows) ; sans elles, Whisper tourne sur le processeur."""
+    import site
+
+    for base in site.getsitepackages():
+        for folder in Path(base).glob("**/site-packages/nvidia/*/bin") if "site-packages" not in base \
+                else Path(base).glob("nvidia/*/bin"):
+            if folder.is_dir() and str(folder) not in os.environ.get("PATH", ""):
+                os.environ["PATH"] = f"{folder}{os.pathsep}{os.environ.get('PATH', '')}"
+                if hasattr(os, "add_dll_directory"):
+                    os.add_dll_directory(str(folder))
+
+
 def _load_whisper(probe: np.ndarray):
-    """GPU si disponible (~10x plus rapide ; nécessite cuBLAS 12 dans le PATH), sinon CPU."""
+    """GPU si disponible (~10x plus rapide ; nécessite cuBLAS 12 et cuDNN 9), sinon CPU."""
+    _cuda_libraries()
     import ctranslate2
     from faster_whisper import WhisperModel
 
@@ -134,12 +149,16 @@ def _render(voice, speaker: int, text: str, target: str | None, context_s: float
         if not chunk.phoneme_alignments:
             return None
         wanted = [p for p in voice.phonemize(target)[0] if p not in " .,!?"]
-        phones = [a.phoneme for a in chunk.phoneme_alignments]
         ends = np.cumsum([a.num_samples for a in chunk.phoneme_alignments])
+        # Phonèmes de la phrase sans espaces ni ponctuation (comme ``wanted``), avec leur position d'origine :
+        # une expression de plusieurs mots (« Hey Orion ») est retrouvée malgré l'espace qui les sépare.
+        kept = [(j, a.phoneme) for j, a in enumerate(chunk.phoneme_alignments) if a.phoneme not in " .,!?"]
+        phones = [p for _, p in kept]
         for i in range(len(phones) - len(wanted), -1, -1):
             if phones[i : i + len(wanted)] == wanted:
-                start = (ends[i - 1] if i else 0) - int(context_s * rate)
-                audio = chunk.audio_int16_array[max(0, start) : ends[i + len(wanted) - 1]]
+                first, last = kept[i][0], kept[i + len(wanted) - 1][0]
+                start = (ends[first - 1] if first else 0) - int(context_s * rate)
+                audio = chunk.audio_int16_array[max(0, start) : ends[last]]
                 break
         else:
             return None

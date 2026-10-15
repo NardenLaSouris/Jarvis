@@ -60,7 +60,8 @@ def render(voice: EdgeVoice, speaker: int, text: str, target: str | None, contex
     rate, pitch = base_rate + rng.randint(-8, 8), base_pitch + rng.randint(-4, 4)
     for attempt in range(4):  # service en ligne : quelques reprises en cas de coupure ou de limitation
         try:
-            mp3, words = asyncio.run(_synth(text, voice.name, rate, pitch))
+            # Délai de garde : une connexion au service qui ne répond plus bloquait le processus pour toujours.
+            mp3, words = asyncio.run(asyncio.wait_for(_synth(text, voice.name, rate, pitch), timeout=30))
             break
         except Exception:  # noqa: BLE001 - réseau, limitation : nouvel essai après une pause
             time.sleep(2 + 3 * attempt)
@@ -71,8 +72,15 @@ def render(voice: EdgeVoice, speaker: int, text: str, target: str | None, contex
     decoded = miniaudio.decode(mp3, output_format=miniaudio.SampleFormat.SIGNED16, nchannels=1, sample_rate=SR)
     audio = np.frombuffer(decoded.samples, dtype=np.int16).copy()
     if target is not None:
-        wanted = _norm(target)
-        match = next(((s, d) for s, d, w in reversed(words) if _norm(w) == wanted), None)
+        # Expression de plusieurs mots (« Hey Orion ») : la dernière suite de mots qui lui correspond.
+        wanted = [_norm(w) for w in target.split() if _norm(w)]
+        spoken = [(s, d, _norm(w)) for s, d, w in words]
+        match = None
+        for i in range(len(spoken) - len(wanted), -1, -1):
+            if [w for _, _, w in spoken[i:i + len(wanted)]] == wanted:
+                last = spoken[i + len(wanted) - 1]
+                match = (spoken[i][0], last[0] + last[1] - spoken[i][0])
+                break
         if match is None:
             return None
         start, duration = match
