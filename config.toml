@@ -506,10 +506,11 @@ enabled = false
 host = "0.0.0.0"
 port = 8767
 allowed_ips = []
-# Interactions : commandes rapides (lumières, lecture Spotify ; rien d'autre) et demandes écrites à ORION, traitées
-# comme vos messages Linphone (mêmes confirmations). Chaque action exige le jeton de la page.
+# Interactions : commandes rapides (lumières, lecture Spotify ; rien d'autre), chaque action exige le jeton de la page.
+# chat : demandes écrites à ORION par POST /say (comme vos messages Linphone), sans champ dans la page : coupé, le
+# clavier n'arrive pas au fond d'écran de Wallpaper Engine.
 actions = true
-chat = true
+chat = false
 
 [face]
 # Visage graphique animé (page Web locale). Non critique : si le port est pris ou la page fermée,

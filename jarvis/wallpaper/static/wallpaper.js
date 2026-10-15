@@ -295,7 +295,7 @@ async function poll() {
 }
 
 // --- Interactions : détails, commandes rapides, conversation ------------------------------------------------
-const CAN = { token: "", actions: false, chat: false };
+const CAN = { token: "", actions: false };
 let toastTimer = null, idleTimer = null, detailView = null;
 
 function toast(text, bad = false) {
@@ -336,7 +336,6 @@ function refreshDetail(force = false) {
   if (!detailView || (detailView.static && !force)) return;
   const [title, body] = detailView.draw(latest);
   $("detail-title").textContent = title;
-  if (detailView.keepFocus && !force) return;  // conversation : ne pas effacer ce qui est tapé
   $("detail-body").innerHTML = body;
   if (detailView.after) detailView.after();
 }
@@ -381,7 +380,6 @@ const VIEWS = {
     document.querySelectorAll("#detail input[type=range]").forEach((r) => r.onchange = () =>
       act("set_brightness", { room: r.dataset.room, brightness: Number(r.value) }));
   }, static: true },
-  chat: { keepFocus: true, draw() { return ["Parler à ORION", chatBody()]; }, after: chatWire },
 };
 
 function pcView(i) {
@@ -399,38 +397,6 @@ function pcView(i) {
       `<dt>Disque système</dt><dd>${Math.round(m.disk_free)} Go libres sur ${Math.round(m.disk_total)}</dd>` +
       `<dt>Allumé depuis</dt><dd>${duration((m.uptime_hours || 0) * 3600)}</dd></dl>`];
   } };
-}
-
-// Conversation : comme un message Linphone ; Wallpaper Engine ne transmet pas toujours le clavier, d'où les suggestions.
-const SUGGESTIONS = ["Quel temps fera-t-il demain ?", "Qu'est-ce que j'ai de prévu demain ?", "Lance un diagnostic de l'environnement",
-  "Éteins toutes les lumières", "Mets la lumière à 40 %", "Qu'est-ce qui joue sur Spotify ?"];
-let chatLog = [], chatBusy = false;
-function chatBody() {
-  const log = chatLog.map((m) => `<p class="${m.who}">${esc(m.text)}</p>`).join("") || '<p class="wait">Écrivez ou choisissez une demande.</p>';
-  return `<div class="chat-log" id="chat-log">${log}</div><form class="chat-form" id="chat-form"><input id="chat-input" ` +
-    `maxlength="500" autocomplete="off" placeholder="Votre demande…"><button type="submit">Envoyer</button></form>` +
-    `<div class="chips">${SUGGESTIONS.map((t) => `<button type="button" data-say="${esc(t)}">${esc(t)}</button>`).join("")}</div>`;
-}
-function chatWire() {
-  const log = $("chat-log"); log.scrollTop = log.scrollHeight;
-  $("chat-form").onsubmit = (e) => { e.preventDefault(); say($("chat-input").value); };
-  document.querySelectorAll("#detail [data-say]").forEach((b) => b.onclick = () => say(b.dataset.say));
-  $("chat-input").focus();
-}
-async function say(text) {
-  text = String(text || "").trim();
-  if (!text || chatBusy) return;
-  chatBusy = true;
-  chatLog.push({ who: "you", text }, { who: "wait", text: "ORION réfléchit…" });
-  refreshDetail(true);
-  clearTimeout(idleTimer); idleTimer = setTimeout(closeDetail, 120000);
-  try {
-    const { ok, data } = await post("say", { text });
-    chatLog.pop(); chatLog.push({ who: "orion", text: ok ? data.reply : (data.error || "Je n'ai pas pu traiter la demande.") });
-  } catch (e) { chatLog.pop(); chatLog.push({ who: "orion", text: "Je ne suis pas joignable pour le moment." }); }
-  chatLog = chatLog.slice(-16);
-  chatBusy = false;
-  if (detailView === VIEWS.chat) refreshDetail(true);
 }
 
 function wire() {
@@ -458,7 +424,6 @@ function wire() {
     const music = val(latest, "music");
     act(b.dataset.act === "play" ? (music && music.playing ? "spotify_pause" : "spotify_play") : b.dataset.act);
   });
-  $("chat-open").onclick = () => openDetail(VIEWS.chat);
   // Les anneaux suivent un peu la souris.
   document.addEventListener("mousemove", (e) => {
     const dx = (e.clientX / innerWidth - 0.5) * 16, dy = (e.clientY / innerHeight - 0.5) * 16;
@@ -477,10 +442,8 @@ async function start() {
     facePort = config.face_port || facePort;
     CAN.token = config.token || "";
     CAN.actions = (config.actions || []).length > 0;
-    CAN.chat = !!config.chat;
   } catch (e) { /* défaut : lecture seule */ }
   document.querySelector("#music .controls").hidden = !CAN.actions;
-  $("chat-open").hidden = !CAN.chat;
   // ?face=<port> : visage joint par un autre port (aperçu à travers un tunnel SSH, par exemple).
   const asked = new URLSearchParams(location.search).get("face");
   if (asked && /^\d{2,5}$/.test(asked)) facePort = Number(asked);

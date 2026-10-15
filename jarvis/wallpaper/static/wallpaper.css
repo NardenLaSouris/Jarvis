@@ -215,10 +215,6 @@ button:hover { border-color: var(--c); color: var(--c); box-shadow: 0 0 10px var
 .music-text { min-width: 0; flex: 1; }
 .controls { display: flex; gap: 6px; }
 .controls button { width: 34px; height: 30px; font-size: 14px; border-radius: 3px; }
-.hud-button { position: absolute; left: 1250px; top: 70px; height: 48px; padding: 0 20px; font-family: "Michroma";
-  font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--c);
-  background: linear-gradient(135deg, var(--panel), rgba(0, 0, 0, 0.3));
-  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px)); }
 #detail { left: 610px; top: 200px; width: 700px; min-height: 300px; max-height: 680px; overflow: auto; z-index: 5;
   background: linear-gradient(135deg, rgba(15, 30, 24, 0.97), rgba(8, 12, 10, 0.97)); padding: 22px 26px;
   box-shadow: 0 0 60px rgba(0, 0, 0, 0.8); }
@@ -242,18 +238,6 @@ button:hover { border-color: var(--c); color: var(--c); box-shadow: 0 0 10px var
 .room button.on { color: var(--bg); background: var(--c); border-color: var(--c); }
 .room input[type=range] { width: 100%; accent-color: rgb(128, 186, 160); }
 .room.down { opacity: 0.5; }
-.chat-log { max-height: 330px; overflow: auto; margin-bottom: 14px; }
-.chat-log p { margin: 8px 0; line-height: 1.45; }
-.chat-log .you { color: var(--muted); } .chat-log .you::before { content: "Vous — "; color: var(--c2); }
-.chat-log .orion { color: var(--text); } .chat-log .orion::before { content: "ORION — "; color: var(--gold); }
-.chat-log .wait { color: var(--muted); font-style: italic; }
-.chat-form { display: flex; gap: 10px; }
-.chat-form input { flex: 1; font: inherit; font-size: 15px; color: var(--text); background: rgba(0, 0, 0, 0.35);
-  border: 1px solid var(--dim); padding: 10px 12px; outline: none; }
-.chat-form input:focus { border-color: var(--c); }
-.chat-form button { padding: 0 18px; }
-.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-.chips button { padding: 6px 12px; font-size: 13px; border-radius: 14px; }
 #toast { position: absolute; left: 50%; top: 158px; transform: translateX(-50%); max-width: 640px; padding: 10px 20px;
   font-size: 15px; color: var(--text); background: rgba(10, 18, 14, 0.94); border: 1px solid var(--c2);
   box-shadow: 0 0 20px var(--halo); opacity: 0; pointer-events: none; transition: opacity 0.3s ease; z-index: 6; }
