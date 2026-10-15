@@ -98,7 +98,7 @@ li.empty { color: var(--muted); font-style: italic; }
 #core-panel canvas { width: 384px; height: 64px; display: block; margin-bottom: 6px; }
 #presence-panel { left: 40px; top: 956px; width: 420px; height: 108px; overflow: hidden; }
 #house { font-size: 16px; margin-bottom: 6px; }
-#lights { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 14px; }
+#lights { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; }
 #lights li::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 50%;
   border: 1px solid var(--c); vertical-align: -1px; }
 #lights li.on::before { background: var(--c); box-shadow: var(--glow); }
@@ -149,8 +149,9 @@ li.empty { color: var(--muted); font-style: italic; }
 .playing .eq i:nth-child(4) { animation-delay: -0.15s; } .playing .eq i:nth-child(5) { animation-delay: -0.45s; }
 @keyframes eq { from { height: 4px; } to { height: 26px; } }
 
-#katana-panel { left: 700px; top: 942px; width: 520px; height: 108px; overflow: hidden; }
-#katana-panel dl { grid-template-columns: auto 1fr auto 1fr; font-size: 14px; }
+#katana-panel { left: 700px; top: 942px; width: 520px; height: 112px; overflow: hidden; padding-top: 10px; }
+#katana-panel dl { grid-template-columns: auto 1fr auto 1fr; font-size: 13px; gap: 2px 14px; }
+#katana-panel h2 { margin-bottom: 4px; }
 
 /* Météo */
 #weather { left: 1490px; top: 400px; width: 400px; overflow: hidden; }
@@ -166,10 +167,12 @@ li.empty { color: var(--muted); font-style: italic; }
 svg.wi * { fill: none; stroke: var(--c); stroke-width: 2.4; stroke-linecap: round; filter: drop-shadow(0 0 3px var(--c)); }
 
 #agenda-panel { left: 1490px; top: 752px; width: 400px; height: 180px; overflow: hidden; }
-#agenda-panel ul { margin-bottom: 10px; }
+#agenda-panel ul { margin-bottom: 6px; }
+#agenda-panel h2 { margin-bottom: 4px; }
 #agenda-panel li { display: flex; gap: 12px; font-size: 14px; padding: 2px 0; }
-#agenda-panel li .t { color: var(--c); min-width: 86px; font-family: "Michroma"; font-size: 12px; padding-top: 2px; }
-#agenda-panel li .x { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#agenda-panel li .t { color: var(--c); flex: 0 0 auto; white-space: nowrap; font-family: "Michroma"; font-size: 11px;
+  padding-top: 2px; }
+#agenda-panel li .x { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 #net { left: 1490px; top: 946px; width: 400px; height: 114px; }
 #net canvas { width: 368px; height: 56px; display: block; }

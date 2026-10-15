@@ -225,7 +225,7 @@ function render(stats) {
     $("house").textContent = house + (presence.doors_open ? ` · ${presence.doors_open} porte${presence.doors_open > 1 ? "s" : ""} ouverte${presence.doors_open > 1 ? "s" : ""}` : "");
   }
   const lights = val(stats, "lights");
-  if (lights) $("lights").innerHTML = lights.map((l) => `<li class="${!l.online ? "down" : l.on ? "on" : ""}">` +
+  if (lights) $("lights").innerHTML = lights.slice(0, 6).map((l) => `<li class="${!l.online ? "down" : l.on ? "on" : ""}">` +
     `${esc(l.name.replace(/^(la |le |l')/i, ""))}${l.on && l.brightness != null ? ` · ${l.brightness}%` : ""}</li>`).join("");
 
   // Météo
@@ -248,7 +248,7 @@ function render(stats) {
     `<li><span class="t">${e.today ? "Auj." : e.day} ${e.time}</span><span class="x">${esc(e.title)}</span></li>`).join("")
     : '<li class="empty">Rien de prévu cette semaine</li>';
   const schedule = val(stats, "schedule");
-  if (schedule) $("schedule").innerHTML = schedule.length ? schedule.slice(0, 3).map((s) =>
+  if (schedule) $("schedule").innerHTML = schedule.length ? schedule.slice(0, 2).map((s) =>
     `<li><span class="t">${s.at || "dans"} ${soon(s.seconds)}</span><span class="x">${esc(s.label)}</span></li>`).join("")
     : '<li class="empty">Aucun</li>';
 
