@@ -330,6 +330,11 @@
    "name": "delete_routine",
    "risk": "confirm",
    "category": "routines"
+  },
+  {
+   "name": "search_history",
+   "risk": "safe",
+   "category": "memory"
   }
  ]
 }

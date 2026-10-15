@@ -228,6 +228,16 @@ def test_tcp_reachable_on_a_closed_port():
     assert not tcp_reachable(f"http://127.0.0.1:{port}", timeout=0.5)
 
 
+def test_a_single_missed_probe_does_not_take_the_worker_offline():
+    primary, local = FakeLLM("katana"), FakeLLM("local")
+    answers = iter([False, True])  # une connexion manquée, puis la suivante aboutit
+    llm, _ = failover(primary, local)
+    llm._reachable = lambda url: next(answers, True)
+    assert llm.probe(confirm=0.01) == ONLINE and not llm.degraded
+    llm._reachable = lambda url: False  # vraiment éteint : hors ligne après le second essai
+    assert llm.probe(confirm=0.01) == OFFLINE and llm.degraded
+
+
 def test_worker_back_online_is_warmed_up_again_in_background():
     import time as clock_time
 

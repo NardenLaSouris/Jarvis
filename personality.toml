@@ -303,6 +303,17 @@ patterns = ["c etait pas pour toi", "c est pas pour toi", "ce n etait pas pour t
 responses = ["Pardon, {title}. Je serai plus attentive.", "Pardon, je me suis réveillée pour rien. Je m'en souviendrai.",
              "Entendu, je me rendors. Je ferai mieux la prochaine fois."]
 
+# Agacement (« Merde » après un refus, 11 octobre 2026) : le LLM répondait « Je m'en occupe » sans rien faire, puis
+# « cette fonction n'est pas encore disponible ». Une réponse posée, jamais une action à deviner.
+[intents.frustration]
+match = "exact"
+patterns = ["merde", "putain", "fait chier", "ca fait chier", "zut", "mince", "rah", "pff", "pfff", "punaise",
+            "et merde", "oh merde", "ah merde", "putain de merde", "bordel", "font chier", "ca m enerve",
+            "c est pas vrai", "serieux", "serieusement", "sans blague"]
+responses = ["Je comprends votre agacement, {title}. Dites-moi ce qui n'a pas fonctionné, je regarde.",
+             "Navrée, {title}. Que voulez-vous que je reprenne ?",
+             "Je vois que cela ne vous convient pas. Que puis-je corriger ?"]
+
 # Réaction après une action ou une réponse (« Niquel », « Parfait ») : une réponse, jamais une action à deviner.
 [intents.approval]
 match = "exact"

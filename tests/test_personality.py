@@ -64,6 +64,8 @@ def test_expected_intents():
         "Qui t'a conçu ?": "creator",
         "Que peux-tu faire ?": "capabilities",
         "Stop": "stop",
+        "Merde": "frustration",
+        "Putain !": "frustration",
     }
     r = router()
     for text, expected in cases.items():

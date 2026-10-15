@@ -99,6 +99,7 @@ EXAMPLES = (
     ("Lance la routine soir", "run_routine", {"name": "soir"}),
     ("Supprime la routine réveil", "delete_routine", {"name": "réveil"}),
     ("Désactive la routine soir", "disable_routine", {"name": "soir"}),
+    ("Qu'est-ce que je t'ai dit sur le garage la semaine dernière ?", "search_history", {"query": "garage"}),
     ("Rappelle-moi à 18 h d'appeler Paul", "create_reminder", {"time": "18 h", "message": "appeler Paul"}),
     ("Qu'est-ce que j'ai de prévu aujourd'hui ?", "list_events", {}),
     ("J'ai quoi demain dans mon agenda ?", "list_events", {}),

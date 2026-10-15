@@ -31,6 +31,7 @@ from jarvis.interfaces import Message
 log = logging.getLogger(__name__)
 
 ONLINE, DEGRADED, OFFLINE = "ONLINE", "DEGRADED", "OFFLINE"
+PROBE_CONFIRM = 2.0  # s : délai du second essai de la sonde de fond avant de déclarer le worker hors ligne
 
 
 class FirstTokenTimeout(TimeoutError):
@@ -346,8 +347,16 @@ class FailoverLLM:
 
         threading.Thread(target=run, name="llm-rechargement", daemon=True).start()
 
-    def probe(self) -> str:
-        """Vérifie le worker (connexion TCP courte) et met l'état à jour ; rend l'état."""
+    def probe(self, confirm: float = 0.0) -> str:
+        """Vérifie le worker (connexion TCP courte) et met l'état à jour ; rend l'état.
+
+        ``confirm`` (sonde de fond) : un échec isolé est revérifié après ce délai avant de déclarer le worker hors
+        ligne. Le Katana répondait à tout sauf, toutes les une à deux heures, à une seule connexion d'une seconde :
+        26 bascules « hors ligne » de 10 s en six jours (octobre 2026), réseau sans perte."""
+        if not self._reachable(self._url) and confirm > 0 and not self.degraded:
+            log.info("Worker LLM %s : pas de réponse, nouvel essai dans %.0f s", self._url, confirm)
+            if self._stopping.wait(confirm):
+                return self._state
         if self._reachable(self._url):
             if self._state == OFFLINE or self._down_since is not None:
                 self._down_since = None
@@ -372,7 +381,7 @@ class FailoverLLM:
     def _probe_loop(self) -> None:
         while not self._stopping.wait(self._probe_interval):
             try:
-                self.probe()
+                self.probe(confirm=PROBE_CONFIRM)
             except Exception:  # la sonde ne doit jamais arrêter ORION
                 log.exception("Sonde du worker LLM en erreur")
 

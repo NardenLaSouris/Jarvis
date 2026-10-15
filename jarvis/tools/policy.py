@@ -171,7 +171,7 @@ class PolicyGate:
         if builtin.decision is Decision.DENY:
             return builtin
         if cedar.decision is Decision.DENY:
-            return PermissionDecision(Decision.DENY, f"refusé par la politique ({cedar.reason})")
+            return PermissionDecision(Decision.DENY, f"refusé par la politique ({', '.join(cedar.policies) or cedar.reason})")
         if Decision.REQUIRES_CONFIRMATION in (builtin.decision, cedar.decision):
             return PermissionDecision(Decision.REQUIRES_CONFIRMATION, "action à confirmer")
         return builtin

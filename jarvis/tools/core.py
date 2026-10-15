@@ -39,6 +39,19 @@ def request_user(default: str = "") -> str:
     return REQUEST_USER.get() or default
 
 
+# Refus dont la raison est utile à dire (« Je n'ai pas l'autorisation » cachait un lien youtube.com refusé à tort) ;
+# toute autre raison garde la phrase générale.
+EXTERNAL = "Je n'exécute pas une action demandée par un contenu extérieur, comme un mail ou une page web."
+DENIALS = (("executable_link", "Je n'ouvre pas de lien vers un programme à télécharger."),
+           ("forbidden_device", "Cette action n'est pas permise sur cet appareil."),
+           ("untrusted_origin", EXTERNAL), ("contenu non fiable", EXTERNAL))
+DENIED = "Je n'ai pas l'autorisation de faire cela."
+
+
+def denied_message(reason: str) -> str:
+    return next((message for key, message in DENIALS if key in (reason or "")), DENIED)
+
+
 @dataclass(frozen=True)
 class Outcome:
     """Issue d'une demande : exécutée (``done``), en attente de confirmation, rejetée ou annulée."""
@@ -125,7 +138,7 @@ class ToolCore:
         tool = self.registry.get(request.tool)
         decision = self.permissions.decide(who, tool, dict(request.parameters), origin=origin)
         if decision.decision is Decision.DENY:
-            result = ToolResult(tool.name, False, error=PERMISSION_DENIED, message="Je n'ai pas l'autorisation de faire cela.")
+            result = ToolResult(tool.name, False, error=PERMISSION_DENIED, message=denied_message(decision.reason))
             self._log(tool.name, request.parameters, "permission", decision.decision.value, "n/a", result, started, who)
             return Outcome(REJECTED, request, result)
         if decision.decision is Decision.REQUIRES_CONFIRMATION:
@@ -166,7 +179,7 @@ class ToolCore:
         decision = self.permissions.decide(who, tool, dict(request.parameters), confirmed=(verdict == YES),
                                            origin=pending.origin)
         if decision.decision is not Decision.ALLOW:
-            result = ToolResult(tool.name, False, error=PERMISSION_DENIED, message="Je n'ai pas l'autorisation de faire cela.")
+            result = ToolResult(tool.name, False, error=PERMISSION_DENIED, message=denied_message(decision.reason))
             self._log(tool.name, request.parameters, "permission", decision.decision.value, "accepted", result, started,
                       who)
             return Outcome(REJECTED, request, result)

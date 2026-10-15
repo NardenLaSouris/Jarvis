@@ -384,7 +384,8 @@ def test_untrusted_model_only_reaches_harmless_tools_in_both_mode(tmp_path):
 def test_structural_rules_hold_even_for_the_owner(tmp_path):
     core, executed = make(tmp_path, "both")
     assert core.submit(call("open_url", url="https://x.test/setup.EXE?v=2")).status == REJECTED
-    assert core.submit(call("open_url", url="https://x.test/outils/setup.com")).status == REJECTED
+    refused = core.submit(call("open_url", url="https://x.test/outils/setup.com"))
+    assert refused.status == REJECTED and refused.result.message == "Je n'ouvre pas de lien vers un programme à télécharger."
     # Le nom de domaine n'est pas un programme : « .com » d'un site ordinaire ne bloque rien.
     assert core.submit(call("open_url", url="https://www.youtube.com")).status != REJECTED
     assert core.submit(call("open_url", url="https://www.youtube.com/watch?v=x.exe")).status != REJECTED

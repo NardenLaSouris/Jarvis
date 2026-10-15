@@ -882,6 +882,15 @@ def build_agent(
         from jarvis.memory import memory_tools
 
         extra += memory_tools(memory, current_user)
+    journal = None
+    if cfg.memory.enabled and cfg.memory.journal:
+        from jarvis.journal import Journal, journal_tools
+
+        try:
+            journal = Journal(cfg.memory.journal_path, cfg.memory.journal_days)
+            extra += journal_tools(journal)
+        except Exception:  # base illisible, disque plein : ORION démarre sans journal
+            log.exception("Journal des échanges indisponible")
     learning = build_learning(cfg, personality, stt)
     if learning is not None and cfg.tools.enabled:
         from jarvis.learning import learning_tools
@@ -944,6 +953,16 @@ def build_agent(
     if call_rules is not None and cfg.call.flex:
         connect_flex(cfg, call_rules, tools, notifications, devices, rooms, presence, watcher, mail_actions, web,
                      learning)
+    if journal is not None:
+        forward_journal = on_event
+
+        def on_event(kind: str, text: str, forward=forward_journal) -> None:
+            try:
+                journal.add(kind, text)
+            except Exception:  # noqa: BLE001 - le journal ne doit jamais couper une conversation
+                log.exception("Journal : échange non enregistré")
+            if forward is not None:
+                forward(kind, text)
     if music is not None:
         from jarvis.audio.music import DuckingSink
 

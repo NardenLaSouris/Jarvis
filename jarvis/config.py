@@ -173,6 +173,10 @@ class MemoryConfig:
     path: Path = Path("data/memory.json")
     max_facts: int = 200
     prompt_facts: int = 20
+    # Journal des échanges (voix et messages), cherchable par search_history ; voir jarvis.journal.
+    journal: bool = True
+    journal_path: Path = Path("data/journal.sqlite")
+    journal_days: int = 90
 
 
 @dataclass(frozen=True)
