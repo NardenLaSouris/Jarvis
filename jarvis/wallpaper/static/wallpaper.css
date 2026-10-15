@@ -1,22 +1,28 @@
 @font-face { font-family: "Michroma"; src: url("michroma.woff2") format("woff2"); font-display: swap; }
 
+/* Charte d'ORION : palette de base du visage (vert forêt, sauge, crème, doré sur noir profond). */
 :root {
-  --c: #1fe8ff;
-  --c2: #0b9fc4;
-  --dim: rgba(31, 232, 255, 0.22);
-  --faint: rgba(31, 232, 255, 0.08);
-  --text: #bff7ff;
-  --muted: #5fb6c8;
-  --warn: #ffb347;
-  --bad: #ff4f5e;
-  --bg: #01070d;
-  --glow: 0 0 6px rgba(31, 232, 255, 0.85), 0 0 18px rgba(31, 232, 255, 0.35);
+  --c: rgb(128, 186, 160);        /* rôle « cyan » du visage : traits actifs, titres */
+  --c2: rgb(60, 139, 111);        /* rôle « blue » : arcs, structure active */
+  --deep: rgb(15, 61, 46);        /* rôle « deep » : structure */
+  --text: rgb(244, 239, 228);     /* rôle « white » (crème) : chiffres importants */
+  --gold: rgb(201, 164, 92);      /* accents rares */
+  --dim: rgba(60, 139, 111, 0.30);
+  --faint: rgba(60, 139, 111, 0.10);
+  --muted: rgba(128, 186, 160, 0.70);
+  --panel: rgba(15, 61, 46, 0.40);
+  --halo: rgba(128, 186, 160, 0.30);
+  --bg0: #111814; --bg1: #0f110f; --bg: #0e0e0e;
+  --warn: #e0a84a;
+  --bad: #e6262e;
+  --glow: 0 0 6px rgba(128, 186, 160, 0.75), 0 0 18px rgba(128, 186, 160, 0.25);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); color: var(--text);
   font-family: "Segoe UI", "Bahnschrift", system-ui, sans-serif; }
-body { background: radial-gradient(ellipse at 50% 50%, #04202e 0%, #021018 45%, var(--bg) 100%); }
+body { background: radial-gradient(ellipse at 50% 50%, var(--bg0) 0%, var(--bg1) 45%, var(--bg) 100%);
+}
 
 #particles { position: fixed; inset: 0; width: 100%; height: 100%; }
 
@@ -37,10 +43,10 @@ b { font-weight: 600; }
 #days { position: absolute; left: 40px; right: 330px; top: 14px; display: flex; justify-content: space-between;
   font-family: "Michroma", sans-serif; font-size: 15px; color: var(--muted); }
 #days span { width: 34px; text-align: center; padding: 4px 0; }
-#days span.weekend { color: #3b8191; }
-#days span.today { color: var(--bg); background: var(--c); box-shadow: var(--glow); border-radius: 3px; }
+#days span.weekend { color: var(--c2); opacity: 0.6; }
+#days span.today { color: var(--bg); background: var(--gold); box-shadow: 0 0 10px var(--gold); border-radius: 3px; }
 #brand { position: absolute; right: 48px; top: 10px; text-align: right; font-family: "Michroma", sans-serif; }
-#brand span { font-size: 26px; letter-spacing: 8px; color: var(--c); text-shadow: var(--glow); }
+#brand span { font-size: 26px; letter-spacing: 8px; color: var(--text); text-shadow: var(--glow); }
 #brand small { display: block; font-size: 12px; color: var(--muted); letter-spacing: 2px; }
 
 /* Anneaux (date, horloge) */
@@ -54,11 +60,11 @@ b { font-weight: 600; }
   justify-content: center; text-align: center; }
 #date-ring { left: 80px; top: 80px; }
 #weekday, #month { font-size: 20px; color: var(--muted); letter-spacing: 1px; }
-#daynum { font-family: "Michroma", sans-serif; font-size: 86px; line-height: 1; color: var(--c); text-shadow: var(--glow); }
+#daynum { font-family: "Michroma", sans-serif; font-size: 86px; line-height: 1; color: var(--text); text-shadow: var(--glow); }
 #seconds-line { position: absolute; left: 50%; bottom: -26px; transform: translateX(-50%); font-family: "Michroma";
   font-size: 15px; color: var(--muted); border: 1px solid var(--dim); padding: 3px 14px; }
 #clock-ring { left: 1580px; top: 80px; }
-#clock { font-family: "Michroma", sans-serif; font-size: 58px; color: var(--c); text-shadow: var(--glow); }
+#clock { font-family: "Michroma", sans-serif; font-size: 58px; color: var(--text); text-shadow: var(--glow); }
 #clock-sub { font-size: 15px; color: var(--muted); margin-top: 6px; }
 
 /* Jauges */
@@ -71,15 +77,15 @@ b { font-weight: 600; }
 .gauge.bad .arc { stroke: var(--bad); filter: drop-shadow(0 0 5px var(--bad)); }
 .g-text { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 .g-text small { font-family: "Michroma"; font-size: 11px; color: var(--muted); letter-spacing: 2px; }
-.g-text b { font-family: "Michroma"; font-size: 28px; color: var(--text); }
+.g-text b { font-family: "Michroma"; font-size: 28px; color: var(--text); text-shadow: var(--glow); }
 .g-text em { font-style: normal; font-size: 12px; color: var(--muted); }
 
 /* Panneaux */
 .panel { position: absolute; padding: 14px 18px; border: 1px solid var(--dim);
-  background: linear-gradient(135deg, rgba(4, 40, 56, 0.55), rgba(1, 12, 20, 0.35));
+  background: linear-gradient(135deg, var(--panel), rgba(0, 0, 0, 0.25));
   clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, 18px 100%, 0 calc(100% - 18px)); }
-.panel::before { content: ""; position: absolute; left: 0; top: 0; width: 40px; height: 2px; background: var(--c);
-  box-shadow: var(--glow); }
+.panel::before { content: ""; position: absolute; left: 0; top: 0; width: 40px; height: 2px; background: var(--gold);
+  box-shadow: 0 0 8px var(--gold); }
 .panel.slim { padding: 10px 16px; }
 dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; font-size: 15px; }
 dt { color: var(--muted); }
@@ -103,20 +109,20 @@ li.empty { color: var(--muted); font-style: italic; }
 #rings { position: absolute; inset: 0; width: 100%; height: 100%; }
 .r { fill: none; stroke: var(--dim); transform-origin: 400px 400px; }
 .r1 { stroke-width: 1; stroke-dasharray: 3 9; animation: spin 120s linear infinite; }
-.r2 { stroke: var(--c); stroke-width: 3; stroke-dasharray: 160 60 40 120 260 90; opacity: 0.75;
+.r2 { stroke: var(--c2); stroke-width: 3; stroke-dasharray: 160 60 40 120 260 90; opacity: 0.75;
   filter: drop-shadow(0 0 6px var(--c)); animation: spin 60s linear infinite reverse; }
-.r3 { stroke-width: 14; stroke: rgba(31, 232, 255, 0.10); }
+.r3 { stroke-width: 14; stroke: var(--faint); }
 .r4 { stroke: var(--c); stroke-width: 2; stroke-dasharray: 40 18; opacity: 0.5; animation: spin 40s linear infinite; }
 .r5 { stroke-width: 1; }
-.r6 { stroke: var(--c); stroke-width: 6; stroke-dasharray: 90 30 10 30 300 60; opacity: 0.35;
+.r6 { stroke: var(--gold); stroke-width: 6; stroke-dasharray: 90 30 10 30 300 60; opacity: 0.35;
   animation: spin 90s linear infinite; }
 #ticks line { stroke: var(--dim); stroke-width: 2; }
 #ticks line.major { stroke: var(--c); }
 #ticks { transform-origin: 400px 400px; animation: spin 200s linear infinite reverse; }
 @keyframes spin { to { transform: rotate(360deg); } }
 #face-frame { position: absolute; left: 120px; top: 120px; width: 560px; height: 560px; border-radius: 50%;
-  overflow: hidden; box-shadow: 0 0 40px rgba(31, 232, 255, 0.35), inset 0 0 60px rgba(0, 0, 0, 0.9); }
-#face-frame iframe { width: 100%; height: 100%; border: 0; pointer-events: none; background: #0e0e0e; }
+  overflow: hidden; box-shadow: 0 0 40px var(--halo), inset 0 0 60px rgba(0, 0, 0, 0.9); }
+#face-frame iframe { width: 100%; height: 100%; border: 0; pointer-events: none; background: var(--bg); }
 #face-frame::after { content: ""; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
   box-shadow: inset 0 0 45px 12px var(--bg); }
 #orbit { position: absolute; inset: 0; pointer-events: none; }
@@ -150,7 +156,7 @@ li.empty { color: var(--muted); font-style: italic; }
 #weather { left: 1460px; top: 400px; width: 420px; }
 #w-now { display: flex; align-items: center; gap: 16px; margin-bottom: 10px; }
 #w-icon svg { width: 76px; height: 76px; }
-#w-temp { display: block; font-family: "Michroma"; font-size: 46px; color: var(--c); text-shadow: var(--glow); }
+#w-temp { display: block; font-family: "Michroma"; font-size: 46px; color: var(--text); text-shadow: var(--glow); }
 #w-cond { font-size: 16px; color: var(--text); text-transform: capitalize; }
 #w-details { margin-bottom: 10px; font-size: 14px; }
 #w-days li { display: grid; grid-template-columns: 40px 1fr auto; align-items: center; gap: 10px; padding: 5px 0;
@@ -168,7 +174,7 @@ svg.wi * { fill: none; stroke: var(--c); stroke-width: 2.4; stroke-linecap: roun
 #net { left: 1460px; top: 946px; width: 420px; height: 114px; }
 #net canvas { width: 388px; height: 56px; display: block; }
 .net-legend { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); }
-.net-legend .rx b { color: var(--c); } .net-legend .tx b { color: #7fd0ff; }
+.net-legend .rx b { color: var(--c); } .net-legend .tx b { color: var(--gold); }
 
 #ticker { position: absolute; left: 480px; right: 480px; bottom: 6px; text-align: center; font-size: 13px;
   color: var(--muted); letter-spacing: 1px; }

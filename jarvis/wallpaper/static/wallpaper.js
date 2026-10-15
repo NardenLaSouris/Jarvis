@@ -7,6 +7,10 @@ const MONTHS = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet"
   "Novembre", "Décembre"];
 const pad = (n) => String(n).padStart(2, "0");
 
+// --- Charte de couleurs d'ORION (palette de base du visage : vert forêt, sauge, crème, doré sur noir) -------
+const ACCENT = [128, 186, 160], SECOND = [201, 164, 92];
+const rgb = (c) => `rgb(${c.join(",")})`, rgba = (c, a) => `rgba(${c.join(",")},${a})`;
+
 // --- Mise à l'échelle du plateau 1920 x 1080 -------------------------------------------------------------
 function fit() {
   const s = Math.min(innerWidth / 1920, innerHeight / 1080);
@@ -29,7 +33,7 @@ function particles(t) {
   for (const d of dots) {
     d.x = (d.x + d.vx + 1) % 1; d.y = (d.y + d.vy + 1) % 1;
     g.beginPath(); g.arc(d.x * c.width, d.y * c.height, d.r, 0, Math.PI * 2);
-    g.fillStyle = `rgba(31, 232, 255, ${d.a * (0.6 + 0.4 * Math.sin(t / 900 + d.x * 9))})`; g.fill();
+    g.fillStyle = rgba(ACCENT, d.a * (0.6 + 0.4 * Math.sin(t / 900 + d.x * 9))); g.fill();
   }
 }
 
@@ -113,7 +117,7 @@ function gauge(id, percent, label, extra, warnAt = 75, badAt = 90) {
 function graph(canvas, series, colors, max) {
   const g = canvas.getContext("2d"), w = canvas.width, h = canvas.height;
   g.clearRect(0, 0, w, h);
-  g.strokeStyle = "rgba(31,232,255,0.08)"; g.lineWidth = 1;
+  g.strokeStyle = rgba(ACCENT, 0.08); g.lineWidth = 1;
   for (let y = 0; y <= h; y += h / 4) { g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); }
   const top = max || Math.max(1, ...series.flat());
   series.forEach((points, k) => {
@@ -171,8 +175,8 @@ function render(stats) {
     gauge("g-temp", core.temperature, core.temperature == null ? "–" : `${Math.round(core.temperature)}°`, "processeur", 70, 85);
     $("load").textContent = core.load.join(" · ");
     $("uptime").textContent = duration(core.uptime);
-    graph($("cpu-graph"), [core.cpu_history], ["#1fe8ff"], 100);
-    graph($("net-graph"), [core.rx_history, core.tx_history], ["#1fe8ff", "#7fd0ff"]);
+    graph($("cpu-graph"), [core.cpu_history], [rgb(ACCENT)], 100);
+    graph($("net-graph"), [core.rx_history, core.tx_history], [rgb(ACCENT), rgb(SECOND)]);
     $("rx").textContent = rate(core.rx); $("tx").textContent = rate(core.tx);
   }
   const orion = val(stats, "orion");
