@@ -265,6 +265,9 @@ async function start() {
   requestAnimationFrame(particles);
   let facePort = 8765;
   try { facePort = (await (await fetch("config", { cache: "no-store" })).json()).face_port || facePort; } catch (e) { /* défaut */ }
+  // ?face=<port> : visage joint par un autre port (aperçu à travers un tunnel SSH, par exemple).
+  const asked = new URLSearchParams(location.search).get("face");
+  if (asked && /^\d{2,5}$/.test(asked)) facePort = Number(asked);
   $("face").src = `${location.protocol}//${location.hostname}:${facePort}/`;
   poll();
 }
