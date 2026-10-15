@@ -317,6 +317,16 @@
    "category": "routines"
   },
   {
+   "name": "disable_routine",
+   "risk": "safe",
+   "category": "routines"
+  },
+  {
+   "name": "enable_routine",
+   "risk": "safe",
+   "category": "routines"
+  },
+  {
    "name": "delete_routine",
    "risk": "confirm",
    "category": "routines"

@@ -562,6 +562,8 @@ class Agent:
             text = self._learning.rewrite(text)
         saved, pipeline = self._pipeline, TextPipeline()
         self._pipeline, self._texting = pipeline, True
+        if self._tools is not None and hasattr(self._tools, "set_channel"):
+            self._tools.set_channel("message")  # confirmations du fil des messages, à part de la voix
         try:
             reply, _ = self._reply_to(self._message_history, text, None, {})
         except Exception:  # noqa: BLE001 - un message mal traité ne fait pas tomber ORION
@@ -569,6 +571,8 @@ class Agent:
             reply = self._router.phrase("not_understood")
         finally:
             self._pipeline, self._texting = saved, False
+            if self._tools is not None and hasattr(self._tools, "set_channel"):
+                self._tools.set_channel("voice")
         answer = " ".join(pipeline.spoken).strip() or (reply or "").strip() or self._router.phrase("not_understood")
         self._event("message_reply", answer)
         self._calls.reply(answer)

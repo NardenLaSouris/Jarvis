@@ -1,4 +1,5 @@
-"""Routines par la voix : les lister, en lancer une, en supprimer une (avec confirmation).
+"""Routines par la voix : les lister, en lancer une, la désactiver ou la réactiver, en supprimer une (avec
+confirmation). « Désactive » ne supprime jamais : la routine reste, sans s'exécuter, jusqu'à « réactive ».
 
 La création passe par ORION Control ou par une phrase programmée (« Tous les jours à 21 h, ... », voir
 jarvis.scheduling.actions). Le nom d'une routine est retrouvé par ses mots ; plusieurs correspondances -> question.
@@ -57,6 +58,18 @@ def routine_tools(engine) -> list[Tool]:
         engine.delete(routine.id)
         return {"name": routine.name}
 
+    def switch(name: str, enabled: bool) -> dict:
+        routine = find(name)
+        if routine.enabled != enabled:
+            engine.set_enabled(routine.id, enabled)
+        return {"name": routine.name, "already": routine.enabled == enabled}
+
+    def disable_routine(name: str) -> dict:
+        return switch(name, False)
+
+    def enable_routine(name: str) -> dict:
+        return switch(name, True)
+
     def said_list(r: dict) -> str:
         if not r["routines"]:
             return "Aucune routine n'est programmée."
@@ -69,6 +82,13 @@ def routine_tools(engine) -> list[Tool]:
              {"routines": "liste de {name, enabled, when}"}, Risk.SAFE, list_routines, say=said_list),
         Tool("run_routine", "Lance maintenant une routine existante.", {"name": name}, {"name": "routine"},
              Risk.SAFE, run_routine, say=lambda r: f"Je lance la routine « {r['name']} »."),
+        Tool("disable_routine", "Désactive une routine sans la supprimer (elle ne s'exécute plus jusqu'à réactivation).",
+             {"name": name}, {"name": "routine"}, Risk.SAFE, disable_routine,
+             say=lambda r: f"La routine « {r['name']} » " + ("était déjà désactivée." if r["already"] else
+                                                             "est désactivée ; elle reste enregistrée.")),
+        Tool("enable_routine", "Réactive une routine désactivée.", {"name": name}, {"name": "routine"},
+             Risk.SAFE, enable_routine,
+             say=lambda r: f"La routine « {r['name']} » " + ("était déjà active." if r["already"] else "est réactivée.")),
         Tool("delete_routine", "Supprime une routine ou une action programmée.", {"name": name}, {"name": "routine"},
              Risk.CONFIRMATION_REQUIRED, delete_routine,
              question=lambda p: f"Voulez-vous vraiment supprimer la routine « {p['name']} » ?",

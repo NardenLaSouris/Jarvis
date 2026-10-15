@@ -326,6 +326,17 @@ patterns = ["au revoir", "a plus tard", "a plus", "a tout a l heure", "a demain"
             "ce sera tout", "c est tout", "merci c est tout", "merci ce sera tout"]
 responses = ["À plus tard, {title}.", "Je reste à votre disposition.", "À plus tard."]
 
+# « Remets-toi en veille » : fin de conversation (le planificateur y voyait un réglage de luminosité). Phrases
+# exactes seulement : « mets le PC en veille » reste une commande de l'ordinateur.
+[intents.standby]
+match = "exact"
+end_conversation = true
+patterns = ["remets toi en veille", "remet toi en veille", "remettez vous en veille", "mets toi en veille",
+            "met toi en veille", "mettez vous en veille", "retourne en veille", "repasse en veille", "passe en veille",
+            "tu peux te mettre en veille", "tu peux te remettre en veille", "tu peux retourner en veille",
+            "en veille", "veille", "mode veille"]
+responses = ["Je me remets en veille, {title}.", "Entendu, je me mets en veille.", "Je reste à l'écoute de mon nom."]
+
 # Outil direct, sans passer par le choix du LLM (qui ne reconnaît pas bien « remets le son »).
 # Ignorée si l'outil unmute_volume est désactivé.
 [intents.unmute]

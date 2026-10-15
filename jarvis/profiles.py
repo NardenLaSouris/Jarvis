@@ -34,7 +34,7 @@ CATEGORIES = {
     "media": ("media_", "spotify_"),
     "schedule": ("create_timer", "cancel_timer", "create_reminder", "cancel_reminder", "create_alarm", "cancel_alarm"),
     "calendar": ("list_events", "next_events", "search_events", "free_slots", "add_event", "delete_event"),
-    "routines": ("run_routine", "delete_routine"),
+    "routines": ("run_routine", "disable_routine", "enable_routine", "delete_routine"),
     "apps": ("open_application", "close_application", "open_url", "list_running_applications"),
     "system": ("set_volume", "mute_volume", "unmute_volume", "system_info", "lock_pc", "shutdown_pc", "wake_pc",
                "declare_departure", "set_flex_enabled", "run_diagnostic",

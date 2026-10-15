@@ -156,6 +156,7 @@ class SipAccount:
         self.on_update: Callable | None = None  # relance de l'appel par l'autre côté (nouvelle offre de son)
         self._sock: socket.socket | None = None
         self._send_lock = threading.Lock()
+        self._unreadable_at = float("-inf")
         # « branche méthode » -> réponses de la transaction. La méthode compte : une annulation (CANCEL) reprend la
         # branche de l'INVITE, et son « 200 OK » ne doit jamais passer pour le décroché de l'appel.
         self._waiters: dict[str, queue.Queue] = {}
@@ -547,9 +548,19 @@ class SipAccount:
         if text is None:
             if kind not in ("application/im-iscomposing+xml", "message/imdn+xml"):  # « en train d'écrire », accusés
                 log.info("Compte SIP : message de type %s ignoré (illisible pour ORION)", kind)
+                self._unreadable_notice()
             return
         if self.on_message is not None and text.strip():
             self.on_message(text.strip())
+
+    def _unreadable_notice(self) -> None:
+        """Photo, fichier, message vocal (« application/vnd.gsma.rcs-ft-http+xml » chez Linphone) : ORION le dit au
+        lieu de se taire, une fois par minute au plus. Envoi à part : ce fil lit aussi la réponse du serveur."""
+        now = time.monotonic()
+        if now - self._unreadable_at < 60:
+            return
+        self._unreadable_at = now
+        threading.Thread(target=self.send_message, args=(UNREADABLE,), name="sip-unreadable", daemon=True).start()
 
     def _relaunched(self, dialog: "Dialog", request: Message) -> None:
         """Ré-INVITE ou UPDATE de l'autre côté pendant l'appel : réponse avec notre son (inchangé) ; sa nouvelle
@@ -583,6 +594,10 @@ class SipAccount:
             self.on_incoming(dialog)
         else:
             self.reject(dialog)
+
+
+UNREADABLE = ("Je ne lis que le texte, monsieur : les photos, fichiers et messages vocaux ne me parviennent pas. "
+              "Écrivez-moi votre demande en quelques mots.")
 
 
 def message_text(content_type: str, body: str) -> tuple[str | None, str]:

@@ -35,23 +35,28 @@ class ConfirmationManager:
         self._ignored = {normalize(w) for w in ignored}
         self._ttl = ttl
         self._clock = clock
-        self._pending: Pending | None = None
+        # Une confirmation en attente par canal (« voice », « message »...) : un « oui » ne valide que ce qui a été
+        # demandé sur son propre canal (un « oui » dit à la maison ne confirme jamais une action demandée par message).
+        self._pendings: dict[str, Pending] = {}
+        self.channel = "voice"
 
     @property
     def pending(self) -> Pending | None:
-        if self._pending is not None and self._clock() - self._pending.asked_at > self._ttl:
-            self._pending = None
-        return self._pending
+        pending = self._pendings.get(self.channel)
+        if pending is not None and self._clock() - pending.asked_at > self._ttl:
+            del self._pendings[self.channel]
+            return None
+        return pending
 
     def ask(self, request: ToolRequest, question: str, user: str = "", origin: str = "user") -> str:
-        self._pending = Pending(request, question, self._clock(), user, origin)
+        self._pendings[self.channel] = Pending(request, question, self._clock(), user, origin)
         return question
 
     def answer(self, text: str) -> tuple[str, Pending | None]:
         pending = self.pending
         if pending is None:
             return NONE, None
-        self._pending = None
+        self._pendings.pop(self.channel, None)
         words = [w for w in normalize(text).split() if w not in self._ignored]
         said = " ".join(words)
         if said in self._yes:
@@ -59,9 +64,10 @@ class ConfirmationManager:
         if said in self._no:
             return NO, pending
         if len(words) == 1 and not pending.asked_again:  # « Yep », « Carrément » : ni oui ni non reconnu
-            self._pending = replace(pending, asked_at=self._clock(), asked_again=True)
+            self._pendings[self.channel] = replace(pending, asked_at=self._clock(), asked_again=True)
             return UNCLEAR, pending
         return OTHER, pending
 
     def clear(self) -> None:
-        self._pending = None
+        """Abandonne la confirmation en attente du canal en cours (pas celles des autres canaux)."""
+        self._pendings.pop(self.channel, None)

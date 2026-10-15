@@ -98,6 +98,7 @@ EXAMPLES = (
     ("Quelles routines sont programmées ?", "list_routines", {}),
     ("Lance la routine soir", "run_routine", {"name": "soir"}),
     ("Supprime la routine réveil", "delete_routine", {"name": "réveil"}),
+    ("Désactive la routine soir", "disable_routine", {"name": "soir"}),
     ("Rappelle-moi à 18 h d'appeler Paul", "create_reminder", {"time": "18 h", "message": "appeler Paul"}),
     ("Qu'est-ce que j'ai de prévu aujourd'hui ?", "list_events", {}),
     ("J'ai quoi demain dans mon agenda ?", "list_events", {}),
@@ -417,6 +418,20 @@ REQUEST = re.compile(r"\b(?:tu peux|peux tu|tu pourrais|pourrais tu|vous pouvez|
                      r"pourriez vous|tu veux bien|veux tu|voudrais tu|voulez vous|tu voudrais|merci de)\b")
 
 
+# « Si je t'envoie alarme.mp3, tu peux le mettre dans le bon dossier ? » (12 octobre 2026 : copy_file lancé) :
+# une hypothèse sur ce que vous ferez, jamais une action à exécuter tout de suite. Les règles (« si la porte
+# s'ouvre, allume ») ne sont pas visées : le sujet n'est pas « je ».
+HYPOTHETICAL = re.compile(r"^(?:jarvis |orion )?(?:et )?si (?:je|j|on) (?:t |te |vous |l |le |la |les )?"
+                          r"(?:envoie|envoyais|envoyait|donne|donnais|passe|passais|voulais|voudrais|avais|etais|"
+                          r"pouvais|fais|faisais|ajoute|ajoutais|demande|demandais)\b"
+                          r"|\b(?:imaginons|supposons|admettons|hypothetiquement|en theorie)\b")
+
+
+def hypothetical(text: str) -> bool:
+    """Hypothèse (« si je t'envoie le fichier, tu peux… ? », « imaginons que… ») : à discuter, pas à exécuter."""
+    return bool(HYPOTHETICAL.search(normalize(text)))
+
+
 def _question(text: str) -> bool:
     """Vraie question (« est-ce que la musique joue ? »), pas une demande polie (« est-ce que tu peux allumer ? »)."""
     norm = normalize(text)
@@ -474,6 +489,9 @@ def _grounded(data: dict, text: str, registry: ToolRegistry, clause: str | None 
     if _question(clause) and not data["tool"].startswith(READ_ONLY_TOOLS):
         # « Est-ce que la musique joue ? » : une question ne déclenche jamais une action (lecture/pause du PC).
         log.info("Action écartée : « %s » pour une question (%s)", data["tool"], text[:80])
+        return None
+    if hypothetical(clause) and not data["tool"].startswith(READ_ONLY_TOOLS):
+        log.info("Action écartée : « %s » pour une hypothèse (%s)", data["tool"], text[:80])
         return None
     if quoted(text) and not data["tool"].startswith(READ_ONLY_TOOLS):
         log.info("Action écartée : « %s » dans une phrase à lire ou répéter (%s)", data["tool"], text[:80])

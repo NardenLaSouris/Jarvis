@@ -244,7 +244,9 @@ def _app_param(apps: dict[str, Application], verb: str) -> Param:
     def check(value: str) -> str:
         key = names.get(normalize(value))
         if key is None:
-            raise ToolError(INVALID_PARAMETERS, f"Je ne suis pas autorisé à {verb} « {value[:40]} ».")
+            # Exact : l'application n'est pas dans la liste configurée (elle peut exister sur le PC).
+            raise ToolError(INVALID_PARAMETERS, f"« {value[:40]} » ne fait pas partie des applications que je peux "
+                                                f"{verb} : {listed}.")
         return key
 
     return Param(str, f"identifiant de l'application, parmi : {listed}", max_length=40, check=check)

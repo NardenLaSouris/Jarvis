@@ -92,6 +92,14 @@ class ToolCore:
     def user(self) -> str:
         return self._user
 
+    @property
+    def channel(self) -> str:
+        return self.confirmations.channel
+
+    def set_channel(self, channel: str) -> None:
+        """Canal des prochaines demandes (« voice », « message ») : chacun a sa propre confirmation en attente."""
+        self.confirmations.channel = channel
+
     def set_user(self, user: str) -> None:
         """Utilisateur des prochaines demandes (profil du terminal qui parle) ; une confirmation en attente est
         abandonnée si l'utilisateur change."""

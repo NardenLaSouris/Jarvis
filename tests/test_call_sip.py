@@ -17,7 +17,7 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from jarvis.call.sip import Message, SipAccount, digest, parse, uri_of  # noqa: E402
+from jarvis.call.sip import UNREADABLE, Message, SipAccount, digest, parse, uri_of  # noqa: E402
 
 PASSWORD = "mot-de-passe-de-test"
 PEER = "sip:jules@sip.test"
@@ -244,6 +244,21 @@ def test_your_messages_reach_orion_in_plain_text_or_cpim(setup):
     message(proxy, content_type="application/im-iscomposing+xml", body="<isComposing/>")  # « en train d'écrire »
     assert proxy.next().status == 200
     assert received == ["Bonjour ORION", "Éteins la lumière"]
+
+
+def test_a_photo_or_file_gets_a_clear_answer_instead_of_silence(setup):
+    proxy, account, _ = setup
+    received = []
+    account.on_message = received.append
+    message(proxy, content_type="application/vnd.gsma.rcs-ft-http+xml", body="<file/>")
+    assert proxy.next().status == 200
+    notice = proxy.next()
+    assert notice.method == "MESSAGE" and notice.body == UNREADABLE and received == []
+    proxy.reply(notice, 200, "OK")
+    message(proxy, content_type="image/jpeg", body="x")  # une seconde fois dans la minute : pas de nouvel avis
+    assert proxy.next().status == 200
+    message(proxy)
+    assert proxy.next().status == 200 and received == ["Bonjour ORION"]
 
 
 def test_message_from_someone_else_is_refused(setup):

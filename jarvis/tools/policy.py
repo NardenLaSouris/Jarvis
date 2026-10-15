@@ -27,6 +27,7 @@ import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from jarvis.tools.base import Risk, Tool
 from jarvis.tools.permissions import Decision, PermissionDecision
@@ -89,7 +90,8 @@ class CedarPolicy:
         return {"principal": f'User::"{user}"', "action": 'Action::"execute"', "resource": f'Tool::"{tool.name}"',
                 "context": {"confirmed": bool(confirmed), "origin": str(origin),
                             "device_forbidden": device == "mini",
-                            "url_executable": bool(EXECUTABLE.search(re.split(r"[?#]", url)[0])),
+                            # Le chemin seulement : « https://www.youtube.com » n'est pas un programme « .com ».
+                            "url_executable": bool(EXECUTABLE.search(urlsplit(url).path)) if url else False,
                             "forget_all": tool.name == "forget"
                             and str(parameters.get("topic", "")).strip().lower() == "tout",
                             "llm_trusted": bool(self._llm_trusted)}}

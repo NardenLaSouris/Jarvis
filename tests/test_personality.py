@@ -154,6 +154,10 @@ def test_salutation_follows_the_time_of_day():
 def test_goodbye_ends_the_conversation():
     assert router().route("Au revoir").end_conversation
     assert not router().route("Quelle heure est-il ?").end_conversation
+    for text in ("Remets-toi en veille", "Remets-toi en veille, Orion.", "Tu peux te mettre en veille"):
+        route = router().route(text)
+        assert route.name == "standby" and route.end_conversation, text
+    assert router().route("Mets le PC en veille").name != "standby"  # commande de l'ordinateur, pas d'ORION
 
 
 def test_variants_never_repeat_twice_in_a_row():

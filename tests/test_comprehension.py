@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from jarvis.context import ConversationContext  # noqa: E402
 from jarvis.router import claims_action  # noqa: E402
 from jarvis.scheduling.durations import spoken_numbers  # noqa: E402
-from jarvis.tools.planner import plan, quoted  # noqa: E402
+from jarvis.tools.planner import hypothetical, plan, quoted  # noqa: E402
 from jarvis.tools.quick import quick_plan  # noqa: E402
 from test_tools import PlannerLLM, make_core, routes, run_agent  # noqa: E402
 
@@ -187,3 +187,17 @@ def test_each_chained_action_is_judged_on_its_own_part_of_the_request():
         {"tool": "mute_volume", "parameters": {}, "segment": "couper le son"}]}),
         "Rappelle-moi dans dix minutes de couper le son", core.registry)
     assert deferred is not None and deferred.get("tool", "") == "create_reminder"
+
+
+@pytest.mark.parametrize("text, expected", [
+    ("Si je t'envoie alarme.mp3 ici, tu peux le mettre dans le bon dossier ?", True),
+    ("Et si je voulais monter le son à 50 ?", True), ("Imaginons que je parte, tu fais quoi ?", True),
+    ("Si la porte s'ouvre, allume la lumière", False), ("Si je sors, appelle-moi", False),
+    ("Mets le son à 50", False),
+])
+def test_a_hypothesis_is_discussed_not_executed(text, expected):
+    assert hypothetical(text) is expected
+    if expected and "50" in text:
+        core = make_core()
+        assert plan(PlannerLLM({"type": "tool_call", "tool": "set_volume", "parameters": {"volume": 50}}),
+                    text, core.registry) is None

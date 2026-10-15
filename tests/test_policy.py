@@ -190,6 +190,17 @@ def test_a_confirmation_only_covers_the_exact_pending_action(tmp_path, engine):
     assert core.answer("oui") is None and len(executed) == 1
 
 
+@pytest.mark.parametrize("engine", ENGINES)
+def test_a_confirmation_belongs_to_the_channel_that_asked_it(tmp_path, engine):
+    core, executed = make(tmp_path, engine)
+    core.set_channel("message")
+    assert core.submit(call("send_mail", to="paul@example.test", body="A")).status == CONFIRM
+    core.set_channel("voice")  # un « oui » prononcé dans la pièce ne confirme pas la demande écrite
+    assert core.answer("oui") is None and executed == []
+    core.set_channel("message")
+    assert core.answer("oui").status == DONE and len(executed) == 1
+
+
 # --- Injections et origine des demandes ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("engine", ENGINES)
@@ -373,8 +384,12 @@ def test_untrusted_model_only_reaches_harmless_tools_in_both_mode(tmp_path):
 def test_structural_rules_hold_even_for_the_owner(tmp_path):
     core, executed = make(tmp_path, "both")
     assert core.submit(call("open_url", url="https://x.test/setup.EXE?v=2")).status == REJECTED
+    assert core.submit(call("open_url", url="https://x.test/outils/setup.com")).status == REJECTED
+    # Le nom de domaine n'est pas un programme : « .com » d'un site ordinaire ne bloque rien.
+    assert core.submit(call("open_url", url="https://www.youtube.com")).status != REJECTED
+    assert core.submit(call("open_url", url="https://www.youtube.com/watch?v=x.exe")).status != REJECTED
     assert core.submit(call("lock_pc", device="mini")).status == REJECTED
-    assert executed == []
+    assert [n for n, _ in executed] in ([], ["open_url"], ["open_url", "open_url"])
 
 
 # --- Aucun chemin d'exécution hors du Core -------------------------------------------------------------------------

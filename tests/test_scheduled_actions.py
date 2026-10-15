@@ -119,6 +119,19 @@ def test_routines_by_voice_list_run_and_delete_with_confirmation():
     assert not core.submit({"tool": "run_routine", "parameters": {"name": "matin"}}).result.success
 
 
+def test_disabling_a_routine_keeps_it():
+    setup = Setup(routines=[{**SOIR, "id": "soir1"}], now=NOW)
+    for tool in routine_tools(setup.engine):
+        setup.core.registry.register(tool)
+    core = setup.core
+    outcome = core.submit({"tool": "disable_routine", "parameters": {"name": "soir"}})
+    assert outcome.status == "done" and outcome.result.message ==         "La routine « Soir » est désactivée ; elle reste enregistrée."
+    assert [r.enabled for r in setup.engine.routines()] == [False]  # suspendue, pas supprimée
+    assert core.submit({"tool": "disable_routine", "parameters": {"name": "soir"}}).result.message ==         "La routine « Soir » était déjà désactivée."
+    assert core.submit({"tool": "enable_routine", "parameters": {"name": "soir"}}).result.message ==         "La routine « Soir » est réactivée."
+    assert [r.enabled for r in setup.engine.routines()] == [True]
+
+
 def test_reminder_at_a_given_time():
     manager = TimerManager(clock=lambda: NOW)
     tools = {t.name: t for t in timer_tools(manager)}
@@ -143,6 +156,9 @@ def test_routine_commands_without_llm():
     assert quick_plan("Lance la routine Soir", registry)["parameters"] == {"name": "Soir"}
     assert quick_plan("Supprime la routine réveil", registry) == {
         "type": "tool_call", "tool": "delete_routine", "parameters": {"name": "réveil"}}
+    # « Désactive » suspend, ne supprime jamais.
+    assert quick_plan("Désactive la routine réveil", registry)["tool"] == "disable_routine"
+    assert quick_plan("Réactive la routine réveil", registry)["tool"] == "enable_routine"
 
 
 # --- Régressions de la session red team ------------------------------------------------------------
