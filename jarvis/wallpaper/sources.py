@@ -44,9 +44,11 @@ def devices_source(devices, presence, reachable: Callable[[str], bool]) -> Calla
             items.append({"name": device.name, "online": bool(online), "core": not device.url})
         if presence is not None:
             users = presence.engine.snapshot()["users"]
+            # Dernier signal du téléphone : « home » ou « away » (parti après [presence] network_away_minutes hors
+            # du Wi-Fi, un iPhone en veille se taisant un moment) ; un texte, jamais un booléen.
             phone = next((u.get("phone") for u in users.values() if u.get("phone") is not None), None)
             if phone is not None:
-                items.append({"name": "iPhone", "online": bool(phone), "core": False})
+                items.append({"name": "iPhone", "online": phone == "home", "core": False})
         return items
     return read
 

@@ -115,10 +115,12 @@ def test_sources_only_read():
     devices = {"pc": SimpleNamespace(name="PC fixe", url="http://pc:8765"),
                "mini": SimpleNamespace(name="mini-PC", url="")}
     fake = type("Devices", (), {"keys": lambda self: list(devices), "__getitem__": lambda self, k: devices[k]})()
-    presence = SimpleNamespace(engine=SimpleNamespace(snapshot=lambda: {"users": {"monsieur": {"phone": True}}}))
+    presence = SimpleNamespace(engine=SimpleNamespace(snapshot=lambda: {"users": {"monsieur": {"phone": "home"}}}))
     assert devices_source(fake, presence, lambda url: False)() == [
         {"name": "PC fixe", "online": False, "core": False}, {"name": "mini-PC", "online": True, "core": True},
         {"name": "iPhone", "online": True, "core": False}]
+    away = SimpleNamespace(engine=SimpleNamespace(snapshot=lambda: {"users": {"monsieur": {"phone": "away"}}}))
+    assert devices_source(fake, away, lambda url: True)()[-1] == {"name": "iPhone", "online": False, "core": False}
 
 
 @pytest.fixture
