@@ -821,15 +821,17 @@ def build_calls(cfg: Config, source, sink, events: EventBus | None):
     return manager
 
 
-def build_wallpaper(cfg: Config, **services):
-    """Mode fond d'écran (port [wallpaper] port) : lecture seule ; ORION continue sans s'il ne démarre pas."""
+def build_wallpaper(cfg: Config, tools=None, inbox=None, user: str = "", **services):
+    """Mode fond d'écran (port [wallpaper] port) : statistiques, commandes rapides ([wallpaper] actions) et
+    conversation écrite ([wallpaper] chat) ; ORION continue sans s'il ne démarre pas."""
     try:
         from jarvis.wallpaper.collector import Collector
         from jarvis.wallpaper.server import WallpaperServer
         from jarvis.wallpaper.sources import build_sources
 
         server = WallpaperServer(Collector(build_sources(cfg, **services)), cfg.wallpaper.host, cfg.wallpaper.port,
-                                 cfg.face.port, tuple(str(ip) for ip in cfg.wallpaper.allowed_ips))
+                                 cfg.face.port, tuple(str(ip) for ip in cfg.wallpaper.allowed_ips),
+                                 tools=tools, user=user, inbox=inbox)
         url = server.start()
     except Exception:  # noqa: BLE001 - le fond d'écran n'est jamais indispensable
         log.exception("Fond d'écran indisponible")
@@ -1079,6 +1081,11 @@ def build_agent(
 
         # Absence et événement important : ORION appelle (phrase du journal de la maison, limites des appels).
         AwayCallTrigger(calls, presence.engine, presence.journal, cfg.call.away_events).attach(events)
+    wallpaper_inbox = None
+    if cfg.wallpaper.enabled and cfg.wallpaper.chat:
+        from jarvis.wallpaper.inbox import WallpaperInbox
+
+        wallpaper_inbox = WallpaperInbox()  # demandes écrites sur le fond d'écran, traitées par la boucle d'ORION
     agent = Agent(settings, source, sink, wake_word, recorder, stt, llm, tts, router, on_event,
                  stream_audio=cfg.tts.stream_audio, merge_under=cfg.tts.merge_under, web=web,
                  tools=tools, corrector=corrector, notifications=voice, alarm=routines.alarm if routines else None,
@@ -1088,7 +1095,7 @@ def build_agent(
                  fast_path=cfg.tools.fast_path, routines=routines, profiles=build_profiles(cfg),
                  wake_verifier=build_wake_verifier(cfg), wake_captures=build_wake_captures(cfg),
                  content_guard=build_content_guard(cfg, llm), calls=calls, learning=learning,
-                 call_rules=call_rules if calls is not None else None)
+                 call_rules=call_rules if calls is not None else None, inbox=wallpaper_inbox)
     if cfg.wallpaper.enabled:
         wallpaper_agents = None
         if devices is not None and secret("JARVIS_AGENT_TOKEN", ENV_FILE):
@@ -1097,7 +1104,9 @@ def build_agent(
             wallpaper_agents = AgentClient(secret("JARVIS_AGENT_TOKEN", ENV_FILE), timeout=4.0)
         build_wallpaper(cfg, llm=llm, stt=stt, devices=devices, presence=presence, weather=weather,
                         calendar=calendar, timers=timers, rooms=rooms, driver=driver, spotify=spotify,
-                        watcher=watcher, agents=wallpaper_agents)
+                        watcher=watcher, agents=wallpaper_agents,
+                        tools=tools if cfg.wallpaper.actions else None, inbox=wallpaper_inbox,
+                        user=next((u.id for u in build_profiles(cfg).users() if u.role == "owner"), ""))
     # Échéance proche (rendez-vous, minuteur, rappel) pour l'anneau du visage.
     agent.upcoming = Upcoming(calendar, timers) if calendar is not None or timers is not None else None
     return agent

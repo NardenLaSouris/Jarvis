@@ -143,7 +143,9 @@ def test_the_page_its_files_and_the_stats_are_served(server):
                        ("michroma.woff2", "font/woff2")):
         status, content_type, body = get(url + path)
         assert status == 200 and content_type.startswith(kind) and body
-    assert json.loads(get(url + "config")[2]) == {"face_port": 8765}
+    config = json.loads(get(url + "config")[2])
+    assert config["face_port"] == 8765 and len(config["token"]) > 20
+    assert config["actions"] == [] and config["chat"] is False  # sans Core ni boîte : lecture seule
     wait_for(lambda: json.loads(get(url + "stats")[2])["core"]["ok"])
     assert json.loads(get(url + "stats")[2])["core"]["value"] == {"cpu": 12.5}
     with pytest.raises(urllib.error.HTTPError) as error:
@@ -156,7 +158,7 @@ def test_read_only_and_reserved_to_allowed_addresses(server):
     request = urllib.request.Request(url + "stats", data=b"{}", method="POST")
     with pytest.raises(urllib.error.HTTPError) as error:
         urllib.request.urlopen(request, timeout=3)
-    assert error.value.code == 501  # aucune commande possible
+    assert error.value.code == 403  # aucune écriture sans le jeton de la page
     assert wallpaper.allowed("192.168.1.128") and wallpaper.allowed("::ffff:192.168.1.128")
     assert wallpaper.allowed("127.0.0.1") and not wallpaper.allowed("192.168.1.50")
 
@@ -193,3 +195,91 @@ def test_connected_pcs_report_their_load_through_their_agent():
     assert items[0]["gpu"]["usage"] == 37.0
     assert items[1] == {"key": "portable", "name": "votre PC portable", "online": False}  # agent tombé : hors ligne
     assert [i["key"] for i in items] == ["pc", "portable"]  # le mini-PC est détaillé à part
+
+
+class FakeCore:
+    def __init__(self, risky=()):
+        self.calls, self.risky = [], set(risky)
+        core = self
+        self.registry = SimpleNamespace(exists=lambda name: True,
+                                        get=lambda name: SimpleNamespace(requires_confirmation=name in core.risky))
+
+    def submit(self, data, user=None, origin="user"):
+        self.calls.append((data["tool"], data["parameters"], user, origin))
+        return SimpleNamespace(result=SimpleNamespace(success=True, message="La chambre est allumée.", error=None))
+
+
+@pytest.fixture
+def interactive():
+    from jarvis.wallpaper.inbox import WallpaperInbox
+
+    core, inbox = FakeCore(risky=("set_brightness",)), WallpaperInbox()
+    wallpaper = WallpaperServer(Collector([]), "127.0.0.1", 0, tools=core, user="owner", inbox=inbox)
+    url = wallpaper.start()
+    yield url, wallpaper, core, inbox
+    wallpaper.stop()
+
+
+def post(url, body, token=None, origin=None, kind="application/json"):
+    headers = {"Content-Type": kind}
+    if token is not None:
+        headers["X-Orion-Token"] = token
+    if origin is not None:
+        headers["Origin"] = origin
+    request = urllib.request.Request(url, data=json.dumps(body).encode(), headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            return response.status, json.loads(response.read())
+    except urllib.error.HTTPError as error:
+        return error.code, json.loads(error.read() or b"{}")
+
+
+def test_quick_commands_go_through_the_core_and_only_safe_ones(interactive):
+    url, wallpaper, core, _ = interactive
+    config = json.loads(get(url + "config")[2])
+    token = config["token"]
+    assert "light_toggle" in config["actions"] and "lock_pc" not in config["actions"]
+    assert post(url + "action", {"tool": "light_toggle", "parameters": {"room": "chambre"}}, token) == (
+        200, {"success": True, "message": "La chambre est allumée."})
+    assert core.calls == [("light_toggle", {"room": "chambre"}, "owner", "user")]  # au nom du propriétaire
+    for tool in ("lock_pc", "shutdown_pc", "send_mail", "delete_file", "open_url", "run_shell"):
+        assert post(url + "action", {"tool": tool, "parameters": {}}, token)[0] == 403
+    # Outil rendu « à confirmer » par la configuration : jamais lancé d'ici (la question irait à la voix).
+    assert post(url + "action", {"tool": "set_brightness", "parameters": {"brightness": 40}}, token)[0] == 409
+    assert len(core.calls) == 1
+
+
+def test_actions_need_the_page_token_and_its_origin(interactive):
+    url, wallpaper, core, _ = interactive
+    body = {"tool": "light_toggle", "parameters": {}}
+    assert post(url + "action", body)[0] == 403  # sans jeton
+    assert post(url + "action", body, "mauvais-jeton")[0] == 403
+    assert post(url + "action", body, wallpaper.token, origin="http://site-malveillant.example")[0] == 403
+    assert post(url + "action", body, wallpaper.token, kind="text/plain")[0] == 400  # formulaire d'un autre site
+    assert core.calls == []
+
+
+def test_written_requests_are_answered_by_orion_loop(interactive):
+    url, wallpaper, _, inbox = interactive
+    stop = threading.Event()
+
+    def orion_loop():  # la boucle d'ORION : prend la demande, répond (ici sans LLM)
+        while not stop.is_set():
+            request = inbox.take()
+            if request is not None:
+                request.answer(f"Réponse à : {request.text}")
+            time.sleep(0.01)
+
+    threading.Thread(target=orion_loop, daemon=True).start()
+    assert post(url + "say", {"text": "Quel temps fera-t-il demain ?"}, wallpaper.token) == (
+        200, {"reply": "Réponse à : Quel temps fera-t-il demain ?"})
+    assert json.loads(get(url + "chat")[2])[-1]["orion"] == "Réponse à : Quel temps fera-t-il demain ?"
+    stop.set()
+
+
+def test_a_request_never_taken_is_dropped_not_run_later():
+    from jarvis.wallpaper.inbox import WallpaperInbox
+
+    inbox = WallpaperInbox()
+    assert inbox.ask("Éteins tout", timeout=0.05) is None  # ORION occupée : rien n'a été pris
+    assert inbox.take() is None  # et rien ne s'exécutera plus tard

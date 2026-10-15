@@ -348,6 +348,9 @@ class WallpaperConfig:
     port: int = 8767
     # Adresses autorisées (la page affiche l'agenda et les rappels) ; la machine du Core l'est toujours.
     allowed_ips: list = field(default_factory=list)
+    # Commandes rapides (lumières, lecture Spotify) et demandes écrites à ORION depuis la page.
+    actions: bool = True
+    chat: bool = True
 
 
 @dataclass(frozen=True)

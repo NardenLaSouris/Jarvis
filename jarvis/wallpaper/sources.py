@@ -115,7 +115,18 @@ def weather_source(weather) -> Callable[[], dict]:
                 days.append({"label": label, "min": round(f.temperature_min), "max": round(f.temperature_max),
                              "rain": f.precipitation_probability, "slug": f.condition.slug,
                              "condition": f.condition.label})
-        return {"place": place.name, "temperature": round(now.temperature),
+        periods = []
+        for day, moment, label in (("today", "morning", "Ce matin"), ("today", "afternoon", "Cet après-midi"),
+                                   ("today", "evening", "Ce soir"), ("tomorrow", "morning", "Demain matin"),
+                                   ("tomorrow", "afternoon", "Demain après-midi"), ("tomorrow", "evening", "Demain soir")):
+            try:
+                _, f, _ = weather.forecast(day, moment)
+            except Exception:  # noqa: BLE001 - période passée ou prévision manquante : omise
+                continue
+            if f is not None:
+                periods.append({"label": label, "temperature": round(f.temperature), "rain": f.precipitation_probability,
+                                "slug": f.condition.slug, "condition": f.condition.label})
+        return {"place": place.name, "temperature": round(now.temperature), "periods": periods,
                 "feels": round(now.feels_like) if now.feels_like is not None else None,
                 "humidity": now.humidity, "wind": now.wind_speed, "slug": now.condition.slug,
                 "condition": now.condition.label, "days": days}
@@ -151,10 +162,10 @@ def lights_source(rooms, driver) -> Callable[[], list]:
         for room in rooms.rooms():
             try:
                 state = driver.state(room)
-                items.append({"name": room.name, "on": bool(state.get("on")), "brightness": state.get("brightness"),
-                              "online": True})
+                items.append({"key": room.key, "name": room.name, "on": bool(state.get("on")),
+                              "brightness": state.get("brightness"), "online": True})
             except Exception:  # noqa: BLE001 - ampoule hors tension
-                items.append({"name": room.name, "on": False, "brightness": None, "online": False})
+                items.append({"key": room.key, "name": room.name, "on": False, "brightness": None, "online": False})
         return items
     return read
 

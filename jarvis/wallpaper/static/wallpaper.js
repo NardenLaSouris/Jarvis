@@ -187,7 +187,10 @@ function machine(m) {
 function val(stats, name) { return stats[name] && stats[name].value; }
 function stale(id, stats, name) { const el = $(id); if (el && stats[name]) el.classList.toggle("stale", !stats[name].ok); }
 
+let latest = {};
 function render(stats) {
+  latest = stats;
+  if (typeof refreshDetail === "function") refreshDetail();
   const core = val(stats, "core");
   if (core) {
     gauge("g-cpu", core.cpu, core.cpu == null ? "–" : `${Math.round(core.cpu)}%`, `${core.cores} cœurs`);
@@ -217,7 +220,8 @@ function render(stats) {
     $("wake").textContent = `« ${orion.wake_word} »`;
   }
   const pcs = val(stats, "pcs");
-  if (pcs) $("pcs").innerHTML = pcs.map(machine).join("");
+  if (pcs) $("pcs").innerHTML = pcs.map((m, i) => machine(m).replace('<div class="machine',
+    `<div data-pc="${i}" class="clickable machine`)).join("");
   stale("machines", stats, "pcs");
 
   // Orbite : appareils, puis services d'ORION
@@ -236,6 +240,7 @@ function render(stats) {
 
   // Musique
   $("music").classList.toggle("playing", !!(music && music.playing));
+  $("play").innerHTML = music && music.playing ? "&#9208;" : "&#9654;";
   $("track").textContent = music && music.track ? music.track : "Aucune musique";
   $("artist").textContent = music && music.track ? music.artist : "";
   $("progress").firstElementChild.style.width = music && music.duration ? `${music.progress / music.duration * 100}%` : "0";
@@ -247,7 +252,8 @@ function render(stats) {
     $("house").textContent = house + (presence.doors_open ? ` · ${presence.doors_open} porte${presence.doors_open > 1 ? "s" : ""} ouverte${presence.doors_open > 1 ? "s" : ""}` : "");
   }
   const lights = val(stats, "lights");
-  if (lights) $("lights").innerHTML = lights.slice(0, 6).map((l) => `<li class="${!l.online ? "down" : l.on ? "on" : ""}">` +
+  if (lights) $("lights").innerHTML = lights.slice(0, 6).map((l) => `<li data-room="${esc(l.key || "")}" ` +
+    `class="${!l.online ? "down" : l.on ? "on" : ""}${l.online && CAN.actions ? " can" : ""}">` +
     `${esc(l.name.replace(/^(la |le |l')/i, ""))}${l.on && l.brightness != null ? ` · ${l.brightness}%` : ""}</li>`).join("");
 
   // Météo
@@ -288,12 +294,193 @@ async function poll() {
   setTimeout(poll, 1000);
 }
 
+// --- Interactions : détails, commandes rapides, conversation ------------------------------------------------
+const CAN = { token: "", actions: false, chat: false };
+let toastTimer = null, idleTimer = null, detailView = null;
+
+function toast(text, bad = false) {
+  const el = $("toast");
+  el.textContent = text; el.classList.toggle("bad", bad); el.classList.add("show");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove("show"), 4000);
+}
+
+async function post(path, body) {
+  const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json", "X-Orion-Token": CAN.token },
+    body: JSON.stringify(body) });
+  let data = {};
+  try { data = await r.json(); } catch (e) { /* réponse vide */ }
+  return { ok: r.ok, data };
+}
+
+async function act(tool, parameters = {}) {
+  if (!CAN.actions) return;
+  try {
+    const { ok, data } = await post("action", { tool, parameters });
+    toast(data.message || data.error || (ok ? "C'est fait." : "Action refusée."), !ok || data.success === false);
+  } catch (e) { toast("ORION ne répond pas.", true); }
+  setTimeout(async () => {
+    try { render(await (await fetch("stats", { cache: "no-store" })).json()); } catch (e) { /* prochain relevé */ }
+    if (detailView === VIEWS.house) refreshDetail(true);  // fiche des lumières : état réel après l'action
+  }, 1500);
+}
+
+function openDetail(view) {
+  detailView = view;
+  $("detail").hidden = false;
+  refreshDetail(true);
+  clearTimeout(idleTimer); idleTimer = setTimeout(closeDetail, 45000);  // fond d'écran : se referme seul
+}
+function closeDetail() { detailView = null; $("detail").hidden = true; }
+
+function refreshDetail(force = false) {
+  if (!detailView || (detailView.static && !force)) return;
+  const [title, body] = detailView.draw(latest);
+  $("detail-title").textContent = title;
+  if (detailView.keepFocus && !force) return;  // conversation : ne pas effacer ce qui est tapé
+  $("detail-body").innerHTML = body;
+  if (detailView.after) detailView.after();
+}
+
+const VIEWS = {
+  weather: { draw(s) {
+    const w = val(s, "weather");
+    if (!w) return ["Météo", "<p>Indisponible pour le moment.</p>"];
+    const cell = (p) => `<div class="cell">${icon(p.slug)}<small>${esc(p.label)}</small><b>${p.temperature ?? p.max}°</b>` +
+      `<small>${esc(p.condition)}${p.rain != null ? ` · pluie ${p.rain} %` : ""}</small></div>`;
+    return [`Météo · ${w.place}`, `<div class="grid">${(w.periods || []).map(cell).join("")}</div>` +
+      `<h3>Trois jours</h3><div class="grid">${w.days.map((d) => `<div class="cell">${icon(d.slug)}<small>${esc(d.label)}</small>` +
+      `<b>${d.max}° / ${d.min}°</b><small>${esc(d.condition)}</small></div>`).join("")}</div>`];
+  } },
+  agenda: { draw(s) {
+    const a = val(s, "agenda") || [], r = val(s, "schedule") || [];
+    return ["Agenda, rappels et minuteurs",
+      "<h3>Cette semaine</h3><ul>" + (a.length ? a.map((e) => `<li><span class="t">${e.today ? "Aujourd'hui" : e.day} ${e.time}</span>` +
+      `<span>${esc(e.title)}</span></li>`).join("") : '<li class="empty">Rien de prévu</li>') + "</ul>" +
+      "<h3>Rappels et minuteurs</h3><ul>" + (r.length ? r.map((x) => `<li><span class="t">${x.at || ""} · ${soon(x.seconds)}</span>` +
+      `<span>${esc(x.label)}</span></li>`).join("") : '<li class="empty">Aucun</li>') + "</ul>"];
+  } },
+  core: { draw(s) {
+    const c = val(s, "core");
+    if (!c) return ["Cœur · mini-PC", ""];
+    return ["Cœur · mini-PC", `<canvas id="detail-cpu" width="640" height="140"></canvas><dl>` +
+      `<dt>Processeur</dt><dd>${c.cpu ?? "–"} % · ${c.cores} cœurs</dd><dt>Charge (1, 5, 15 min)</dt><dd>${c.load.join(" · ")}</dd>` +
+      `<dt>Mémoire</dt><dd>${gb(c.ram_used)} / ${gb(c.ram_total)} Go</dd><dt>Disque</dt><dd>${gb(c.disk_total - c.disk_used)} Go libres sur ${gb(c.disk_total)}</dd>` +
+      `<dt>Température</dt><dd>${c.temperature ?? "–"} °C</dd><dt>Réseau</dt><dd>↓ ${rate(c.rx)} · ↑ ${rate(c.tx)}</dd>` +
+      `<dt>En service depuis</dt><dd>${duration(c.uptime)}</dd></dl>`];
+  }, after() { const c = val(latest, "core"); if (c) graph($("detail-cpu"), [c.cpu_history], [rgb(ACCENT)], 100); } },
+  house: { draw(s) {
+    const lights = val(s, "lights") || [], p = val(s, "presence");
+    const rows = lights.map((l) => `<div class="room ${l.online ? "" : "down"}"><span>${esc(l.name)}</span>` +
+      (CAN.actions && l.online ? `<button class="${l.on ? "on" : ""}" data-toggle="${esc(l.key)}">${l.on ? "Allumée" : "Éteinte"}</button>` +
+        `<input type="range" min="10" max="100" step="10" value="${l.brightness ?? 50}" data-room="${esc(l.key)}">` +
+        `<b>${l.on && l.brightness != null ? l.brightness + " %" : "–"}</b>` : `<span>${l.online ? (l.on ? "allumée" : "éteinte") : "hors tension"}</span><span></span><span></span>`) +
+      "</div>").join("");
+    return ["Maison", `<p>${esc($("house").textContent)}</p><h3>Lumières</h3>${rows || "<p>Aucune lumière.</p>"}`];
+  }, after() {
+    document.querySelectorAll("#detail [data-toggle]").forEach((b) => b.onclick = () => act("light_toggle", { room: b.dataset.toggle }));
+    document.querySelectorAll("#detail input[type=range]").forEach((r) => r.onchange = () =>
+      act("set_brightness", { room: r.dataset.room, brightness: Number(r.value) }));
+  }, static: true },
+  chat: { keepFocus: true, draw() { return ["Parler à ORION", chatBody()]; }, after: chatWire },
+};
+
+function pcView(i) {
+  return { draw(s) {
+    const m = (val(s, "pcs") || [])[i];
+    if (!m) return ["PC", ""];
+    const name = m.name.replace(/^votre /i, "").replace(/^./, (c) => c.toUpperCase());
+    if (!m.online) return [name, "<p>Hors ligne : éteint, ou son agent ORION est arrêté.</p>"];
+    const g = m.gpu || {};
+    return [name, `<dl><dt>Processeur</dt><dd>${esc(m.cpu || "–")}</dd><dt>Charge</dt><dd>${m.cpu_percent ?? "–"} %</dd>` +
+      `<dt>Mémoire</dt><dd>${m.ram_percent ?? "–"} % de ${Math.round(m.ram_total)} Go</dd>` +
+      `<dt>Carte graphique</dt><dd>${esc(g.name || "–")}</dd>` +
+      (g.usage != null ? `<dt>Utilisation</dt><dd>${g.usage} % · ${g.temperature ?? "–"} °C</dd>` : "") +
+      (g.memory_total_mb ? `<dt>Mémoire graphique</dt><dd>${(g.memory_used_mb / 1024).toFixed(1)} / ${(g.memory_total_mb / 1024).toFixed(1)} Go</dd>` : "") +
+      `<dt>Disque système</dt><dd>${Math.round(m.disk_free)} Go libres sur ${Math.round(m.disk_total)}</dd>` +
+      `<dt>Allumé depuis</dt><dd>${duration((m.uptime_hours || 0) * 3600)}</dd></dl>`];
+  } };
+}
+
+// Conversation : comme un message Linphone ; Wallpaper Engine ne transmet pas toujours le clavier, d'où les suggestions.
+const SUGGESTIONS = ["Quel temps fera-t-il demain ?", "Qu'est-ce que j'ai de prévu demain ?", "Lance un diagnostic de l'environnement",
+  "Éteins toutes les lumières", "Mets la lumière à 40 %", "Qu'est-ce qui joue sur Spotify ?"];
+let chatLog = [], chatBusy = false;
+function chatBody() {
+  const log = chatLog.map((m) => `<p class="${m.who}">${esc(m.text)}</p>`).join("") || '<p class="wait">Écrivez ou choisissez une demande.</p>';
+  return `<div class="chat-log" id="chat-log">${log}</div><form class="chat-form" id="chat-form"><input id="chat-input" ` +
+    `maxlength="500" autocomplete="off" placeholder="Votre demande…"><button type="submit">Envoyer</button></form>` +
+    `<div class="chips">${SUGGESTIONS.map((t) => `<button type="button" data-say="${esc(t)}">${esc(t)}</button>`).join("")}</div>`;
+}
+function chatWire() {
+  const log = $("chat-log"); log.scrollTop = log.scrollHeight;
+  $("chat-form").onsubmit = (e) => { e.preventDefault(); say($("chat-input").value); };
+  document.querySelectorAll("#detail [data-say]").forEach((b) => b.onclick = () => say(b.dataset.say));
+  $("chat-input").focus();
+}
+async function say(text) {
+  text = String(text || "").trim();
+  if (!text || chatBusy) return;
+  chatBusy = true;
+  chatLog.push({ who: "you", text }, { who: "wait", text: "ORION réfléchit…" });
+  refreshDetail(true);
+  clearTimeout(idleTimer); idleTimer = setTimeout(closeDetail, 120000);
+  try {
+    const { ok, data } = await post("say", { text });
+    chatLog.pop(); chatLog.push({ who: "orion", text: ok ? data.reply : (data.error || "Je n'ai pas pu traiter la demande.") });
+  } catch (e) { chatLog.pop(); chatLog.push({ who: "orion", text: "Je ne suis pas joignable pour le moment." }); }
+  chatLog = chatLog.slice(-16);
+  chatBusy = false;
+  if (detailView === VIEWS.chat) refreshDetail(true);
+}
+
+function wire() {
+  $("detail").querySelector(".close").onclick = closeDetail;
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDetail(); });
+  const views = [["weather", "weather"], ["agenda-panel", "agenda"], ["core-panel", "core"], ["gauges", "core"], ["presence-panel", "house"]];
+  for (const [id, name] of views) {
+    $(id).classList.add("clickable");
+    $(id).addEventListener("click", (e) => {
+      if (e.target.closest("[data-room]") && CAN.actions) return;  // clic sur une lumière : commande, pas détail
+      openDetail(VIEWS[name]);
+    });
+  }
+  $("lights").addEventListener("click", (e) => {
+    const li = e.target.closest("li.can");
+    if (li && li.dataset.room) act("light_toggle", { room: li.dataset.room });
+  });
+  $("pcs").addEventListener("click", (e) => {
+    const el = e.target.closest("[data-pc]");
+    if (el) openDetail(pcView(Number(el.dataset.pc)));
+  });
+  $("music").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-act]");
+    if (!b) return;
+    const music = val(latest, "music");
+    act(b.dataset.act === "play" ? (music && music.playing ? "spotify_pause" : "spotify_play") : b.dataset.act);
+  });
+  $("chat-open").onclick = () => openDetail(VIEWS.chat);
+  // Les anneaux suivent un peu la souris.
+  document.addEventListener("mousemove", (e) => {
+    const dx = (e.clientX / innerWidth - 0.5) * 16, dy = (e.clientY / innerHeight - 0.5) * 16;
+    $("rings").style.transform = `translate(${dx}px, ${dy}px)`;
+  });
+}
+
 async function start() {
   fit(); circuits(); clock();
   setInterval(clock, 250);
   requestAnimationFrame(particles);
+  wire();
   let facePort = 8765;
-  try { facePort = (await (await fetch("config", { cache: "no-store" })).json()).face_port || facePort; } catch (e) { /* défaut */ }
+  try {
+    const config = await (await fetch("config", { cache: "no-store" })).json();
+    facePort = config.face_port || facePort;
+    CAN.token = config.token || "";
+    CAN.actions = (config.actions || []).length > 0;
+    CAN.chat = !!config.chat;
+  } catch (e) { /* défaut : lecture seule */ }
+  document.querySelector("#music .controls").hidden = !CAN.actions;
+  $("chat-open").hidden = !CAN.chat;
   // ?face=<port> : visage joint par un autre port (aperçu à travers un tunnel SSH, par exemple).
   const asked = new URLSearchParams(location.search).get("face");
   if (asked && /^\d{2,5}$/.test(asked)) facePort = Number(asked);

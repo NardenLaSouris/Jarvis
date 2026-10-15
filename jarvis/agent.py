@@ -281,6 +281,7 @@ class Agent:
         calls=None,
         learning=None,
         call_rules=None,
+        inbox=None,
     ):
         self.settings = settings
         self._source = source
@@ -329,8 +330,9 @@ class Agent:
         self._in_call = None  # appel décroché, pris par la prochaine conversation
         # Messages Linphone : réponse écrite (rien n'est prononcé), fil gardé MESSAGE_THREAD secondes.
         self._texting = False
-        self._message_history: list[Message] = []
-        self._message_at = 0.0
+        # Un fil par canal écrit (« message » : Linphone, « wallpaper » : fond d'écran) : (historique, dernier usage).
+        self._threads: dict[str, tuple[list[Message], float]] = {}
+        self._inbox = inbox  # demandes écrites depuis le fond d'écran (jarvis.wallpaper.inbox)
         self._services = services
         self.last_sources: list[dict] = []
         self._pipeline = SpeechPipeline(tts, sink, stream_audio, merge_under)
@@ -429,6 +431,12 @@ class Agent:
             message = take_message() if take_message is not None else None
             if message is not None:  # votre message Linphone : réponse écrite, puis retour à la veille
                 self._handle_message(message)
+                self._wake_word.reset()
+                trigger.reset()
+                continue
+            request = self._inbox.take() if self._inbox is not None else None
+            if request is not None:  # demande écrite sur le fond d'écran : même traitement, réponse à la page
+                self._handle_message(request.text, send=request.answer, channel="wallpaper")
                 self._wake_word.reset()
                 trigger.reset()
                 continue
@@ -546,15 +554,17 @@ class Agent:
             if call is not None:
                 self._calls.finish()  # ORION raccroche s'il est encore en ligne ; retour au terminal de la maison
 
-    def _handle_message(self, text: str) -> None:
-        """Votre message Linphone : traité comme une demande dite à ORION (mêmes outils, permissions, confirmations
-        et garde-fous, vous comme propriétaire), dans le fil des messages des MESSAGE_THREAD dernières secondes ; la
-        réponse repart par message, rien n'est prononcé ni écouté à la maison."""
+    def _handle_message(self, text: str, send=None, channel: str = "message") -> None:
+        """Votre message Linphone (ou une demande écrite sur le fond d'écran, ``channel`` « wallpaper ») : traité comme
+        une demande dite à ORION (mêmes outils, permissions, confirmations et garde-fous, vous comme propriétaire),
+        dans le fil de ce canal des MESSAGE_THREAD dernières secondes ; la réponse repart par écrit (``send``, par
+        défaut votre message Linphone), rien n'est prononcé ni écouté à la maison."""
         now = time.monotonic()
-        if now - self._message_at > MESSAGE_THREAD:  # nouveau fil : rien de l'ancien (« oui » ne confirme rien)
-            self._message_history = []
+        history, last = self._threads.get(channel, ([], 0.0))
+        if now - last > MESSAGE_THREAD:  # nouveau fil : rien de l'ancien (« oui » ne confirme rien)
+            history = []
             self._router.start_conversation()
-        self._message_at = now
+        self._threads[channel] = (history, now)
         if self.request_context is not None and self._tools is not None and hasattr(self._tools, "set_user"):
             self._tools.set_user(self.request_context.user_id)
         self._event("message", text)
@@ -563,9 +573,9 @@ class Agent:
         saved, pipeline = self._pipeline, TextPipeline()
         self._pipeline, self._texting = pipeline, True
         if self._tools is not None and hasattr(self._tools, "set_channel"):
-            self._tools.set_channel("message")  # confirmations du fil des messages, à part de la voix
+            self._tools.set_channel(channel)  # confirmations de ce fil écrit, à part de la voix
         try:
-            reply, _ = self._reply_to(self._message_history, text, None, {})
+            reply, _ = self._reply_to(history, text, None, {})
         except Exception:  # noqa: BLE001 - un message mal traité ne fait pas tomber ORION
             log.exception("Message non traité")
             reply = self._router.phrase("not_understood")
@@ -575,7 +585,7 @@ class Agent:
                 self._tools.set_channel("voice")
         answer = " ".join(pipeline.spoken).strip() or (reply or "").strip() or self._router.phrase("not_understood")
         self._event("message_reply", answer)
-        self._calls.reply(answer)
+        (send or self._calls.reply)(answer)
 
     def _greet_call(self, call) -> None:
         if call.origin == "user":  # vous appelez ORION : il répond comme à son nom (« Oui, monsieur ? »)

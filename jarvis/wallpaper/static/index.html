@@ -61,9 +61,16 @@
 
   <section id="music" class="panel slim">
     <div class="eq"><i></i><i></i><i></i><i></i><i></i></div>
-    <div><b id="track">Aucune musique</b><span id="artist"></span></div>
+    <div class="music-text"><b id="track">Aucune musique</b><span id="artist"></span></div>
+    <div class="controls" hidden>
+      <button data-act="spotify_previous" title="Précédent">&#9198;</button>
+      <button id="play" data-act="play" title="Lecture ou pause">&#9199;</button>
+      <button data-act="spotify_next" title="Suivant">&#9197;</button>
+    </div>
     <div id="progress"><i></i></div>
   </section>
+
+  <button id="chat-open" class="hud-button" hidden>Parler à ORION</button>
 
   <section id="machines" class="panel">
     <div id="pcs"></div>
@@ -104,6 +111,13 @@
   </section>
 
   <footer id="ticker"><span id="mail"></span><span id="status-line"></span></footer>
+
+  <section id="detail" class="panel" hidden>
+    <button class="close" title="Fermer">&#10005;</button>
+    <h2 id="detail-title"></h2>
+    <div id="detail-body"></div>
+  </section>
+  <div id="toast" role="status" aria-live="polite"></div>
 </div>
 <script src="wallpaper.js"></script>
 </body>

@@ -506,6 +506,10 @@ enabled = false
 host = "0.0.0.0"
 port = 8767
 allowed_ips = []
+# Interactions : commandes rapides (lumières, lecture Spotify ; rien d'autre) et demandes écrites à ORION, traitées
+# comme vos messages Linphone (mêmes confirmations). Chaque action exige le jeton de la page.
+actions = true
+chat = true
 
 [face]
 # Visage graphique animé (page Web locale). Non critique : si le port est pris ou la page fermée,
