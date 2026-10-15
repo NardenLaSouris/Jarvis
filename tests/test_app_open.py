@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import jarvis.tools.applications as apps_module  # noqa: E402
 from jarvis.tools.app_finder import (  # noqa: E402
-    AppFinder, Found, _found, read_lnk, shortcut, split_windows_args, steam_game, steam_library,
+    AppFinder, Found, _found, read_lnk, shortcut, split_windows_args, steam_game, steam_library, store_app,
 )
 from jarvis.tools.planner import plan  # noqa: E402
 from jarvis.tools.quick import quick_plan  # noqa: E402
@@ -332,6 +332,31 @@ def test_two_entries_with_the_very_same_name_are_not_a_question(tmp_path):
                                 _found("Discord", [update, "--processStart", "Discord.exe"], "raccourci")],
                        lambda: None)
     assert [f.argv[0] for f in finder.find("Discord")] == [update]  # le raccourci, source la plus fiable
+
+
+def test_acronyms_find_the_game(tmp_path):
+    steam = exe(tmp_path, "Steam/steam.exe")
+    core, launcher = core_with([steam_game("Counter-Strike 2", "730", steam),
+                                _found("Counter-Strike 2 Tracker", [exe(tmp_path, "tracker.exe")], "raccourci")])
+    for name in ("CS", "CS2", "cs 2"):
+        assert opened(core, name).result["label"] == "Counter-Strike 2", name
+    assert opened(core, "Counter-Strike").error == "ambiguous_target"  # le jeu ou son outil : question
+    assert launcher.calls == [[steam, "-applaunch", "730"]] * 3
+
+
+def test_store_and_game_pass_applications(tmp_path, monkeypatch):
+    monkeypatch.setenv("SystemRoot", str(tmp_path))
+    forza = store_app("Forza Horizon 6", "Microsoft.ForteBaseGame_8wekyb3d8bbwe!Forzahorizon6")
+    assert forza.argv == (str(tmp_path / "explorer.exe"),
+                          "shell:AppsFolder\\Microsoft.ForteBaseGame_8wekyb3d8bbwe!Forzahorizon6")
+    assert forza.identity == "store:Microsoft.ForteBaseGame_8wekyb3d8bbwe" and not forza.problem
+    for bad in ("steam://rungameid/730", "overwolf.anicjdiagpncphndefggchijaioofjmigjnpkjde", "x_8wekyb3d8bbwe!a b",
+                "C:\\Windows\\cmd.exe", "a_8wekyb3d8bbwe!x & calc"):
+        assert store_app("Piège", bad) is None, bad
+    core, launcher = core_with([forza])
+    assert opened(core, "Forza").result["label"] == "Forza Horizon 6" and launcher.calls == [list(forza.argv)]
+    core, launcher = core_with([forza], {"blocked_applications": {"store": ["Microsoft.ForteBaseGame_8wekyb3d8bbwe"]}})
+    assert opened(core, "Forza Horizon").error == "application_blocked" and launcher.calls == []
 
 
 def test_the_installed_list_is_read_once_then_cached():

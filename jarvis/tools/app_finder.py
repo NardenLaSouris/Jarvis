@@ -5,6 +5,9 @@ Sources, toutes locales (rien n'est cherché ni téléchargé sur Internet) :
   dépendance (format MS-SHLLINK : chemin cible et arguments), ``.url`` de Steam (``steam://rungameid/<n>``) ;
 - registre : applications déclarées (« App Paths ») et programmes installés (clés de désinstallation, icône .exe) ;
 - bibliothèques Steam (``appmanifest_*.acf``), lancées par ``steam.exe -applaunch <n>`` ;
+- applications du Microsoft Store et du Xbox Game Pass (Forza Horizon...) : liste du menu Démarrer de Windows
+  (``Get-StartApps``, commande fixe en lecture seule), lancées par ``explorer.exe shell:AppsFolder\\<identifiant>``
+  comme le Spotify du catalogue ;
 - navigateur par défaut (« lance mon navigateur »).
 
 Chaque application trouvée garde une identité stable (chemin réel de l'exécutable, ``steam:<n>``) : c'est elle que la
@@ -46,12 +49,14 @@ NOISE = {"l", "le", "la", "les", "un", "une", "mon", "ma", "mes", "ton", "ta", "
          "logiciel", "programme", "jeu"}
 BROWSER_WORDS = {"navigateur", "navigateur web", "navigateur internet", "browser", "internet"}
 STEAM_APP = re.compile(r"^\d{1,10}$")
+# Identifiant d'application du Store : <famille de paquet>!<application> (famille = nom_éditeur13car).
+STORE_APP = re.compile(r"^([A-Za-z0-9.-]{3,100}_[a-z0-9]{13})!([A-Za-z0-9.-]{1,100})$")
 # Programmes installés qui ne sont pas des applications à ouvrir (composants, pilotes, mises à jour).
 COMPONENT = re.compile(r"redistributable|runtime|\bsdk\b|driver|pilote|\bupdate\b|hotfix|language pack|"
                        r"module linguistique", re.IGNORECASE)
 # Source préférée quand plusieurs entrées portent exactement le même nom (deux raccourcis « Discord »).
-SOURCE_RANK = ("raccourci", "raccourci Steam", "Steam", "navigateur par défaut", "application déclarée",
-               "programme installé")
+SOURCE_RANK = ("raccourci", "raccourci Steam", "Steam", "Microsoft Store", "navigateur par défaut",
+               "application déclarée", "programme installé")
 
 
 @dataclass(frozen=True)
@@ -325,6 +330,37 @@ def steam_library(steam: str | None) -> list[Found]:
     return found
 
 
+def store_app(label: str, app_id: str) -> Found | None:
+    """Application du Store (« Microsoft.ForteBaseGame_8wekyb3d8bbwe!Forzahorizon6 ») ; identifiant vérifié."""
+    match = STORE_APP.match(app_id)
+    if not match or not label.strip():
+        return None
+    explorer = os.path.join(os.environ.get("SystemRoot", "C:\\Windows"), "explorer.exe")
+    # Lancée par l'Explorateur avec un identifiant contrôlé, jamais un chemin ni un argument libre.
+    return Found(label.strip(), (explorer, f"shell:AppsFolder\\{app_id}"), f"store:{match.group(1)}",
+                 "Microsoft Store")
+
+
+def store_apps() -> list[Found]:
+    """Applications du Store et du Game Pass, d'après la liste du menu Démarrer (Get-StartApps)."""
+    import json
+    import subprocess
+
+    shell = os.path.join(os.environ.get("SystemRoot", "C:\\Windows"), "System32", "WindowsPowerShell", "v1.0",
+                         "powershell.exe")
+    try:
+        out = subprocess.run([shell, "-NoProfile", "-NonInteractive", "-Command",
+                              "Get-StartApps | ConvertTo-Json -Compress"], capture_output=True, text=True,
+                             timeout=20, shell=False, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)).stdout
+        items = json.loads(out or "[]")
+    except (OSError, ValueError, subprocess.SubprocessError):
+        log.warning("Liste des applications du Store illisible")
+        return []
+    items = items if isinstance(items, list) else [items]
+    found = [store_app(str(i.get("Name") or ""), str(i.get("AppID") or "")) for i in items if isinstance(i, dict)]
+    return [f for f in found if f is not None]
+
+
 def default_browser() -> Found | None:
     """Navigateur par défaut (association https de l'utilisateur), lancé sans argument."""
     if sys.platform != "win32":
@@ -366,7 +402,7 @@ def windows_sources() -> list[Found]:
             item = shortcut(path, steam)
             if item is not None:
                 found.append(item)
-    for source in (registry_apps, lambda: steam_library(steam)):
+    for source in (registry_apps, lambda: steam_library(steam), store_apps):
         try:
             found += source()
         except OSError:
@@ -390,6 +426,12 @@ def _tier(query: list[str], label: str) -> int:
         return 3
     if all(w in words for w in query):
         return 2
+    # Sigle : « CS » ou « CS2 » pour « Counter-Strike 2 », « GTA 5 » pour « Grand Theft Auto V » n'en est pas un.
+    acronym = "".join(query)
+    if len(acronym) >= 2 and len(words) >= 2 and all(len(w) <= 4 for w in query):
+        initials = "".join(w[0] if not w.isdigit() else w for w in words)
+        if acronym in (initials, "".join(w[0] for w in words if not w.isdigit())):
+            return 2
     return 1 if difflib.SequenceMatcher(None, " ".join(query), " ".join(words)).ratio() >= 0.85 else 0
 
 
