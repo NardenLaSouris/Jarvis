@@ -20,7 +20,8 @@ from datetime import datetime
 from typing import Callable
 
 from jarvis.tools.applications import (
-    CATALOG, Application, Processes, _launch, close_app_tool, list_apps_tool, load_applications, open_app_tool,
+    CATALOG, Application, Blocklist, Processes, _launch, close_app_tool, list_apps_tool, load_applications,
+    open_app_tool,
     url_tool, validate_url,
 )
 from jarvis.tools.audio import VolumeControl, mute_tool, set_volume_tool
@@ -51,10 +52,11 @@ def builtin_tools(settings: dict | None = None, clock: Callable[[], datetime] = 
                   locker: Callable[[], bool] = lock_session, shutdown: Callable[[], bool] = shutdown_windows,
                   open_wait: float = 4.0,
                   close_wait: float = 6.0, timers=None, weather=None,
-                  media_key=None) -> list[Tool]:
+                  media_key=None, finder=None) -> list[Tool]:
     """Outils activés selon ``settings`` ({nom: {"enabled": bool, "confirm": bool}, "applications": {...}}).
 
-    Tous les outils sont activés par défaut ; les applications autorisées viennent de ``applications``.
+    Tous les outils sont activés par défaut ; les applications connues viennent de ``applications``, les
+    applications interdites de ``blocked_applications`` (toute autre application installée peut être ouverte).
     """
     settings = settings or {}
     enabled = lambda name: settings.get(name, {}).get("enabled", True)  # noqa: E731
@@ -67,7 +69,8 @@ def builtin_tools(settings: dict | None = None, clock: Callable[[], datetime] = 
         ("get_date", lambda: date_tool(clock)),
         ("system_info", system_info_tool),
         ("open_url", lambda: url_tool(opener or (lambda url: webbrowser.open(url, new=2)))),
-        ("open_application", lambda: open_app_tool(apps, launcher, processes, open_wait)),
+        ("open_application", lambda: open_app_tool(apps, launcher, processes, open_wait, finder,
+                                                    Blocklist.load(settings.get("blocked_applications")))),
         ("close_application", lambda: close_app_tool(apps, processes, launcher, close_wait)),
         ("list_running_applications", lambda: list_apps_tool(apps, processes)),
         ("set_volume", lambda: set_volume_tool(volume)),

@@ -20,6 +20,16 @@ enabled = true
 roots = { documents = "~/Documents", bureau = "~/Desktop", telechargements = "~/Downloads" }
 sandbox = "~/ORION"
 
+# Applications : ORION ouvre toute application installée sur ce PC (menu Démarrer, bureau, programmes installés,
+# bibliothèques Steam), sauf celles-ci. Comparées à la cible réelle (chemin, nom du programme, numéro Steam, paquet du
+# Store), jamais au seul nom. Outils d'administration (regedit, mmc, diskpart...) toujours interdits ; scripts et
+# interpréteurs (cmd, PowerShell...) jamais lancés comme des applications.
+[tools.blocked_applications]
+paths = []          # ex. ["C:/Program Files/Tor Browser/Browser/firefox.exe"]
+executables = []    # ex. ["obs64.exe"]
+steam = []          # numéros d'applications Steam, ex. ["431960"]
+store = []          # paquets du Microsoft Store
+
 # Visage du Core : ouvert dans le navigateur du PC quand le Core se connecte (rouvert seulement
 # après plus de 5 min sans connexion). Le Core doit l'exposer sur le réseau ([face] host = "0.0.0.0").
 [face]

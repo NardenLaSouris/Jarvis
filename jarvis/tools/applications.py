@@ -1,8 +1,13 @@
-"""Outils applications : ouvrir, fermer, lister les applications autorisées, ouvrir une page Web.
+"""Outils applications : ouvrir une application installée, fermer ou lister les applications connues, ouvrir une
+page Web.
 
-Le LLM ne fournit qu'un identifiant logique (« discord »). ORION le résout lui-même vers un
-exécutable (config, registre « App Paths », emplacements habituels, paquet du Microsoft Store) et
-vers des noms de processus connus. Jamais de shell, de chemin, de PID ni d'argument venant du LLM.
+Ouvrir : toute application présente sur le PC, sauf celles de la liste des applications interdites
+([tools.blocked_applications]). Le LLM ne fournit qu'un nom (« Wallpaper Engine ») ; ORION le résout lui-même, d'abord
+parmi les applications connues (catalogue et [tools.applications] : exécutable de la config, registre « App Paths »,
+emplacements habituels, paquet du Microsoft Store), puis parmi les applications installées (jarvis.tools.app_finder).
+La cible réelle est vérifiée (programme .exe existant, ni script, ni interpréteur) et comparée à la liste interdite par
+son identité (chemin réel, numéro Steam), pas par son nom. Fermer et lister : applications connues seulement.
+Jamais de shell, de chemin, de PID ni d'argument venant du LLM.
 """
 
 from __future__ import annotations
@@ -21,6 +26,7 @@ from typing import Callable
 from urllib.parse import urlsplit
 
 from jarvis.personality import normalize
+from jarvis.tools.app_finder import SCRIPT_HOSTS, AppFinder, Found, identity_of, is_browser
 from jarvis.tools.base import (
     APPLICATION_NOT_FOUND, APPLICATION_NOT_RUNNING, EXECUTION_FAILED, INVALID_PARAMETERS, INVALID_URL, Param, Risk,
     Tool, ToolError,
@@ -33,6 +39,15 @@ FORBIDDEN_URL_CHARS = set(" \t\r\n\"'`<>\\^|{}")
 HOST = re.compile(r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$", re.IGNORECASE)
 KEY = re.compile(r"^[a-z][a-z0-9_]{0,30}$")
 PROCESS = re.compile(r"^[A-Za-z0-9 ._-]{1,60}$")
+# Nom d'application demandé : lettres, chiffres, espaces et quelques signes de noms commerciaux (« Paint.NET »,
+# « Notepad++ », « Assassin's Creed »). Ni chemin, ni séparateur de commande, ni guillemet.
+APP_NAME = re.compile(r"^\w[\w .'+-]{0,59}$")
+APPLICATION_BLOCKED = "application_blocked"
+INVALID_TARGET = "invalid_target"
+AMBIGUOUS = "ambiguous_target"
+# Interdites même sans configuration : outils d'administration du système (la liste configurée s'y ajoute).
+DEFAULT_BLOCKED = ("regedit.exe", "regedt32.exe", "mmc.exe", "bcdedit.exe", "diskpart.exe", "vssadmin.exe",
+                   "wbadmin.exe", "taskkill.exe", "shutdown.exe", "msconfig.exe", "systemreset.exe")
 
 
 @dataclass(frozen=True)
@@ -132,6 +147,34 @@ def load_applications(table: dict | None) -> dict[str, Application]:
                   close="force" if spec.get("close") == "force" else "graceful")
         apps[key] = Application(key, app, executable)
     return apps
+
+
+@dataclass(frozen=True)
+class Blocklist:
+    """Applications interdites ([tools.blocked_applications]) : chemins exacts (``paths``), noms de programme
+    (``executables``, « regedit.exe »), jeux Steam (``steam``, numéros) et paquets du Store (``store``). Comparées à
+    l'identité de la cible résolue, jamais au nom demandé."""
+
+    paths: frozenset[str] = frozenset()
+    executables: frozenset[str] = frozenset(DEFAULT_BLOCKED)
+    steam: frozenset[str] = frozenset()
+    store: frozenset[str] = frozenset()
+
+    @classmethod
+    def load(cls, table: dict | None) -> "Blocklist":
+        table = table or {}
+        items = lambda key: [str(x) for x in table.get(key, []) if str(x).strip()]  # noqa: E731
+        return cls(frozenset(identity_of(os.path.expandvars(p)) for p in items("paths")),
+                   frozenset({*DEFAULT_BLOCKED, *(e.lower() for e in items("executables"))}),
+                   frozenset(items("steam")), frozenset(items("store")))
+
+    def blocks(self, target: Found) -> bool:
+        kind, _, ident = target.identity.partition(":")
+        if (kind == "steam" and ident in self.steam) or (kind == "store" and ident in self.store):
+            return True
+        # Le programme lancé compte aussi : interdire steam.exe interdit les jeux qu'il lance.
+        program = target.argv[0] if target.argv else ""
+        return identity_of(program) in self.paths or target.identity in self.paths or             os.path.basename(program).lower() in self.executables
 
 
 # --- Résolution et lancement ----------------------------------------------------------------------
@@ -252,30 +295,87 @@ def _app_param(apps: dict[str, Application], verb: str) -> Param:
     return Param(str, f"identifiant de l'application, parmi : {listed}", max_length=40, check=check)
 
 
+def _name_param(apps: dict[str, Application]) -> Param:
+    def check(value: str) -> str:
+        name = " ".join(value.split())
+        if not APP_NAME.match(name):
+            raise ToolError(INVALID_PARAMETERS, "Ce nom d'application n'est pas valide.")
+        return name
+
+    def said(value: str, text: str) -> bool:  # le nom vient de la demande (« vs code » pour « vscode » compris)
+        return normalize(value).replace(" ", "") in normalize(text).replace(" ", "")
+
+    known = ", ".join(a.label for a in apps.values()) or "aucune"
+    return Param(str, f"nom de l'application tel que dit par l'utilisateur (par exemple : {known})", max_length=60,
+                 check=check, evidence=said)
+
+
+def _known_target(entry: Application) -> Found | None:
+    argv = find_command(entry)
+    if argv is None:
+        return None
+    store = argv[1].removeprefix("shell:AppsFolder\\").split("!")[0] if len(argv) > 1 and \
+        argv[1].startswith("shell:AppsFolder\\") else ""
+    identity = f"store:{store}" if store else identity_of(argv[0])
+    # Commande de la configuration ou du catalogue : jamais un interpréteur (cmd, PowerShell...) pour autant.
+    problem = "" if store or os.path.basename(argv[0]).lower() not in SCRIPT_HOSTS else         "interpréteur de commandes ou de scripts"
+    return Found(entry.label, tuple(argv), identity, "application connue", entry.processes, problem)
+
+
 def open_app_tool(apps: dict[str, Application], launcher: Callable[[list[str]], None], processes: Processes,
-                  wait: float = 4.0) -> Tool:
+                  wait: float = 4.0, finder: AppFinder | None = None, blocked: Blocklist | None = None) -> Tool:
+    names = {normalize(alias): key for key, a in apps.items() for alias in (key, *a.app.aliases)}
+    finder = finder or AppFinder()
+    blocked = blocked or Blocklist()
+
+    def target(name: str) -> tuple[str, Found]:
+        key = names.get(normalize(name))
+        if key is not None:  # application connue : sa commande éprouvée, sinon ce qui est installé sous son nom
+            found = _known_target(apps[key])
+            if found is not None:
+                return key, found
+            name = apps[key].label
+        candidates = finder.find(name)
+        valid = [c for c in candidates if not c.problem]
+        candidates = valid or candidates
+        if not candidates:
+            if key is not None:
+                raise ToolError(APPLICATION_NOT_FOUND, f"{apps[key].label} n'est pas installé sur cette machine.")
+            what = "de navigateur par défaut" if is_browser(name) else f"d'application « {name} »"
+            raise ToolError(APPLICATION_NOT_FOUND, f"Je ne trouve pas {what} sur ce PC.")
+        if len(candidates) > 1:
+            listed = ", ".join(f"« {c.label} »" for c in sorted(candidates, key=lambda c: c.label)[:4])
+            raise ToolError(AMBIGUOUS, f"Plusieurs applications correspondent : {listed}. Laquelle ?")
+        return key or normalize(candidates[0].label).replace(" ", "_")[:40], candidates[0]
+
     def run(application: str) -> dict:
-        entry = apps[application]
-        already = bool(entry.processes) and processes.running(entry.processes)
-        argv = find_command(entry)
-        if argv is None:
-            raise ToolError(APPLICATION_NOT_FOUND, f"{entry.label} n'est pas installé sur cette machine.")
+        key, found = target(application)
+        if blocked.blocks(found):
+            log.info("Ouverture refusée : %s est dans la liste des applications interdites", found.label)
+            raise ToolError(APPLICATION_BLOCKED, f"{found.label} fait partie des applications que je n'ouvre pas.")
+        if found.problem:
+            log.info("Ouverture refusée : %s (%s, %s)", found.label, found.source, found.problem)
+            raise ToolError(INVALID_TARGET, f"Je ne lance pas {found.label} : son raccourci ne mène pas à un "
+                                            f"programme ordinaire ({found.problem}).")
+        already = bool(found.processes) and processes.running(found.processes)
         try:
-            launcher(argv)
+            launcher(list(found.argv))
         except OSError as exc:
-            raise ToolError(EXECUTION_FAILED, f"Je n'ai pas pu lancer {entry.label}.") from exc
+            reason = f" ({exc.strerror})" if getattr(exc, "strerror", None) else ""
+            raise ToolError(EXECUTION_FAILED, f"Je n'ai pas pu lancer {found.label}{reason}.") from exc
         if already:
             status = "déjà ouverte"
-        elif entry.processes and _wait(lambda: processes.running(entry.processes), wait):
+        elif found.processes and _wait(lambda: processes.running(found.processes), wait):
             status = "ouverte"
         else:
             status = "lancement en cours"
-        return {"application": application, "label": entry.label, "status": status}
+        return {"application": key, "label": found.label, "status": status}
 
-    return Tool("open_application", f"Ouvre une application autorisée ({', '.join(apps) or 'aucune'}).",
-                {"application": _app_param(apps, "ouvrir")},
+    return Tool("open_application", "Ouvre une application installée sur le PC, désignée par son nom (sauf les "
+                                    "applications interdites).",
+                {"application": _name_param(apps)},
                 {"application": "identifiant", "label": "nom", "status": "ouverte, déjà ouverte ou lancement en cours"},
-                Risk.SAFE, run, question=lambda p: f"Voulez-vous que j'ouvre {apps[p['application']].label} ?",
+                Risk.SAFE, run, question=lambda p: f"Voulez-vous que j'ouvre {p['application']} ?",
                 say=lambda r: OPENED[r["status"]].format(label=r["label"]))
 
 

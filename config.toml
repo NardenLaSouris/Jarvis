@@ -378,9 +378,10 @@ enabled = false
 # roots = { documents = "~/Documents", bureau = "~/Desktop", telechargements = "~/Downloads" }
 # sandbox = "~/ORION"
 
-# Applications qu'ORION peut ouvrir, fermer et surveiller : seule cette liste fait foi.
-# Les applications du catalogue d'ORION sont trouvées automatiquement (registre Windows,
-# emplacements habituels, Microsoft Store) ; executable = "..." impose un chemin.
+# Applications connues : celles qu'ORION sait fermer et surveiller, et qu'elle ouvre par leur commande éprouvée.
+# Ouvrir n'est plus limité à cette liste : toute application installée sur le PC peut l'être, sauf celles de
+# [tools.blocked_applications] (ci-dessous). Les applications du catalogue d'ORION sont trouvées automatiquement
+# (registre Windows, emplacements habituels, Microsoft Store) ; executable = "..." impose un chemin.
 # Application hors catalogue : executable (chemin absolu) et process (nom du processus) requis, ex. :
 # [tools.applications.obs]
 # label = "OBS Studio"
@@ -403,6 +404,16 @@ enabled = true
 
 [tools.applications.notepad]
 enabled = true
+
+# Applications interdites : jamais ouvertes, quel que soit le nom demandé. Comparées à la cible réelle trouvée sur le PC
+# (chemin, nom du programme, numéro Steam, paquet du Store), pas au nom. Les outils d'administration du système
+# (regedit, mmc, diskpart, bcdedit...) sont toujours interdits ; scripts et interpréteurs (cmd, PowerShell...) ne sont
+# jamais lancés comme des applications. Avec [tools.devices], c'est la liste de windows_agent.toml du PC qui s'applique.
+[tools.blocked_applications]
+paths = []          # ex. ["C:/Program Files/Tor Browser/Browser/firefox.exe"]
+executables = []    # ex. ["obs64.exe"]
+steam = []          # numéros d'applications Steam, ex. ["431960"]
+store = []          # paquets du Microsoft Store, ex. ["SpotifyAB.SpotifyMusic_zpdnekdrzrea0"]
 
 [timers]
 # Minuteurs et rappels (outils create_timer, create_reminder, cancel_*, list_*). Fin d'échéance annoncée à voix

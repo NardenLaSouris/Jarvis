@@ -33,6 +33,7 @@ from jarvis.config import load_config  # noqa: E402
 from jarvis.factory import build_corrector, build_tools  # noqa: E402
 from jarvis.personality import load_personality  # noqa: E402
 from jarvis.router import IntentRouter  # noqa: E402
+from jarvis.tools.app_finder import AppFinder  # noqa: E402
 from jarvis.tools import (  # noqa: E402
     CANCELLED, CONFIRM, DONE, REJECTED, ConfirmationManager, Decision, Param, PermissionManager, Risk, Tool,
     ToolCore, ToolError, ToolRegistry, ToolsCapability, builtin_tools, parse_request, plan,
@@ -154,12 +155,16 @@ class Locker:
         return self.ok
 
 
-def make_core(settings=None, launcher=None, opener=None, processes=None, volume=None, locker=None, timeout=5.0):
+def make_core(settings=None, launcher=None, opener=None, processes=None, volume=None, locker=None, timeout=5.0,
+              finder=None):
     processes = processes if processes is not None else FakeProcesses()
     registry = ToolRegistry()
+    # Recherche des applications installées isolée : jamais le vrai menu Démarrer de la machine de test.
+    finder = finder or AppFinder(lambda: [], lambda: None)
     for tool in builtin_tools(settings, clock=CLOCK, opener=opener or Browser(),
                               launcher=launcher or Launcher(processes, ("Discord.exe",)), processes=processes,
-                              volume=volume or FakeVolume(), locker=locker or Locker(), open_wait=0.3, close_wait=0.3):
+                              volume=volume or FakeVolume(), locker=locker or Locker(), open_wait=0.3, close_wait=0.3,
+                              finder=finder):
         registry.register(tool)
     confirmations = ConfirmationManager(PERSONALITY.confirm_yes, PERSONALITY.confirm_no,
                                         ignored=(PERSONALITY.assistant_name, *PERSONALITY.former_names,
@@ -471,7 +476,10 @@ def test_applications_come_from_configuration():
     assert apps["discord"].executable == "D:/Discord/Discord.exe" and apps["obs"].label == "OBS Studio"
     assert load_applications(None).keys() == apps_module.CATALOG.keys()
     core = make_core({"applications": {"discord": {}}})
-    assert core.submit(call("open_application", application="steam")).result.error == "invalid_parameters"
+    # La liste des applications connues ne limite plus l'ouverture (seule la liste interdite le fait) : Steam est
+    # cherché parmi les applications installées (aucune ici) ; elle limite toujours la fermeture.
+    assert core.submit(call("open_application", application="steam")).result.error == "application_not_found"
+    assert core.submit(call("close_application", application="steam")).result.error == "invalid_parameters"
 
 
 def test_find_command_prefers_configured_executable_then_detection(tmp_path, monkeypatch):
@@ -532,9 +540,12 @@ def test_mute_and_unmute():
 def test_unknown_apps_paths_commands_pids_and_system_processes_are_refused(application):
     processes, launcher = FakeProcesses({"svchost.exe", "explorer.exe"}), Launcher()
     core = make_core(processes=processes, launcher=launcher)
-    for tool in ("open_application", "close_application"):
-        outcome = core.submit(call(tool, application=application))
-        assert outcome.status == REJECTED and outcome.result.error == "invalid_parameters"
+    outcome = core.submit(call("close_application", application=application))
+    assert outcome.status == REJECTED and outcome.result.error == "invalid_parameters"
+    # Ouvrir : chemin, commande ou caractère spécial refusés d'emblée ; un simple nom est cherché parmi les
+    # applications installées (aucune ici) et n'est jamais exécuté tel quel.
+    result = core.submit(call("open_application", application=application)).result
+    assert not result.success and result.error in ("invalid_parameters", "application_not_found")
     assert launcher.calls == [] and processes.stopped == []
 
 

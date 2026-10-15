@@ -147,6 +147,7 @@ class ToolsConfig:
     delete_file: dict = field(default_factory=dict)
     files: dict = field(default_factory=dict)
     applications: dict = field(default_factory=dict)
+    blocked_applications: dict = field(default_factory=dict)
     devices: dict = field(default_factory=dict)
     # Autorisation : engine = "builtin" (PermissionManager seul), "shadow" (Cedar journalisé) ou "both" (double verrou).
     policy: dict = field(default_factory=dict)

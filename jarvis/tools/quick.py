@@ -465,8 +465,13 @@ class QuickPlanner:
                 if not match:
                     continue
                 name = match.group(1).strip()
+                # Ouvrir accepte tout nom (applications installées) : sans LLM, seulement une application connue,
+                # celles que close_application reconnaît (« lance un diagnostic » n'est pas une application).
+                known = "close_application" if tool == "open_application" else tool
+                if not self._exists(known):
+                    continue
                 for candidate in (name, name.split()[0] if name else ""):
-                    if candidate and self._checked(tool, "application", candidate) is not None:
+                    if candidate and self._checked(known, "application", candidate) is not None:
                         return tool, {"application": candidate}
         return None
 
