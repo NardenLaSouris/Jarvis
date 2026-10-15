@@ -38,7 +38,7 @@ function circuits() {
   const paths = [
     "M380 230 H520 L600 310 H640", "M380 470 H470 L540 540 H610", "M460 820 H530 L600 750 H650",
     "M1540 230 H1400 L1320 310 H1280", "M1460 560 H1390 L1320 490 H1290", "M1460 820 H1390 L1320 760 H1270",
-    "M960 140 V128", "M960 940 V948", "M0 1000 H40", "M1880 1000 H1920", "M700 30 H1590",
+    "M960 140 V128", "M960 940 V948", "M0 1000 H40", "M1880 1000 H1920",
   ];
   const svg = $("circuits");
   svg.innerHTML = paths.map((d, i) => `<path d="${d}"/><path class="pulse" d="${d}" style="animation-delay:-${i * 0.7}s"/>`)
@@ -102,7 +102,9 @@ const esc = (t) => String(t ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<
 function gauge(id, percent, label, extra, warnAt = 75, badAt = 90) {
   const el = $(id);
   el.querySelector(".arc").style.strokeDasharray = `${Math.max(0, Math.min(100, percent ?? 0))} 100`;
-  el.querySelector("b").textContent = label;
+  // Unités dans la police du système : dans Michroma, « % » et « ° » ressemblent à « o/o » et « o ».
+  const m = String(label).match(/^(-?[\d.]+)(\D*)$/);
+  el.querySelector("b").innerHTML = m ? `${m[1]}<small class="u">${esc(m[2])}</small>` : esc(label);
   el.querySelector("em").textContent = extra || "";
   el.classList.toggle("hot", percent >= warnAt && percent < badAt);
   el.classList.toggle("bad", percent >= badAt);
@@ -194,7 +196,8 @@ function render(stats) {
 
   // Orbite : appareils, puis services d'ORION
   const nodes = [];
-  for (const d of val(stats, "devices") || []) nodes.push({ label: d.core ? "Cœur ORION" : d.name, state: d.online ? "" : "off" });
+  const short = (name) => name.replace(/^votre /i, "").replace(/^./, (c) => c.toUpperCase());
+  for (const d of val(stats, "devices") || []) nodes.push({ label: d.core ? "Cœur ORION" : short(d.name), state: d.online ? "" : "off" });
   if (orion) {
     nodes.push({ label: "Réflexion", state: orion.llm.state === "ONLINE" ? "" : "off" });
     nodes.push({ label: "Transcription GPU", state: !orion.stt.remote ? "idle" : orion.stt.remote_up ? "" : "off" });
@@ -226,7 +229,7 @@ function render(stats) {
   if (w) {
     $("place").textContent = w.place;
     $("w-icon").innerHTML = icon(w.slug);
-    $("w-temp").textContent = `${w.temperature}°C`;
+    $("w-temp").innerHTML = `${w.temperature}<small class="u">°C</small>`;
     $("w-cond").textContent = w.condition;
     $("w-details").innerHTML = [["Ressenti", w.feels != null ? `${w.feels}°` : "–"], ["Humidité", w.humidity != null ? `${w.humidity} %` : "–"],
       ["Vent", w.wind != null ? `${Math.round(w.wind)} km/h` : "–"]].map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join("");
@@ -248,7 +251,7 @@ function render(stats) {
   const mail = val(stats, "mail");
   $("mail").textContent = mail && mail.important ? `${mail.important} mail${mail.important > 1 ? "s" : ""} important${mail.important > 1 ? "s" : ""} en attente` : "";
   const offline = (val(stats, "devices") || []).filter((d) => !d.online).map((d) => d.name);
-  $("status-line").textContent = offline.length ? `Hors ligne : ${offline.join(", ")}` : "Tous les appareils sont en ligne";
+  $("status-line").textContent = offline.length ? `Hors ligne : ${offline.map(short).join(", ")}` : "Tous les appareils sont en ligne";
 }
 
 async function poll() {

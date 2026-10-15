@@ -159,7 +159,7 @@ li.empty { color: var(--muted); font-style: italic; }
 #w-days small { display: block; color: var(--muted); }
 svg.wi * { fill: none; stroke: var(--c); stroke-width: 2.4; stroke-linecap: round; filter: drop-shadow(0 0 3px var(--c)); }
 
-#agenda-panel { left: 1460px; top: 720px; width: 420px; height: 210px; overflow: hidden; }
+#agenda-panel { left: 1460px; top: 752px; width: 420px; height: 180px; overflow: hidden; }
 #agenda-panel ul { margin-bottom: 10px; }
 #agenda-panel li { display: flex; gap: 12px; font-size: 14px; padding: 2px 0; }
 #agenda-panel li .t { color: var(--c); min-width: 86px; font-family: "Michroma"; font-size: 12px; padding-top: 2px; }
@@ -174,3 +174,5 @@ svg.wi * { fill: none; stroke: var(--c); stroke-width: 2.4; stroke-linecap: roun
   color: var(--muted); letter-spacing: 1px; }
 #ticker span + span::before { content: " · "; }
 .stale { opacity: 0.45; }
+small.u { font-family: "Segoe UI", "Bahnschrift", system-ui, sans-serif; font-size: 0.55em; font-weight: 400;
+  margin-left: 2px; vertical-align: 0.55em; letter-spacing: 0; }
