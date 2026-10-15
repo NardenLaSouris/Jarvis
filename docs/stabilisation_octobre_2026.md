@@ -66,3 +66,19 @@ l'agent du PC fixe, hors de cette mission.
 - Conservation du journal système (5 jours aujourd'hui), si vous le souhaitez :
   `sudo mkdir -p /etc/systemd/journald.conf.d && printf '[Journal]\nSystemMaxUse=500M\nMaxRetentionSec=30day\n' | sudo tee /etc/systemd/journald.conf.d/orion.conf && sudo systemctl restart systemd-journald`
 - Copies de configuration non suivies dans `/opt/jarvis` (`config.local.toml.avant-*`) : à garder ou supprimer.
+
+## Complément : transcription sur le GPU du Katana (15 octobre 2026)
+
+Même corpus (bench/stt/export_corpus.py), même indice, mêmes paramètres ; faster-whisper 1.2.1, CUDA, int8_float16,
+environnement isolé C:\Users\theju\orion-stt sur le Katana. Le modèle de langage est resté chargé à 100 % sur le GPU.
+
+| Réglage | Erreurs par mot | Durée médiane | p90 |
+|---|---|---|---|
+| mini-PC, small avec indice (actuel) | 7,5 % | 3,19 s | 3,26 s |
+| Katana, small avec indice | 7,2 % | 0,37 s | 0,50 s |
+| Katana, medium avec indice | 2,8 % | 0,61 s | 0,72 s |
+| Katana, large-v3-turbo avec indice | 3,1 % | 0,20 s | 0,70 s |
+
+large-v3-turbo sur le Katana : 2,4 fois moins d erreurs et 16 fois plus rapide que l actuel ; l indice n y produit
+plus le biais « Quelle heure » -> « Quel temps ». Non branché à ORION : il faudrait un petit service de transcription
+sur le Katana, avec repli sur small du mini-PC quand le Katana est éteint.
