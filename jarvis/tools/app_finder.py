@@ -349,8 +349,10 @@ def store_apps() -> list[Found]:
     shell = os.path.join(os.environ.get("SystemRoot", "C:\\Windows"), "System32", "WindowsPowerShell", "v1.0",
                          "powershell.exe")
     try:
+        # Sortie en UTF-8 : la page de code de la console cassait les noms accentués ou exotiques.
         out = subprocess.run([shell, "-NoProfile", "-NonInteractive", "-Command",
-                              "Get-StartApps | ConvertTo-Json -Compress"], capture_output=True, text=True,
+                              "[Console]::OutputEncoding = [Text.Encoding]::UTF8; Get-StartApps | ConvertTo-Json "
+                              "-Compress"], capture_output=True, encoding="utf-8", errors="replace",
                              timeout=20, shell=False, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)).stdout
         items = json.loads(out or "[]")
     except (OSError, ValueError, subprocess.SubprocessError):
