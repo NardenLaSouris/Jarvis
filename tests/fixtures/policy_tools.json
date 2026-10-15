@@ -227,6 +227,11 @@
    "category": "calendar"
   },
   {
+   "name": "add_period",
+   "risk": "safe",
+   "category": "calendar"
+  },
+  {
    "name": "delete_event",
    "risk": "confirm",
    "category": "calendar"

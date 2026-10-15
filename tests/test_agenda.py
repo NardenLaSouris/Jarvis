@@ -242,3 +242,44 @@ def test_an_invented_duration_is_dropped_not_the_whole_event(tmp_path):
     assert said["parameters"]["duration"] == "1 heure"
     wrong_time = {**call, "parameters": {"title": "dentiste", "time": "16 heures"}}
     assert _grounded(wrong_time, "Ajoute le dentiste jeudi à 15 heures", core.registry) is None  # obligatoire : écarté
+
+
+
+# --- Journée entière ou plusieurs jours (message Linphone du 16 octobre 2026 : non compris) ----------------------
+
+@pytest.mark.parametrize("text, expected", [
+    ("Ajoute dans mon agenda « log 92 » entre le 20 et le 28", (date(2026, 10, 20), date(2026, 10, 28))),
+    ("du 30 octobre au 2 novembre", (date(2026, 10, 30), date(2026, 11, 2))),
+    ("du 30 au 2", (date(2026, 10, 30), date(2026, 11, 2))),  # fin avant le début : le mois suivant
+    ("du 20 au 28 novembre", (date(2026, 11, 20), date(2026, 11, 28))),
+    ("le 20", (date(2026, 10, 20), date(2026, 10, 20))),
+    ("Quelle heure est-il ?", None),
+])
+def test_periods_said_in_words(text, expected):
+    from jarvis.agenda import said_range
+
+    assert said_range(text, date(2026, 10, 16)) == expected
+
+
+def test_an_all_day_period_is_added_from_the_request(tmp_path):
+    import sys as _sys
+
+    _sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from test_tools import PlannerLLM  # noqa: E402
+
+    from jarvis.tools.planner import plan
+
+    calendar, local, core = setup(tmp_path)
+    text = "Ajoute dans mon agenda « log 92 » entre le 20 et le 28"
+    proposal = plan(PlannerLLM({"type": "tool_call", "tool": "add_period", "parameters": {"title": "log 92"}}),
+                    text, core.registry)
+    assert proposal["tool"] == "add_period"
+    # Paramètre caché, rempli par l'agent avec les mots de la demande (jamais par le LLM).
+    proposal["parameters"]["days"] = core.registry.get("add_period").parameters["days"].resolve(text)
+    assert proposal["parameters"]["days"] == "2026-10-20/2026-10-28"
+    result = core.submit(proposal).result
+    assert result.success and result.message == (
+        "C'est noté dans votre calendrier : « log 92 », du mardi 20 octobre au mercredi 28 octobre.")
+    event = local.events(datetime(2026, 10, 1), datetime(2026, 11, 30))[0]
+    assert event.all_day and event.start == datetime(2026, 10, 20) and event.end == datetime(2026, 10, 29)
+    assert not run(core, "add_period", title="x", days="2026-10-28/2026-10-20").success  # fin avant le début

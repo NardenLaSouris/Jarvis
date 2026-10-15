@@ -107,6 +107,7 @@ EXAMPLES = (
     ("Quand est mon rendez-vous chez le dentiste ?", "search_events", {"query": "dentiste"}),
     ("Est-ce que je suis libre demain après-midi ?", "free_slots", {}),
     ("Ajoute un rendez-vous chez le coiffeur demain à 15 h", "add_event", {"title": "coiffeur", "time": "15 h"}),
+    ("Ajoute dans mon agenda « vacances » du 20 au 28", "add_period", {"title": "vacances"}),
     ("Pause", "media_play_pause", {}),
     ("Passe au morceau suivant", "media_next", {}),
     ("Remets la chanson d'avant", "media_previous", {}),
@@ -195,7 +196,8 @@ def planner_prompt(registry: ToolRegistry) -> str:
                      "bureau, téléchargements). Supprimer un dossier, exécuter un fichier ou toucher au système -> none.")
     if registry.exists("list_events"):
         rules.append("- Calendrier : le jour n'est jamais un paramètre (déduit de la demande). add_event : heure recopiée "
-                     "telle qu'elle a été dite ; un rappel (« rappelle-moi ») reste create_reminder.")
+                     "telle qu'elle a été dite ; sans heure, sur une journée ou plusieurs (« du 20 au 28 ») : "
+                     "add_period ; un rappel (« rappelle-moi ») reste create_reminder.")
     if registry.exists("read_mail"):
         rules.append("- Mails : « lis le premier », « le deuxième », « ce mail » après une liste -> read_mail ; résumer -> "
                      "summarize_mail ; le rang n'est jamais un paramètre (déduit de la demande).")
@@ -408,7 +410,8 @@ LIGHT_WORDS = ("lumiere", "lumieres", "lampe", "lampes", "ampoule", "ampoules", 
 DEFERRED_WORDS = ("rappelle moi", "rappelez moi", "fais moi penser", "faites moi penser", "rappelle nous",
                   "reveille moi", "reveillez moi")
 DEFERRED_TOOLS = ("create_reminder", "cancel_reminder", "list_reminders", "create_alarm", "cancel_alarm",
-                  "list_alarms", "list_events", "next_events", "search_events", "free_slots", "add_event", "recall")
+                  "list_alarms", "list_events", "next_events", "search_events", "free_slots", "add_event", "add_period",
+                  "recall")
 
 
 READ_ONLY_TOOLS = ("get_", "list_", "light_status", "find_", "read_", "recall", "search_", "next_", "free_",

@@ -33,12 +33,31 @@ def second_person(text: str) -> str:
     return re.sub(r"\b(\w+)\b", lambda m: SECOND_PERSON.get(m.group(1).lower(), m.group(1)), text)
 
 
+# Pronoms d'un infinitif pronominal ou avec complément : « me lever », « l'appeler », « y aller ».
+INFINITIVE_LEADS = ("me ", "m'", "te ", "t'", "se ", "s'", "nous ", "vous ", "le ", "la ", "l'", "les ", "lui ",
+                    "leur ", "y ", "en ")
+
+
+def _infinitive(message: str) -> bool:
+    """« sortir le linge », « appeler Paul », « me lever » : un verbe à l'infinitif ; « train », « dentiste » : non."""
+    words = normalize(message).split()
+    lowered = message.lower()
+    for lead in INFINITIVE_LEADS:
+        if lowered.startswith(lead) and len(words) > 1:
+            words = normalize(message[len(lead):]).split() or words
+            break
+    return bool(words) and len(words[0]) > 2 and words[0].endswith(("er", "ir", "re", "oir"))
+
+
 def with_de(message: str) -> str:
-    """« sortir le linge » -> « de sortir le linge » ; « appeler Paul » -> « d'appeler Paul »."""
+    """« sortir le linge » -> « de sortir le linge » ; « appeler Paul » -> « d'appeler Paul » ; un simple nom
+    (« train », 16 octobre 2026 : « je vous rappellerai de train ») est cité : « « train » »."""
     message = message.strip()
     for prefix in ("de ", "d'", "d’"):
         if message.lower().startswith(prefix):
             message = message[len(prefix):].lstrip()
+    if not _infinitive(message):
+        return f"« {message.strip('«» ')} »"
     return f"d'{message}" if message[:1].lower() in "aeiouyhéèêàâîôû" else f"de {message}"
 
 

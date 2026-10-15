@@ -271,6 +271,9 @@ def test_timer_and_reminder_events_become_deterministic_notifications():
     assert speaker.said[2].endswith("d'appeler Paul.") and len(speaker.said) == 3
     assert all("Jules" not in s and " tu " not in s for s in speaker.said)
     assert with_de("de sortir le linge") == "de sortir le linge" and with_de("éteindre le four") == "d'éteindre le four"
+    # Un simple nom n'est pas « de train » (message Linphone du 16 octobre 2026) : il est cité.
+    assert with_de("train") == "« train »" and with_de("« dentiste »") == "« dentiste »"
+    assert with_de("me lever") == "de me lever" and with_de("appeler Paul") == "d'appeler Paul"
 
 
 def test_notifications_carry_source_priority_and_metadata():

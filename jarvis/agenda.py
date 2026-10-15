@@ -93,8 +93,8 @@ class LocalCalendar:
             events = [e for e in map(self._event, self._load()) if e is not None]
         return [e for e in events if e.end > start and e.start < end]
 
-    def add(self, title: str, start: datetime, end: datetime, location: str = "") -> CalendarEvent:
-        event = CalendarEvent(uuid.uuid4().hex[:8], title, start, end, False, location)
+    def add(self, title: str, start: datetime, end: datetime, location: str = "", all_day: bool = False) -> CalendarEvent:
+        event = CalendarEvent(uuid.uuid4().hex[:8], title, start, end, all_day, location)
         with self._lock:
             items = self._load()
             items.append(event.as_dict())
@@ -317,6 +317,33 @@ def _said_event(e: CalendarEvent, today: date, with_day: bool = False) -> str:
     return f"{day}{when}, {e.title}" + (f" ({e.location})" if e.location else "")
 
 
+RANGE_SAID = re.compile(r"\b(?:du|entre le|depuis le|a partir du) (\d{1,2}(?: (?:%s))?) (?:au|et le|jusqu au) "
+                        r"(\d{1,2}(?: (?:%s))?)\b" % (("|".join(normalize(m) for m in MONTHS),) * 2))
+MAX_PERIOD_DAYS = 62
+
+
+def said_range(text: str, today: date) -> tuple[date, date] | None:
+    """« du 20 au 28 », « entre le 20 et le 28 octobre », « du 30 octobre au 2 novembre » -> (premier, dernier jour).
+    Un seul jour dit (« le 20 », « demain ») : ce jour-là. Fin avant le début (« du 30 au 2 ») : fin le mois suivant."""
+    norm = normalize(text)
+    match = RANGE_SAID.search(norm)
+    if match is None:
+        day = said_date(text, today)
+        return (day, day) if day else None
+    first_text, last_text = match.groups()
+    last_month = next((m for m in MONTHS if normalize(m) in last_text), None)
+    if last_month and not any(normalize(m) in first_text for m in MONTHS) and \
+            int(first_text.split()[0]) <= int(last_text.split()[0]):
+        first_text = f"{first_text} {normalize(last_month)}"  # « du 20 au 28 octobre » : même mois
+    first = said_date(f"le {first_text}", today)
+    if first is None:
+        return None
+    last = said_date(f"le {last_text}", first)  # compté à partir du premier jour
+    if last is None or last < first or (last - first).days >= MAX_PERIOD_DAYS:
+        return None
+    return first, last
+
+
 def said_date(text: str, today: date) -> date | None:
     """Jour dit dans la demande : « demain », « jeudi », « jeudi prochain », « le 12 », « 12 octobre », « 12/10 ».
     Session QA : « jeudi » donnait la journée d'aujourd'hui (seuls demain et après-demain étaient compris)."""
@@ -438,6 +465,32 @@ def calendar_tools(calendar: Calendar) -> list[Tool]:
         event = local.add(title.strip(" ."), start, start + timedelta(seconds=duration or 3600))
         return {"title": event.title, "when": _said_event(event, now.date(), True)}
 
+    def range_check(value: str) -> str:
+        try:
+            first, last = (date.fromisoformat(part) for part in value.split("/"))
+        except ValueError as exc:
+            raise ToolError(INVALID_PARAMETERS, "Je n'ai pas compris les jours.") from exc
+        if last < first or (last - first).days >= MAX_PERIOD_DAYS:
+            raise ToolError(INVALID_PARAMETERS, "Cette période n'est pas valide.")
+        return value
+
+    def resolve_range(text: str) -> str | None:
+        found = said_range(text, calendar.now().date())
+        return f"{found[0].isoformat()}/{found[1].isoformat()}" if found else None
+
+    def add_period(title: str, days: str) -> dict:
+        local = calendar.local
+        if local is None:
+            raise ToolError(CALENDAR_UNAVAILABLE, "Aucun calendrier modifiable n'est configuré.")
+        first, last = (date.fromisoformat(part) for part in range_check(days).split("/"))
+        start = datetime.combine(first, datetime.min.time())
+        event = local.add(title.strip(" .«»"), start, datetime.combine(last + timedelta(days=1), datetime.min.time()),
+                          all_day=True)
+        today = calendar.now().date()
+        when = _spoken_day(first, today) if first == last else \
+            f"du {_spoken_day(first, today)} au {_spoken_day(last, today)}"
+        return {"title": event.title, "when": when, "days": (last - first).days + 1}
+
     def delete_event(title: str) -> dict:
         local = calendar.local
         now = calendar.now()
@@ -508,6 +561,12 @@ def calendar_tools(calendar: Calendar) -> list[Tool]:
               "day": day_param, "duration": duration},
              {"title": "événement", "when": "date"}, Risk.SAFE, add_event,
              say=lambda r: f"C'est noté dans votre calendrier : {r['when']}."),
+        Tool("add_period", "Ajoute au calendrier un événement sur une journée entière ou plusieurs jours (« du 20 au "
+             "28 », « entre le 20 et le 28 »), sans heure.",
+             {"title": Param(str, "intitulé de l'événement", max_length=120),
+              "days": Param(str, "jours", max_length=24, hidden=True, resolve=resolve_range, check=range_check)},
+             {"title": "événement", "when": "période", "days": "nombre de jours"}, Risk.SAFE, add_period,
+             say=lambda r: f"C'est noté dans votre calendrier : « {r['title']} », {r['when']}."),
         Tool("delete_event", "Supprime un événement ajouté au calendrier par ORION.",
              {"title": Param(str, "intitulé de l'événement à supprimer", max_length=120)},
              {"title": "événement"}, Risk.CONFIRMATION_REQUIRED, delete_event,
