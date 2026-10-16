@@ -1,4 +1,5 @@
 .venv/
+.venv-neutts/
 __pycache__/
 *.pyc
 *.part
@@ -9,3 +10,21 @@ models/*
 models/openwakeword/*
 !models/openwakeword/jarvis_fr.onnx
 !models/openwakeword/jarvis_fr.json
+!models/openwakeword/orion_fr.onnx
+!models/openwakeword/orion_fr.json
+!models/openwakeword/orion_fr_e2e.json
+.env
+# Voix Piper d'ORION entraînée ici (tts_training/), versionnée comme le wake word.
+!models/piper/
+models/piper/*
+!models/piper/fr_FR-orion-medium.onnx
+!models/piper/fr_FR-orion-medium.onnx.json
+# Voix de référence NeuTTS (LibriVox, domaine public), versionnée pour qu'ORION parle sans étape manuelle.
+!models/neutts/
+models/neutts/*
+!models/neutts/voices/
+
+# SearXNG local : clé secrète propre à chaque machine
+searxng/.env
+# Réglages propres à une machine (surchargent config.toml, windows_agent.toml)
+*.local.toml

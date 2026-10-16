@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="fr" data-theme="jarvis" data-skin="face">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ORION Control</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav>
+  <div class="brand"><span class="core"><i></i><i></i><i></i></span><span>ORION<small>CONTROL</small></span></div>
+  <button data-view="dashboard">Tableau de bord</button>
+  <button data-view="routines">Routines</button>
+  <button data-view="devices">Appareils</button>
+  <button data-view="history">Historique</button>
+  <button data-view="settings">Paramètres</button>
+  <div class="spacer"></div>
+  <div class="themes" id="themes" title="Thème">
+    <button data-theme="auto" title="ORION automatique (nuit de 22 h à 7 h)"></button>
+    <button data-theme="jarvis" title="ORION (jour)"></button>
+    <button data-theme="nuit" title="ORION nuit"></button>
+    <button data-theme="rouge" title="ORION rouge"></button>
+    <button data-theme="visage" title="Comme le visage d'ORION (sa couleur du moment)"></button>
+  </div>
+  <div class="connection" id="connection"><span class="dot"></span>Connexion…</div>
+</nav>
+<main><div id="alert" class="alert" hidden></div><div id="view"></div></main>
+<div id="toasts"></div>
+<script src="app.js"></script>
+</body>
+</html>

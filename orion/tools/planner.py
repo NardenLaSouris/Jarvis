@@ -1,0 +1,626 @@
+"""Le LLM propose un outil ; le Core dispose.
+
+- ``plan`` : demande au LLM, sortie JSON contrainte par schéma, soit un appel d'outil structuré
+  (``{"type": "tool_call", "tool": ..., "parameters": {...}}``), soit ``{"type": "none"}`` ;
+- ``tool_request`` : message transmis au LLM après exécution, avec le résultat structuré.
+La demande proposée est ensuite entièrement revalidée par le Core : rien n'est exécuté sur la foi du LLM.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import re
+
+from orion.interfaces import Message
+from orion.personality import normalize
+from orion.scheduling.durations import spoken_numbers
+from orion.tools.base import ToolResult
+from orion.tools.registry import ToolRegistry
+
+log = logging.getLogger(__name__)
+
+RESULT_START = "<<<RESULTAT_OUTIL>>>"
+RESULT_END = "<<<FIN_RESULTAT_OUTIL>>>"
+TYPES = {str: "texte", int: "entier", float: "nombre", bool: "booléen"}
+# Mots valant un nombre dit (« mets le son à fond », « luminosité au maximum »).
+NUMBER_WORDS = ((("maximum", "max", "a fond", "au plus fort"), {"100"}), (("minimum", "min"), {"0", "1"}),
+                (("moitie", "a la moitie", "a mi"), {"50"}))
+
+MAX_CALLS = 4
+
+# Demandes à plusieurs actions : une entrée par action, dans l'ordre, avec la partie de la phrase qui la concerne.
+MULTI_EXAMPLES = (
+    ("Allume la chambre à 30 %, en bleu", [("light_on", {"brightness": 30}, "allume la chambre à 30 %"),
+                                          ("set_color", {"color": "bleu"}, "en bleu")]),
+    ("Allume la chambre et éteins l'entrée", [("light_on", {}, "allume la chambre"),
+                                             ("light_off", {}, "éteins l'entrée")]),
+    ("Ouvre Discord et mets le son à 30 %", [("open_application", {"application": "discord"}, "ouvre Discord"),
+                                            ("set_volume", {"volume": 30}, "mets le son à 30 %")]),
+)
+
+EXAMPLES = (
+    ("Tu peux ouvrir Discord ?", "open_application", {"application": "discord"}),
+    ("Ferme Chrome", "close_application", {"application": "chrome"}),
+    ("Quitte Steam", "close_application", {"application": "steam"}),
+    ("Ouvre YouTube", "open_url", {"url": "https://www.youtube.com"}),
+    ("Monte-moi le son à 60", "set_volume", {"volume": 60}),
+    ("Mets le volume à 25 %", "set_volume", {"volume": 25}),
+    ("Coupe le son", "mute_volume", {}),
+    ("Remets le son", "unmute_volume", {}),
+    ("Verrouille le PC", "lock_pc", {}),
+    ("Éteins mon PC", "shutdown_pc", {}),
+    ("Quand je dis la lampe du fond, je veux dire la chambre", "learn_word",
+     {"heard": "la lampe du fond", "meaning": "la chambre"}),
+    ("Retiens le mot Katana", "learn_word", {"heard": "Katana"}),
+    ("Allume mon ordinateur", "wake_pc", {}),
+    ("Quelles applications sont ouvertes ?", "list_running_applications", {}),
+    ("Quelle machine utilises-tu ?", "system_info", {}),
+    ("Combien d'espace disque me reste-t-il ?", "system_info", {}),
+    ("Réactive le son", "unmute_volume", {}),
+    ("Est-ce que Discord est ouvert ?", "list_running_applications", {}),
+    ("Mets un minuteur de 10 minutes", "create_timer", {"duration": "10 minutes"}),
+    ("Lance un minuteur d'une heure et demie", "create_timer", {"duration": "une heure et demie"}),
+    ("Rappelle-moi dans 20 minutes de sortir le linge", "create_reminder",
+     {"delay": "20 minutes", "message": "sortir le linge"}),
+    ("Annule mon minuteur", "cancel_timer", {}),
+    ("Annule le minuteur de 5 minutes", "cancel_timer", {"duration": "5 minutes"}),
+    ("Quels sont mes minuteurs ?", "list_timers", {}),
+    ("Combien de temps reste-t-il ?", "list_timers", {}),
+    ("Annule le rappel pour le linge", "cancel_reminder", {"message": "linge"}),
+    ("Quels rappels sont prévus ?", "list_reminders", {}),
+    ("Réveille-moi à 7 heures", "create_alarm", {"time": "7 heures"}),
+    ("Mets un réveil demain à 6 h 30", "create_alarm", {"time": "6 h 30"}),
+    ("Quels réveils sont programmés ?", "list_alarms", {}),
+    ("Annule mon réveil", "cancel_alarm", {}),
+    ("Annule le réveil de 7 heures", "cancel_alarm", {"time": "7 heures"}),
+    ("Quel temps fait-il ?", "get_weather", {}),
+    ("Il fait combien dehors ?", "get_weather", {}),
+    ("Quel temps fera-t-il demain ?", "get_weather", {"day": "tomorrow"}),
+    ("Est-ce qu'il va pleuvoir ce soir ?", "get_weather", {"moment": "evening"}),
+    ("Quel temps fera-t-il à Lyon demain ?", "get_weather", {"location": "Lyon", "day": "tomorrow"}),
+    ("Quelle température est prévue demain matin ?", "get_weather", {"day": "tomorrow", "moment": "morning"}),
+    ("Est-ce que je dois prendre un parapluie ?", "get_weather", {"moment": "day"}),
+    ("Allume la chambre", "light_on", {}),
+    ("Allume le salon à 30 %", "light_on", {"brightness": 30}),
+    ("Éteins toutes les lumières", "light_off", {}),
+    ("Mets la lumière de l'entrée à 50 %", "set_brightness", {"brightness": 50}),
+    ("Luminosité 30 %", "set_brightness", {"brightness": 30}),
+    ("Mets la luminosité au maximum", "set_brightness", {"brightness": 100}),
+    ("Mets l'entrée en vert", "set_color", {"color": "vert"}),
+    ("Remets la chambre en blanc chaud", "set_color", {"color": "blanc chaud"}),
+    ("Mets le salon à 4000 kelvins", "set_color_temperature", {"temperature": 4000}),
+    ("Mets une lumière chaude", "set_color", {"color": "blanc chaud"}),
+    ("Mets les lumières en mode cinéma", "set_scene", {"scene": "cinema"}),
+    ("Ambiance détente dans la chambre", "set_scene", {"scene": "detente"}),
+    ("Est-ce que la lumière de la chambre est allumée ?", "light_status", {}),
+    ("La lumière de l'entrée est à combien ?", "light_status", {}),
+    ("Quelles routines sont programmées ?", "list_routines", {}),
+    ("Lance la routine soir", "run_routine", {"name": "soir"}),
+    ("Supprime la routine réveil", "delete_routine", {"name": "réveil"}),
+    ("Désactive la routine soir", "disable_routine", {"name": "soir"}),
+    ("Qu'est-ce que je t'ai dit sur le garage la semaine dernière ?", "search_history", {"query": "garage"}),
+    ("Rappelle-moi à 18 h d'appeler Paul", "create_reminder", {"time": "18 h", "message": "appeler Paul"}),
+    ("Qu'est-ce que j'ai de prévu aujourd'hui ?", "list_events", {}),
+    ("J'ai quoi demain dans mon agenda ?", "list_events", {}),
+    ("Quels sont mes prochains rendez-vous ?", "next_events", {}),
+    ("Quand est mon rendez-vous chez le dentiste ?", "search_events", {"query": "dentiste"}),
+    ("Est-ce que je suis libre demain après-midi ?", "free_slots", {}),
+    ("Ajoute un rendez-vous chez le coiffeur demain à 15 h", "add_event", {"title": "coiffeur", "time": "15 h"}),
+    ("Ajoute dans mon agenda « vacances » du 20 au 28", "add_period", {"title": "vacances"}),
+    ("Si j'ai un rappel quand je ne suis pas à la maison, appelle-moi la veille pour me le dire", "create_call_rule",
+     {}),
+    ("Pause", "media_play_pause", {}),
+    ("Passe au morceau suivant", "media_next", {}),
+    ("Remets la chanson d'avant", "media_previous", {}),
+    ("Mets ma playlist chill", "spotify_play", {"query": "chill", "kind": "playlist"}),
+    ("Joue Back in Black d'AC/DC", "spotify_play", {"query": "Back in Black d'AC/DC", "kind": "track"}),
+    ("Mets Without Me d'Eminem sur Spotify", "spotify_play", {"query": "Without Me d'Eminem", "kind": "track"}),
+    ("Mets de la musique de Daft Punk", "spotify_play", {"query": "Daft Punk", "kind": "artist"}),
+    ("Mets Spotify en pause", "spotify_pause", {}),
+    ("Est-ce que le réseau fonctionne ?", "network_status", {}),
+    ("Est-ce que le Katana répond ?", "network_status", {}),
+    ("Retiens que je préfère la lumière à 40 %", "remember", {"fact": "je préfère la lumière à 40 %"}),
+    ("Souviens-toi que ma sœur s'appelle Léa", "remember", {"fact": "ma sœur s'appelle Léa"}),
+    ("Qu'est-ce que tu sais sur moi ?", "recall", {}),
+    ("Tu te souviens de ma couleur préférée ?", "recall", {"topic": "couleur préférée"}),
+    ("Oublie que je préfère le bleu", "forget", {"topic": "je préfère le bleu"}),
+    ("Cherche le fichier facture dans mes documents", "find_files", {"query": "facture"}),
+    ("Lis-moi le fichier notes", "read_text_file", {"name": "notes"}),
+    ("Crée un fichier courses avec du lait et des œufs", "create_text_file",
+     {"name": "courses", "content": "du lait et des œufs"}),
+    ("Copie le fichier rapport sur le bureau", "copy_file", {"name": "rapport", "destination": "bureau"}),
+    ("Supprime le fichier brouillon", "delete_file", {"name": "brouillon"}),
+    ("Baisse un peu la lumière", None, None),
+    ("Supprime le dossier Documents", None, None),
+    ("Formate le disque", None, None),
+    ("Ouvre un terminal et tape une commande", None, None),
+    ("Éteins l'ordinateur", None, None),
+)
+
+
+def planner_prompt(registry: ToolRegistry) -> str:
+    lines = []
+    for tool in registry.list():
+        params = "; ".join(f"{name} ({TYPES.get(p.kind, 'texte')}) : {p.description}"
+                           for name, p in tool.parameters.items() if not p.hidden)
+        lines.append(f"- {tool.name} : {tool.description} Paramètres : {params or 'aucun'}.")
+    tools = "\n".join(lines)
+    rules = ["- N'inventez jamais d'outil ni de paramètre.",
+             "- Une demande indirecte vaut l'action évidente si un outil la fait (« on n'y voit rien » : allumer ; "
+             "« c'est trop fort » : le son) ; sans niveau dit, n'inventez pas de nombre : outil sans ce paramètre, "
+             "ou none.",
+             "- Si une demande précédente est donnée, « le », « la », « les », « en », « ça », « celui-ci » désignent "
+             "ce qu'elle concernait (« annule-le » après un minuteur : cancel_timer ; « fais-en un autre de 8 "
+             "minutes » : create_timer ; « le deuxième » après une liste de mails : ce mail). Une demande sans lien "
+             "avec elle est traitée seule.",
+             "- Une phrase à lire, répéter, prononcer ou citer (« lis-moi cette phrase : ... », « répète après moi ») "
+             "n'est jamais une action : none."]
+    if registry.exists("open_application"):
+        rules.append("- open_application : recopiez le nom de l'application tel que l'utilisateur l'a dit, en "
+                     "minuscules, même s'il ne figure pas dans la liste.")
+    if registry.exists("close_application"):
+        rules.append("- close_application : même règle pour le nom de l'application à fermer.")
+    if registry.exists("set_volume"):
+        rules.append("- set_volume : uniquement si un niveau précis est donné (nombre entier de 0 à 100).")
+    if registry.exists("create_timer") or registry.exists("create_reminder"):
+        rules.append("- create_timer, create_reminder, cancel_timer : recopiez la durée exactement comme elle a été "
+                     "dite (« 10 minutes », « une heure et demie »), sans la convertir ; pas de durée dite -> none. "
+                     "Le message d'un rappel est l'action à rappeler, sans « de » (« sortir le linge »). "
+                     "Un rappel à une heure précise (« à 18 heures ») : time au lieu de delay, recopiée telle quelle ; "
+                     "pour un minuteur, une heure précise n'est pas une durée -> none.")
+    if registry.exists("create_alarm"):
+        rules.append("- create_alarm, cancel_alarm : recopiez l'heure exactement comme elle a été dite (« 7 heures "
+                     "30 », « sept heures et demie ») ; une durée (« dans 10 minutes ») est un minuteur ou un rappel. "
+                     "Réveiller, faire lever, sonner le matin à une heure dite -> create_alarm.")
+    if registry.exists("light_on"):
+        rules.append("- Lumières : la pièce n'est jamais un paramètre. « allume », « éteins » -> light_on, light_off ; "
+                     "brightness seulement si un pourcentage est dit ; une couleur dite (« en vert », « en blanc "
+                     "chaud », « une lumière chaude » = blanc chaud) -> set_color ; des kelvins dits -> "
+                     "set_color_temperature ; une ambiance (cinéma, lecture, détente, nuit, travail, réveil) -> "
+                     "set_scene ; une question sur l'état d'une lumière (allumée ? à combien ?) -> light_status.")
+    if registry.exists("get_weather"):
+        rules.append("- get_weather : location uniquement si une ville est dite ; day = today, tomorrow ou "
+                     "day_after_tomorrow ; moment = now (par défaut aujourd'hui), morning, afternoon, evening ou "
+                     "day (journée entière). Une demande explicite de recherche (« cherche », « recherche ») -> none.")
+    if registry.exists("spotify_play"):
+        rules.append("- Musique : spotify_play, spotify_pause, spotify_next, spotify_previous, spotify_volume quand ils "
+                     "existent ; sinon les touches media_play_pause, media_next, media_previous. « Joue Spotify », "
+                     "« mets de la musique » -> spotify_play sans paramètre (reprise) ; « ouvre Spotify » (l'application) "
+                     "-> open_application ; « le volume de Spotify » -> spotify_volume, « le volume » seul -> set_volume.")
+    elif registry.exists("media_play_pause"):
+        rules.append("- Musique ou vidéo en cours : pause, reprise -> media_play_pause ; suivant -> media_next ; "
+                     "précédent -> media_previous. Jouer un titre précis n'est pas possible sans Spotify relié -> none. "
+                     "« Lance Spotify » (l'application) -> open_application.")
+    if registry.exists("find_files"):
+        rules.append("- Fichiers : jamais de chemin, un nom de fichier tel qu'il a été dit (le dossier est déduit de la "
+                     "demande, jamais un paramètre) ; destination de copy_file et move_file : dossier dit (documents, "
+                     "bureau, téléchargements). Supprimer un dossier, exécuter un fichier ou toucher au système -> none.")
+    if registry.exists("create_call_rule"):
+        rules.append("- « Appelle-moi / préviens-moi / écris-moi quand… si… la veille… » : create_call_rule (une règle "
+                     "d'appel, même si la phrase parle de rappels ou d'agenda), jamais create_reminder.")
+    if registry.exists("list_events"):
+        rules.append("- Calendrier : le jour n'est jamais un paramètre (déduit de la demande). add_event : heure recopiée "
+                     "telle qu'elle a été dite ; sans heure, sur une journée ou plusieurs (« du 20 au 28 ») : "
+                     "add_period ; un rappel (« rappelle-moi ») reste create_reminder.")
+    if registry.exists("read_mail"):
+        rules.append("- Mails : « lis le premier », « le deuxième », « ce mail » après une liste -> read_mail ; résumer -> "
+                     "summarize_mail ; le rang n'est jamais un paramètre (déduit de la demande).")
+    if registry.exists("list_timers"):
+        rules.append("- Le temps restant d'un minuteur, les minuteurs en cours -> list_timers.")
+    if registry.exists("remember"):
+        rules.append("- remember : seulement si l'utilisateur demande explicitement de retenir ou de se souvenir de "
+                     "quelque chose ; fact reprend ses mots, sans « retiens que ». recall : ce qu'ORION sait de lui. "
+                     "forget : oublier (topic = ses mots, ou « tout »).")
+    if registry.exists("unmute_volume"):
+        rules.append("- unmute_volume : remettre, réactiver ou rallumer le son (après une coupure).")
+    if registry.exists("system_info"):
+        rules.append("- system_info : toute question sur la machine elle-même (processeur, mémoire, espace disque, "
+                     "carte graphique, système, depuis quand elle est allumée).")
+    if registry.exists("list_running_applications"):
+        rules.append("- list_running_applications : savoir quelles applications sont ouvertes ou si une application "
+                     "tourne.")
+    if registry.exists("open_url"):
+        rules.append("- open_url : donnez une adresse complète commençant par https:// ; pour un site connu, "
+                     "son adresse officielle.")
+    rules = "\n".join(rules)
+    samples = [(text, tool, params) for text, tool, params in EXAMPLES if tool is None or registry.exists(tool)]
+    examples = "\n".join(
+        f"« {text} » -> " + json.dumps({"type": "none"} if tool is None else
+                                      {"type": "tool_call", "tool": tool, "parameters": params}, ensure_ascii=False)
+        for text, tool, params in samples)
+    multi = [(text, calls) for text, calls in MULTI_EXAMPLES if all(registry.exists(c[0]) for c in calls)]
+    examples += "".join(
+        f"\n« {text} » -> " + json.dumps({"type": "tool_calls", "calls": [
+            {"tool": tool, "parameters": params, "segment": segment} for tool, params, segment in calls]},
+            ensure_ascii=False) for text, calls in multi)
+    return f"""Vous êtes le module de décision d'action de l'assistante vocale ORION. Vous ne répondez pas à
+l'utilisateur : vous indiquez seulement si sa demande correspond à l'un de ces outils.
+
+Outils disponibles :
+{tools}
+
+Répondez uniquement en JSON :
+- {{"type": "tool_call", "tool": "<nom>", "parameters": {{...}}}} si un outil correspond exactement à la demande ;
+- {{"type": "tool_calls", "calls": [{{"tool": "<nom>", "parameters": {{...}}, "segment": "<partie de la demande>"}}, ...]}}
+  si la demande enchaîne plusieurs actions (« et », virgule ; {MAX_CALLS} au plus) : une entrée par action, dans
+  l'ordre, avec la partie de la demande qui la concerne recopiée telle quelle ;
+- {{"type": "none"}} sinon : conversation, question de culture générale, ou action pour laquelle aucun outil
+  n'existe (supprimer un fichier, éteindre l'ordinateur, taper une commande, domotique, messages...).
+
+Règles :
+{rules}
+
+Exemples :
+{examples}"""
+
+
+JSON_TYPES = {str: "string", int: "integer", float: "number", bool: "boolean"}
+
+
+def _param_schema(param) -> dict:
+    schema = {"type": JSON_TYPES.get(param.kind, "string")}
+    if param.choices:
+        schema["enum"] = list(param.choices)
+    return schema
+
+
+def plan_schema(registry: ToolRegistry) -> dict:
+    """Schéma de sortie : « none », ou un appel d'outil avec les paramètres exacts (noms et types) de cet outil."""
+    options = [{"type": "object", "properties": {"type": {"const": "none"}}, "required": ["type"],
+                "additionalProperties": False}]
+    calls = []
+    for tool in registry.list():
+        parameters = {
+            "type": "object",
+            "properties": {name: _param_schema(p) for name, p in tool.parameters.items() if not p.hidden},
+            "required": [name for name, p in tool.parameters.items() if p.required and not p.hidden],
+            "additionalProperties": False,
+        }
+        options.append({"type": "object",
+                        "properties": {"type": {"const": "tool_call"}, "tool": {"const": tool.name},
+                                       "parameters": parameters},
+                        "required": ["type", "tool", "parameters"], "additionalProperties": False})
+        calls.append({"type": "object",
+                      "properties": {"tool": {"const": tool.name}, "parameters": parameters, "segment": {"type": "string"}},
+                      "required": ["tool", "parameters", "segment"], "additionalProperties": False})
+    if calls:
+        options.append({"type": "object",
+                        "properties": {"type": {"const": "tool_calls"},
+                                       "calls": {"type": "array", "minItems": 2, "maxItems": MAX_CALLS,
+                                                 "items": {"anyOf": calls}}},
+                        "required": ["type", "calls"], "additionalProperties": False})
+    return {"anyOf": options}
+
+
+def plan(llm, text: str, registry: ToolRegistry, previous: str = "", report: dict | None = None) -> dict | None:
+    """Appel d'outil proposé par le LLM pour cette demande, ou None (aucun outil, ou LLM indisponible).
+
+    ``previous`` : la demande d'outil précédente de la conversation, déjà exécutée, pour comprendre une suite
+    (« baisse-la à 20 % », « annule-le », « lis le premier »). Les valeurs sont alors vérifiées dans les deux
+    demandes réunies ; sans lien avec elle, la nouvelle demande est traitée seule. ``report`` reçoit « proposed » :
+    l'outil proposé puis écarté par les vérifications (une action était voulue, mais pas assez précise)."""
+    if not len(registry) or not hasattr(llm, "chat_json") or quoted(text):
+        return None
+    messages = [Message("system", planner_prompt(registry)), Message("user", text)]
+    if previous:
+        messages[1:1] = [Message("user", previous),
+                         Message("assistant", "(Action exécutée. Ne la refais pas : seule la demande suivante compte ; "
+                                              "« la », « le », « ça » peuvent désigner ce qu'elle concernait.)")]
+        text = f"{previous.rstrip(' .!?')}. {text}"
+    try:
+        data = llm.chat_json(messages, plan_schema(registry))
+    except Exception as exc:
+        log.warning("Choix d'outil impossible : %s", exc)
+        return None
+    if isinstance(data, dict) and data.get("type") == "tool_calls" and isinstance(data.get("calls"), list):
+        return _several(data["calls"][:MAX_CALLS], text, registry)
+    if not isinstance(data, dict) or data.get("type") != "tool_call":
+        return None
+    grounded = _grounded(data, text, registry)
+    if grounded is None:
+        log.info("Appel d'outil écarté : valeur absente de la demande (%s)", data)
+        if report is not None:
+            report["proposed"] = str(data.get("tool", ""))
+    return grounded
+
+
+def _several(calls: list, text: str, registry: ToolRegistry) -> dict | None:
+    """Plusieurs actions : chacune vérifiée comme un appel seul ; ``segment`` gardé s'il vient bien de la demande."""
+    kept, said = [], normalize(text)
+    deferred = [normalize(str(c.get("segment") or "")) for c in calls
+                if isinstance(c, dict) and _deferred(str(c.get("segment") or ""))]
+    for call in calls:
+        if not isinstance(call, dict):
+            continue
+        part = normalize(str(call.get("segment") or ""))
+        clause = str(call.get("segment")) if part and part in said else None
+        if clause and any(part in d and part != d for d in deferred):  # « rappelle-moi ... de couper le son »
+            clause = None
+        # « Rappelle-moi d'appeler Paul dans 10 minutes et lance un minuteur » : le minuteur, lui, est pour maintenant.
+        grounded = _grounded({"type": "tool_call", "tool": call.get("tool"), "parameters": call.get("parameters")},
+                             text, registry, clause)
+        if grounded is None:
+            log.info("Action écartée : valeur absente de la demande (%s)", call)
+            continue
+        segment = str(call.get("segment") or "")
+        grounded["segment"] = segment if normalize(segment) and normalize(segment) in said else text
+        kept.append(grounded)
+    if not kept:
+        return None
+    if len(kept) == 1:
+        # Une seule action retenue : un appel simple, sans « segment » (champ refusé par le Core : « lis ce mail »
+        # dont l'envoi suggéré a été écarté finissait en « je n'ai pas compris quelle action faire »).
+        kept[0].pop("segment")
+        return kept[0]
+    return {"type": "tool_calls", "calls": kept}
+
+
+# Actions sur le PC qui exigent d'être nommées dans la demande : le LLM ne les ajoute jamais par interprétation
+# (« éteins tout » proposait aussi de couper le son du PC).
+DOMAIN_WORDS = {
+    "mute_volume": ("son", "volume", "sourdine", "muet", "silence", "audio", "mute"),
+    "unmute_volume": ("son", "volume", "sourdine", "muet", "audio", "unmute"),
+    "set_volume": ("son", "volume", "audio", "fort", "bas"),
+    "set_face_theme": ("visage", "theme", "couleur", "couleurs", "interface", "ecran", "arc", "face", "tete"),
+    # « oui et ferme aussi Discord » proposé en open_application : ouvrir doit avoir été demandé.
+    "open_application": ("ouvre", "ouvrir", "ouvres", "lance", "lancer", "lances", "demarre", "demarrer", "mets",
+                         "mettre", "relance", "rouvre", "joue", "jouer", "affiche", "afficher", "va sur", "allume",
+                         "start", "open"),
+    "lock_pc": ("verrouille", "verrouiller", "verrouillage", "verrouilles", "bloque", "lock"),
+    # Allumer ou éteindre un PC : l'ordinateur doit être nommé (« éteins tout » ne vise que les lumières).
+    "shutdown_pc": ("pc", "ordinateur", "ordi", "portable", "katana", "laptop", "tour", "machine", "shutdown"),
+    "wake_pc": ("pc", "ordinateur", "ordi", "portable", "katana", "laptop", "tour", "machine"),
+    # Vocabulaire : seulement quand l'utilisateur l'enseigne ou le retire explicitement.
+    "learn_word": ("je dis", "veut dire", "veux dire", "signifie", "retiens le mot", "retiens l expression",
+                   "apprends", "apprend", "le mot", "l expression"),
+    "forget_word": ("oublie le mot", "oublie l expression", "oublie ce mot", "desapprends"),
+    "declare_departure": ("je sors", "je pars", "je m en vais", "je quitte", "je m absente", "je file", "je reste",
+                          "courses", "je vais y aller", "j y vais"),
+    # Rappel : un mot de rappel dit par l'utilisateur (« Fous alert », un « fausse alerte » mal entendu, avait été
+    # programmé en rappel par le LLM).
+    "create_reminder": ("rappel", "rappels", "rappelle", "rappeler", "rappelez", "rappelles", "penser", "pense",
+                        "previens", "prevenir", "n oublie", "oublie pas", "souviens", "noter", "note"),
+    # Règles d'appel : seulement quand l'utilisateur parle d'appel ou de règle.
+    "create_call_rule": ("appelle moi", "appelez moi", "previens moi", "ecris moi", "telephone moi"),
+    "list_call_rules": ("regle", "regles"),
+    "describe_call_rule": ("regle", "regles"),
+    "set_call_rule_enabled": ("regle", "regles"),
+    "delete_call_rule": ("regle", "regles"),
+    "modify_call_rule": ("regle", "regles"),
+    "explain_calls": ("appele", "appel", "appels", "appeler", "pourquoi"),
+    "mail_action_done": ("regle", "reglee", "regles", "fait", "termine", "traite", "c est bon pour"),
+    "mail_action_waiting": ("attends", "attend", "retour", "reponse de leur part"),
+    "confirm_mail_deadline": ("echeance", "date", "confirme", "c est bien", "oui", "non"),
+    "add_instruction": ("desormais", "dorenavant", "a partir de maintenant", "a l avenir", "chaque fois que tu"),
+    "list_instructions": ("consigne", "consignes"),
+    "remove_instruction": ("consigne", "consignes"),
+    "flex": ("flex", "flexe", "presentation", "demonstration", "demo", "ce que tu sais faire", "impressionne"),
+    "set_flex_enabled": ("flex", "flexe"),
+    "run_diagnostic": ("diagnostic", "diagnostique", "etat du systeme", "tout fonctionne", "check up", "checkup"),
+    "close_application": ("ferme", "fermer", "quitte", "quitter", "arrete", "coupe"),
+    # Mails : l'action doit être dite par l'utilisateur, jamais suggérée par le contenu d'un mail lu.
+    "mark_mail_read": ("lu", "lus", "marque", "marquer"),
+    "mark_all_mail_read": ("lu", "lus", "marque", "marquer"),
+    "archive_mail": ("archive", "archiver", "archives", "range", "ranger"),
+    "delete_mail": ("supprime", "supprimer", "supprimes", "efface", "effacer", "corbeille", "jette", "jeter"),
+    "send_mail": ("envoie", "envoyer", "envoies", "ecris", "ecrire", "ecrit", "mail a", "email a"),
+    "reply_mail": ("reponds", "repondre", "reponse", "repond"),
+}
+
+
+LIGHT_TOOLS = ("light_on", "light_off", "light_toggle", "set_brightness", "set_color", "set_color_temperature",
+               "set_scene")
+# Des noms, pas des verbes : « éteins le Katana » ne vise aucune lumière.
+LIGHT_WORDS = ("lumiere", "lumieres", "lampe", "lampes", "ampoule", "ampoules", "eclairage", "luminosite", "couleur",
+               "ambiance", "mode", "scene", "kelvin", "kelvins", "lumineux", "lumineuse", "tout", "partout", "toutes")
+
+
+DEFERRED_WORDS = ("rappelle moi", "rappelez moi", "fais moi penser", "faites moi penser", "rappelle nous",
+                  "reveille moi", "reveillez moi")
+DEFERRED_TOOLS = ("create_reminder", "cancel_reminder", "list_reminders", "create_alarm", "cancel_alarm",
+                  "list_alarms", "list_events", "next_events", "search_events", "free_slots", "add_event", "add_period",
+                  "recall")
+
+
+READ_ONLY_TOOLS = ("get_", "list_", "light_status", "find_", "read_", "recall", "search_", "next_", "free_",
+                   "system_info", "network_status", "spotify_status", "check_mail", "summarize_mail")
+QUESTION = re.compile(r"^(?:jarvis )?(?:est ce que|est ce qu|est il|est elle|y a t il|qu est ce qui|quel|quelle|quels|"
+                      r"quelles|combien|pourquoi|comment|ou est|quand)\b")
+REQUEST = re.compile(r"\b(?:tu peux|peux tu|tu pourrais|pourrais tu|vous pouvez|pouvez vous|vous pourriez|"
+                     r"pourriez vous|tu veux bien|veux tu|voudrais tu|voulez vous|tu voudrais|merci de)\b")
+
+
+# « Si je t'envoie alarme.mp3, tu peux le mettre dans le bon dossier ? » (12 octobre 2026 : copy_file lancé) :
+# une hypothèse sur ce que vous ferez, jamais une action à exécuter tout de suite. Les règles (« si la porte
+# s'ouvre, allume ») ne sont pas visées : le sujet n'est pas « je ».
+HYPOTHETICAL = re.compile(r"^(?:jarvis |orion )?(?:et )?si (?:je|j|on) (?:t |te |vous |l |le |la |les )?"
+                          r"(?:envoie|envoyais|envoyait|donne|donnais|passe|passais|voulais|voudrais|avais|etais|"
+                          r"pouvais|fais|faisais|ajoute|ajoutais|demande|demandais)\b"
+                          r"|\b(?:imaginons|supposons|admettons|hypothetiquement|en theorie)\b")
+
+
+# Description au passé (« hier le son était à 50, c'était trop fort ») : un constat, pas une demande ; le LLM y
+# avait vu « mets le son à 50 ». Une demande qui commence par un verbe d'action (« remets le son comme il était »)
+# ou une formule de demande (« tu peux… ») reste une action.
+DESCRIPTION = re.compile(r"\b(?:etait|etaient|avait|avaient|ai eu|a eu|hier|tout a l heure|la derniere fois)\b")
+ACTION_START = re.compile(r"^(?:(?:jarvis|orion) )?(?:mets|met|remets|remet|allume|rallume|eteins|eteint|baisse|monte|"
+                          r"augmente|diminue|regle|ouvre|ferme|lance|relance|joue|coupe|passe|repasse|verrouille|"
+                          r"rappelle|ajoute|supprime|envoie|reponds|cree|copie|deplace|annule|arrete|reprends|"
+                          r"active|desactive|programme|change|fais|refais|redonne|recommence)\b")
+
+
+def descriptive(text: str) -> bool:
+    """Constat au passé, sans demande : à commenter, jamais à exécuter."""
+    norm = normalize(text)
+    return bool(DESCRIPTION.search(norm)) and not ACTION_START.match(norm) and not REQUEST.search(norm)
+
+
+def hypothetical(text: str) -> bool:
+    """Hypothèse (« si je t'envoie le fichier, tu peux… ? », « imaginons que… ») : à discuter, pas à exécuter."""
+    return bool(HYPOTHETICAL.search(normalize(text)))
+
+
+def _question(text: str) -> bool:
+    """Vraie question (« est-ce que la musique joue ? »), pas une demande polie (« est-ce que tu peux allumer ? »)."""
+    norm = normalize(text)
+    return bool(QUESTION.match(norm)) and not REQUEST.search(norm)
+
+
+# « Lis-moi cette phrase : éteins tout », « répète après moi : verrouille le PC » : une phrase à lire, répéter ou
+# citer n'est jamais une commande.
+QUOTED = re.compile(r"\b(lis|lire|r[ée]p[èe]te|r[ée]p[ée]ter|prononce|dis)\b[^:«\"]{0,40}[:«\"]",
+                    re.IGNORECASE)
+QUOTED_WORDS = ("apres moi", "cette phrase", "ce texte", "ce mot")
+
+
+def quoted(text: str) -> bool:
+    """Phrase à lire, répéter ou citer : jamais une commande."""
+    norm = f" {normalize(text)} "
+    return bool(QUOTED.search(text)) or any(f" {w} " in norm for w in QUOTED_WORDS)
+
+
+def _deferred(text: str) -> bool:
+    norm = f" {normalize(text)} "
+    return any(f" {w} " in norm for w in DEFERRED_WORDS)
+
+
+def _named(tool: str, text: str, registry: ToolRegistry | None = None) -> bool:
+    """L'action doit être nommée par la demande : jamais déduite d'un mot sans rapport (« réveille-moi à 25 heures »
+    proposé en « toutes les lumières à 25 % »). Lumières : un mot de l'éclairage ou une pièce citée."""
+    norm = f" {normalize(text)} "
+    if tool in LIGHT_TOOLS:
+        if any(f" {w} " in norm for w in LIGHT_WORDS):
+            return True
+        room = registry.get(tool).parameters.get("room") if registry is not None and registry.exists(tool) else None
+        # Pièce citée : la déduction diffère de celle d'une demande vide (toutes, ou la seule pièce).
+        return bool(room is not None and room.resolve is not None and room.resolve(text) != room.resolve(""))
+    words = DOMAIN_WORDS.get(tool)
+    return words is None or any(f" {w} " in norm for w in words)
+
+
+def named(tool: str, text: str, registry: ToolRegistry | None = None) -> bool:
+    """L'action ``tool`` est-elle nommée par ``text`` (mot de l'action, de l'éclairage ou pièce citée) ?"""
+    return _named(tool, text, registry)
+
+
+def _grounded(data: dict, text: str, registry: ToolRegistry, clause: str | None = None) -> dict | None:
+    """Les nombres et les valeurs à justifier (durées...) doivent venir de la demande : le LLM n'invente rien.
+
+    Un nombre absent de la demande dans un paramètre facultatif est retiré (« allume l'entrée » proposé avec
+    une luminosité de 100) ; dans un paramètre obligatoire, ou une autre valeur injustifiée, l'appel est écarté."""
+    if not registry.exists(data.get("tool")) or not isinstance(data.get("parameters"), dict):
+        return data
+    if not _named(data["tool"], text, registry):
+        log.info("Action écartée : « %s » n'est pas demandée (%s)", data["tool"], text[:80])
+        return None
+    clause = clause or text  # partie de la demande qui concerne cette action (demandes enchaînées)
+    if _question(clause) and not data["tool"].startswith(READ_ONLY_TOOLS):
+        # « Est-ce que la musique joue ? » : une question ne déclenche jamais une action (lecture/pause du PC).
+        log.info("Action écartée : « %s » pour une question (%s)", data["tool"], text[:80])
+        return None
+    if hypothetical(clause) and not data["tool"].startswith(READ_ONLY_TOOLS):
+        log.info("Action écartée : « %s » pour une hypothèse (%s)", data["tool"], text[:80])
+        return None
+    if descriptive(clause) and not data["tool"].startswith(READ_ONLY_TOOLS):
+        log.info("Action écartée : « %s » pour un constat au passé (%s)", data["tool"], text[:80])
+        return None
+    if quoted(text) and not data["tool"].startswith(READ_ONLY_TOOLS):
+        log.info("Action écartée : « %s » dans une phrase à lire ou répéter (%s)", data["tool"], text[:80])
+        return None
+    if _deferred(clause) and not data["tool"].startswith(DEFERRED_TOOLS):
+        # « Rappelle-moi d'éteindre la chambre » : à rappeler plus tard, jamais à exécuter maintenant.
+        log.info("Action écartée : « %s » dans une demande de rappel (%s)", data["tool"], text[:80])
+        return None
+    said = set(re.findall(r"\d+(?:[.,]\d+)?", text))
+    said |= {n.replace(",", ".") for n in said}
+    norm = f" {normalize(text)} "
+    for words, values in NUMBER_WORDS:
+        if any(f" {w} " in norm for w in words):
+            said |= values
+    said |= {str(n) for n in spoken_numbers(text)}  # « mets le son à cinquante » : 50 est bien dit
+    parameters = dict(data["parameters"])
+    for name, spec in registry.get(data["tool"]).parameters.items():
+        value = parameters.get(name)
+        if spec.kind in (int, float) and isinstance(value, (int, float)) and not isinstance(value, bool):
+            if f"{value:g}" not in said:
+                if spec.required:
+                    return None
+                del parameters[name]
+                continue
+        if spec.ground is not None and value is not None:
+            value = spec.ground(value, text)
+            if value is None:
+                return None
+            parameters[name] = value
+        if spec.evidence is not None and value is not None and not spec.evidence(value, text):
+            if spec.drop_unsaid and not spec.required:
+                del parameters[name]
+                continue
+            return None
+    return {**data, "parameters": parameters}
+
+
+MAX_TEXT_FOR_LLM = 4000  # un texte lu dans un fichier tient en entier (MAX_READ_CHARS des outils de fichiers)
+MAX_ITEMS_FOR_LLM = 40
+MAX_PAYLOAD_FOR_LLM = 12_000
+
+
+def _bounded(value, depth: int = 0):
+    """Résultat d'outil réduit pour le LLM : une réponse démesurée (agent : 2 Mo mesurés) prenait 10 s de lecture
+    et donnait une réponse confuse. Textes et listes raccourcis, et signalés comme tels."""
+    if depth > 6:
+        return "…"
+    if isinstance(value, str):
+        return value if len(value) <= MAX_TEXT_FOR_LLM else value[:MAX_TEXT_FOR_LLM] + " […tronqué]"
+    if isinstance(value, list):
+        kept = [_bounded(v, depth + 1) for v in value[:MAX_ITEMS_FOR_LLM]]
+        return kept + ([f"… {len(value) - MAX_ITEMS_FOR_LLM} autres"] if len(value) > MAX_ITEMS_FOR_LLM else [])
+    if isinstance(value, dict):
+        return {str(k)[:60]: _bounded(v, depth + 1) for k, v in list(value.items())[:MAX_ITEMS_FOR_LLM]}
+    return value
+
+
+def tool_request(user_text: str, result: ToolResult) -> str:
+    """Message utilisateur envoyé au LLM après exécution : le résultat structuré (borné), puis la demande."""
+    payload = json.dumps(_bounded(result.as_dict()), ensure_ascii=False)
+    if len(payload) > MAX_PAYLOAD_FOR_LLM:
+        payload = payload[:MAX_PAYLOAD_FOR_LLM] + " […tronqué]"
+    return f"{RESULT_START}\n{payload}\n{RESULT_END}\n\n{user_text}"
+
+
+class ToolsCapability:
+    """Déclare les outils au registre des capacités (prompt système, « que sais-tu faire ? »).
+
+    Le routage vers les outils passe par les intentions à outil, pas par ``handle``.
+    """
+
+    name = "outils"
+
+    GROUPS = (
+        (("get_time", "get_date"), "donner l'heure et la date"),
+        (("get_weather",), "donner la météo"),
+        (("create_timer", "create_reminder"), "gérer vos minuteurs et rappels"),
+        (("create_alarm",), "programmer vos réveils"),
+        (("open_application", "close_application", "open_url"), "ouvrir ou fermer vos applications et pages Web"),
+        (("set_volume", "mute_volume", "unmute_volume"), "régler le son"),
+        (("spotify_play", "media_play_pause"), "piloter la musique"),
+        (("system_info", "list_running_applications"), "décrire la machine"),
+        (("lock_pc",), "verrouiller l'ordinateur"),
+        (("shutdown_pc", "wake_pc"), "éteindre et allumer vos ordinateurs"),
+        (("find_files",), "chercher, lire et ranger vos fichiers"),
+        (("list_events",), "consulter et compléter votre agenda"),
+        (("remember",), "retenir ce que vous me demandez de retenir"),
+        (("list_routines",), "gérer vos routines et programmer des actions"),
+        (("light_on", "light_off", "set_color"), "piloter vos lumières et leurs ambiances"),
+    )
+
+    def __init__(self, registry: ToolRegistry):
+        self.replaces = ("le contrôle de votre ordinateur", *(("la domotique",) if registry.exists("light_on") else ()),
+                         *(("la gestion de vos fichiers",) if registry.exists("find_files") else ()),
+                         *(("l'agenda",) if registry.exists("list_events") else ()))
+        parts = [label for names, label in self.GROUPS if any(registry.exists(n) for n in names)]
+        self.description = ", ".join(parts[:-1]) + " et " + parts[-1] if len(parts) > 1 else "".join(parts)
+
+    def handle(self, text: str) -> None:
+        return None

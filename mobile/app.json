@@ -1,0 +1,56 @@
+{
+  "expo": {
+    "name": "ORION",
+    "slug": "orion",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "fr.orion.mobile"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#05080F",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "fr.orion.mobile",
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "scheme": "orion",
+    "extra": {
+      "eas": {
+        "projectId": "da49e945-e225-43b9-b248-8b34a9e11234"
+      }
+    },
+    "owner": "nardenlasouris",
+    "plugins": [
+      "expo-font",
+      "expo-secure-store",
+      [
+        "@config-plugins/react-native-webrtc",
+        {
+          "microphonePermission": "ORION a besoin du micro pendant ses appels pour vous entendre."
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ]
+    ]
+  }
+}

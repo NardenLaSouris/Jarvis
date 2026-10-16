@@ -1,0 +1,163 @@
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #0e0e0e;
+}
+
+body {
+  cursor: none;
+}
+
+#face {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  display: block;
+}
+
+#error {
+  position: fixed;
+  left: 50%;
+  bottom: 7vh;
+  transform: translateX(-50%);
+  max-width: min(84vw, 760px);
+  padding: 0.7em 1.2em;
+  border: 1px solid rgba(255, 110, 100, 0.45);
+  border-radius: 10px;
+  background: rgba(40, 4, 6, 0.72);
+  color: #ffd9d4;
+  font: 500 clamp(15px, 2.3vw, 24px)/1.4 "Segoe UI", system-ui, sans-serif;
+  text-align: center;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+
+#error[hidden] {
+  display: block;
+  opacity: 0;
+}
+
+#effects {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+}
+
+/* Message d'un jour de fête (« Joyeux Noël »), discret, aux couleurs du thème */
+#greeting {
+  position: fixed;
+  left: 50%;
+  top: 6vh;
+  transform: translateX(-50%);
+  color: var(--greeting, #f4efe4);
+  font: 300 clamp(18px, 3.4vw, 40px)/1.2 "Segoe UI", system-ui, sans-serif;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-shadow: 0 0 14px var(--greeting, #3c8b6f);
+  text-align: center;
+  white-space: nowrap;
+  pointer-events: none;
+  transition: opacity 1s ease, color 1.5s ease;
+}
+
+#greeting[hidden] {
+  display: block;
+  opacity: 0;
+}
+
+/* Échéance proche : anneau ambre autour du visage, rempli pendant le dernier quart d'heure */
+#upcoming {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  width: 80vmin;
+  height: 80vmin;
+  transform: translate(-50%, -50%) rotate(-90deg);
+  pointer-events: none;
+  transition: opacity 0.8s ease;
+}
+
+#upcoming[hidden] {
+  display: block;
+  opacity: 0;
+}
+
+#upcoming circle {
+  fill: none;
+  stroke-width: 0.7;
+}
+
+#upcoming .track { stroke: rgba(201, 164, 92, 0.14); }
+
+#upcoming .fill {
+  stroke: rgb(201, 164, 92);
+  stroke-linecap: round;
+  stroke-dasharray: 100;
+  filter: drop-shadow(0 0 1.2px rgba(201, 164, 92, 0.8));
+  transition: stroke-dashoffset 1s linear;
+}
+
+#upcoming.close .fill { animation: urgent 1.2s ease-in-out infinite; }
+
+@keyframes urgent { 50% { opacity: 0.45; } }
+
+#upcoming-label {
+  position: fixed;
+  left: 50%;
+  bottom: 4vh;
+  transform: translateX(-50%);
+  color: rgb(222, 196, 140);
+  font: 400 clamp(15px, 2.2vw, 26px)/1.3 "Segoe UI", system-ui, sans-serif;
+  letter-spacing: 0.08em;
+  text-shadow: 0 0 12px rgba(201, 164, 92, 0.5);
+  white-space: nowrap;
+  pointer-events: none;
+  transition: opacity 0.8s ease;
+}
+
+#upcoming-label[hidden] {
+  display: block;
+  opacity: 0;
+}
+
+#debug {
+  position: fixed;
+  left: 12px;
+  bottom: 10px;
+  font: 12px/1.4 ui-monospace, "Cascadia Mono", Consolas, monospace;
+  color: rgba(244, 239, 228, 0.45);
+  pointer-events: none;
+  white-space: pre;
+}
+
+/* Nom au centre du cercle (texte séparé du dessin du visage), en Michroma (SIL OFL, fichier local : rien à
+   télécharger, fonctionne sans Internet). */
+@font-face {
+  font-family: "Michroma";
+  src: url("michroma.woff2") format("woff2");
+  font-weight: 400;
+  font-display: block;
+}
+
+#name {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding-left: 0.3em;  /* compense l'espacement après la dernière lettre */
+  color: rgb(var(--name-color, 244, 239, 228));
+  font: 400 2.3vmin/1 "Michroma", "Segoe UI", system-ui, sans-serif;  /* large : tient dans l'anneau à 2,3vmin */
+  letter-spacing: 0.3em;
+  /* halo doré, plus fort quand ORION parle (--name-glow suit la voix) */
+  text-shadow: 0 0 calc(1.6vmin * var(--name-glow, 1)) rgba(var(--name-halo, 201, 164, 92), 0.9),
+               0 0 0.5vmin rgba(var(--name-halo, 201, 164, 92), 0.85);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: var(--name-opacity, 0.75);
+  transition: opacity 0.9s ease;
+}

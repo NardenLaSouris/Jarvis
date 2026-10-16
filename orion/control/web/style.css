@@ -1,0 +1,430 @@
+/* Charte Aureon : vert forêt, vert secondaire, crème, doré en accent, noir profond. */
+:root {
+  --bg: #0e0e0e;
+  --panel: #151816;
+  --panel-2: #1b211e;
+  --line: #2a3530;
+  --text: #f4efe4;
+  --muted: #9aa69f;
+  --accent: #5fae8f;
+  --accent-2: #c9a45c;
+  --ok: #3ddc97;
+  --warn: #ffb547;
+  --err: #ff5d6c;
+  --radius: 12px;
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --bg: #f3f6fb;
+  --panel: #ffffff;
+  --panel-2: #eef2f8;
+  --line: #d6deea;
+  --text: #142033;
+  --muted: #5d6b80;
+  --accent: #2f7a5f;
+  --accent-2: #a8843e;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: light) {
+  :root[data-theme="system"] {
+    --bg: #f3f6fb;
+    --panel: #ffffff;
+    --panel-2: #eef2f8;
+    --line: #d6deea;
+    --text: #142033;
+    --muted: #5d6b80;
+    --accent: #2f7a5f;
+    --accent-2: #a8843e;
+    color-scheme: light;
+  }
+}
+
+/* --- Thèmes du visage d'ORION ---------------------------------------------------------------- */
+
+:root[data-theme="jarvis"] {  /* « ORION (jour) » : le visage d'ORION, vert forêt et or */
+  --bg: #0b100e;
+  --panel: rgba(15, 61, 46, 0.32);
+  --panel-2: rgba(60, 139, 111, 0.16);
+  --line: rgba(201, 164, 92, 0.22);
+  --text: #f4efe4;
+  --muted: #9fb3a8;
+  --accent: #5fae8f;
+  --accent-2: #c9a45c;
+  --glow: rgba(201, 164, 92, 0.25);
+  --backdrop: radial-gradient(ellipse at 60% 45%, #143a2b 0%, #0e1d17 38%, #0b0f0d 70%, #0e0e0e 100%);
+  color-scheme: dark;
+}
+
+:root[data-theme="nuit"] {
+  --bg: #050505;
+  --panel: rgba(28, 28, 28, 0.66);
+  --panel-2: rgba(60, 60, 60, 0.45);
+  --line: rgba(255, 255, 255, 0.14);
+  --text: #f2f2f2;
+  --muted: #8f8f8f;
+  --accent: #e8e8e8;
+  --accent-2: #7d7d7d;
+  --ok: #d8d8d8;
+  --warn: #b4b4b4;
+  --glow: rgba(255, 255, 255, 0.16);
+  --backdrop: radial-gradient(ellipse at 60% 45%, #262626 0%, #141414 38%, #080808 70%, #000 100%);
+  color-scheme: dark;
+}
+
+:root[data-theme="rouge"] {
+  --bg: #120204;
+  --panel: rgba(58, 8, 12, 0.6);
+  --panel-2: rgba(104, 18, 24, 0.5);
+  --text: #ffe4e0;
+  --muted: #c48a84;
+  color-scheme: dark;
+}
+
+:root[data-theme="teinte"] {
+  /* Couleur choisie pour le visage (thème « visage ») : palette tirée de la teinte --h, comme sur le visage. */
+  --h: 205;
+  --bg: hsl(var(--h) 75% 5%);
+  --panel: hsl(var(--h) 70% 14% / 0.6);
+  --panel-2: hsl(var(--h) 70% 22% / 0.5);
+  --line: hsl(var(--h) 100% 64% / 0.22);
+  --text: hsl(var(--h) 100% 95%);
+  --muted: hsl(var(--h) 30% 66%);
+  --accent: hsl(var(--h) 100% 64%);
+  --accent-2: hsl(var(--h) 100% 50%);
+  --glow: hsl(var(--h) 100% 64% / 0.28);
+  --backdrop: radial-gradient(ellipse at 60% 45%, hsl(var(--h) 70% 18%) 0%, hsl(var(--h) 75% 9%) 38%,
+              hsl(var(--h) 80% 4%) 70%, #000 100%);
+  color-scheme: dark;
+  transition: background 1s;
+}
+
+/* Thème rouge, et alerte (comme le visage en erreur) : accents rouges tant qu'un composant est en panne. */
+:root[data-alert="1"][data-skin="face"], :root[data-theme="rouge"] {
+  --accent: #ff6e64;
+  --accent-2: #e6262e;
+  --line: rgba(255, 110, 100, 0.28);
+  --glow: rgba(255, 70, 70, 0.3);
+  --backdrop: radial-gradient(ellipse at 60% 45%, #4a0a0e 0%, #2a0507 38%, #160204 70%, #080001 100%);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.45 "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+}
+
+body { display: flex; overflow: hidden; }
+
+nav {
+  width: 220px;
+  flex: none;
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  padding: 18px 12px;
+  gap: 4px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  padding: 4px 10px 18px;
+}
+
+.brand .core {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 3px solid var(--accent);
+  box-shadow: 0 0 12px var(--accent);
+}
+
+nav button {
+  all: unset;
+  cursor: pointer;
+  padding: 9px 12px;
+  border-radius: 8px;
+  color: var(--muted);
+}
+
+nav button:hover { background: var(--panel-2); color: var(--text); }
+nav button.active { background: var(--panel-2); color: var(--text); box-shadow: inset 3px 0 0 var(--accent); }
+nav .spacer { flex: 1; }
+nav .connection { font-size: 12px; color: var(--muted); padding: 8px 12px; }
+
+main { flex: 1; overflow-y: auto; padding: 26px 32px 48px; }
+
+h1 { font-size: 22px; margin: 0 0 18px; font-weight: 600; }
+h2 { font-size: 15px; margin: 0 0 10px; font-weight: 600; }
+h3 { font-size: 13px; margin: 0 0 6px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+
+.toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 18px; flex-wrap: wrap; }
+.toolbar .grow { flex: 1; }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+
+.card .big { font-size: 20px; font-weight: 600; margin: 2px 0 4px; }
+.muted { color: var(--muted); }
+.small { font-size: 12px; }
+
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 7px; background: var(--muted); }
+.dot.ok { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+.dot.err { background: var(--err); }
+.dot.warn { background: var(--warn); }
+
+.list { display: flex; flex-direction: column; gap: 10px; }
+.row { display: flex; align-items: center; gap: 12px; }
+.row .grow { flex: 1; min-width: 0; }
+
+.chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  font-size: 12px;
+  margin: 2px 4px 2px 6px;
+}
+
+button.btn, .btn {
+  cursor: pointer;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 7px 12px;
+  font: inherit;
+}
+
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent-2); border-color: var(--accent-2); color: #fff; }
+.btn.danger:hover { border-color: var(--err); color: var(--err); }
+.btn.icon { padding: 5px 9px; }
+.btn:disabled { opacity: 0.5; cursor: default; }
+
+input, select, textarea {
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 10px;
+}
+
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
+input[type="range"] { padding: 0; accent-color: var(--accent); }
+input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px; }
+
+label.field { display: flex; flex-direction: column; gap: 5px; font-size: 13px; color: var(--muted); }
+.fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+
+.switch { position: relative; width: 38px; height: 22px; flex: none; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.switch span { position: absolute; inset: 0; border-radius: 999px; background: var(--line); cursor: pointer; transition: 0.15s; }
+.switch span::before { content: ""; position: absolute; width: 16px; height: 16px; left: 3px; top: 3px; border-radius: 50%; background: #fff; transition: 0.15s; }
+.switch input:checked + span { background: var(--accent-2); }
+.switch input:checked + span::before { transform: translateX(16px); }
+
+.flow { display: flex; flex-direction: column; align-items: stretch; max-width: 760px; }
+.block {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+.block.trigger { border-left: 3px solid var(--accent); }
+.block.action { border-left: 3px solid var(--accent-2); }
+.block.wait { border-left: 3px solid var(--warn); }
+.block.say { border-left: 3px solid var(--ok); }
+.block.alarm { border-left: 3px solid var(--err); }
+.arrow { text-align: center; color: var(--muted); line-height: 22px; }
+
+.days { display: flex; gap: 6px; flex-wrap: wrap; }
+.days label { display: flex; align-items: center; gap: 4px; font-size: 13px; }
+
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+td.ok { color: var(--ok); }
+td.err { color: var(--err); }
+
+.empty { color: var(--muted); padding: 24px; text-align: center; border: 1px dashed var(--line); border-radius: var(--radius); }
+
+#toasts { position: fixed; right: 18px; bottom: 18px; display: flex; flex-direction: column; gap: 8px; z-index: 10; }
+.toast {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 10px;
+  padding: 10px 14px;
+  max-width: 360px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  animation: rise 0.18s ease-out;
+}
+.toast.err { border-left-color: var(--err); }
+.toast.ok { border-left-color: var(--ok); }
+@keyframes rise { from { transform: translateY(8px); opacity: 0; } }
+
+.banner { background: var(--panel); border: 1px solid var(--err); border-radius: var(--radius); padding: 12px 16px; margin-bottom: 16px; }
+
+
+/* --- Habillage « visage » (thèmes jarvis et nuit) ------------------------------------------------ */
+
+:root[data-skin="face"] body {
+  background: var(--backdrop);
+  background-attachment: fixed;
+}
+
+:root[data-skin="face"] body::before {
+  /* anneaux concentriques discrets, comme ceux du visage */
+  content: "";
+  position: fixed;
+  right: -18vmin;
+  top: 50%;
+  width: 110vmin;
+  height: 110vmin;
+  transform: translateY(-50%);
+  border-radius: 50%;
+  pointer-events: none;
+  background: repeating-radial-gradient(circle, transparent 0 46px, var(--line) 47px 48px, transparent 49px 96px);
+  -webkit-mask-image: radial-gradient(circle, #000 0%, transparent 70%);
+  mask-image: radial-gradient(circle, #000 0%, transparent 70%);
+  opacity: 0.55;
+  animation: drift 90s linear infinite;
+}
+
+@keyframes drift { to { transform: translateY(-50%) rotate(360deg); } }
+
+:root[data-skin="face"] nav {
+  background: linear-gradient(180deg, rgba(4, 14, 32, 0.78), rgba(2, 8, 20, 0.62));
+  border-right: 1px solid var(--line);
+  backdrop-filter: blur(10px);
+}
+:root[data-theme="nuit"] nav { background: linear-gradient(180deg, rgba(18, 18, 18, 0.8), rgba(6, 6, 6, 0.66)); }
+:root[data-theme="rouge"] nav, :root[data-alert="1"][data-skin="face"] nav { background: linear-gradient(180deg, rgba(34, 4, 8, 0.8), rgba(16, 2, 4, 0.66)); }
+
+:root[data-skin="face"] main { position: relative; z-index: 1; }
+
+:root[data-skin="face"] .card,
+:root[data-skin="face"] .block {
+  backdrop-filter: blur(8px);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02), 0 0 22px -12px var(--glow);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+:root[data-skin="face"] .card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 26px -8px var(--glow);
+}
+
+:root[data-skin="face"] h1 {
+  font-weight: 300;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  font-size: 19px;
+  text-shadow: 0 0 14px var(--glow);
+}
+:root[data-skin="face"] h3 { color: var(--accent); opacity: 0.85; letter-spacing: 0.18em; }
+
+:root[data-skin="face"] .btn.primary {
+  background: transparent;
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 0 0 14px -4px var(--glow), inset 0 0 12px -6px var(--glow);
+}
+:root[data-skin="face"] .btn.primary:hover { background: var(--panel-2); }
+:root[data-skin="face"] nav button.active {
+  box-shadow: inset 3px 0 0 var(--accent), 0 0 18px -8px var(--glow);
+  color: var(--accent);
+}
+:root[data-skin="face"] .dot.ok { box-shadow: 0 0 10px var(--ok); }
+
+/* Cœur animé de la marque : trois anneaux comme le visage */
+.brand small {
+  display: block;
+  font-size: 9px;
+  font-weight: 400;
+  letter-spacing: 0.42em;
+  color: var(--muted);
+}
+.brand .core {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  border: none;
+  box-shadow: none;
+}
+.brand .core i {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+}
+.brand .core i:nth-child(1) { inset: 9px; background: var(--accent); box-shadow: 0 0 12px var(--accent); animation: pulse 3.2s ease-in-out infinite; }
+.brand .core i:nth-child(2) { inset: 4px; border-color: transparent var(--accent) transparent var(--accent); opacity: 0.8; animation: spin 6s linear infinite; }
+.brand .core i:nth-child(3) { border-style: dashed; border-width: 1px; opacity: 0.55; animation: spin 14s linear infinite reverse; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse { 50% { transform: scale(0.72); opacity: 0.7; } }
+
+.alert {
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(255, 110, 100, 0.45);
+  background: rgba(60, 6, 8, 0.6);
+  color: #ffd9d4;
+  box-shadow: 0 0 22px -10px rgba(255, 70, 70, 0.6);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand .core i, body::before { animation: none !important; }
+}
+
+/* Sélecteur rapide de thème (menu) */
+nav .themes { display: flex; gap: 8px; padding: 8px 12px; }
+nav .themes button {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  cursor: pointer;
+  box-shadow: none;
+}
+nav .themes button[data-theme="auto"] { background: linear-gradient(135deg, #3c8b6f 50%, #e8e8e8 50%); }
+nav .themes button[data-theme="jarvis"] { background: radial-gradient(circle, #c9a45c, #0f3d2e); }
+nav .themes button[data-theme="nuit"] { background: radial-gradient(circle, #f2f2f2, #262626); }
+nav .themes button[data-theme="rouge"] { background: radial-gradient(circle, #ff6e64, #4a0a0e); }
+nav .themes button:hover { transform: scale(1.12); }
+nav .themes button.active { outline: 2px solid var(--text); outline-offset: 2px; }
+:root nav .themes button.active { box-shadow: 0 0 10px var(--glow, transparent); }
+
+:root[data-theme="teinte"] nav { background: linear-gradient(180deg, hsl(var(--h) 70% 7% / 0.8), hsl(var(--h) 75% 4% / 0.66)); }
+nav .themes button[data-theme="visage"] { background: conic-gradient(#ff5050, #ffd040, #50ff80, #40d0ff, #a060ff, #ff5050); }
+.face-colors { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 0; }
+.face-colors .swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  cursor: pointer;
+  padding: 0;
+}
+.face-colors .swatch:hover { transform: scale(1.12); }
+.face-colors .swatch.active { outline: 2px solid var(--text); outline-offset: 2px; }

@@ -1,0 +1,18 @@
+# Réglages SearXNG pour JARVIS : valeurs par défaut + ce dont JARVIS a besoin.
+use_default_settings: true
+
+general:
+  instance_name: "JARVIS"
+
+server:
+  # Instance privée, locale : pas de limitation de débit ni de proxy d'images.
+  limiter: false
+  image_proxy: false
+
+search:
+  # JARVIS interroge l'API JSON (format désactivé par défaut dans SearXNG).
+  formats:
+    - html
+    - json
+  safe_search: 1
+  default_lang: "fr"

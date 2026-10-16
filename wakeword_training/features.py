@@ -19,8 +19,8 @@ from pathlib import Path
 
 import numpy as np
 
-from jarvis.audio.files import read_wav
-from jarvis.wakeword.openwakeword import FRAME_SAMPLES, FeatureExtractor
+from orion.audio.files import read_wav
+from orion.wakeword.openwakeword import FRAME_SAMPLES, FeatureExtractor
 from wakeword_training.augment import SR, NoiseBank, far_field, pitch_shift
 from wakeword_training.generate import trim_silence
 from wakeword_training.spec import DATA, MODELS_DIR, Spec
@@ -95,7 +95,7 @@ def _real_clips(spec: Spec, split_index: int) -> list[tuple[str, str]]:
 
 def prepare_real_positive(path: Path, out: Path) -> Path:
     """Recadre un enregistrement réel sur le mot (même convention que les clips synthétiques)."""
-    from jarvis.audio.files import write_wav
+    from orion.audio.files import write_wav
 
     audio, rate = read_wav(path)
     write_wav(out, trim_silence(audio, rate, floor_db=-30.0), rate)

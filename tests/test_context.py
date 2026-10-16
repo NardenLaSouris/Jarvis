@@ -1,0 +1,120 @@
+"""Contexte conversationnel temporaire : compléments courts après une action (simulé, sans LLM ni voix)."""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from orion.context import ConversationContext  # noqa: E402
+from test_lights import FakeDriver  # noqa: E402
+from test_quick import full_core  # noqa: E402
+from test_tools import FakeVolume, PlannerLLM, make_core, routes, run_agent  # noqa: E402
+
+
+def test_light_complements_follow_the_previous_action():
+    driver = FakeDriver()
+    llm = PlannerLLM()
+    spoken, events = run_agent(["Allume la chambre.", "À 30 %.", "Non, l'entrée.", "En bleu.", "Et la chambre aussi."],
+                               llm, full_core(driver), fast_path=True)
+    assert llm.planned == [] and llm.calls == []
+    assert spoken == ["La lumière de la chambre est allumée.", "La lumière de la chambre est à 30 %.",
+                      "La lumière de l'entrée est éteinte : je n'ai pas changé sa luminosité.",
+                      "La lumière de l'entrée est en bleu.",
+                      "La lumière de la chambre est en bleu."]
+    assert routes(events).count("tool:context") == 4
+    assert driver.lights["chambre"]["brightness"] == 30 and driver.lights["chambre"]["hue"] == 240
+
+
+def test_and_tomorrow_after_the_time_gives_tomorrows_date():
+    spoken, events = run_agent(["Quelle heure est-il ?", "Et demain ?"], PlannerLLM(), make_core())
+    assert spoken[0] == "Il est 13 heures 42."
+    assert spoken[1] == "Demain, nous serons le dimanche 27 septembre 2026." and routes(events)[1] == "tool:context"
+
+
+def test_tomorrow_date_by_direct_question():
+    spoken, _ = run_agent(["Quel jour serons-nous demain ?"], PlannerLLM(), make_core())
+    assert spoken == ["Demain, nous serons le dimanche 27 septembre 2026."]
+
+
+def test_weather_follow_up_keeps_the_city():
+    context = ConversationContext(full_core().registry)
+    context.record("get_weather", {"location": "Lyon"})
+    assert context.resolve("Et demain ?") == {"type": "tool_call", "tool": "get_weather",
+                                              "parameters": {"location": "Lyon", "day": "tomorrow"}}
+    assert context.resolve("Et à Lyon ?") is None  # suite gérée par la relance d'outil existante
+
+
+def test_volume_complement():
+    volume = FakeVolume()
+    spoken, _ = run_agent(["Mets le son à 30 %.", "Plutôt 45 %."], PlannerLLM(), make_core(volume=volume),
+                          fast_path=True)
+    assert volume.level == 45 and spoken[1] == "Le volume est à 45 %."
+
+
+def test_unknown_room_in_a_complement_is_refused():
+    driver = FakeDriver()
+    spoken, _ = run_agent(["Allume la chambre.", "Dans le bureau."], PlannerLLM(), full_core(driver), fast_path=True)
+    assert "bureau" in spoken[1] and driver.calls == [("chambre", "power", True)]
+
+
+def test_new_requests_are_not_mistaken_for_complements():
+    context = ConversationContext(full_core().registry)
+    context.record("light_on", {"room": "chambre"})
+    for text in ("Mets le son à 30 %", "Raconte-moi une blague", "Quelle heure est-il ?",
+                 "Ferme Discord", "Est-ce que la chambre est bien rangée et que tu vas bien ?"):
+        assert context.resolve(text) is None, text
+
+
+def test_context_is_forgotten_when_the_conversation_ends():
+    context = ConversationContext(full_core().registry)
+    assert context.resolve("À 30 %.") is None
+    context.record("light_on", {"room": "chambre"})
+    context.clear()
+    assert context.resolve("À 30 %.") is None
+
+
+def test_on_off_verbs_alone_follow_the_previous_room():
+    driver = FakeDriver()
+    spoken, events = run_agent(["Allume la chambre.", "En bleu.", "Non, éteins.", "Rallume.", "Finalement laisse tomber."],
+                               PlannerLLM(), full_core(driver), fast_path=True)
+    assert spoken[2] == "La lumière de la chambre est éteinte." and spoken[3] == "La lumière de la chambre est allumée."
+    assert driver.lights["entree"]["on"] is False and ("entree", "power", False) not in driver.calls
+    assert routes(events)[-1].startswith("critical") and len(spoken) == 5
+
+
+def test_the_other_one_and_not_that_one():
+    driver = FakeDriver()
+    spoken, events = run_agent(["Allume la chambre.", "Pas celle-là.", "L'autre aussi.", "Mets la chambre en bleu.",
+                                "Non, l'autre."], PlannerLLM(), full_core(driver), fast_path=True)
+    assert spoken[1] == "La lumière de la chambre est éteinte."  # « pas celle-là » : la chambre est rééteinte...
+    assert spoken[2] == "La lumière de l'entrée est allumée."  # ... et l'autre pièce allumée
+    assert driver.lights["entree"]["hue"] == 240 and spoken[-1] == "La lumière de l'entrée est en bleu."
+    assert routes(events).count("tool:context") == 3
+
+
+def test_cancel_it_right_after_creating_targets_that_one():
+    # Session QA : « Annule ce rappel » juste après l'avoir créé demandait lequel parmi tous les rappels.
+    context = ConversationContext(full_core().registry)
+    context.record("create_reminder", {"delay": 2700, "message": "tester"}, {"reminder_id": "2"})
+    assert context.resolve("Annule ce rappel") == {"type": "tool_call", "tool": "cancel_reminder",
+                                                   "parameters": {"reminder_id": "2"}}
+    assert context.resolve("Non, annule-le") == {"type": "tool_call", "tool": "cancel_reminder",
+                                                 "parameters": {"reminder_id": "2"}}
+    context.record("create_timer", {"duration": 180}, {"timer_id": "5"})
+    assert context.resolve("Laisse tomber") == {"type": "tool_call", "tool": "cancel_timer",
+                                                "parameters": {"timer_id": "5"}}
+    assert context.resolve("Annule le rappel de demain matin pour le dentiste") is None
+
+
+def test_cancel_it_by_voice_cancels_only_the_new_reminder():
+    core = full_core()
+    core.submit({"tool": "create_reminder", "parameters": {"delay": "2 heures", "message": "aller au colis"}})
+    spoken, events = run_agent(["Rappelle-moi dans 45 minutes de tester JARVIS", "Annule ce rappel"],
+                               PlannerLLM(), core, fast_path=True)
+    assert routes(events)[-1] == "tool:context" and "tester" in spoken[1]
+    remaining = core.submit({"tool": "list_reminders", "parameters": {}}).result.result["reminders"]
+    assert [r["message"] for r in remaining] == ["aller au colis"]

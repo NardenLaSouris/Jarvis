@@ -1,0 +1,319 @@
+"""Commandes simples sans LLM (jarvis.tools.quick) et mode dégradé de l'agent (worker LLM hors ligne).
+
+Tout est simulé : lumières factices, outils factices, aucun LLM réel, aucune voix.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from orion.scheduling import TimerManager  # noqa: E402
+from orion.tools import Param, PermissionManager, Risk, Tool  # noqa: E402
+from orion.tools.lights import light_tools  # noqa: E402
+from orion.tools.quick import quick_plan  # noqa: E402
+from orion.tools.timers import timer_tools  # noqa: E402
+from test_lights import FakeDriver, rooms_from  # noqa: E402
+from test_tools import PlannerLLM, make_core, routes, run_agent  # noqa: E402
+
+
+def stub(name: str, **params: Param) -> Tool:
+    return Tool(name, name, params, {}, Risk.SAFE, lambda **kw: {"ok": True, **kw}, say=lambda r: f"{name} fait.")
+
+
+def full_core(driver=None):
+    core = make_core()
+    for tool in light_tools(rooms_from(), driver or FakeDriver()):
+        core.registry.register(tool)
+    for tool in timer_tools(TimerManager()):
+        core.registry.register(tool)
+    core.registry.register(stub("get_weather", location=Param(str, "ville", required=False),
+                                day=Param(str, "jour", required=False), moment=Param(str, "moment", required=False)))
+    core.registry.register(stub("create_alarm", time=Param(str, "heure")))
+    return core
+
+
+REGISTRY = full_core().registry
+
+
+def call(tool, **parameters):
+    return {"type": "tool_call", "tool": tool, "parameters": parameters}
+
+
+@pytest.mark.parametrize("text, expected", [
+    ("Allume la chambre", call("light_on")),
+    ("Jarvis, allume la lumière", call("light_on")),
+    ("Éteins les lumières", call("light_off")),
+    ("Mets une lumière chaude", call("set_color", color="blanc chaud")),
+    ("Mets la lumière en blanc froid", call("set_color", color="blanc froid")),
+    ("Mets l'entrée en vert", call("set_color", color="vert")),
+    ("Luminosité 30 %", call("set_brightness", brightness=30)),
+    ("Mets la lumière de la chambre à 30 pour cent", call("set_brightness", brightness=30)),
+    ("Mets la lumière au maximum", call("set_brightness", brightness=100)),
+    ("Allume la chambre à 40 %", call("light_on", brightness=40)),
+    ("Mets la chambre à 4000 kelvins", call("set_color_temperature", temperature=4000)),
+    ("Mets le son à 40 %", call("set_volume", volume=40)),
+    ("Mets le volume à fond", call("set_volume", volume=100)),
+    ("Coupe le son", call("mute_volume")),
+    ("Remets le son", call("unmute_volume")),
+    ("Ouvre Discord", call("open_application", application="discord")),
+    ("Lance-moi Steam", call("open_application", application="steam")),
+    ("Ferme Chrome", call("close_application", application="chrome")),
+    ("Mets un minuteur de 10 minutes", call("create_timer", duration="10 minutes")),
+    ("Lance un minuteur d'une heure et demie", call("create_timer", duration="une heure et demie")),
+    ("Rappelle-moi dans 20 minutes de sortir les poubelles",
+     call("create_reminder", delay="20 minutes", message="sortir les poubelles")),
+    ("Rappelle-moi dans 5 minutes d'appeler Paul et Marie",
+     call("create_reminder", delay="5 minutes", message="appeler Paul et Marie")),
+    ("Réveille-moi à 7 h 30", call("create_alarm", time="7 heures 30")),
+    ("Quel temps fera-t-il demain à Lyon ?", call("get_weather", day="tomorrow", location="Lyon")),
+    ("Quel temps fait-il ce soir ?", call("get_weather", moment="evening")),
+    ("Verrouille le PC", call("lock_pc")),
+    ("Est-ce que la lumière est allumée ?", call("light_status")),
+    ("Mets les lumières en mode cinéma", call("set_scene", scene="cinema")),
+    ("Ambiance détente dans la chambre", call("set_scene", scene="detente")),
+])
+def test_simple_commands_are_understood_without_llm(text, expected):
+    assert quick_plan(text, REGISTRY) == expected
+
+
+@pytest.mark.parametrize("text", [
+    "Raconte-moi une blague", "N'allume pas la lumière", "Allume la lumière quand je rentre",
+    "Baisse un peu la lumière", "Ouvre YouTube", "Ouvre le terminal", "Supprime le dossier Documents",
+    "Tous les jours à 21 h, allume la chambre", "Pourquoi le ciel est bleu ?",
+    "Mets un minuteur", "Ouvre Discord et fais-moi un café",
+    "Luminosité moins 30",  # jamais lu comme 30
+])
+def test_anything_else_is_left_to_the_llm(text):
+    assert quick_plan(text, REGISTRY) is None
+
+
+def test_chained_commands_keep_their_order_and_their_words():
+    data = quick_plan("Jarvis, allume la chambre à 30 %, en bleu", REGISTRY)
+    assert [(c["tool"], c["parameters"], c["segment"]) for c in data["calls"]] == [
+        ("light_on", {"brightness": 30}, "allume la chambre à 30 %"), ("set_color", {"color": "bleu"}, "en bleu")]
+    data = quick_plan("Allume la chambre et l'entrée", REGISTRY)
+    assert [(c["tool"], c["segment"]) for c in data["calls"]] == [("light_on", "Allume la chambre"),
+                                                                  ("light_on", "l'entrée")]
+    data = quick_plan("Ouvre Discord et mets le son à 30 %", REGISTRY)
+    assert [c["tool"] for c in data["calls"]] == ["open_application", "set_volume"]
+
+
+def test_tools_missing_from_the_registry_are_never_proposed():
+    registry = make_core({"set_volume": {"enabled": False}}).registry
+    assert quick_plan("Mets le son à 40 %", registry) is None and quick_plan("Allume la chambre", registry) is None
+
+
+# --- Agent : raccourci et mode dégradé --------------------------------------------------------------
+
+class DownLLM(PlannerLLM):
+    """Worker LLM hors ligne : aucun appel ne doit lui parvenir pour une commande simple."""
+
+    degraded = True
+
+    def chat_json(self, messages, schema):
+        raise AssertionError("le LLM ne doit pas choisir d'outil en mode dégradé")
+
+
+def test_fast_path_skips_the_llm_for_a_simple_command():
+    driver = FakeDriver()
+    llm = PlannerLLM()
+    spoken, events = run_agent(["Allume la chambre à 30 %."], llm, full_core(driver), fast_path=True)
+    assert llm.planned == [] and llm.calls == [] and spoken == ["La lumière de la chambre est allumée à 30 %."]
+    assert driver.calls == [("chambre", "power", True), ("chambre", "brightness", 30)]
+    assert "tool:quick" in routes(events)
+
+
+def test_without_fast_path_the_llm_still_chooses():
+    llm = PlannerLLM(call("light_on"))
+    run_agent(["Allume la chambre."], llm, full_core(), fast_path=False)
+    assert len(llm.planned) == 1
+
+
+def test_degraded_mode_runs_simple_commands_and_explains_the_rest():
+    driver = FakeDriver()
+    llm = DownLLM(reply="Bonjour.")
+    spoken, events = run_agent(["Éteins l'entrée.", "Ouvre YouTube.", "Raconte-moi une blague."], llm,
+                               full_core(driver))
+    assert driver.calls == [("entree", "power", False)]
+    assert spoken[0] == "La lumière de l'entrée est éteinte."
+    assert "hors ligne" in spoken[1] or "mode réduit" in spoken[1]
+    assert spoken[2] == "Bonjour."  # la conversation passe au LLM local (prompt court, voir FailoverLLM)
+    assert any("mode dégradé" in r for r in routes(events))
+
+
+def test_degraded_mode_keeps_confirmations():
+    llm = DownLLM()
+    spoken, _ = run_agent(["Verrouille le PC."], llm, full_core())
+    assert spoken[0].endswith("?")
+
+
+def test_media_keys_without_spotify_and_guard():
+    from orion.tools import ToolCore, ToolRegistry, builtin_tools
+    from orion.tools.media import media_tools
+
+    pressed = []
+    registry = ToolRegistry()
+    for tool in media_tools(pressed.append):
+        registry.register(tool)
+    assert quick_plan("Pause", registry) == call("media_play_pause")
+    assert quick_plan("Passe au morceau suivant", registry) == call("media_next")
+    assert quick_plan("Remets la chanson précédente", registry) == call("media_previous")
+    core = ToolCore(registry, PermissionManager())
+    assert core.submit(call("media_next")).result.message == "Morceau suivant." and pressed == ["next"]
+    real = ToolCore(ToolRegistry(), PermissionManager())
+    for tool in builtin_tools():
+        if tool.name.startswith("media_"):
+            real.registry.register(tool)
+    assert not real.submit(call("media_next")).result.success  # garde-fou des tests : aucune vraie touche
+
+
+# --- Régressions de la session red team ------------------------------------------------------------
+
+def test_everything_off_means_the_lights_never_the_pc_sound():
+    from orion.tools.planner import plan
+
+    assert quick_plan("Éteins tout.", REGISTRY) == call("light_off")
+    assert quick_plan("Allume tout", REGISTRY) == call("light_on")
+
+    class Overeager:
+        def chat_json(self, messages, schema):
+            return {"type": "tool_calls", "calls": [
+                {"tool": "light_off", "parameters": {}, "segment": "Éteins tout"},
+                {"tool": "mute_volume", "parameters": {}, "segment": "Éteins tout"}]}
+
+    assert plan(Overeager(), "Éteins tout.", REGISTRY) == call("light_off")  # appel simple, accepté par le Core
+    assert plan(PlannerLLM(call("lock_pc")), "Mets-toi en veille", REGISTRY) is None
+    assert plan(PlannerLLM(call("mute_volume")), "Coupe le son", REGISTRY) == call("mute_volume")
+
+
+def test_a_colour_said_at_the_end_applies_to_every_room():
+    data = quick_plan("Allume l'entrée et la chambre en vert", REGISTRY)
+    assert [(c["tool"], c["parameters"]) for c in data["calls"]] == [("set_color", {"color": "vert"})] * 2
+
+
+def test_wake_up_at_an_impossible_hour_goes_to_the_alarm_not_elsewhere():
+    # Session QA : « Réveille-moi à 25 heures » finissait en « toutes les lumières à 25 % » (LLM).
+    assert quick_plan("Réveille-moi à 25 heures", REGISTRY) == call("create_alarm", time="25 heures")
+
+
+def test_state_and_day_programme_questions():
+    assert quick_plan("Est-ce que l'entrée est allumée ?", REGISTRY)["tool"] == "light_status"
+
+
+def test_light_tools_must_be_named_by_the_request():
+    # Le planificateur écarte une action sur les lumières sans mot de l'éclairage ni pièce citée.
+    driver = FakeDriver()
+    llm = PlannerLLM({"type": "tool_call", "tool": "set_brightness", "parameters": {"brightness": 25}})
+    spoken, events = run_agent(["Réveille-moi à 25 heures"], llm, full_core(driver))
+    assert driver.calls == [] and "lumières" not in spoken[0]
+    from orion.tools.planner import _named
+
+    registry = full_core().registry
+    assert _named("set_brightness", "Mets l'entrée à 25", registry)
+    assert _named("set_brightness", "Baisse la lumière", registry)
+    assert not _named("set_brightness", "Réveille-moi à 25 heures", registry)
+
+
+def test_a_reminder_message_is_never_executed_now():
+    # Session QA : « Rappelle-moi demain à 9 heures d'appeler le garage » devenait une commande de lumière.
+    plan_ = quick_plan("Rappelle-moi demain à 9 heures d'appeler le garage", REGISTRY)
+    assert plan_["tool"] == "create_reminder" and plan_["parameters"]["message"] == "appeler le garage"
+    assert quick_plan("Rappelle-moi d'éteindre la chambre", REGISTRY) is None
+    driver = FakeDriver()
+    llm = PlannerLLM({"type": "tool_call", "tool": "light_off", "parameters": {}})
+    run_agent(["Rappelle-moi d'éteindre la chambre"], llm, full_core(driver))
+    assert driver.calls == []
+
+
+def test_turning_off_another_machine_never_turns_off_the_lights():
+    # Session QA : « Éteins le Katana » finissait en « Toutes les lumières sont éteintes » (LLM).
+    driver = FakeDriver()
+    llm = PlannerLLM({"type": "tool_call", "tool": "light_off", "parameters": {}})
+    run_agent(["Éteins le Katana"], llm, full_core(driver))
+    assert driver.calls == []
+
+
+def test_closing_is_never_turned_into_opening():
+    # Session QA : « oui et ferme aussi Discord » proposé en open_application par le LLM, et exécuté.
+    from test_tools import FakeProcesses, Launcher
+
+    processes = FakeProcesses()
+    launcher = Launcher(processes, ("Discord.exe",))
+    llm = PlannerLLM({"type": "tool_call", "tool": "open_application", "parameters": {"application": "discord"}})
+    run_agent(["Oui et ferme aussi Discord"], llm, make_core(processes=processes, launcher=launcher))
+    assert launcher.calls == []
+
+
+@pytest.mark.parametrize("text", ["Mets un minuteur de 0 seconde", "Lance 50 minuteurs de 1 minute",
+                                  "Mets un minuteur de 0 minute"])
+def test_timer_requests_never_become_a_spotify_search(text):
+    # Session QA : « Mets un minuteur de 0 seconde » cherchait « un minuteur » sur Spotify.
+    plan_ = quick_plan(text, REGISTRY)
+    assert plan_ is None or plan_["tool"] == "create_timer"
+
+
+def test_a_question_never_triggers_an_action():
+    # Session QA : « Est-ce que la musique joue ? » faisait lecture/pause sur le PC (LLM : media_play_pause).
+    from orion.tools.planner import _question
+
+    driver = FakeDriver()
+    llm = PlannerLLM({"type": "tool_call", "tool": "light_off", "parameters": {"room": "chambre"}})
+    run_agent(["Est-ce que la chambre est éteinte ?"], llm, full_core(driver))
+    assert ("chambre", "power", False) not in driver.calls
+    assert _question("Est-ce que la musique joue ?") and _question("Quelle est la luminosité de la chambre ?")
+    assert not _question("Est-ce que tu peux éteindre la chambre ?")
+    assert not _question("Éteins la chambre")
+
+
+@pytest.mark.parametrize("text", ["Quelles applications sont ouvertes ?", "Qu'est-ce qui tourne sur le PC ?",
+                                  "Quels programmes sont ouverts ?"])
+def test_running_applications_question_never_depends_on_the_llm(text):
+    core = make_core()
+    assert quick_plan(text, core.registry) == call("list_running_applications")
+
+
+@pytest.mark.parametrize("text, place", [("Quelle est la météo à Tokyo en ce moment ?", "Tokyo"),
+                                         ("Quel temps fait-il à New York demain ?", "New York"),
+                                         ("Quel temps fait-il en Islande ?", "Islande"),
+                                         ("Quel temps fait-il ?", None), ("La météo en ce moment", None)])
+def test_cities_outside_the_french_list_are_passed_on(text, place):
+    # Session QA : « la météo à Tokyo » donnait celle de Nantes (ville par défaut) sans le dire.
+    assert quick_plan(text, REGISTRY)["parameters"].get("location") == place
+
+
+@pytest.mark.parametrize("text, level", [("Mets le volume à moins 10", -10), ("Mets le son à -20 %", -20)])
+def test_negative_volume_is_refused_by_the_tool_with_its_range(text, level):
+    # Jamais lu comme 10 ou 20 ; transmis tel quel, l'outil le refuse (hors limites) au lieu d'une réponse floue.
+    assert quick_plan(text, REGISTRY) == call("set_volume", volume=level)
+    outcome = make_core().submit(quick_plan(text, REGISTRY))
+    assert outcome.status == "rejected" and "volume" in outcome.result.message
+
+
+
+def test_pc_power_and_music_stop_without_llm():
+    # Journal d'octobre 2026 : ces commandes passaient par le LLM (1,6 à 2,7 s chacune).
+    from orion.tools import ToolRegistry
+    from orion.tools.base import Param, Risk, Tool
+
+    registry = ToolRegistry()
+    for name, risk in (("wake_pc", Risk.SAFE), ("shutdown_pc", Risk.CONFIRMATION_REQUIRED), ("spotify_pause", Risk.SAFE),
+                       ("spotify_play", Risk.SAFE), ("light_off", Risk.SAFE)):
+        registry.register(Tool(name, name, {"device": Param(str, "appareil", required=False, hidden=True)}
+                               if name.endswith("_pc") else {}, {}, risk, lambda **_: {}))
+    tool = lambda text: (quick_plan(text, registry) or {}).get("tool")  # noqa: E731
+    for text in ("Allume le pc", "Allume le PC s'il te plaît", "Démarre mon PC portable", "Rallume l'ordinateur"):
+        assert tool(text) == "wake_pc", text
+    for text in ("Éteins le pc", "Éteins mon PC portable", "Éteins l'ordinateur"):
+        assert tool(text) == "shutdown_pc", text
+    for text in ("Arrête Spotify", "Arrête la musique", "Coupe Spotify"):
+        assert tool(text) == "spotify_pause", text
+    # Pas un PC, ou pas une commande simple : laissé aux autres chemins.
+    for text in ("Éteins la lumière du bureau", "N'éteins pas le PC", "Éteins le PC quand je pars", "Allume la chambre"):
+        assert tool(text) not in ("wake_pc", "shutdown_pc"), text

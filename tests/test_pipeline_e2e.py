@@ -1,4 +1,4 @@
-"""Test de bout en bout du pipeline avec les vrais moteurs (wake word, Whisper, Ollama, Piper).
+"""Test de bout en bout du pipeline avec les vrais moteurs (wake word, Whisper, Ollama, NeuTTS).
 
 Le micro est remplacé par ``fixtures/scenario.wav`` et le haut-parleur par un
 enregistreur. Scénario :
@@ -8,25 +8,33 @@ enregistreur. Scénario :
   -> « Jarvis » -> « Peux-tu ouvrir Firefox et envoyer un mail à Paul ? »
   -> 10 s de silence -> phrase sans wake word, qui doit être ignorée.
 
-Nécessite les modèles téléchargés et Ollama démarré.
-Lancement : python tests/test_pipeline_e2e.py   (ou pytest)
+Nécessite les modèles téléchargés et Ollama démarré. La voix est réellement synthétisée (sans être jouée) :
+avec pytest, ce test ne tourne que sur demande (ORION_E2E=1), pour que la suite reste silencieuse.
+Lancement : python tests/test_pipeline_e2e.py   (ou ORION_E2E=1 pytest tests/test_pipeline_e2e.py)
 """
 
 from __future__ import annotations
 
+import os
 import sys
+from dataclasses import replace
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from jarvis.audio.files import ArraySource, RecordingSink, read_wav  # noqa: E402
-from jarvis.config import load_config  # noqa: E402
-from jarvis.factory import build_agent  # noqa: E402
+from orion.audio.files import ArraySource, RecordingSink, read_wav  # noqa: E402
+from orion.config import load_config  # noqa: E402
+from orion.factory import build_agent  # noqa: E402
 
 
 def run_scenario(output_dir: Path | None = None) -> tuple[list[tuple[str, str]], RecordingSink]:
     cfg = load_config(ROOT / "config.toml")
+    # Le fichier est lu d'un trait : l'interruption par le wake word (barge-in) le consommerait pendant la
+    # réflexion et avalerait la relance du scénario.
+    cfg = replace(cfg, assistant=replace(cfg.assistant, barge_in=False))
     audio, rate = read_wav(ROOT / "tests" / "fixtures" / "scenario.wav")
     source = ArraySource(audio, cfg.audio.sample_rate, cfg.audio.frame_samples, source_rate=rate)
     sink = RecordingSink(output_dir)
@@ -36,6 +44,7 @@ def run_scenario(output_dir: Path | None = None) -> tuple[list[tuple[str, str]],
     return events, sink
 
 
+@pytest.mark.skipif(os.environ.get("ORION_E2E") != "1", reason="vrais moteurs : ORION_E2E=1 pour lancer")
 def test_full_pipeline():
     events, sink = run_scenario()
     kinds = [k for k, _ in events if k != "timing"]
@@ -50,8 +59,9 @@ def test_full_pipeline():
     assert "canberra" in replies[0].lower()
     assert all(replies), replies
     assert not any("concerne" in u for u in users)  # hors conversation : ignoré
-    # 2 accusés de réception + 3 réponses prononcées
-    assert len(sink.played) == 5
+    # 2 accusés de réception + 3 réponses, chacune jouée phrase par phrase (au moins une phrase chacune)
+    sentences = sum(int(t.split(" phrase(s)")[0].rsplit(", ", 1)[-1]) for k, t in events if k == "latency")
+    assert len(sink.played) == 2 + sentences and sentences >= 3
     # Chaque conversation se termine par un retour en veille.
     assert kinds.count("sleep") >= 3
 

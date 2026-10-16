@@ -8,6 +8,7 @@ Lancement : python -m pytest tests/test_wakeword.py   (ou python tests/test_wake
 from __future__ import annotations
 
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -15,13 +16,27 @@ import numpy as np
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from jarvis.audio.files import read_wav  # noqa: E402
-from jarvis.config import load_config  # noqa: E402
-from jarvis.factory import build_wake_word  # noqa: E402
-from jarvis.wakeword.openwakeword import FRAME_SAMPLES, FeatureExtractor  # noqa: E402
+from orion.audio.files import read_wav  # noqa: E402
+from orion.config import load_config  # noqa: E402
+from orion.factory import build_wake_word  # noqa: E402
+from orion.wakeword.openwakeword import FRAME_SAMPLES, FeatureExtractor  # noqa: E402
 
 FIXTURES = ROOT / "tests" / "fixtures" / "wakeword"
-CFG = load_config(ROOT / "config.toml")
+# Enregistrements de référence (tests/fixtures/wakeword) : « Jarvis », avec l'ancien modèle et son seuil. Le modèle
+# « Orion » est validé par le banc de bout en bout (models/openwakeword/orion_fr_e2e.json).
+_CFG = load_config(ROOT / "config.toml", local=False)
+CFG = replace(_CFG, wake_word=replace(_CFG.wake_word, phrase="Jarvis", threshold=0.55, patience=2,
+                                      model=ROOT / "models" / "openwakeword" / "jarvis_fr.onnx"))
+ORION = _CFG.wake_word
+
+
+def test_orion_model_is_configured_and_quiet_on_silence():
+    assert ORION.phrase == "Orion" and ORION.model.name == "orion_fr.onnx" and ORION.model.exists()
+    assert ORION.verify and 0 < ORION.threshold < ORION.sure_score <= 1
+    detector = build_wake_word(_CFG)
+    rng = np.random.default_rng(4)
+    for audio in (np.zeros(5 * 16000, np.int16), rng.normal(0, 800, 5 * 16000).astype(np.int16)):
+        assert _max_score(detector, audio) < ORION.threshold
 LEAD = 2 * 16000  # silence avant chaque clip : le détecteur tourne en continu en usage réel
 
 
@@ -114,7 +129,7 @@ def test_exported_classifier_is_loadable():
         return
     import tempfile
 
-    from jarvis.wakeword.openwakeword import OpenWakeWordDetector
+    from orion.wakeword.openwakeword import OpenWakeWordDetector
     from wakeword_training.train import MLP, export_onnx
 
     mlp = MLP(16 * 96, 8, np.random.default_rng(0))

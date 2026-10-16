@@ -1,0 +1,91 @@
+"""Branchement réel (orion/factory.py) des règles d'appel, du suivi des mails et de « je sors », avec la vraie
+configuration, des composants simulés et un dossier de données temporaire : aucune connexion, aucun appel."""
+
+from __future__ import annotations
+
+import sys
+from dataclasses import replace
+from pathlib import Path
+from types import SimpleNamespace
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+from orion.config import load_config  # noqa: E402
+from orion.events import Event, EventBus  # noqa: E402
+from orion.factory import build_call_rules, build_mail_actions  # noqa: E402
+from orion.mail.provider import MemoryMailProvider  # noqa: E402
+from orion.mail.tools import MailBox  # noqa: E402
+from orion.presence import PresenceEngine  # noqa: E402
+from orion.scheduling.manager import TimerManager  # noqa: E402
+
+
+class Notifications:
+    def __init__(self):
+        self.sent = []
+
+    def notify(self, notification):
+        self.sent.append(notification)
+
+
+class Calls:
+    def __init__(self):
+        self.requested, self.messages = [], []
+
+    def request(self, reason, origin):
+        from orion.call.session import CallSession
+
+        call = CallSession("linphone", reason, origin, 0.0)
+        self.requested.append(call)
+        return call
+
+    def reply(self, text):
+        self.messages.append(text)
+
+
+def test_factory_builds_and_connects_rules_and_mail_follow_up(tmp_path):
+    cfg = load_config(ROOT / "config.toml")
+    cfg = replace(cfg, memory=replace(cfg.memory, path=tmp_path / "memory.json"))
+    bus = EventBus()
+    engine = PresenceEngine(["owner"], bus, state_path=tmp_path / "presence.json")
+    presence = SimpleNamespace(engine=engine)
+    timers = TimerManager(bus)
+    box = MailBox(MemoryMailProvider([]))
+    watcher = SimpleNamespace(on_new=None)
+    actions = build_mail_actions(cfg, box, watcher, SimpleNamespace(), timers, Notifications(), presence)
+    try:
+        assert watcher.on_new == actions.received and box.on_replied is not None
+        rules, tools = build_call_rules(cfg, SimpleNamespace(), presence, timers, box, actions)
+        assert {t.name for t in tools} >= {"create_call_rule", "list_call_rules", "explain_calls"}
+        calls = Calls()
+        rules.connect(calls, bus)
+        assert rules._thread is not None and rules._thread.is_alive()  # échéances en marche
+        rules.add({"trigger": {"type": "event", "event": "reminder_due"}, "conditions": [{"type": "away"}]},
+                  "appelle-moi quand je suis absent et qu'un rappel arrive")
+        assert engine.declare_departure("owner") == "away"
+        bus.publish(Event("reminder.finished", "scheduling", {"reminder_id": "3", "message": "le garage"}))
+        assert len(calls.requested) == 1 and (tmp_path / "call_rules.json").exists()
+    finally:
+        actions.stop()
+
+
+def test_factory_connects_flex_to_the_voice_channel_with_the_real_inventory(tmp_path):
+    from orion.factory import connect_flex
+    from orion.tools import ToolRegistry
+
+    cfg = load_config(ROOT / "config.toml")
+    cfg = replace(cfg, memory=replace(cfg.memory, path=tmp_path / "memory.json"), audio=replace(cfg.audio, remote=""))
+    bus = EventBus()
+    engine = PresenceEngine(["owner"], bus, state_path=tmp_path / "presence.json")
+    presence = SimpleNamespace(engine=engine, hub=SimpleNamespace(sensors={"porte": 1, "telephone": 2}))
+    rules, tools = build_call_rules(cfg, SimpleNamespace(), presence, None, None, None)
+    assert any(t.name == "flex" for t in tools) and any(r["id"] == "flex" for r in rules.rules)
+    notifications = Notifications()
+    connect_flex(cfg, rules, SimpleNamespace(registry=ToolRegistry()), notifications, None, None, presence, None, None,
+                 None, None)
+    rules.connect(Calls(), bus)
+    assert rules.trigger_flex() == "home"
+    texts = [n.message for n in notifications.sent]
+    assert len(texts) >= 4 and texts[0].startswith(("Bonjour", "Bonsoir", "Je m'appelle"))
+    joined = " ".join(texts)
+    assert "Katana" not in joined and "éclairage" not in joined  # rien de branché dans ce test : rien d'affirmé

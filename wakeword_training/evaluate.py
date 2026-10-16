@@ -21,15 +21,15 @@ from pathlib import Path
 
 import numpy as np
 
-from jarvis.audio.files import read_wav
-from jarvis.audio.resample import resample
-from jarvis.wakeword.openwakeword import FRAME_SAMPLES, OpenWakeWordDetector
+from orion.audio.files import read_wav
+from orion.audio.resample import resample
+from orion.wakeword.openwakeword import FRAME_SAMPLES, OpenWakeWordDetector
 from wakeword_training.augment import SR, NoiseBank
 from wakeword_training.features import make_scene, prepare_real_positive
 from wakeword_training.spec import DATA, MODELS_DIR, Spec
 
 THRESHOLDS = np.round(np.arange(0.05, 1.0, 0.01), 2)
-REFRACTORY_FRAMES = 25      # ~2 s : après un réveil, JARVIS écoute la demande
+REFRACTORY_FRAMES = 25      # ~2 s : après un réveil, ORION écoute la demande
 CONDITIONS = {
     "calme": {"clean_probability": 1.0, "far_probability": 0.0, "snr_db": [20.0, 30.0]},
     "bruit": {"clean_probability": 0.0, "far_probability": 0.0, "snr_db": [5.0, 15.0]},

@@ -11,8 +11,8 @@ from pathlib import Path
 
 import numpy as np
 
-from jarvis.audio.files import read_wav
-from jarvis.audio.resample import resample
+from orion.audio.files import read_wav
+from orion.audio.resample import resample
 
 SR = 16000
 

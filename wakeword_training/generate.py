@@ -15,6 +15,7 @@ Sortie : data/wakeword/<name>/clips/{train,test}/{pos,neg}/*.wav (16 kHz) + mani
 from __future__ import annotations
 
 import json
+import os
 import random
 import re
 import zlib
@@ -23,14 +24,17 @@ from pathlib import Path
 
 import numpy as np
 
-from jarvis.audio.files import write_wav
-from jarvis.audio.resample import resample
+from orion.audio.files import write_wav
+from orion.audio.resample import resample
+from wakeword_training.edge import PREFIX as EDGE, EdgeVoice, render as render_edge
 from wakeword_training.spec import ROOT, VOICES_DIR, Spec
 
 SR = 16000
 MAX_ATTEMPTS = 3            # candidats synthétisés au plus par positif demandé
 TASK_SIZE = 25              # clips par tâche (les voix à un locuteur sont réparties sur plusieurs processus)
 WHISPER_THREADS = 2
+# Plages de synthèse Piper ([synthesis] de la spécification) ; valeurs par défaut si absentes (modèle « Jarvis »).
+SYNTHESIS: dict | None = None
 _voices: dict[str, object] = {}
 _whisper = None
 
@@ -49,7 +53,9 @@ def trim_silence(audio: np.ndarray, sample_rate: int, floor_db: float = -45.0) -
 
 
 def _voice(name: str):
-    """Voix Piper avec alignement des phonèmes et un seul thread (un processus par cœur)."""
+    """Voix Piper avec alignement des phonèmes et un seul thread (un processus par cœur) ; voix Edge (« edge-... »)."""
+    if name.startswith(EDGE):
+        return EdgeVoice(name)
     import onnx
     import onnxruntime as ort
     from piper import PiperVoice
@@ -84,8 +90,23 @@ def transcribe(audio: np.ndarray) -> str:
     return " ".join(s.text for s in segments).strip()
 
 
+def _cuda_libraries() -> None:
+    """Bibliothèques CUDA installées par pip (nvidia-cublas-cu12, nvidia-cudnn-cu12) : rendues visibles à
+    CTranslate2, qui les cherche dans le PATH (Windows) ; sans elles, Whisper tourne sur le processeur."""
+    import site
+
+    for base in site.getsitepackages():
+        for folder in Path(base).glob("**/site-packages/nvidia/*/bin") if "site-packages" not in base \
+                else Path(base).glob("nvidia/*/bin"):
+            if folder.is_dir() and str(folder) not in os.environ.get("PATH", ""):
+                os.environ["PATH"] = f"{folder}{os.pathsep}{os.environ.get('PATH', '')}"
+                if hasattr(os, "add_dll_directory"):
+                    os.add_dll_directory(str(folder))
+
+
 def _load_whisper(probe: np.ndarray):
-    """GPU si disponible (~10x plus rapide ; nécessite cuBLAS 12 dans le PATH), sinon CPU."""
+    """GPU si disponible (~10x plus rapide ; nécessite cuBLAS 12 et cuDNN 9), sinon CPU."""
+    _cuda_libraries()
     import ctranslate2
     from faster_whisper import WhisperModel
 
@@ -102,13 +123,20 @@ def _load_whisper(probe: np.ndarray):
 
 def _render(voice, speaker: int, text: str, target: str | None, context_s: float, rng: random.Random) -> np.ndarray | None:
     """Synthétise ``text`` ; si ``target`` est donné, ne garde que ce mot final (+ contexte)."""
+    if isinstance(voice, EdgeVoice):
+        audio = render_edge(voice, speaker, text, target, context_s, rng)
+        if audio is None:
+            return None
+        audio = trim_silence(audio, SR)
+        return audio if SR // 5 <= len(audio) <= 6 * SR else None
     from piper import SynthesisConfig
 
+    ranges = SYNTHESIS or {}
     config = SynthesisConfig(
         speaker_id=speaker if voice.config.num_speakers > 1 else None,
-        length_scale=rng.uniform(0.85, 1.25),
-        noise_scale=rng.uniform(0.25, 0.5),
-        noise_w_scale=rng.uniform(0.3, 0.6),
+        length_scale=rng.uniform(*ranges.get("length_scale", (0.85, 1.25))),  # débit
+        noise_scale=rng.uniform(*ranges.get("noise_scale", (0.25, 0.5))),     # articulation (plus haut : relâchée)
+        noise_w_scale=rng.uniform(*ranges.get("noise_w_scale", (0.3, 0.6))),  # rythme et intonation
     )
     chunks = list(voice.synthesize(text, config, include_alignments=target is not None))
     if not chunks:
@@ -121,12 +149,16 @@ def _render(voice, speaker: int, text: str, target: str | None, context_s: float
         if not chunk.phoneme_alignments:
             return None
         wanted = [p for p in voice.phonemize(target)[0] if p not in " .,!?"]
-        phones = [a.phoneme for a in chunk.phoneme_alignments]
         ends = np.cumsum([a.num_samples for a in chunk.phoneme_alignments])
+        # Phonèmes de la phrase sans espaces ni ponctuation (comme ``wanted``), avec leur position d'origine :
+        # une expression de plusieurs mots (« Hey Orion ») est retrouvée malgré l'espace qui les sépare.
+        kept = [(j, a.phoneme) for j, a in enumerate(chunk.phoneme_alignments) if a.phoneme not in " .,!?"]
+        phones = [p for _, p in kept]
         for i in range(len(phones) - len(wanted), -1, -1):
             if phones[i : i + len(wanted)] == wanted:
-                start = (ends[i - 1] if i else 0) - int(context_s * rate)
-                audio = chunk.audio_int16_array[max(0, start) : ends[i + len(wanted) - 1]]
+                first, last = kept[i][0], kept[i + len(wanted) - 1][0]
+                start = (ends[first - 1] if first else 0) - int(context_s * rate)
+                audio = chunk.audio_int16_array[max(0, start) : ends[last]]
                 break
         else:
             return None
@@ -137,6 +169,8 @@ def _render(voice, speaker: int, text: str, target: str | None, context_s: float
 def _generate_task(task: tuple) -> list[dict]:
     """Une tâche = un lot de positifs OU de négatifs pour un locuteur (reprise possible)."""
     voice_name, speaker, part, kind, split, count, spec_raw, out_dir = task
+    global SYNTHESIS
+    SYNTHESIS = spec_raw.get("synthesis")
     tag = f"{voice_name}_{speaker}_{kind}{part}"
     done = Path(out_dir) / "tasks" / f"{tag}.json"
     if done.exists():  # reprise : tâche déjà traitée
@@ -196,7 +230,12 @@ def _generate_task(task: tuple) -> list[dict]:
     return rows
 
 
+EDGE_SPEAKERS = 12  # « locuteurs » (débit et hauteur de base) par voix Edge ; [voices] edge_speakers
+
+
 def _speaker_count(voice_name: str) -> int:
+    if voice_name.startswith(EDGE):
+        return EDGE_SPEAKERS
     config = json.loads((VOICES_DIR / f"{voice_name}.onnx.json").read_text(encoding="utf-8"))
     return int(config.get("num_speakers", 1))
 
@@ -209,23 +248,30 @@ def _is_test(voices: dict, voice_name: str, speaker: int) -> bool:
 
 
 def run(spec: Spec, workers: int) -> None:
+    global EDGE_SPEAKERS
     voices, positives, negatives = spec["voices"], spec["positives"], spec["negatives"]
+    EDGE_SPEAKERS = int(voices.get("edge_speakers", EDGE_SPEAKERS))
+    names = list(voices["files"]) + [EDGE + v for v in voices.get("edge", [])]
     missing = [v for v in voices["files"] if not (VOICES_DIR / f"{v}.onnx").exists()]
     if missing:
         raise SystemExit(f"Voix manquantes : {missing}. Lancez d'abord : python -m wakeword_training download")
 
     tasks = []
-    for voice_name in voices["files"]:
+    for voice_name in names:
         n_speakers = _speaker_count(voice_name)
         scale = max(1, positives["min_clips_per_voice"] // (positives["clips_per_speaker"] * n_speakers))
+        edge_totals = {"pos": voices.get("edge_positives_per_speaker", 16),
+                       "neg": voices.get("edge_negatives_per_speaker", 16)}
         for speaker in range(n_speakers):
             split = "test" if _is_test(voices, voice_name, speaker) else "train"
             for kind, section in (("pos", positives), ("neg", negatives)):
-                total = section["clips_per_speaker"] * scale
+                total = edge_totals[kind] if voice_name.startswith(EDGE) else section["clips_per_speaker"] * scale
                 parts = max(1, total // TASK_SIZE)
                 tasks += [(voice_name, speaker, part, kind, split, total // parts, spec.raw, str(spec.clips_dir))
                           for part in range(parts)]
 
+    if os.environ.get("WAKE_TASKS_REVERSED"):  # seconde machine : par la fin (les deux se rejoignent au milieu)
+        tasks.reverse()
     print(f"Synthèse + vérification Whisper : {len(tasks)} tâches, {workers} processus…", flush=True)
     rows = []
     with ProcessPoolExecutor(workers) as pool:
@@ -236,7 +282,7 @@ def run(spec: Spec, workers: int) -> None:
     (spec.clips_dir / "manifest.json").write_text(json.dumps(rows, ensure_ascii=False, indent=0), encoding="utf-8")
 
     print("Clips retenus (positifs demandés -> validés par Whisper) :")
-    for voice_name in voices["files"]:
+    for voice_name in names:
         wanted = sum(t[5] for t in tasks if t[0] == voice_name and t[3] == "pos")
         mine = [r for r in rows if r["voice"] == voice_name]
         got = {s: sum(1 for r in mine if r["label"] == "pos" and r["split"] == s) for s in ("train", "test")}

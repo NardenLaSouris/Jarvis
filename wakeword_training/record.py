@@ -1,4 +1,4 @@
-"""Enregistrement d'échantillons réels avec le micro configuré pour JARVIS.
+"""Enregistrement d'échantillons réels avec le micro configuré pour ORION.
 
 Trois séries, rangées dans data/wakeword/<name>/real/ :
   positive/ : le wake word, à différentes distances et intonations ;
@@ -15,9 +15,9 @@ from pathlib import Path
 
 import numpy as np
 
-from jarvis.audio.devices import MicrophoneSource
-from jarvis.audio.files import write_wav
-from jarvis.config import load_config
+from orion.audio.devices import MicrophoneSource
+from orion.audio.files import write_wav
+from orion.config import load_config
 from wakeword_training.spec import ROOT, Spec
 
 DISTANCES = ["près du micro (~50 cm)", "à distance normale (~1,5 m)", "loin, depuis l'autre bout de la pièce (~3 m)"]
@@ -44,7 +44,7 @@ def run(spec: Spec, kind: str, count: int) -> None:
     phrase = spec.phrase
     try:
         if kind == "positive":
-            print(f"Dites « {phrase} » naturellement, comme pour appeler JARVIS, après avoir appuyé sur Entrée.\n"
+            print(f"Dites « {phrase} » naturellement, comme pour appeler ORION, après avoir appuyé sur Entrée.\n"
                   "Variez l'intonation et la vitesse ; déplacez-vous quand c'est indiqué.")
             for i in range(count):
                 where = DISTANCES[min(i * len(DISTANCES) // count, len(DISTANCES) - 1)]

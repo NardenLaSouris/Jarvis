@@ -1,44 +1,128 @@
-# Configuration centrale de JARVIS.
+# Configuration centrale d'ORION.
 # Les chemins relatifs sont résolus par rapport au dossier de ce fichier.
 
 [assistant]
-name = "Jarvis"
 language = "fr"
-# Formules prononcées à la détection du wake word (tirées au hasard).
-acknowledgements = ["Oui, monsieur ?", "Monsieur ?", "Je vous écoute, monsieur.", "À votre service, monsieur."]
-# Durée (s) pendant laquelle JARVIS reste à l'écoute après une réponse,
+# Personnalité : nom, titre de l'utilisateur, ton, phrases et réponses prédéfinies.
+personality = "personality.toml"
+# Durée (s) pendant laquelle ORION reste à l'écoute après une réponse,
 # sans qu'il soit nécessaire de répéter le wake word.
 conversation_timeout = 8.0
 # Nombre maximal d'échanges conservés dans le contexte d'une conversation.
 max_history_turns = 6
+# Dire le wake word pendant qu'ORION réfléchit ou parle l'interrompt (son coupé), puis il écoute la suite.
+barge_in = true
 
 [wake_word]
 # Mot affiché/utilisé dans les messages ; le modèle ci-dessous fait la détection.
-phrase = "Jarvis"
-# Classifieur openWakeWord entraîné dans ce dépôt pour « Jarvis » prononcé à la française
-# (python -m wakeword_training all). Pour un autre mot : entraîner un modèle et pointer ici.
-model = "models/openwakeword/jarvis_fr.onnx"
+phrase = "Orion"
+# Classifieur openWakeWord entraîné dans ce dépôt pour « Orion » (python -m wakeword_training all --spec
+# wakeword_training/specs/orion_fr.toml) : voix Piper et voix neuronales Edge, de loin, dans le bruit, mal articulé.
+# Ancien modèle : models/openwakeword/jarvis_fr.onnx avec phrase = "Jarvis". Pour un autre mot : entraîner et pointer ici.
+model = "models/openwakeword/orion_fr.onnx"
 melspectrogram_model = "models/openwakeword/melspectrogram.onnx"
 embedding_model = "models/openwakeword/embedding_model.onnx"
-# Score (0-1) au-delà duquel le wake word est considéré comme détecté.
-# 0.96 = seuil recommandé par l'évaluation (models/openwakeword/jarvis_fr.json) : le plus bas
-# qui garde < 0,5 fausse alerte/h et < 3 % de mots pièges déclencheurs sur des voix de test.
-# À ajuster avec `python -m jarvis --wake-test` : plus bas = détecte mieux de loin, se trompe plus.
-threshold = 0.96
+# Score (0-1) et nombre d'images consécutives (80 ms) au-dessus du seuil pour déclencher. Réglages choisis par le banc
+# de bout en bout silencieux (python -m wakeword_training e2e, rapport models/openwakeword/orion_fr_e2e.json, octobre
+# 2026) : voix de test jamais vues, calme, bruit, bruit fort, distance, voix variées, mots pièges, flux de phrases
+# ordinaires. Avec la vérification et le réveil franc ci-dessous : 89 % des « Orion » retenus au calme, 75 % dans le
+# bruit, 51 % à distance très réverbérante (redire le mot dans les 8 s suffit, accepté sans vérification), 1,5 faux
+# réveil par heure de parole continue, 6 % de phrases piégeuses (« nous aurions », « Marion »...).
+# À affiner avec `python -m orion --wake-test` et `--wake-report` sur la vraie voix.
+threshold = 0.5
+# 2 : un « Orion » dit vite ne reste que 2 ou 3 images au-dessus du seuil (relevé le 9 octobre 2026).
+patience = 2
+verify = true
+verify_model = "base"
+# Réveil franc (score ≥ 0,95 pendant 3 images, juste après le déclenchement compris) : accepté sans la vérification,
+# qui reconnaît mal une voix lointaine ou noyée (2 % des « Orion » à distance confirmés). 0 : toujours vérifier.
+sure_score = 0.95
+# 3 et non 4 : de vrais « Orion » dits vite (0,95 à 0,99 sur 3 images) étaient écartés par Whisper (« Ouyon »,
+# rien entendu). Banc : 89 % retenus au calme, 1,5 faux réveil/h de parole continue, 6 % de phrases piégeuses.
+sure_patience = 3
+# Audio et issue de chaque réveil (demande ou non) : python -m orion --wake-report pour choisir le seuil,
+# python -m wakeword_training import-captures pour réentraîner avec. 0 : aucune capture.
+captures = "data/wakeword/captures"
+captures_keep = 300
 
 [stt]
 # Modèle faster-whisper : tiny, base, small, medium... ("small" = bon compromis FR).
 model = "small"
-device = "cpu"          # "cpu" ou "cuda"
-compute_type = "int8"   # int8 recommandé sur CPU
+# "auto" : GPU NVIDIA s'il est utilisable (float16, voir requirements-gpu.txt), sinon CPU (int8).
+# Le même fichier fonctionne donc sur le PC et sur le mini-PC. Forcer avec "cuda" ou "cpu".
+device = "auto"
+compute_type = "auto"
 beam_size = 1
 download_root = "models/whisper"
+# Utilisé si CUDA est indisponible (pas de GPU NVIDIA, bibliothèque manquante...).
+fallback_device = "cpu"
+fallback_compute_type = "int8"
+# Indique à Whisper le vocabulaire attendu (« Jarvis », noms des applications autorisées dans [tools]) :
+# « ouvre Steam » est moins souvent entendu « ouvre-ste-iem ». Les commandes encore mal transcrites
+# (« ou vos teams ») sont ensuite corrigées si elles ressemblent nettement à une commande connue.
+vocabulary_hint = true
+# Confiance minimale de la transcription (moyenne des log-probabilités de Whisper, la confiance de chaque
+# phrase est dans le journal) pour une question confiée au LLM ; en dessous, ORION demande de répéter au lieu
+# de répondre à une phrase probablement mal entendue. -99 : jamais.
+min_confidence = -1.0
+# En dessous de cette confiance, une phrase qui redemande exactement l'information donnée à l'instant (moins de
+# 2 minutes) est sans doute mal entendue (« tous mes mails comme lui » relisait les mails) : ORION demande de
+# reformuler au lieu de répéter. Phrases bien entendues dans le journal : -0,2 à -0,4. -99 : jamais.
+repeat_confidence = -0.45
+# Détection de la parole (Silero, fournie avec faster-whisper) avant la transcription. Banc synthétique du 9 octobre
+# 2026 (research/stt, 318 fichiers) : erreurs de mots 11,2 % -> 11,1 %, latence inchangée, plus de texte inventé sur
+# un silence (« Sous-titres réalisés par... », 1 cas sur 12 -> 0), phrases hésitantes ou bruitées 8,5 % -> 6,1 %
+# (10 fichiers, reproductible) ; gain sur un brouhaha de voix non confirmé (7 % ou 22 % selon le lancement).
+# false : comportement d'origine.
+vad_filter = true
 
 [tts]
-# Voix Piper (https://huggingface.co/rhasspy/piper-voices). Le .onnx.json doit être à côté.
-voice = "models/piper/fr_FR-tom-medium.onnx"
+# Moteur de synthèse, 100 % local : "piper" (rapide, défaut) ou "neutts" (NeuTTS Nano French,
+# voix plus naturelle mais ~1,2 fois plus lente que le temps réel sur le CPU ; voir [tts.neutts]).
+engine = "piper"
+# Voix Piper. Le .onnx.json doit être à côté. Par défaut, la voix d'ORION entraînée dans ce dépôt
+# (tts_training/, versionnée) ; ou une voix publiée (https://huggingface.co/rhasspy/piper-voices),
+# par exemple "models/piper/fr_FR-siwis-medium.onnx" (voix d'origine du fine-tuning).
+voice = "models/piper/fr_FR-orion-medium.onnx"
+# Locuteur des voix multi-locuteurs (ex. "pierre" pour fr_FR-upmc-medium) ; vide sinon.
+speaker = ""
 length_scale = 1.0      # > 1 = plus lent
 volume = 1.0
+# true : lecture par morceaux pendant la synthèse (NeuTTS seulement ; hache la voix si le CPU est trop lent).
+stream_audio = false
+# Une phrase de moins de N caractères est synthétisée avec la suivante, pour éviter un silence
+# quand le moteur est lent (utile avec NeuTTS : 40). 0 : désactivé.
+merge_under = 0
+
+[tts.effect]
+# Signature synthétique discrète appliquée en mémoire à chaque phrase (~2 ms par seconde de voix sur le mini).
+# enabled = false : voix d'origine. En cas d'erreur du traitement, la voix d'origine est jouée.
+enabled = true
+low_cut_hz = 90.0         # coupe le grave sourd sous cette fréquence
+presence_db = 2.0         # clarté de la voix autour de presence_hz
+presence_hz = 3500.0
+air_db = 2.5              # brillance au-dessus de air_hz
+air_hz = 8000.0
+shimmer = 0.2             # texture électronique (0 = aucune, 0,35 = nettement métallique)
+shimmer_ms = 0.8          # timbre de cette texture (0,5 à 2 ms)
+compression_ratio = 2.5   # 1 = sans compression
+threshold_db = -20.0
+peak_db = -1.0            # crête maximale
+
+[tts.pronunciations]
+# Mot = phonèmes espeak (IPA) imposés à Piper. espeak lit « Jarvis » /ʒaʁvˈi/
+# (s final muet, règle du français) : on impose /ʒaʁvˈis/ sans changer l'orthographe.
+Jarvis = "ʒaʁvˈis"
+
+[tts.neutts]
+# Utilisé seulement avec engine = "neutts" (dépendances : requirements-neutts.txt).
+# Modèles soumis à licence sur Hugging Face : accepter les conditions puis mettre HF_TOKEN dans .env.
+backbone = "neuphonic/neutts-nano-french-q8-gguf"
+codec = "neuphonic/neucodec-onnx-decoder"
+# Voix clonée : WAV de 3 à 15 s + transcription exacte dans le .txt du même nom.
+voice = "models/neutts/voices/bernard.wav"
+# Orthographe prononcée par NeuTTS (mot entier, sans tenir compte des majuscules).
+pronunciations = { Jarvis = "Jarvisse", Orion = "Oryon" }  # « Orion » écrit tel quel est lu « orient »
 
 [llm]
 backend = "ollama"
@@ -46,17 +130,421 @@ host = "http://127.0.0.1:11434"
 # À adapter au matériel : sur un mini-PC sans GPU, un modèle 3-4B (ex. qwen2.5:3b,
 # llama3.2:3b) est plus réactif qu'un 7B.
 model = "mistral:latest"
-temperature = 0.7
+# Bas = réponses plus sobres et centrées sur la demande ; haut = plus créatif et dispersé.
+temperature = 0.3
 max_tokens = 200
 keep_alive = "30m"
 timeout = 120.0
+# LLM de secours quand celui de « host » est injoignable (par exemple un worker GPU éteint) ; vide = aucun.
+fallback_host = ""
+fallback_model = ""
+# false : modèle non éprouvé (abliterated...). Avec [tools.policy] engine = "both", ses propositions d'action sont
+# limitées aux outils d'information, de maison, de médias et de minuteurs (aucun mail, fichier, application, PC).
+trusted = true
+# Modèles à réflexion (Qwen3...) : "false" pour répondre sans réfléchir ; vide = réglage du modèle.
+think = ""
+# Garde-fou de ce que dit le modèle : chaque demande de conversation ou de recherche est d'abord classée ; refus des
+# demandes dangereuses pour tous, réponse de soutien (3114) en cas de détresse, contenu adulte refusé aux profils
+# enfant et invité. "auto" : actif seulement si trusted = false ; "on" ; "off".
+guard = "auto"
+# Contexte du modèle principal (jetons). Le prompt du choix d'outil fait environ 7 000 jetons : à 4 096 (défaut
+# d'Ollama), il était tronqué sans avertissement. 8 192 : environ 0,6 Go de mémoire vidéo en plus pour un 8B.
+num_ctx = 8192
+# Avec un secours (worker distant) : état du worker ONLINE / DEGRADED / OFFLINE (journal, API, --health).
+# timeout ci-dessus = attente maximale entre deux morceaux de réponse ; avec un worker GPU, 20 s suffisent.
+connect_timeout = 1.0   # vérification TCP avant chaque appel (s) : un worker éteint est détecté aussitôt
+fallback_timeout = 30.0 # délai du LLM de secours (prompt court, mode dégradé)
+probe_interval = 10.0   # sonde de fond (s) : reconnexion automatique quand le worker revient
+slow_after = 8.0        # réponse plus lente que cela (s) : worker marqué DEGRADED
+retry_after = 30.0      # après un échec, délai avant de resolliciter le worker sans attendre la sonde
+first_token_timeout = 10.0  # worker qui accepte la demande mais ne répond pas (gelé) : secours au bout de ce délai
+
+[lights]
+# Lumières Tuya (par exemple LSC Smart Connect), pilotées en local par le Core. Une pièce par ampoule, dans
+# config.local.toml ; la clé locale de chaque ampoule va dans .env : LIGHT_KEY_<PIÈCE> (ex. LIGHT_KEY_CHAMBRE).
+#   [lights.rooms.chambre]
+#   name = "la chambre"          # dit à voix haute : « La lumière de la chambre est allumée. »
+#   device_id = "bf..."
+#   ip = "192.168.1.174"         # IP fixe conseillée (bail DHCP réservé dans la box)
+#   version = 3.5
+#   aliases = ["chambre", "ma chambre"]
+enabled = false
+timeout = 3.0
+
+[routines]
+# Routines créées dans ORION Control (déclencheur, puis outils sans confirmation, phrases, attentes).
+enabled = true
+path = "data/routines.json"
+
+[alarms]
+# Réveils (« réveille-moi à 7 h 30 », ou une routine avec l'action « Réveil ») : la sonnerie joue ce fichier
+# (MP3, WAV, FLAC..., le vôtre : non versionné) en boucle jusqu'à « Jarvis » ou « arrête », au plus max_minutes ;
+# sonnerie de secours si le fichier manque. volume : niveau (%) imposé avant de sonner (0 : inchangé).
+# briefing : après un réveil par la voix, ORION annonce la journée (date, météo, rappels, réveils, routines).
+enabled = true
+sound = "data/alarm.mp3"
+max_minutes = 5.0
+volume = 0
+briefing = true
+
+[mail]
+# Boîte mail en IMAP/SMTP (orion/mail). Lecture, recherche, tri, résumé : sans confirmation, sans rien marquer lu.
+# Marquer lu, archiver, supprimer (corbeille), envoyer, répondre : toujours confirmés. Jamais de pièce jointe.
+# Mot de passe d'application dans .env : MAIL_PASSWORD=... (Gmail : compte Google > Sécurité > Mots de passe
+# des applications ; IMAP activé). Adresse et serveurs dans config.local.toml :
+#   [mail]
+#   enabled = true
+#   user = "vous@gmail.com"
+#   imap_host = "imap.gmail.com"
+#   archive_folder = "[Gmail]/Tous les messages"
+#   trash_folder = "[Gmail]/Corbeille"
+#   important_senders = ["@banque.fr", "maman"]
+#   [mail.contacts]
+#   maman = "maman@example.com"
+enabled = false
+# Annonce des nouveaux mails importants (tri déterministe, jamais le LLM) : présent et hors heures calmes, ORION le
+# dit (« lis ce mail » vise alors ce mail) ; absent, le résumé « Bon retour » le cite ; la nuit, le point du jour.
+# watch_minutes = 0 : aucune surveillance. announce = "important", "personnel" (aussi les mails de vraies
+# personnes) ou "aucun".
+watch_minutes = 5.0
+announce = "important"
+quiet_start = "22:30"
+quiet_end = "08:00"
+
+[presence]
+# Présence à la maison (orion/presence) : départs et retours confirmés à partir de plusieurs signaux (téléphone,
+# porte d'entrée, mouvement), jamais d'une porte seule ; journal de la maison et routine « Bon retour » avec le
+# résumé de l'absence. Capteurs dans config.local.toml ; pilote « simulated » tant qu'il n'y a pas de matériel :
+#   python -m orion --simulate door open | door close | presence home | presence away | motion detected | status
+# (sur le Core, par l'API d'administration : ajouter "127.0.0.1" à [api] allowed_ips)
+#   [presence.sensors.porte_entree]
+#   kind = "door"            # door, motion, presence, leak, smoke, temperature, appliance
+#   room = "l'entrée"         # dit tel quel : « la porte de l'entrée »
+#   entrance = true          # porte d'entrée de la maison (ou mouvement juste derrière)
+#   driver = "simulated"     # plus tard : le pilote du vrai capteur
+#   [presence.sensors.telephone_monsieur]
+#   kind = "presence"
+#   user = "owner"           # identifiant du profil ([users]) dont le téléphone est suivi
+#   driver = "network"       # téléphone suivi sur le Wi-Fi de la maison (ping, puis ARP) :
+#   address = "192.168.1.104"  # son adresse IP (à fixer dans la box : bail DHCP réservé)
+#   mac = "aa:bb:cc:dd:ee:ff"  # facultatif : vérifie que l'adresse est toujours la sienne
+enabled = false
+departure_window = 180.0   # s : le téléphone quitte le Wi-Fi jusqu'à quelques minutes après la porte
+arrival_window = 300.0     # s : le téléphone revient sur le Wi-Fi avant d'arriver à la porte
+threshold = 90             # confiance (téléphone 50, porte ouverte 30, refermée 10, mouvement entrée 20)
+absence_minutes = 20.0     # téléphone parti sans porte : départ après ce délai sans aucun mouvement (0 : jamais)
+door_left_open_minutes = 10.0
+max_event_age = 120.0      # s : un signal plus ancien est refusé
+welcome_routine = true     # créer la routine « Bon retour » à la première mise en service
+absence_summary = true     # au retour : ce qui s'est passé pendant l'absence (l'important seulement)
+state_path = "data/presence.json"
+journal_path = "data/house_journal.jsonl"
+journal_max_kb = 1000
+network_interval = 20.0    # s : sondage du téléphone (pilote « network »)
+network_away_minutes = 10.0  # absent du réseau depuis N minutes : « parti » (un téléphone en veille se tait un moment)
+# Sans porte d'entrée connectée : retour confirmé par le seul téléphone, N secondes après son retour sur le Wi-Fi
+# (il s'y reconnecte avant la porte : l'accueil attend d'être entendu), après un départ confirmé. -1 : jamais.
+phone_arrival_delay = -1.0
+
+[call]
+# Appels vocaux d'ORION vers votre téléphone (application mobile ORION, en développement). Le Core seul décide
+# d'un appel ; le destinataire est l'appareil jumelé, jamais une adresse donnée par le modèle. La passerelle
+# d'appel (locale) fait sonner le téléphone et transporte l'audio ; jeton : CALL_GATEWAY_TOKEN dans .env.
+enabled = false
+device = ""                      # appareil jumelé ; vide : aucun appel possible
+gateway = "http://127.0.0.1:8770"
+listen_host = "0.0.0.0"           # passerelle : le téléphone la joint par le réseau local ou le VPN
+app_networks = ["192.168.1.0/24"]  # seuls ces réseaux joignent la passerelle (ajouter celui du VPN, ex. 192.168.27.0/24)
+devices_path = "data/call_devices.json"  # appareils jumelés : empreintes des jetons seulement
+# Linphone sur votre téléphone (sonnerie native, écran verrouillé, application fermée) : appareil « linphone »
+# ([call] device = "linphone" pour que le Core l'appelle). Mot de passe : LINPHONE_ORION_PASSWORD (environnement).
+sip_user = ""                     # compte SIP d'ORION, ex. "orionproject"
+sip_domain = "sip.linphone.org"
+sip_peer = ""                     # votre adresse, seul appelé et seul appelant accepté, ex. "sip:vous@sip.linphone.org"
+# Maison vide ([presence]) et un de ces événements : ORION vous appelle et dit ce qui se passe. [] : jamais.
+# Autre possible : "appliance.finished" (fin de cycle d'un appareil). Jamais les mails : seuls les capteurs et la
+# présence peuvent faire appeler (le texte d'un mail, écrit par n'importe qui, serait lu au téléphone).
+away_events = ["leak.detected", "smoke.detected", "presence.motion_while_away", "door.left_open"]
+# Rappel qui sonne pendant votre absence : ORION vous appelle pour vous le dire (règle d'appel intégrée, que
+# « désactive la règle 1 » coupe ; jusqu'à 2 essais, puis un message Linphone).
+remind_when_away = false
+# Mode Flex : « Flex » (ou « fais ta présentation ») -> ORION se présente sur les enceintes ; si vous êtes absent,
+# elle attend flex_delay_seconds, revérifie votre présence, puis vous appelle (annulé si vous rentrez entre-temps).
+flex = true
+flex_delay_seconds = 20
+ring_timeout = 40.0              # s sans réponse : appel expiré
+connect_timeout = 15.0           # s entre « décroché » et l'audio établi
+max_minutes = 15.0               # durée maximale d'un appel
+max_per_hour = 3                 # jamais de harcèlement : au plus 3 appels par heure,
+min_interval_minutes = 10.0      # 10 min entre deux appels,
+refusal_pause_minutes = 30.0     # et 30 min de pause après un refus ou un appel sans réponse
+
+[api]
+# API d'administration pour ORION Control (HTTP, réseau local). Jeton : ORION_AGENT_TOKEN dans .env.
+# Seules les IP listées y accèdent (celle du PC qui exécute ORION Control).
+enabled = false
+host = "0.0.0.0"
+port = 8766
+allowed_ips = []
+
+[web]
+# Recherche Web pour les questions d'actualité (prix, versions, nouvelles...), via une instance
+# SearXNG auto-hébergée (format json activé). Si le service est injoignable, ORION le dit simplement.
+enabled = true
+provider = "searxng"
+base_url = "http://127.0.0.1:8080"
+language = "fr"
+max_results = 5         # résultats demandés au moteur ; seuls les 3 plus pertinents vont au LLM
+timeout = 10.0
+fetch_pages = 1         # pages lues en entier pour compléter les extraits (0 = extraits seulement)
+max_page_bytes = 1000000
+
+[tools]
+# Outils : ORION agit sur le PC via des outils enregistrés, jamais via un shell. Le LLM propose un outil,
+# ORION valide, applique le niveau de risque de l'outil (SAFE : exécuté ; à confirmer : question ;
+# RESTRICTED : refusé) et rapporte le résultat réel. Chaque outil : enabled = true/false.
+# confirm = true ajoute une confirmation à un outil SAFE ; elle ne peut jamais être retirée à un outil
+# qui l'exige (fermer une application, verrouiller le PC).
+enabled = true
+timeout = 15.0          # délai maximal d'exécution d'un outil (s)
+# Commandes simples et sans ambiguïté (« allume la chambre à 30 % », « mets le son à 40 % ») reconnues sans
+# le LLM : réponse plus rapide. Elles le sont toujours en mode dégradé (worker LLM hors ligne).
+fast_path = true
+
+# Appareils du réseau : ORION agit sur un PC via l'agent qui y tourne (python -m orion.winagent), jamais sur
+# la machine du Core. L'appareil visé vient des mots de la demande (alias, le plus long l'emporte), sinon
+# celui marqué default. Sans url : appareil interdit (toute action y est refusée). Vide : le Core agit sur sa
+# propre machine. Exemple (à mettre dans config.local.toml) :
+#   [tools.devices.pc]
+#   name = "votre PC"
+#   url = "http://192.168.1.128:8765"
+#   default = true
+#   aliases = ["mon pc", "mon ordinateur"]
+#   [tools.devices.mini]
+#   name = "le mini-PC"
+#   aliases = ["mini pc", "le serveur"]
+
+[tools.policy]
+# Autorisation de chaque appel d'outil (le LLM propose, le Core décide et applique) :
+#   "builtin" : PermissionManager seul (rôles, risque, confirmation), comportement historique ;
+#   "shadow"  : PermissionManager seul décide, les politiques Cedar sont évaluées et journalisées (écarts compris) ;
+#   "both"    : double verrou, permis seulement si les deux permettent ; une erreur de Cedar vaut refus.
+# Cedar : pip install -r requirements-policy.txt. Retour arrière : engine = "builtin".
+engine = "builtin"
+policies = "policies/orion.cedar"
+schema = "policies/orion.cedarschema.json"
+audit = "data/policy_decisions.jsonl"   # décisions (sans valeur de paramètre) en mode shadow ou both
+timeout = 0.5
+
+[tools.get_time]
+enabled = true
+
+[tools.get_date]
+enabled = true
+
+[tools.system_info]
+enabled = true
+
+[tools.open_url]
+enabled = true          # SAFE : pas de confirmation (http/https uniquement)
+
+[tools.open_application]
+enabled = true          # SAFE : pas de confirmation
+
+[tools.close_application]
+enabled = true          # confirmation obligatoire
+
+[tools.list_running_applications]
+enabled = true
+
+[tools.set_volume]
+enabled = true
+
+[tools.mute_volume]
+enabled = true
+
+[tools.unmute_volume]
+enabled = true
+
+[tools.lock_pc]
+enabled = true          # confirmation obligatoire
+
+# Fichiers (find_files, read_text_file, create_text_file, copy_file ; move_file et delete_file avec confirmation) :
+# uniquement dans les dossiers « roots » ; création dans « sandbox » (jamais d'écrasement) ; « supprimer » met le
+# fichier dans <sandbox>/.corbeille (récupérable). Avec [tools.devices], ils s'exécutent sur le PC visé : les dossiers
+# sont alors ceux de [tools.files] dans windows_agent.toml de ce PC (ici, enabled suffit pour les proposer).
+[tools.files]
+enabled = false
+# roots = { documents = "~/Documents", bureau = "~/Desktop", telechargements = "~/Downloads" }
+# sandbox = "~/ORION"
+
+# Applications connues : celles qu'ORION sait fermer et surveiller, et qu'elle ouvre par leur commande éprouvée.
+# Ouvrir n'est plus limité à cette liste : toute application installée sur le PC peut l'être, sauf celles de
+# [tools.blocked_applications] (ci-dessous). Les applications du catalogue d'ORION sont trouvées automatiquement
+# (registre Windows, emplacements habituels, Microsoft Store) ; executable = "..." impose un chemin.
+# Application hors catalogue : executable (chemin absolu) et process (nom du processus) requis, ex. :
+# [tools.applications.obs]
+# label = "OBS Studio"
+# executable = "C:/Program Files/obs-studio/bin/64bit/obs64.exe"
+# process = "obs64.exe"
+[tools.applications.discord]
+enabled = true
+
+[tools.applications.steam]
+enabled = true
+
+[tools.applications.chrome]
+enabled = true
+
+[tools.applications.spotify]
+enabled = true
+
+[tools.applications.vscode]
+enabled = true
+
+[tools.applications.notepad]
+enabled = true
+
+# Applications interdites : jamais ouvertes, quel que soit le nom demandé. Comparées à la cible réelle trouvée sur le PC
+# (chemin, nom du programme, numéro Steam, paquet du Store), pas au nom. Les outils d'administration du système
+# (regedit, mmc, diskpart, bcdedit...) sont toujours interdits ; scripts et interpréteurs (cmd, PowerShell...) ne sont
+# jamais lancés comme des applications. Avec [tools.devices], c'est la liste de windows_agent.toml du PC qui s'applique.
+[tools.blocked_applications]
+paths = []          # ex. ["C:/Program Files/Tor Browser/Browser/firefox.exe"]
+executables = []    # ex. ["obs64.exe"]
+steam = []          # numéros d'applications Steam, ex. ["431960"]
+store = []          # paquets du Microsoft Store, ex. ["SpotifyAB.SpotifyMusic_zpdnekdrzrea0"]
+
+[timers]
+# Minuteurs et rappels (outils create_timer, create_reminder, cancel_*, list_*). Fin d'échéance annoncée à voix
+# haute. persist : ils survivent à un redémarrage (fichier path) ; un rappel passé pendant l'arrêt est annoncé
+# au redémarrage, un minuteur passé est oublié.
+enabled = true
+persist = true
+path = "data/schedule.json"
+max_hours = 24          # durée maximale d'un minuteur
+reminder_max_hours = 72 # horizon d'un rappel (« demain à 9 h », « après-demain à 18 h » à toute heure)
+max_active = 20         # nombre maximal d'échéances en cours
+
+[weather]
+# Météo (outil get_weather) via Open-Meteo : gratuit pour un usage personnel, sans clé API.
+# « Quel temps fait-il ? » utilise la ville par défaut ; « ... à Lyon » utilise la ville dite.
+enabled = true
+provider = "open-meteo"
+default_location = "Nantes"   # à remplacer par votre ville
+# Position précise de la ville par défaut (facultatif) : sinon, elle est cherchée par son nom.
+# latitude = 47.2173
+# longitude = -1.5534
+country = "FR"                # pays préféré quand plusieurs villes portent le même nom
+temperature_unit = "celsius"  # celsius ou fahrenheit
+timeout = 8.0
+current_cache_minutes = 5     # temps actuel : pas de nouvel appel pendant 5 minutes pour la même ville
+forecast_cache_minutes = 15
+
+[calendar]
+# Agenda (list_events, next_events, search_events, free_slots, add_event, delete_event avec confirmation).
+# Événements ajoutés par la voix : path. Lecture seule d'un calendrier existant : ics = fichier .ics ou adresse
+# iCal secrète (Google Agenda : Paramètres > Adresse secrète au format iCal ; Outlook : Publier un calendrier).
+# L'adresse est un secret : la mettre plutôt dans .env (ORION_CALENDAR_ICS=...). Répétitions et fuseaux gérés.
+enabled = true
+path = "data/calendar.json"
+ics = ""
+day_start = "08:00"     # créneaux libres cherchés entre ces heures
+day_end = "20:00"
+# Rendez-vous annoncé à voix haute ce nombre de minutes avant (« Monsieur, dentiste dans 15 minutes. ») ; rien
+# quand la maison est vide. 0 : jamais.
+announce_minutes = 15.0
+
+[spotify]
+# Spotify par son API Web (lecture d'un titre, d'une playlist, d'un artiste ; pause, suivant, volume). Une fois :
+# application sur developer.spotify.com (adresse de retour http://127.0.0.1:8888/callback), SPOTIFY_CLIENT_ID dans
+# .env, puis python -m orion --spotify-login. Compte Premium nécessaire. Sans cela : touches multimédia du PC.
+enabled = true
+token_path = "data/spotify_token.json"
+# Lecture par ORION lui-même : librespot sur le Core (deploy/orion-librespot.service) devient l'appareil Spotify
+# « device », son son est relayé vers la sortie de la voix ([audio] remote) et baisse quand ORION écoute ou parle.
+# Vide : la musique joue sur un appareil Spotify existant (application du PC, téléphone).
+device = ""
+# Avec device : service du lecteur, relancé par ORION si l'appareil a disparu (librespot perd parfois sa session
+# Spotify Connect après des heures d'inactivité, tout en continuant de tourner).
+player_service = "orion-librespot"
+pipe = "data/music.fifo"
+duck_percent = 15       # niveau de la musique (%) pendant qu'ORION écoute ou parle
+
+# Profils et terminaux (facultatif ; par défaut : un propriétaire et le terminal « main » de [audio] remote).
+# Rôles : owner (tout), adult (tout sauf effacer toute la mémoire), child (infos, lumières, musique, minuteurs,
+# rappels, réveils ; aucune action à confirmer), guest (infos, lumières, musique). L'identité vient du terminal.
+# [users.monsieur]
+# name = "monsieur"
+# role = "owner"
+# [users.invite]
+# name = "invité"
+# role = "guest"
+# [terminals.main_pc]
+# name = "PC du bureau"
+# url = "http://192.168.1.128:8765"
+# room = "bureau"
+# user = "monsieur"
+
+[notifications]
+# Annonces d'ORION (fin de minuteur, rappel...). false : plus d'annonce vocale ; les événements
+# et le journal d'activité continuent.
+voice_enabled = true
+
+[activity]
+# Journal d'activité (actions des outils réussies ou échouées), une ligne JSON par événement.
+# Consulter : python -m orion --activity
+enabled = true
+path = "data/activity.jsonl"
+max_kb = 1024           # au-delà, le fichier est archivé en activity.1.jsonl
+
+[wallpaper]
+# Mode fond d'écran : tableau de bord de tout l'environnement (mini-PC, appareils, Katana, météo, agenda, rappels,
+# lumières, musique) avec le visage d'ORION au centre. Pour Wallpaper Engine : fond d'écran « Web », adresse
+# http://<mini-PC>:8767/. Lecture seule ; seules les adresses de allowed_ips (et le Core) peuvent l'afficher.
+enabled = false
+host = "0.0.0.0"
+port = 8767
+allowed_ips = []
+# Interactions : commandes rapides (lumières, lecture Spotify ; rien d'autre), chaque action exige le jeton de la page.
+# chat : demandes écrites à ORION par POST /say (comme vos messages Linphone), sans champ dans la page : coupé, le
+# clavier n'arrive pas au fond d'écran de Wallpaper Engine.
+actions = true
+chat = false
+
+[face]
+# Visage graphique animé (page Web locale). Non critique : si le port est pris ou la page fermée,
+# ORION continue en vocal. host = "0.0.0.0" pour l'afficher sur tous les appareils du réseau local
+# (http://<ip du Core>:8765/) ; l'agent Windows l'ouvre alors seul sur le PC.
+enabled = true
+host = "127.0.0.1"
+port = 8765
+open_browser = true     # ouvre la page dans le navigateur au lancement (inutile sur une machine sans écran)
+# Thème nuit (même visage en noir et blanc) entre ces heures, selon l'horloge du Core ; vides = jamais.
+night_start = "22:00"
+night_end = "07:00"
+# Couleur du visage choisie à la voix (« mets ton visage en vert », « en arc-en-ciel », « remets ta couleur
+# normale ») ou dans ORION Control : rouge, orange, or, jaune, vert, émeraude, turquoise, cyan, azur, bleu,
+# indigo, violet, magenta, rose... Elle remplace bleu le jour / noir et blanc la nuit jusqu'au retour à « auto ».
+theme_path = "data/face_theme.json"
+# En automatique, thèmes de fête aux bonnes dates : Nouvel an (31/12-1/1), Saint-Valentin, Saint-Patrick, Pâques
+# (samedi-lundi), fête de la musique, 14 Juillet, Halloween (29-31/10), Noël (20-26/12) et votre anniversaire.
+seasons = true
+birthday = ""           # « MM-JJ », à mettre dans config.local.toml (ex. "07-14")
+jarvis_birthday = ""    # premier démarrage d'ORION, « AAAA-MM-JJ » : son anniversaire chaque année
+# Aussi : 1er avril (poissons), 1er mai (muguet), 4 mai (Star Wars, hyperespace).
 
 [audio]
 sample_rate = 16000
 # Taille d'un bloc audio : 1280 échantillons = 80 ms (attendu par openWakeWord).
 frame_samples = 1280
-input_device = ""       # vide = périphérique par défaut ; sinon nom partiel ou index
-output_device = ""
+# Micro et sortie d'ORION, indépendants de ceux de Windows. Pour choisir dans une liste :
+#   python -m orion --choose-audio
+input_device = "Microphone (Voicemod Virtual Au, MME"       # vide = périphérique par défaut de Windows ; sinon nom partiel ou index
+output_device = "Chat (2- TC-HELICON GoXLR), MME"
+# Micro et sortie d'un autre PC via son agent ORION (python -m orion.winagent), par exemple
+# "http://192.168.1.128:8765" : remplace input_device et output_device. Jeton : ORION_AGENT_TOKEN dans .env.
+remote = ""
 # Délai max (s) pour commencer à parler après "Oui, monsieur ?".
 listen_timeout = 6.0
 # Silence (s) marquant la fin d'une phrase.

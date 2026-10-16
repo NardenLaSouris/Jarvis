@@ -1,0 +1,128 @@
+# Spécification d'entraînement du wake word « Hey Orion » (prononciation française /ɛ ɔʁjɔ̃/).
+# Même démarche que orion_fr.toml (voix Piper et Edge, expression en fin de phrase, vérification Whisper,
+# mots pièges), avec une différence essentielle : « Orion » dit seul est un mot piège. Le modèle ne doit réagir
+# qu'à « Hey Orion » (ou « Hé Orion »), pour beaucoup moins de déclenchements à vide.
+#   python -m wakeword_training all --spec wakeword_training/specs/hey_orion_fr.toml
+
+name = "hey_orion_fr"   # -> models/openwakeword/hey_orion_fr.onnx
+phrase = "Hey Orion"
+
+[voices]
+files = [
+    # fr_FR-mls-medium écartée : elle ne prononce presque jamais « Orion » (1 exemple validé sur 500), et ses
+    # 125 locuteurs faisaient tourner la génération à vide.
+    "fr_FR-siwis-medium",    # femme
+    "fr_FR-tom-medium",      # homme
+    "fr_FR-gilles-low",      # homme
+    "fr_FR-upmc-medium",     # 2 locuteurs (femme, homme)
+]
+# Voix neuronales Edge (wakeword_training/edge.py) : beaucoup plus de timbres et d'accents que Piper (la voix
+# « mls » ne prononce jamais « Orion » : 1 exemple validé sur 500). Seuls les textes de cette spécification sont
+# envoyés au service. Chaque voix compte edge_speakers « locuteurs » (débit et hauteur de base différents).
+# Voix Edge : le service refusait toute synthèse (erreur 403) pendant l'entraînement du 12 octobre 2026 ;
+# remettre la liste de orion_fr.toml pour les réutiliser quand il répondra de nouveau.
+edge = []
+edge_speakers = 12
+edge_positives_per_speaker = 16
+edge_negatives_per_speaker = 16
+# Voix (ou locuteurs) jamais vus à l'entraînement : mesure de la généralisation à une voix nouvelle.
+test_voices = ["fr_FR-tom-medium", "fr_FR-upmc-medium:1", "edge-fr-CA-JeanNeural", "edge-en-US-EmmaMultilingualNeural"]
+test_speaker_fraction = 0.15
+
+# Synthèse Piper : débit (length_scale), articulation (noise_scale : plus haut = plus relâchée) et rythme
+# (noise_w_scale) tirés au hasard dans ces plages. Larges : « Orion » dit vite, lentement, à moitié articulé.
+[synthesis]
+length_scale = [0.7, 1.4]
+noise_scale = [0.3, 0.9]
+noise_w_scale = [0.4, 1.0]
+
+[positives]
+# L'expression est toujours la DERNIÈRE chose prononcée. Graphies variées pour les voix : « Hey », « Hé », « Eh ».
+texts = [
+    "Hey Orion", "Hey Orion.", "Hey Orion !", "Hey Orion ?", "Hé Orion", "Hé Orion !", "Hey, Orion",
+    "Hé, Orion.", "Eh Orion", "Hey Oryon", "Hey Orion...",
+]
+prefixes = ["", "", "", "", "", "", "Euh, ", "Bon, ", "Alors, ", "Oui, ", "Ah, "]
+carriers = [
+    "Bonjour, je voulais simplement te demander quelque chose. {w}.",
+    "Il est tard et je voudrais que tu m'écoutes un instant. {w} !",
+    "Dis-moi franchement ce que tu en penses maintenant. {w} ?",
+    "J'ai une petite question à te poser ce matin. {w}.",
+    "Je rentre à la maison dans une heure environ. {w}.",
+    "Attends, j'ai encore une chose à te dire. {w} !",
+    "Tu m'entends bien depuis l'autre pièce ? {w} ?",
+    "Bon, on va faire autrement. {w}.",
+]
+# Transcriptions acceptées : un « hey » (hey, hé, eh, et, ey, ay, hei) puis orion, oryon, aurion, o'rion, orillon.
+verify_pattern = "(?:hey|h[eé]|eh|et|ey|ay|hei|hay)\\W*(?:o|au)\\W?r[iy]+\\W?[oa]n"
+clips_per_speaker = 4
+min_clips_per_voice = 450
+
+[negatives]
+# Mots pièges : d'abord « Orion » seul et ce qui y ressemble sans le « hey » (le cœur de ce modèle), puis les
+# expressions proches avec un « hey » (« Hey Marion », « Hey Siri »), puis les mots proches d'« Orion ».
+# Jamais « Hé Orion » ni « Eh Orion » : ce sont des façons naturelles de dire le wake word.
+hard = [
+    "Orion", "Orion.", "Orion !", "Orion ?", "Oryon", "Bon, Orion", "Dis, Orion", "Alors, Orion", "Oui, Orion",
+    "Euh, Orion", "Merci Orion", "Ok Orion", "Salut Orion", "Allez Orion", "La constellation d'Orion",
+    "Hey Marion", "Hey Brian", "Hey Ryan", "Hey Dorian", "Hey Siri", "Hey Google", "Hey Alexa", "Hey Jarvis",
+    "Hey, au rayon", "Hey, l'avion", "Hé, le lion", "Hey, l'horizon", "Hé Marion", "Hey Oriane", "Hey ho",
+    "Hey, on y va", "Hey, oh non", "Et alors", "Hey, ça va ?", "Hey toi", "Hey mec", "Hé oh",
+    "Horizon", "Orient", "Oreillon", "Oreille", "Orage", "Orange", "Origine", "Aurore", "Oriane",
+    "Orléans", "Marion", "Dorian", "Brian", "Ryan", "Lion", "Rayon", "Au rayon", "Avion", "Camion",
+    "Région", "Opinion", "Oignon", "Million", "Union", "On y va", "Au lion", "Champion", "Maison",
+]
+phrases = [
+    "Bonjour", "Bonsoir", "Merci", "Ça marche", "D'accord", "Salut", "À plus tard", "Bonne nuit",
+    "J'ai besoin de quelque chose", "J'avais prévu de partir", "J'arrive dans deux minutes",
+    "Tu peux me passer le sel ?", "On mange à quelle heure ce soir ?", "Il fait vraiment froid dehors",
+    "Je vais prendre une douche", "Où est-ce que j'ai mis mes clés ?", "Le film commence à neuf heures",
+    "Tu as vu le match hier ?", "Il faut racheter du pain", "Je travaille demain matin",
+    "Qu'est-ce qu'on regarde ce soir ?", "Ferme la porte s'il te plaît", "Les enfants sont couchés",
+    "J'ai reçu un message de ta mère", "On part en vacances en juillet", "Le café est prêt",
+    "Je n'ai pas bien dormi", "Il pleut depuis ce matin", "La réunion est reportée à jeudi",
+    "Tu veux un verre d'eau ?", "C'est l'heure du dîner", "J'ai oublié mon téléphone",
+    "Le chat a encore renversé son bol", "Tu as pensé à appeler le garagiste ?",
+    "Je reviens tout de suite", "Il reste des pâtes d'hier", "On se voit samedi",
+    "Monte le son un peu", "Baisse le chauffage", "Quelle heure est-il ?", "Je suis fatigué",
+    "C'est une bonne idée", "Pas de problème", "Attends une seconde", "Regarde par la fenêtre",
+    "Allô, oui, je t'écoute", "Je ne sais pas trop", "Viens voir ça", "On y va",
+    "Ça sent bon dans la cuisine", "Il y a quelqu'un à la porte", "Tu as fini tes devoirs ?",
+    "Le train a du retard", "Je passe à la boulangerie", "Mets la table s'il te plaît",
+    "Les informations de vingt heures", "Et maintenant, la météo", "Place à la publicité",
+    "Merci d'avoir regardé cette vidéo", "Abonnez-vous à la chaîne", "Voici le programme de la soirée",
+    "Il était une fois un petit garçon", "Nous sommes en direct de Paris", "Le score est de deux à un",
+    "L'avion part à midi", "Marion arrive ce soir", "Regarde l'horizon", "L'orage approche",
+]
+clips_per_speaker = 12
+hard_fraction = 0.7
+
+[augmentation]
+# Orienté détection : beaucoup de copies de chaque « Orion », souvent de loin et dans le bruit.
+copies_per_positive = 12
+copies_per_negative = 1
+copies_per_hard_negative = 3
+snr_db = [0.0, 30.0]
+clean_probability = 0.15
+far_probability = 0.6
+pitch_factor = [0.8, 1.25]
+
+[training]
+external_negatives = "data/wakeword/negatives/validation_set_features.npy"
+external_negatives_train_fraction = 0.7
+hidden_units = 96
+epochs = 60
+learning_rate = 0.001
+# Plus sévère que pour « Orion » seul : le but de ce modèle est de réagir beaucoup moins à vide.
+negative_weight = 4.0
+hard_negative_weight = 2.5
+
+[evaluation]
+# Seuil choisi pour très peu de déclenchements à vide (vérification Whisper derrière).
+max_false_activations_per_hour = 0.5
+max_hard_negative_trigger_rate = 0.08
+
+[captures]
+# Réveils enregistrés en service avec l'ancien modèle « Orion » : les vrais (« Orion » dit seul, votre voix)
+# deviennent des mots pièges, comme les faux réveils.
+used = "negative"

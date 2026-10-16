@@ -21,9 +21,9 @@ from piper import PiperVoice
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from jarvis.audio.files import write_wav  # noqa: E402
-from jarvis.audio.resample import resample  # noqa: E402
-from jarvis.config import load_config  # noqa: E402
+from orion.audio.files import write_wav  # noqa: E402
+from orion.audio.resample import resample  # noqa: E402
+from orion.config import load_config  # noqa: E402
 
 SR = 16000
 WAKE_TEXT = "Jarvisse !"
