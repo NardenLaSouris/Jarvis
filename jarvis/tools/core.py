@@ -35,6 +35,11 @@ DONE, CONFIRM, REJECTED, CANCELLED = "done", "confirm", "rejected", "cancelled"
 REQUEST_USER: contextvars.ContextVar[str] = contextvars.ContextVar("jarvis_request_user", default="")
 
 
+def loggable(value: Any) -> Any:
+    """Pour les journaux hors du Core (agent) : mêmes règles que le journal des outils."""
+    return _loggable(value)
+
+
 def request_user(default: str = "") -> str:
     return REQUEST_USER.get() or default
 
@@ -78,10 +83,19 @@ class ToolActivity:
     user: str
 
 
+# Texte privé (corps d'un mail, contenu d'un fichier, fait retenu, consigne, résumé lu) : jamais recopié dans le
+# journal, seulement sa longueur ; l'outil, la pièce, l'appareil, l'heure, le destinataire restent lisibles.
+PRIVATE_FIELDS = frozenset({"body", "content", "fact", "facts", "instruction", "snippet", "preview", "summary",
+                            "excerpt", "meaning", "lines", "text_preview"})
+
+
 def _loggable(value: Any) -> Any:
-    """Valeur journalisable : chaînes tronquées, URL sans requête ni fragment (jetons éventuels)."""
+    """Valeur journalisable : chaînes tronquées, URL sans requête ni fragment (jetons éventuels), texte privé masqué."""
     if isinstance(value, dict):
-        return {k: _loggable(v) for k, v in value.items()}
+        return {k: (f"<{len(str(v))} caractères>" if k in PRIVATE_FIELDS and v else _loggable(v))
+                for k, v in value.items()}
+    if isinstance(value, list):
+        return [_loggable(v) for v in value]
     if isinstance(value, str):
         if value.lower().startswith(("http://", "https://")):
             parts = urlsplit(value)

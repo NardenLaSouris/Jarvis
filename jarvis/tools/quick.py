@@ -74,6 +74,11 @@ ALARM_WORDS = ("reveille moi", "reveillez moi", "mets un reveil", "mets moi un r
 WEATHER_WORDS = ("meteo", "quel temps", "temps fait il", "temps fera t il", "il fait combien", "pleuvoir", "pleut",
                  "va t il neiger", "parapluie")
 LOCK_WORDS = ("verrouille", "verrouiller", "verrouillage")
+# Allumer, éteindre un PC (journal d'octobre 2026 : « Éteins le pc », « Allume le pc » passaient par le LLM, 1,6 à
+# 2,7 s). Le PC doit être nommé ; l'extinction garde sa confirmation (outil shutdown_pc).
+PC_WORDS = ("pc", "ordinateur", "ordi", "pc portable", "pc fixe", "katana", "laptop")
+POWER_ON = re.compile(r"^(?:allume|allumer|demarre|demarrer|reveille|reveiller|rallume)(?: moi)? (?:le |mon |l )?(.+)$")
+POWER_OFF = re.compile(r"^(?:eteins|eteint|eteindre|arrete|arreter|coupe)(?: moi)? (?:le |mon |l )?(.+)$")
 REMEMBER = re.compile(r"^(?:jarvis\s+)?(?:retiens|retenez|souviens toi|souvenez vous|rappelle toi|note|memorise|"
                       r"n oublie pas|n oubliez pas)(?: bien)? (?:que|qu)\s+(.+)$")
 RECALL = ("que sais tu de moi", "que sais tu sur moi", "qu est ce que tu sais de moi", "qu est ce que tu sais sur moi",
@@ -235,7 +240,7 @@ class QuickPlanner:
         if memory is not None:
             return {"type": "tool_call", "tool": memory[0], "parameters": memory[1]}
         parsers = (self._media, self._calendar, self._routine, self._face, self._sound, self._lights, self._apps,
-                   self._timer, self._reminder, self._alarm, self._weather, self._lock, self._spotify)
+                   self._timer, self._reminder, self._alarm, self._weather, self._lock, self._power, self._spotify)
         # Un rappel ou un réveil d'abord : son message peut nommer n'importe quoi (« rappelle-moi demain d'appeler le
         # garage », « ... d'éteindre la chambre »), qui ne doit jamais être exécuté tout de suite.
         if _has(norm, REMINDER_WORDS):
@@ -282,7 +287,9 @@ class QuickPlanner:
         if not (spotify or self._exists("media_play_pause")):
             return None
         if norm in ("pause", "mets pause", "mets en pause", "pause la musique", "mets la musique en pause",
-                    "coupe la musique", "pause musique") or _has(norm, ("musique en pause", "spotify en pause")):
+                    "coupe la musique", "pause musique", "arrete spotify", "arrete la musique", "coupe spotify",
+                    "stoppe spotify", "stop spotify", "pause spotify", "stoppe la musique", "stop la musique",
+                    "arrete le son de spotify") or _has(norm, ("musique en pause", "spotify en pause")):
             return ("spotify_pause", {}) if spotify else ("media_play_pause", {})
         if _has(norm, ("reprends la musique", "reprend la musique", "remets la musique", "relance la musique",
                        "reprends la lecture", "reprend la lecture")) or norm in (
@@ -557,6 +564,16 @@ class QuickPlanner:
         if city:
             params["location"] = city
         return "get_weather", params
+
+    def _power(self, norm, text, previous):
+        """« Allume le PC », « Éteins mon PC portable » : le PC visé est déduit ensuite des mots de la demande."""
+        norm = " ".join(re.sub(r"\b(s il te plait|s il vous plait|stp|svp|merci)\b", " ", norm).split())
+        for pattern, tool in ((POWER_ON, "wake_pc"), (POWER_OFF, "shutdown_pc")):
+            match = pattern.match(norm)
+            if match and self._exists(tool) and match.group(1).strip() in {*PC_WORDS, "pc de bureau", "tour"} | {
+                    f"{w} {x}" for w in ("pc", "ordinateur", "ordi") for x in ("fixe", "portable", "de bureau")}:
+                return tool, {}
+        return None
 
     def _lock(self, norm, text, previous):
         if _has(norm, LOCK_WORDS) and self._exists("lock_pc") and \

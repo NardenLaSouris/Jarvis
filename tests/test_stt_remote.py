@@ -84,3 +84,33 @@ def test_a_wrong_token_is_refused_and_local_whisper_answers(server):
     url, fake = server
     stt = RemoteSTT(url, "mauvais-jeton-0123456789", FakeLocal(), "fr")
     assert stt.transcribe(AUDIO, 16000) == "local" and fake.requests == []
+
+
+
+def test_a_gpu_that_hangs_falls_back_within_the_timeout_and_is_not_retried_at_once():
+    """Katana joignable mais muet (carte graphique saturée par un jeu) : jamais d'attente sans fin."""
+    import time
+    from http.server import BaseHTTPRequestHandler
+
+    release = threading.Event()
+
+    class Hanging(BaseHTTPRequestHandler):
+        def do_POST(self):  # noqa: N802
+            release.wait(5)
+
+        def log_message(self, *args):
+            pass
+
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), Hanging)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    try:
+        local = FakeLocal()
+        stt = RemoteSTT(f"http://127.0.0.1:{httpd.server_address[1]}", TOKEN, local, "fr", timeout=0.5)
+        started = time.monotonic()
+        assert stt.transcribe(AUDIO, 16000) == "local"
+        assert time.monotonic() - started < 1.5  # délai borné, puis le Whisper local
+        started = time.monotonic()
+        assert stt.transcribe(AUDIO, 16000) == "local" and time.monotonic() - started < 0.3  # pas de nouvel essai
+    finally:
+        release.set()
+        httpd.shutdown()

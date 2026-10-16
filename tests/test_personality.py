@@ -6,6 +6,8 @@ Lancement : python tests/test_personality.py
 from __future__ import annotations
 
 import random
+
+import pytest
 import re
 import sys
 import tempfile
@@ -502,3 +504,19 @@ def test_a_reaction_gets_a_reply_not_an_action():
     for text in ("Niquel", "Nickel !", "Parfait", "C'est top", "Bien joué"):
         route = r.route(text)
         assert route.name == "approval" and route.reply, (text, route)
+
+
+
+@pytest.mark.parametrize("text, name", [
+    ("Fous alert.", "false_wake"), ("Pousse alerte.", "false_wake"), ("Foussa alerte.", "false_wake"),
+    ("Faux réveil, rendors-toi.", "false_wake"), ("C'était un faux réveil. Mets-toi en veille.", "false_wake"),
+    ("Remets-toi en veille, c'était une fausse alerte.", "false_wake"), ("Remets-toi en veille.", "standby"),
+])
+def test_false_wakes_as_really_transcribed_are_recognised(text, name):
+    # Journal d'octobre 2026 : ces phrases partaient au LLM (un rappel « Fous alert » a été créé) ou vers les rappels.
+    route = router().route(text)
+    assert route.name == name and route.end_conversation, (text, route)
+
+
+def test_a_wake_word_sentence_with_a_real_request_is_not_a_dismissal():
+    assert router().route("Faux réveil, mets un réveil à 7 h").name != "false_wake"

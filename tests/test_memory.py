@@ -186,3 +186,26 @@ def test_prompt_markers_never_enter_or_leave_memory(tmp_path):
                                                     "user": "owner"}]), encoding="utf-8")
     prompt = memory_prompt(MemoryStore(tmp_path / "old.json"))
     assert "<<<" not in prompt and ">>>" not in prompt and "bleu" in prompt
+
+
+
+def test_contradictory_facts_are_dated_and_the_latest_prevails(tmp_path):
+    from datetime import datetime
+
+    now = [datetime(2026, 10, 1, 9, 0)]
+    store = MemoryStore(tmp_path / "m.json", clock=lambda: now[0])
+    store.add("je préfère le bleu")
+    now[0] = datetime(2026, 10, 14, 9, 0)
+    store.add("je préfère le vert")
+    prompt = memory_prompt(store)
+    assert "vous préférez le bleu (retenu le 01/10/2026)" in prompt
+    assert "vous préférez le vert (retenu le 14/10/2026)" in prompt and "le plus récent fait foi" in prompt
+
+
+def test_absent_and_deleted_memories_are_never_recalled(tmp_path):
+    store = MemoryStore(tmp_path / "m.json")
+    assert store.search("couleur préférée") == []  # rien retenu : rien d'inventé
+    fact, _ = store.add("ma couleur préférée est le vert")
+    store.remove([fact["id"]])
+    assert store.search("couleur préférée") == [] and memory_prompt(store) == ""
+    assert MemoryStore(tmp_path / "m.json").all() == []  # supprimé aussi sur le disque

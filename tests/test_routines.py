@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
-from jarvis.events import ALL, EventBus  # noqa: E402
+from jarvis.events import ALL, Event, EventBus  # noqa: E402
 from jarvis.routines import (  # noqa: E402
     JsonRoutineStore, MemoryRoutineStore, RoutineEngine, RoutineError, describe, next_time, parse_routine,
 )
@@ -185,3 +185,23 @@ def test_jarvis_starts_with_a_damaged_routines_file_and_keeps_it(tmp_path):
         assert JsonRoutineStore(path).load() == [] and not path.exists()
     assert len(list(tmp_path.glob("routines.json.illisible-*"))) == 3  # chaque version abîmée est gardée
     assert load_json_list(tmp_path / "absent.json", "Test") == []
+
+
+
+def test_a_disabled_arrival_routine_is_never_run_and_stays_stored():
+    import time as _time
+
+    welcome = {**SOIR, "id": "accueil", "name": "Accueil", "trigger": {"type": "event", "event": "arrival"}}
+    setup = Setup(routines=[{**welcome, "enabled": False}])
+    setup.engine.attach_events(setup.events)
+    setup.events.publish(Event("presence.arrival_confirmed", "presence", {"user": "owner"}))
+    _time.sleep(0.2)
+    assert setup.driver.calls == [] and setup.said == []  # rien exécuté
+    assert [r.id for r in setup.engine.routines()] == ["accueil"]  # mais toujours là
+    setup.engine.set_enabled("accueil", True)
+    setup.events.publish(Event("presence.arrival_confirmed", "presence", {"user": "owner"}))
+    for _ in range(100):
+        if setup.said:
+            break
+        _time.sleep(0.02)
+    assert setup.said == ["Bonne soirée, monsieur."]  # réactivée : elle s'exécute

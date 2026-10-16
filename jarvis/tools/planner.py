@@ -377,6 +377,10 @@ DOMAIN_WORDS = {
     "forget_word": ("oublie le mot", "oublie l expression", "oublie ce mot", "desapprends"),
     "declare_departure": ("je sors", "je pars", "je m en vais", "je quitte", "je m absente", "je file", "je reste",
                           "courses", "je vais y aller", "j y vais"),
+    # Rappel : un mot de rappel dit par l'utilisateur (« Fous alert », un « fausse alerte » mal entendu, avait été
+    # programmé en rappel par le LLM).
+    "create_reminder": ("rappel", "rappels", "rappelle", "rappeler", "rappelez", "rappelles", "penser", "pense",
+                        "previens", "prevenir", "n oublie", "oublie pas", "souviens", "noter", "note"),
     # Règles d'appel : seulement quand l'utilisateur parle d'appel ou de règle.
     "create_call_rule": ("appelle moi", "appelez moi", "previens moi", "ecris moi", "telephone moi"),
     "list_call_rules": ("regle", "regles"),

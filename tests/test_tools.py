@@ -359,6 +359,25 @@ def test_lock_pc_asks_then_locks():
     assert result.success and result.result == {"locked": True} and locker.calls == 1
 
 
+@pytest.mark.parametrize("answer", ["Oui, verrouille l'ordinateur", "Oui, verrouille le PC s'il te plaît",
+                                    "Ouais, verrouille-le"])
+def test_yes_followed_by_the_same_request_confirms_it(answer):
+    # 15 octobre 2026 : « Oui, éteins mon PC portable » abandonnait la confirmation et reposait la question.
+    locker = Locker()
+    core = make_core(locker=locker)
+    core.submit(call("lock_pc"))
+    assert core.answer(answer).result.success and locker.calls == 1
+
+
+@pytest.mark.parametrize("answer", ["Oui, ferme Chrome", "Oui mais verrouille-le demain", "Oui et éteins la lumière"])
+def test_yes_with_another_request_never_confirms_the_pending_one(answer):
+    locker = Locker()
+    core = make_core(locker=locker)
+    core.submit(call("lock_pc"))
+    outcome = core.answer(answer)
+    assert (outcome is None or not (outcome.result and outcome.result.success)) and locker.calls == 0
+
+
 def test_lock_failure_is_reported():
     core = make_core(locker=Locker(ok=False))
     core.submit(call("lock_pc"))
@@ -1126,3 +1145,26 @@ def test_ordinary_pages_still_open_without_confirmation(url):
     browser = Browser()
     outcome = make_core(opener=browser).submit(call("open_url", url=url))
     assert outcome.status == "done" and outcome.result.success and browser.opened
+
+
+
+def test_private_text_never_reaches_the_logs():
+    from jarvis.tools.core import loggable
+
+    data = {"tool": "send_mail", "parameters": {"to": "paul@example.test", "subject": "Dîner",
+                                                "body": "Mon code d'accès est 4242, ne le répète pas"}}
+    logged = loggable(data)
+    assert logged["parameters"]["to"] == "paul@example.test" and logged["parameters"]["subject"] == "Dîner"
+    assert logged["parameters"]["body"] == "<43 caractères>" and "4242" not in str(logged)
+    result = loggable({"result": {"mails": [{"sender": "Léa", "snippet": "Le digicode est 1234"}]}})
+    assert "1234" not in str(result) and result["result"]["mails"][0]["sender"] == "Léa"
+    assert loggable({"parameters": {"url": "https://site.test/p?jeton=secret#x"}})["parameters"]["url"] == \
+        "https://site.test/p"
+
+
+def test_tool_lines_of_the_agent_hide_private_text():
+    llm = PlannerLLM({"type": "tool_call", "tool": "create_text_file",
+                      "parameters": {"name": "notes.txt", "content": "mot secret : 4242"}})
+    _, events = run_agent(["Crée un fichier notes.txt qui contient mot secret : 4242"], llm)
+    lines = [text for kind, text in events if kind == "tool"]
+    assert lines and all("4242" not in text for text in lines)  # au moins une ligne vérifiée

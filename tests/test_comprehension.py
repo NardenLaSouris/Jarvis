@@ -201,3 +201,28 @@ def test_a_hypothesis_is_discussed_not_executed(text, expected):
         core = make_core()
         assert plan(PlannerLLM({"type": "tool_call", "tool": "set_volume", "parameters": {"volume": 50}}),
                     text, core.registry) is None
+
+
+
+@pytest.mark.parametrize("text", ["Fous alert.", "Tagule.", "Pas parmi elle."])
+def test_a_reminder_is_never_created_without_being_asked(text):
+    core = reminder_core()
+    proposal = {"type": "tool_call", "tool": "create_reminder", "parameters": {"message": text.rstrip("."),
+                                                                                 "delay": "1 jour"}}
+    assert plan(PlannerLLM(proposal), text, core.registry) is None
+
+
+def test_a_real_reminder_request_still_passes():
+    core = reminder_core()
+    proposal = {"type": "tool_call", "tool": "create_reminder", "parameters": {"message": "train", "time": "5 h"}}
+    assert plan(PlannerLLM(proposal), "Ajoute le rappel « train » à 5 h", core.registry)["tool"] == "create_reminder"
+
+
+def reminder_core():
+    from jarvis.scheduling import TimerManager
+    from jarvis.tools.timers import timer_tools
+
+    core = make_core()
+    for tool in timer_tools(TimerManager()):
+        core.registry.register(tool)  # le vrai outil de rappel : sans lui, le planificateur ne vérifie rien
+    return core

@@ -35,7 +35,7 @@ from jarvis.scheduling.actions import split_event, split_schedule
 from jarvis.streaming import SpeechPipeline, TextPipeline, sentences_from_llm
 from jarvis.personality import normalize
 from jarvis.tools.base import Risk
-from jarvis.tools.core import CANCELLED, CONFIRM, DONE
+from jarvis.tools.core import CANCELLED, CONFIRM, DONE, loggable
 from jarvis.tools.request import MALFORMED_MESSAGES
 from jarvis.tools.planner import named, plan, quoted, tool_request
 from jarvis.tools.quick import quick_plan
@@ -633,7 +633,10 @@ class Agent:
             self._event("user", text)
             understood = True
             confidence = getattr(self._stt, "last_confidence", None)
-            self._event("timing", f"STT {latency['stt']:.1f} s" + (f" (confiance {confidence:.2f})" if confidence is not None else ""))
+            # Où la transcription a eu lieu (« gpu » : Katana, « local » : secours du mini-PC) : un basculement se voit.
+            source = getattr(self._stt, "last_source", "")
+            self._event("timing", f"STT {latency['stt']:.1f} s" + (f" [{source}]" if source else "")
+                        + (f" (confiance {confidence:.2f})" if confidence is not None else ""))
             self._place = mentioned_city(text) or self._place
 
             accepted_offer, offer = offer, None  # l'offre ne vaut que pour la première phrase
@@ -904,7 +907,7 @@ class Agent:
             latency["route"] = "unsure (même action)"
             self._event("routing", latency["route"])
             return self._say_phrase(history, text, "unsure_repeat", latency)
-        self._event("tool", json.dumps(data, ensure_ascii=False)[:200])
+        self._event("tool", json.dumps(loggable(data), ensure_ascii=False)[:200])
         started = time.perf_counter()
         outcome = self._last_outcome = self._tools.submit(data)
         latency["tool"] = time.perf_counter() - started
@@ -1046,7 +1049,7 @@ class Agent:
             data = self._with_hidden({"type": "tool_call", "tool": call["tool"], "parameters": call["parameters"]},
                                      text, call.get("segment", text), previous)
             previous = data["parameters"]
-            self._event("tool", json.dumps(data, ensure_ascii=False)[:200])
+            self._event("tool", json.dumps(loggable(data), ensure_ascii=False)[:200])
             outcome = self._tools.submit(data)
             if outcome.status == CONFIRM:
                 spoken.append(outcome.question)
@@ -1076,7 +1079,7 @@ class Agent:
         """Exécution réussie : phrase de l'outil, ou à défaut réponse du LLM à partir du résultat. Échec, refus,
         annulation ou question de confirmation : phrase du Core, sans LLM (qui pourrait inventer le résultat)."""
         if outcome.status == DONE:
-            self._event("tool", json.dumps(outcome.result.as_dict(), ensure_ascii=False)[:200])
+            self._event("tool", json.dumps(loggable(outcome.result.as_dict()), ensure_ascii=False)[:200])
             if outcome.result.success and outcome.result.tool == "forget":
                 # Ce qui vient d'être oublié ne doit plus pouvoir être redit à partir de la conversation en cours.
                 history.clear()

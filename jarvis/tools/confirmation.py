@@ -1,8 +1,9 @@
 """Confirmation d'une action par l'utilisateur, gérée par le Core.
 
 La question est posée par ORION (formulée par l'outil, pas par le LLM) ; la réponse est comparée à
-des listes fixes de « oui » et de « non ». Un seul mot inconnu (« Yep ») fait reposer la question, une fois ;
-toute autre phrase annule la demande en attente.
+des listes fixes de « oui » et de « non ». Un « oui » suivi de la redite de la même demande (« oui, éteins mon PC
+portable ») vaut oui ; un seul mot inconnu (« Yep ») fait reposer la question, une fois ; toute autre phrase annule la
+demande en attente.
 """
 
 from __future__ import annotations
@@ -15,6 +16,14 @@ from jarvis.personality import normalize
 from jarvis.tools.base import ToolRequest
 
 YES, NO, OTHER, NONE, UNCLEAR = "yes", "no", "other", "none", "unclear"
+# « Oui, éteins mon PC portable » : un oui suivi de la redite de la demande. Ces mots signalent autre chose qu'une
+# redite (une réserve, une seconde demande) : la confirmation n'est alors jamais déduite.
+NOT_A_RESTATEMENT = {"et", "puis", "mais", "aussi", "plutot", "non", "pas", "ne", "sauf", "attends", "apres", "ensuite",
+                     "si", "quand", "demain", "plus", "tard", "annule"}
+SAME = {"pc": "ordinateur", "ordi": "ordinateur", "machine": "ordinateur"}  # mots de la demande -> mots de la question
+FILLER = {"le", "la", "les", "l", "mon", "ma", "mes", "ton", "ta", "tes", "votre", "vos", "un", "une", "des", "du",
+          "de", "d", "s", "il", "te", "plait", "vas", "y", "stp", "svp", "merci", "monsieur", "orion", "c", "est", "ca",
+          "bon", "ok", "d", "accord", "que", "tu", "peux", "moi"}
 
 
 @dataclass(frozen=True)
@@ -59,7 +68,7 @@ class ConfirmationManager:
         self._pendings.pop(self.channel, None)
         words = [w for w in normalize(text).split() if w not in self._ignored]
         said = " ".join(words)
-        if said in self._yes:
+        if said in self._yes or self._restated(words, pending):
             return YES, pending
         if said in self._no:
             return NO, pending
@@ -67,6 +76,18 @@ class ConfirmationManager:
             self._pendings[self.channel] = replace(pending, asked_at=self._clock(), asked_again=True)
             return UNCLEAR, pending
         return OTHER, pending
+
+    def _restated(self, words: list[str], pending: Pending) -> bool:
+        """« Oui » (ou une autre réponse positive) puis la demande redite : chaque mot restant renvoie à la question
+        posée ou à ses paramètres (« éteins mon PC portable » pour « … éteigne l'ordinateur sur votre PC portable »).
+        Une autre action (« oui, ferme Chrome »), une réserve ou une seconde demande ne confirment jamais."""
+        lead = next((n for n in range(len(words) - 1, 0, -1) if " ".join(words[:n]) in self._yes), 0)
+        rest = [SAME.get(w, w) for w in words[lead:] if w not in FILLER]
+        if not lead or not rest or any(w in NOT_A_RESTATEMENT or w in self._no for w in rest):
+            return False
+        reference = normalize(" ".join([pending.question, pending.request.tool.replace("_", " "),
+                                        *(str(v) for v in pending.request.parameters.values())])).split()
+        return all(any(w[:4] == r[:4] for r in reference if len(r) > 1) for w in rest)
 
     def clear(self) -> None:
         """Abandonne la confirmation en attente du canal en cours (pas celles des autres canaux)."""

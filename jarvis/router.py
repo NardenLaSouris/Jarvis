@@ -144,7 +144,27 @@ class IntentRouter:
         self._previous = route.name or route.source
         return route
 
+    def _dismissal(self, text: str) -> Route | None:
+        """« Faux réveil, rendors-toi », « C'était un faux réveil. Mets-toi en veille. » : chaque morceau de la
+        phrase est une formule de faux réveil ou de mise en veille (le mot « réveil » l'envoyait vers les rappels)."""
+        clauses = [c for c in re.split(r"[.,;!?]+", text) if c.strip()]
+        if len(clauses) < 2:
+            return None
+        found = []
+        for clause in clauses:
+            core = self.personality.strip_ignored(self.personality.canonical(clause))
+            name = next((i.name for i, exact in self._intents if i.name in ("false_wake", "standby") and core in exact),
+                        None)
+            if name is None:
+                return None
+            found.append(name)
+        intent = next(i for i, _ in self._intents if i.name == ("false_wake" if "false_wake" in found else "standby"))
+        return Route("predefined", intent.name, self._pick(intent.name, intent.responses), intent.end_conversation)
+
     def _route(self, text: str, tools: bool = True) -> Route:
+        dismissal = self._dismissal(text)
+        if dismissal is not None:
+            return dismissal
         norm = self.personality.canonical(text)
         core = self.personality.strip_ignored(norm)
         for intent, exact in self._intents:

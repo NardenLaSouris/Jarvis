@@ -134,6 +134,16 @@ strict_words = ["tu", "toi", "te", "t", "ton", "ta", "tes", "vous", "votre", "vo
 
 # Réécriture des confusions fréquentes du STT, appliquée aux phrases ET aux motifs.
 [matching.rewrites]
+# « Fausse alerte » tel que la transcription l'a réellement écrit après un faux réveil (journal, octobre 2026) ; ces
+# mots ne veulent rien dire d'autre, ils partaient au planificateur, qui en a fait un rappel.
+"fous alert" = "fausse alerte"
+"fous alerte" = "fausse alerte"
+"pousse alerte" = "fausse alerte"
+"foussa alerte" = "fausse alerte"
+"fosse alerte" = "fausse alerte"
+"fausse alert" = "fausse alerte"
+"fa se alerte" = "fausse alerte"
+"fasse alerte" = "fausse alerte"
 "est tu" = "es tu"
 "qui et tu" = "qui es tu"
 "t es qui" = "tu es qui"
@@ -299,7 +309,9 @@ patterns = ["c etait pas pour toi", "c est pas pour toi", "ce n etait pas pour t
             "pas pour toi", "je t ai pas appele", "je ne t ai pas appele", "je t ai pas parle", "je ne te parlais pas",
             "je te parlais pas", "je parlais pas a toi", "je ne parlais pas a toi", "personne ne t a appele",
             "on t a pas appele", "on ne t a pas appele", "faux reveil", "fausse alerte", "t es pas concerne",
-            "tu n es pas concerne", "c etait pas a toi", "ce n etait pas a toi", "rendors toi", "retourne dormir"]
+            "tu n es pas concerne", "c etait pas a toi", "ce n etait pas a toi", "rendors toi", "retourne dormir",
+            "c etait un faux reveil", "c est un faux reveil", "un faux reveil", "c etait une fausse alerte",
+            "c est une fausse alerte", "une fausse alerte"]
 responses = ["Pardon, {title}. Je serai plus attentive.", "Pardon, je me suis réveillée pour rien. Je m'en souviendrai.",
              "Entendu, je me rendors. Je ferai mieux la prochaine fois."]
 

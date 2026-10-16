@@ -423,3 +423,13 @@ def test_builtin_mode_is_the_default_and_needs_no_cedar(tmp_path):
     assert not (tmp_path / "decisions.jsonl").exists()
     assert PermissionManager().decide("owner", core.registry.get("get_time"), {}, origin="content").decision \
         is Decision.DENY
+
+
+
+@pytest.mark.parametrize("answer", ["Oui, ferme Chrome", "Oui mais pas maintenant", "Oui et envoie un mail à Paul",
+                                    "Oui, supprime plutôt rapport.txt", "Oui, supprime-le demain"])
+def test_yes_with_another_request_or_a_reservation_never_confirms(tmp_path, answer):
+    core, executed = make(tmp_path, "builtin")
+    core.submit(call("delete_file", name="notes.txt"))
+    outcome = core.answer(answer)
+    assert (outcome is None or outcome.status != DONE) and executed == []

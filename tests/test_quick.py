@@ -294,3 +294,26 @@ def test_negative_volume_is_refused_by_the_tool_with_its_range(text, level):
     assert quick_plan(text, REGISTRY) == call("set_volume", volume=level)
     outcome = make_core().submit(quick_plan(text, REGISTRY))
     assert outcome.status == "rejected" and "volume" in outcome.result.message
+
+
+
+def test_pc_power_and_music_stop_without_llm():
+    # Journal d'octobre 2026 : ces commandes passaient par le LLM (1,6 à 2,7 s chacune).
+    from jarvis.tools import ToolRegistry
+    from jarvis.tools.base import Param, Risk, Tool
+
+    registry = ToolRegistry()
+    for name, risk in (("wake_pc", Risk.SAFE), ("shutdown_pc", Risk.CONFIRMATION_REQUIRED), ("spotify_pause", Risk.SAFE),
+                       ("spotify_play", Risk.SAFE), ("light_off", Risk.SAFE)):
+        registry.register(Tool(name, name, {"device": Param(str, "appareil", required=False, hidden=True)}
+                               if name.endswith("_pc") else {}, {}, risk, lambda **_: {}))
+    tool = lambda text: (quick_plan(text, registry) or {}).get("tool")  # noqa: E731
+    for text in ("Allume le pc", "Allume le PC s'il te plaît", "Démarre mon PC portable", "Rallume l'ordinateur"):
+        assert tool(text) == "wake_pc", text
+    for text in ("Éteins le pc", "Éteins mon PC portable", "Éteins l'ordinateur"):
+        assert tool(text) == "shutdown_pc", text
+    for text in ("Arrête Spotify", "Arrête la musique", "Coupe Spotify"):
+        assert tool(text) == "spotify_pause", text
+    # Pas un PC, ou pas une commande simple : laissé aux autres chemins.
+    for text in ("Éteins la lumière du bureau", "N'éteins pas le PC", "Éteins le PC quand je pars", "Allume la chambre"):
+        assert tool(text) not in ("wake_pc", "shutdown_pc"), text
