@@ -1107,6 +1107,11 @@ def build_agent(
                         watcher=watcher, agents=wallpaper_agents,
                         tools=tools if cfg.wallpaper.actions else None, inbox=wallpaper_inbox,
                         user=next((u.id for u in build_profiles(cfg).users() if u.role == "owner"), ""))
+    if call_rules is not None and calls is not None and (timers is not None or calendar is not None):
+        from jarvis.scheduling.eve import EveWatch
+
+        # « Appelle-moi la veille… » : rappels et rendez-vous du lendemain annoncés à 18 h la veille.
+        EveWatch(events, timers, calendar).start()  # fil de fond, arrêté avec ORION
     # Échéance proche (rendez-vous, minuteur, rappel) pour l'anneau du visage.
     agent.upcoming = Upcoming(calendar, timers) if calendar is not None or timers is not None else None
     return agent

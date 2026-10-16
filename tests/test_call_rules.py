@@ -371,3 +371,57 @@ def test_i_am_leaving_then_call_me_in_three_minutes(tmp_path):
     assert entry["rule"]["trigger"] == {"type": "at", "at": "2026-10-11T15:33:00"}
     w.later(200)
     assert w.calls.requested[0].reason == "Vous m'aviez demandé de vous appeler pour vous dire que je fais un test."
+
+
+
+# --- La veille d'un rappel ou d'un rendez-vous (message Linphone du 16 octobre 2026 : non compris) ---------------
+
+def test_the_eve_rule_is_understood_from_the_request():
+    from jarvis.call.rule_parser import build_rule
+
+    text = ("Si j’ai des rappels ou des échéances de l’agenda qui arrivent quand je suis pas à la maison appelle-moi "
+            "la veille pour me le dire")
+    rule, _ = build_rule({"type": "rule", "event": "item_tomorrow", "conditions": ["away"], "channel": "call"},
+                         text, NOW, {})
+    assert rule["trigger"] == {"type": "event", "event": "item_tomorrow"} and rule["conditions"] == [{"type": "away"}]
+    with pytest.raises(RuleError):  # « la veille » non dit : jamais déduit
+        build_rule({"type": "rule", "event": "item_tomorrow", "conditions": ["away"], "channel": "call"},
+                   "Appelle-moi quand un rappel arrive", NOW, {})
+
+
+def test_the_eve_of_a_reminder_or_appointment_calls_when_away(tmp_path):
+    from jarvis.scheduling.eve import UPCOMING
+
+    world = World(tmp_path)
+    world.rules.add({"trigger": {"type": "event", "event": "item_tomorrow"}, "conditions": [{"type": "away"}],
+                     "repeat": {"attempts": 2, "interval_minutes": 15}}, "appelle-moi la veille si je suis absent")
+    payload = {"item_key": "agenda:a1:2026-10-12T00:00:00", "kind": "rendez-vous", "title": "log 92",
+               "at": "2026-10-12T00:00:00", "all_day": True}
+    world.bus.publish(Event(UPCOMING, "scheduling", payload))
+    world.bus.publish(Event(UPCOMING, "scheduling", payload))  # même fait publié deux fois : un seul appel
+    assert [c.reason for c in world.calls.requested] == ["Dans votre agenda pour demain : « log 92 »."]
+    world.bus.publish(Event(UPCOMING, "scheduling", {**payload, "item_key": "rappel:1:x", "kind": "rappel",
+                                                     "title": "train", "at": "2026-10-12T05:00:00", "all_day": False}))
+    assert world.calls.requested[-1].reason == "Votre rappel pour demain à 5 heures : « train »."
+
+
+def test_eve_watch_announces_once_at_eighteen_the_day_before_never_late():
+    from jarvis.events import EventBus
+    from jarvis.scheduling.eve import UPCOMING, EveWatch
+
+    bus, seen = EventBus(), []
+    bus.subscribe(UPCOMING, seen.append)
+    now = [datetime(2026, 10, 19, 17, 59)]
+    reminders = [SimpleNamespace(id="1", message="train", expires_at=datetime(2026, 10, 20, 5, 0))]
+    agenda = [SimpleNamespace(id="a1", title="log 92", start=datetime(2026, 10, 20), all_day=True)]
+    timers = SimpleNamespace(reminders=lambda: reminders)
+    calendar = SimpleNamespace(events=lambda start, end: [e for e in agenda if start <= e.start < end])
+    watch = EveWatch(bus, timers, calendar, clock=lambda: now[0])
+    assert watch.check() == 0  # 17 h 59 : pas encore
+    now[0] = datetime(2026, 10, 19, 18, 0, 20)
+    assert watch.check() == 2 and {e.payload["title"] for e in seen} == {"train", "log 92"}
+    now[0] = datetime(2026, 10, 19, 18, 1)
+    assert watch.check() == 0  # une seule annonce
+    late = EveWatch(bus, SimpleNamespace(reminders=lambda: reminders), None,
+                    clock=lambda: datetime(2026, 10, 20, 1, 42))
+    assert late.check() == 0  # créé après sa veille (rappel de 5 h programmé à 1 h 42) : pas d'annonce en retard

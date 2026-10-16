@@ -49,6 +49,8 @@ log = logging.getLogger(__name__)
 # Déclencheurs permis : clé -> (type d'événement du bus, sources de confiance, libellé dit à l'utilisateur).
 EVENTS = {
     "reminder_due": ("reminder.finished", ("scheduling",), "un rappel arrive à échéance"),
+    # La veille à 18 h d'un rappel ou d'un rendez-vous de l'agenda (jarvis/scheduling/eve.py).
+    "item_tomorrow": ("schedule.upcoming", ("scheduling",), "un rappel ou un rendez-vous a lieu le lendemain"),
     "mail_reply": ("mail.arrived", ("mail",), "une réponse à ce mail arrive"),
     "important_mail": ("mail.received", ("mail",), "un mail important arrive"),
     "system_down": ("system.error", ("system",), "un composant d'ORION tombe en panne"),
@@ -767,7 +769,7 @@ class CallRules:
 def _event_key(event: Event) -> str:
     """Identité du fait déclencheur (rappel, mail, capteur...) : deux publications du même fait ont la même clé."""
     p = event.payload
-    for field in ("reminder_id", "message_id", "thread_message", "call"):
+    for field in ("reminder_id", "item_key", "message_id", "thread_message", "call"):
         if p.get(field):
             return f"{event.type}:{p[field]}"
     return f"{event.type}:{p.get('sensor', p.get('source', ''))}:{int(event.timestamp // 60)}"
@@ -798,6 +800,17 @@ def _reason(rule: dict, payload: dict) -> str:
     if event == "reminder_due":
         message = str(payload.get("message", ""))[:160]
         return f"Votre rappel arrive à échéance : {message}." if message else "Un de vos rappels arrive à échéance."
+    if event == "item_tomorrow":
+        from jarvis.scheduling.clock import spoken_clock
+
+        title = str(payload.get("title", ""))[:120]
+        try:
+            when = datetime.fromisoformat(str(payload.get("at")))
+            hour = "" if payload.get("all_day") else f" à {spoken_clock(when.hour, when.minute)}"
+        except ValueError:
+            hour = ""
+        what = "Votre rappel" if payload.get("kind") == "rappel" else "Dans votre agenda"
+        return f"{what} pour demain{hour} : « {title} »." if title else "Vous avez un rappel ou un rendez-vous demain."
     if event in ("mail_reply", "important_mail"):
         sender = str(payload.get("sender", ""))[:40]
         return f"Vous avez reçu une réponse de {sender}." if event == "mail_reply" and sender else \

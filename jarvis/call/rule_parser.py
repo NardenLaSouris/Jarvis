@@ -22,6 +22,7 @@ log = logging.getLogger(__name__)
 # Chaque élément proposé par le LLM doit être appuyé par des mots de la demande.
 EVENT_WORDS = {
     "reminder_due": ("rappel", "rappels", "echeance"),
+    "item_tomorrow": ("veille", "lendemain", "jour d avant", "jour precedent"),
     "mail_reply": ("repond", "reponse", "reponses", "repondu"),
     "important_mail": ("mail", "mails", "courriel", "email"),
     "system_down": ("panne", "plante", "serveur", "tombe", "ne repond plus", "hors ligne", "down", "crash"),
@@ -100,6 +101,9 @@ N'ajoutez aucune condition que l'utilisateur n'a pas dite. Si l'événement ou l
 Exemples :
 « Appelle-moi quand je ne suis pas à la maison et qu'un rappel arrive à échéance » ->
 {{"type": "rule", "event": "reminder_due", "conditions": ["away"], "channel": "call"}}
+« Si j'ai des rappels ou des rendez-vous quand je ne suis pas à la maison, appelle-moi la veille » ->
+{{"type": "rule", "event": "item_tomorrow", "conditions": ["away"], "channel": "call"}}
+(item_tomorrow : la veille au soir d'un rappel ou d'un rendez-vous de l'agenda ; reminder_due : au moment du rappel.)
 « Appelle-moi si je suis absent depuis plus de trente minutes et que j'ai un rappel important » ->
 {{"type": "rule", "event": "reminder_due", "conditions": ["away_for", "important"], "away_minutes": 30, "channel": "call"}}
 « Appelle-moi demain à 18 h si je ne suis toujours pas rentré » ->

@@ -108,6 +108,8 @@ EXAMPLES = (
     ("Est-ce que je suis libre demain après-midi ?", "free_slots", {}),
     ("Ajoute un rendez-vous chez le coiffeur demain à 15 h", "add_event", {"title": "coiffeur", "time": "15 h"}),
     ("Ajoute dans mon agenda « vacances » du 20 au 28", "add_period", {"title": "vacances"}),
+    ("Si j'ai un rappel quand je ne suis pas à la maison, appelle-moi la veille pour me le dire", "create_call_rule",
+     {}),
     ("Pause", "media_play_pause", {}),
     ("Passe au morceau suivant", "media_next", {}),
     ("Remets la chanson d'avant", "media_previous", {}),
@@ -194,6 +196,9 @@ def planner_prompt(registry: ToolRegistry) -> str:
         rules.append("- Fichiers : jamais de chemin, un nom de fichier tel qu'il a été dit (le dossier est déduit de la "
                      "demande, jamais un paramètre) ; destination de copy_file et move_file : dossier dit (documents, "
                      "bureau, téléchargements). Supprimer un dossier, exécuter un fichier ou toucher au système -> none.")
+    if registry.exists("create_call_rule"):
+        rules.append("- « Appelle-moi / préviens-moi / écris-moi quand… si… la veille… » : create_call_rule (une règle "
+                     "d'appel, même si la phrase parle de rappels ou d'agenda), jamais create_reminder.")
     if registry.exists("list_events"):
         rules.append("- Calendrier : le jour n'est jamais un paramètre (déduit de la demande). add_event : heure recopiée "
                      "telle qu'elle a été dite ; sans heure, sur une journée ou plusieurs (« du 20 au 28 ») : "
