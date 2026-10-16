@@ -1,8 +1,8 @@
-# Réglages SearXNG pour ORION : valeurs par défaut + ce dont ORION a besoin.
+# Réglages SearXNG pour JARVIS : valeurs par défaut + ce dont JARVIS a besoin.
 use_default_settings: true
 
 general:
-  instance_name: "ORION"
+  instance_name: "JARVIS"
 
 server:
   # Instance privée, locale : pas de limitation de débit ni de proxy d'images.
@@ -10,7 +10,7 @@ server:
   image_proxy: false
 
 search:
-  # ORION interroge l'API JSON (format désactivé par défaut dans SearXNG).
+  # JARVIS interroge l'API JSON (format désactivé par défaut dans SearXNG).
   formats:
     - html
     - json
