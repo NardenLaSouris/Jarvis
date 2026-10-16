@@ -12,9 +12,9 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from jarvis.memory import MemoryStore, memory_prompt, memory_tools, said_back  # noqa: E402
-from jarvis.tools import ToolError  # noqa: E402
-from jarvis.tools.quick import quick_plan  # noqa: E402
+from orion.memory import MemoryStore, memory_prompt, memory_tools, said_back  # noqa: E402
+from orion.tools import ToolError  # noqa: E402
+from orion.tools.quick import quick_plan  # noqa: E402
 from test_quick import full_core  # noqa: E402
 from test_tools import PlannerLLM, routes, run_agent  # noqa: E402
 
@@ -112,7 +112,7 @@ def test_quick_commands_for_memory(tmp_path):
 def test_memory_api_lists_and_deletes(tmp_path):
     import urllib.request
 
-    from jarvis.api import CoreApi, CoreStatus
+    from orion.api import CoreApi, CoreStatus
 
     store = MemoryStore(tmp_path / "m.json")
     fact, _ = store.add("je préfère le bleu")
@@ -134,9 +134,9 @@ def test_memory_api_lists_and_deletes(tmp_path):
 
 
 def test_memory_follows_the_identity_of_each_request(tmp_path):
-    from jarvis.profiles import load_profiles
-    from jarvis.tools import PermissionManager, ToolCore, ToolRegistry
-    from jarvis.tools.core import request_user
+    from orion.profiles import load_profiles
+    from orion.tools import PermissionManager, ToolCore, ToolRegistry
+    from orion.tools.core import request_user
 
     store = MemoryStore(tmp_path / "m.json")
     registry = ToolRegistry()
@@ -176,8 +176,8 @@ def test_forgetting_all_you_know_about_me_is_forgetting_everything(tmp_path, top
 def test_prompt_markers_never_enter_or_leave_memory(tmp_path):
     import json
 
-    from jarvis.memory import MemoryStore, memory_prompt
-    from jarvis.tools.base import ToolError
+    from orion.memory import MemoryStore, memory_prompt
+    from orion.tools.base import ToolError
 
     store = MemoryStore(tmp_path / "memory.json")
     with pytest.raises(ToolError):

@@ -11,12 +11,12 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
-from jarvis.capabilities import CapabilityRegistry  # noqa: E402
-from jarvis.config import load_config  # noqa: E402
-from jarvis.router import IntentRouter  # noqa: E402
-from jarvis.tools import PermissionManager, ToolCore, ToolError, ToolRegistry, ToolsCapability  # noqa: E402
-from jarvis.tools.lights import TuyaDriver, light_tools, load_rooms, of  # noqa: E402
-from jarvis.tools.planner import plan_schema, planner_prompt  # noqa: E402
+from orion.capabilities import CapabilityRegistry  # noqa: E402
+from orion.config import load_config  # noqa: E402
+from orion.router import IntentRouter  # noqa: E402
+from orion.tools import PermissionManager, ToolCore, ToolError, ToolRegistry, ToolsCapability  # noqa: E402
+from orion.tools.lights import TuyaDriver, light_tools, load_rooms, of  # noqa: E402
+from orion.tools.planner import plan_schema, planner_prompt  # noqa: E402
 from test_tools import PERSONALITY, PlannerLLM, routes, run_agent  # noqa: E402
 
 ROOMS = {
@@ -180,7 +180,7 @@ def test_light_requests_go_to_the_tools_and_home_automation_is_no_longer_planned
 
 
 def test_configuration_and_keys(monkeypatch):
-    import jarvis.factory as factory
+    import orion.factory as factory
     from dataclasses import replace
 
     cfg = load_config(ROOT / "config.toml", local=False)
@@ -193,7 +193,7 @@ def test_configuration_and_keys(monkeypatch):
 
 
 def test_tuya_driver_converts_scales():
-    from jarvis.tools.lights import Room
+    from orion.tools.lights import Room
 
     class Bulb:
         def __init__(self):
@@ -215,7 +215,7 @@ def test_tuya_driver_converts_scales():
 
 
 def test_tuya_driver_reads_colour_brightness():
-    from jarvis.tools.lights import Room
+    from orion.tools.lights import Room
 
     class Bulb:
         def status(self):
@@ -278,7 +278,7 @@ def test_compound_request_stops_at_the_first_failure():
 
 
 def test_compound_plan_with_an_invented_segment_falls_back_to_the_whole_request():
-    from jarvis.tools.planner import plan
+    from orion.tools.planner import plan
 
     registry = core_with(FakeDriver()).registry
     data = plan(PlannerLLM(several(("light_on", {}, "allume le garage"), ("set_color", {"color": "rouge"}, "en rouge"))),
@@ -300,7 +300,7 @@ def test_scene_sets_power_white_and_brightness_on_each_light():
 
 
 def test_custom_scenes_override_and_validate():
-    from jarvis.tools.lights import load_scenes
+    from orion.tools.lights import load_scenes
 
     scenes = load_scenes({"cinema": {"brightness": 20}, "fete": {"name": "fête", "color": "violet", "brightness": 80}})
     assert scenes["cinema"]["brightness"] == 20 and scenes["cinema"]["temperature"] == 2700
@@ -326,7 +326,7 @@ def test_unknown_room_is_refused_instead_of_lighting_the_whole_house():
 
 
 def test_status_is_read_from_the_bulbs_and_stored_in_the_home_state():
-    from jarvis.home import HomeState
+    from orion.home import HomeState
 
     driver = FakeDriver(unreachable={"entree"})
     driver.lights["chambre"].update(on=True, brightness=30)
@@ -379,7 +379,7 @@ def test_one_command_at_a_time_per_bulb_with_one_retry():
     import threading
     import time
 
-    from jarvis.tools.lights import Room
+    from orion.tools.lights import Room
 
     class Bulb:
         def __init__(self):

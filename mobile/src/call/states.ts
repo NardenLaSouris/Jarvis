@@ -1,4 +1,4 @@
-// États d'un appel d'ORION, alignés sur le Core (jarvis/call/session.py) : mêmes noms, mêmes transitions.
+// États d'un appel d'ORION, alignés sur le Core (orion/call/session.py) : mêmes noms, mêmes transitions.
 // L'application ne décide jamais seule d'un état final côté serveur : elle annonce « accepté », « refusé » ou
 // « raccroché », et le Core tranche.
 

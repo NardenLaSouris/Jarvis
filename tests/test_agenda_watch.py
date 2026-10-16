@@ -9,8 +9,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from jarvis.agenda import Calendar, CalendarEvent  # noqa: E402
-from jarvis.agenda_watch import EventAnnouncer  # noqa: E402
+from orion.agenda import Calendar, CalendarEvent  # noqa: E402
+from orion.agenda_watch import EventAnnouncer  # noqa: E402
 
 NOW = datetime(2026, 10, 8, 14, 0)
 
@@ -57,6 +57,6 @@ def test_titles_are_safe_to_say():
 
 
 def test_configuration_announces_15_minutes_before():
-    from jarvis.config import load_config
+    from orion.config import load_config
 
     assert load_config(ROOT / "config.toml", local=False).calendar.announce_minutes == 15.0

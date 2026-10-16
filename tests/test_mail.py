@@ -14,17 +14,17 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from jarvis.capabilities import CapabilityRegistry  # noqa: E402
-from jarvis.mail import ImapSmtpProvider, MailBox, MailError, MailMessage, MailSorter, MemoryMailProvider  # noqa: E402
-from jarvis.mail import mail_tools  # noqa: E402
-from jarvis.mail.priority import IMPORTANT, NOISE, NORMAL  # noqa: E402
-from jarvis.mail.provider import parse_message  # noqa: E402
-from jarvis.mail.tools import _position  # noqa: E402
-from jarvis.profiles import load_profiles  # noqa: E402
-from jarvis.router import IntentRouter  # noqa: E402
-from jarvis.tools import PermissionManager, ToolCore  # noqa: E402
-from jarvis.tools.base import Risk  # noqa: E402
-from jarvis.tools.planner import _grounded  # noqa: E402
+from orion.capabilities import CapabilityRegistry  # noqa: E402
+from orion.mail import ImapSmtpProvider, MailBox, MailError, MailMessage, MailSorter, MemoryMailProvider  # noqa: E402
+from orion.mail import mail_tools  # noqa: E402
+from orion.mail.priority import IMPORTANT, NOISE, NORMAL  # noqa: E402
+from orion.mail.provider import parse_message  # noqa: E402
+from orion.mail.tools import _position  # noqa: E402
+from orion.profiles import load_profiles  # noqa: E402
+from orion.router import IntentRouter  # noqa: E402
+from orion.tools import PermissionManager, ToolCore  # noqa: E402
+from orion.tools.base import Risk  # noqa: E402
+from orion.tools.planner import _grounded  # noqa: E402
 from test_tools import PERSONALITY, PlannerLLM, make_core, result_sent_to_llm, run_agent  # noqa: E402
 
 NOW = datetime(2026, 10, 6, 9, 0)
@@ -289,7 +289,7 @@ def test_mark_all_read_is_refused_by_no():
 
 
 def test_imap_mark_all_read_stores_seen_by_batches():
-    from jarvis.mail.provider import ImapSmtpProvider
+    from orion.mail.provider import ImapSmtpProvider
 
     class Imap:
         stored = []
@@ -403,8 +403,8 @@ def test_mail_requests_reach_the_tools_only_when_a_mailbox_is_configured():
 
 
 def test_config_section_is_off_by_default_and_the_factory_skips_it():
-    from jarvis.config import load_config
-    from jarvis.factory import build_mail
+    from orion.config import load_config
+    from orion.factory import build_mail
 
     cfg = load_config(ROOT / "config.toml", local=False)
     assert cfg.mail.enabled is False and build_mail(cfg) is None
@@ -424,7 +424,7 @@ def test_config_section_is_off_by_default_and_the_factory_skips_it():
     ("Lis tous mes mails", ("check_mail", {})),
 ])
 def test_consulting_mail_needs_no_llm_but_acting_on_one_does(text, expected):
-    from jarvis.tools.quick import quick_plan
+    from orion.tools.quick import quick_plan
 
     core, _, _ = mail_core()
     data = quick_plan(text, core.registry)
@@ -445,13 +445,13 @@ def test_unsure_repeat_of_the_same_information_asks_instead_of_repeating(confide
 
 
 def test_without_mailbox_no_quick_mail_command():
-    from jarvis.tools.quick import quick_plan
+    from orion.tools.quick import quick_plan
 
     assert quick_plan("Est-ce que j'ai des mails ?", make_core().registry) is None
 
 
 def test_a_rewritten_body_is_replaced_by_the_dictated_words():
-    from jarvis.mail.tools import _dictated
+    from orion.mail.tools import _dictated
 
     text = "Envoie un mail à maman pour lui dire que j'arrive à 19 heures"
     assert _dictated("Je suis en route et je devrais arriver vers 19 heures.", text) == "j'arrive à 19 heures"
@@ -460,7 +460,7 @@ def test_a_rewritten_body_is_replaced_by_the_dictated_words():
 
 
 def test_reply_keeps_the_dictated_words_and_still_asks():
-    from jarvis.tools.quick import quick_plan
+    from orion.tools.quick import quick_plan
 
     core, provider, _ = mail_core()
     data = quick_plan("Réponds-lui que je suis d'accord et que je n'oublie pas le vin", core.registry)

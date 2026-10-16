@@ -91,7 +91,7 @@ export function PairingScreen({ onPair }: {
       <View style={styles.hero}>
         <Emblem size={size} />
         <Kicker>Jumelage</Kicker>
-        <Text style={styles.lead}>Sur le mini-PC : python -m jarvis.call.gateway --pair, puis saisissez le code.</Text>
+        <Text style={styles.lead}>Sur le mini-PC : python -m orion.call.gateway --pair, puis saisissez le code.</Text>
       </View>
       <View style={styles.form}>
         <Field label="Code de jumelage" value={clean.length > 4 ? `${clean.slice(0, 4)}-${clean.slice(4)}` : clean}

@@ -1,4 +1,4 @@
-"""Mode Flex (jarvis/flex.py, règle « flex » de jarvis/call/rules.py) : présentation fidèle à ce qui est branché,
+"""Mode Flex (orion/flex.py, règle « flex » de orion/call/rules.py) : présentation fidèle à ce qui est branché,
 enceintes si vous êtes là, appel après une minute sinon (annulé si vous rentrez), jamais deux présentations à la fois,
 reprise après redémarrage. Aucun appel réel, aucun son."""
 
@@ -14,9 +14,9 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
-from jarvis.call.rules import FLEX_MAX_AGE, GAVE_UP, PLANNED, PRESENTED, TRYING  # noqa: E402
-from jarvis.events import Event  # noqa: E402
-from jarvis.flex import Facts, inventory, is_flex, presentation  # noqa: E402
+from orion.call.rules import FLEX_MAX_AGE, GAVE_UP, PLANNED, PRESENTED, TRYING  # noqa: E402
+from orion.events import Event  # noqa: E402
+from orion.flex import Facts, inventory, is_flex, presentation  # noqa: E402
 from test_call_rules import World  # noqa: E402
 
 FULL = Facts(tools=frozenset({"create_reminder", "create_timer", "create_alarm", "read_mail", "light_on", "spotify_play",
@@ -172,7 +172,7 @@ def test_delay_is_configurable(tmp_path):
 
 
 def test_agent_routes_flex_without_the_llm(tmp_path):
-    from jarvis.flex import flex_tools
+    from orion.flex import flex_tools
     from test_tools import PlannerLLM, make_core, run_agent
 
     w = world(tmp_path)

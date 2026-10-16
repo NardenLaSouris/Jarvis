@@ -19,15 +19,15 @@ import numpy as np
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-import jarvis.llm.ollama as ollama  # noqa: E402
-from jarvis.agent import Agent, AgentSettings  # noqa: E402
-from jarvis.audio.endpointing import EndpointerSettings, UtteranceRecorder  # noqa: E402
-from jarvis.audio.files import ArraySource  # noqa: E402
-from jarvis.capabilities import CapabilityRegistry  # noqa: E402
-from jarvis.interfaces import Message  # noqa: E402
-from jarvis.personality import load_personality  # noqa: E402
-from jarvis.router import IntentRouter  # noqa: E402
-from jarvis.streaming import SentenceBuffer, SpeechPipeline, sentences_from_llm, split_sentences  # noqa: E402
+import orion.llm.ollama as ollama  # noqa: E402
+from orion.agent import Agent, AgentSettings  # noqa: E402
+from orion.audio.endpointing import EndpointerSettings, UtteranceRecorder  # noqa: E402
+from orion.audio.files import ArraySource  # noqa: E402
+from orion.capabilities import CapabilityRegistry  # noqa: E402
+from orion.interfaces import Message  # noqa: E402
+from orion.personality import load_personality  # noqa: E402
+from orion.router import IntentRouter  # noqa: E402
+from orion.streaming import SentenceBuffer, SpeechPipeline, sentences_from_llm, split_sentences  # noqa: E402
 
 ROUTER = IntentRouter(load_personality(ROOT / "personality.toml"), CapabilityRegistry(), random.Random(0),
                       lambda: datetime(2026, 9, 25, 10, 0))

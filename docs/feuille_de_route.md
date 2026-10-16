@@ -14,16 +14,16 @@ Distinction systématique : **mesuré** (exécuté et observé), **probable** (d
   4 depuis ; pas de perte récurrente.
 - Bascules du LLM principal vers le secours (Katana éteint) : 13, toutes revenues en ligne seules.
 - Données (routines, mémoire, échéances, agenda, présence, mails vus) : écriture atomique (fichier temporaire puis
-  `os.replace`) et fichier illisible mis de côté au démarrage (`jarvis/persist.py`) : déjà en place.
+  `os.replace`) et fichier illisible mis de côté au démarrage (`orion/persist.py`) : déjà en place.
 
 **Faiblesse trouvée** : `Agent.run` ne protégeait pas une conversation ; toute exception imprévue arrêtait le
 service (10 s sans assistant, conversation perdue).
 
 **Correctifs**
-- `jarvis/agent.py` : une erreur imprévue pendant une conversation est journalisée (trace complète), la
+- `orion/agent.py` : une erreur imprévue pendant une conversation est journalisée (trace complète), la
   confirmation en attente et le contexte sont effacés, ORION repasse en veille. Plus de 3 erreurs en 60 s : le
   service s'arrête et systemd le relance (pas de boucle sur une panne persistante).
-- `jarvis/face/server.py` : connexion interrompue par le navigateur journalisée en une ligne de niveau debug.
+- `orion/face/server.py` : connexion interrompue par le navigateur journalisée en une ligne de niveau debug.
 
 **Tests** : `tests/test_reliability.py` (conversation qui plante puis suivantes traitées ; pannes en rafale rendues
 à systemd ; connexion coupée sans trace).
@@ -40,7 +40,7 @@ confirmé, jamais répété à voix haute ; 12 tests existants.
 (`<<<RESULTAT_OUTIL>>>`...), de quoi brouiller la frontière entre données et consignes.
 
 **Correctif** : balises refusées à l'enregistrement et neutralisées dans les faits déjà enregistrés au moment de
-les placer dans le prompt (`jarvis/memory.py`). Test : `test_prompt_markers_never_enter_or_leave_memory`.
+les placer dans le prompt (`orion/memory.py`). Test : `test_prompt_markers_never_enter_or_leave_memory`.
 
 **Non vérifié** : effet de la mémoire sur la qualité des réponses du modèle abliterated (aucun banc dédié).
 
@@ -55,7 +55,7 @@ autres, trois actions : toutes réussies.
 Paul dans dix minutes et lance un minuteur » : la règle « rien d'immédiat dans une demande de rappel » écartait aussi
 le minuteur.
 
-**Correctif** (`jarvis/tools/planner.py`) : les règles de forme (demande différée, question) s'appliquent à la partie
+**Correctif** (`orion/tools/planner.py`) : les règles de forme (demande différée, question) s'appliquent à la partie
 de la demande propre à chaque action ; une partie contenue dans une demande différée (« rappelle-moi ... de couper le
 son ») reste différée ; valeurs et domaine restent vérifiés sur la phrase entière (« mets-la en bleu »). Test :
 `test_each_chained_action_is_judged_on_its_own_part_of_the_request`.
@@ -76,14 +76,14 @@ Ollama n'en gardait que 2 050, sans avertissement (outils, règles ou exemples p
 en cache (relu en 0,75 à 0,9 s à chaque appel). C'était le cas en production depuis l'ajout des outils.
 
 **Correctifs**
-- `[llm] num_ctx = 8192` (`jarvis/llm/ollama.py`, `factory.py`) pour le modèle principal ; le secours (processeur
+- `[llm] num_ctx = 8192` (`orion/llm/ollama.py`, `factory.py`) pour le modèle principal ; le secours (processeur
   du mini) garde son réglage.
 - Katana : variables d'environnement **utilisateur** (pas de droits administrateur) `OLLAMA_NUM_PARALLEL=2` (un
   emplacement de cache pour la conversation, un pour le choix d'outil, qui sinon s'évinçaient : +3 s par
   alternance), `OLLAMA_FLASH_ATTENTION=1` et `OLLAMA_KV_CACHE_TYPE=q8_0` (cache moitié moins gros : sans lui, le
   modèle débordait sur le processeur, 7,6 Go pour 8 Go de carte, génération ~25 jetons/s au lieu de 46).
   Retour arrière : supprimer ces trois variables utilisateur et relancer la tâche « JARVIS Ollama ».
-- `jarvis/llm/failover.py` : délai propre aux appels JSON (`json_timeout`, double du délai du premier jeton) : la
+- `orion/llm/failover.py` : délai propre aux appels JSON (`json_timeout`, double du délai du premier jeton) : la
   réponse JSON n'arrive qu'une fois complète, un premier appel à froid (8 à 10 s) n'est plus pris pour un worker gelé.
 
 **Résultats (mesuré)**

@@ -1,14 +1,14 @@
 #!/bin/bash
 # Durcissement du service ORION sur le mini-PC (docs/durcissement_systeme.md). À lancer UNE fois, par vous :
-#   sudo bash /opt/jarvis/deploy/durcissement.sh
+#   sudo bash /opt/orion/deploy/durcissement.sh
 # Effet : le service tourne sous un compte « orion » sans sudo, docker ni lxd, dans un service systemd durci ; le
 # code et la configuration lui sont en lecture seule ; seuls data/ et le cache des modèles Whisper sont modifiables.
 # librespot passe aussi sous orion (service orion-librespot) ; SearXNG reste dans docker, joint par HTTP seulement.
 # Le compte « user » reste propriétaire du code (git pull) et peut redémarrer le service sans mot de passe.
-# Retour arrière : sudo bash /opt/jarvis/deploy/durcissement_annuler.sh
+# Retour arrière : sudo bash /opt/orion/deploy/durcissement_annuler.sh
 set -euo pipefail
 
-ROOT=/opt/jarvis
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"  # dossier du dépôt (/opt/orion, ou /opt/jarvis avant la migration)
 DEPLOY_USER=user
 [ "$(id -u)" -eq 0 ] || { echo "À lancer avec sudo."; exit 1; }
 [ -x "$ROOT/.venv/bin/python" ] || { echo "$ROOT/.venv introuvable."; exit 1; }
@@ -79,7 +79,7 @@ Wants=network-online.target
 User=orion
 Group=orion
 WorkingDirectory=$ROOT
-ExecStart=$ROOT/.venv/bin/python -m jarvis
+ExecStart=$ROOT/.venv/bin/python -m orion
 Environment=PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 TZ=Europe/Paris HF_HUB_OFFLINE=1
 Restart=on-failure
 RestartSec=10

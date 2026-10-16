@@ -1,4 +1,4 @@
-"""Audio des appels par WebRTC (jarvis/call/media.py), de bout en bout en local : un client aiortc joue le téléphone.
+"""Audio des appels par WebRTC (orion/call/media.py), de bout en bout en local : un client aiortc joue le téléphone.
 
 Ignoré sans aiortc (environnement d'ORION) ; à lancer dans l'environnement de la passerelle :
     ~/orion-call-venv/bin/python -m pytest tests/test_call_media.py
@@ -24,7 +24,7 @@ av = pytest.importorskip("av")
 
 from aiortc import MediaStreamTrack, RTCConfiguration, RTCPeerConnection, RTCSessionDescription  # noqa: E402
 
-from jarvis.call.media import CallMedia, resample  # noqa: E402
+from orion.call.media import CallMedia, resample  # noqa: E402
 
 
 class Tone(MediaStreamTrack):

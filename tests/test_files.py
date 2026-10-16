@@ -15,8 +15,8 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from jarvis.tools import PermissionManager, ToolCore, ToolRegistry, builtin_tools  # noqa: E402
-from jarvis.tools.files import FileAccess, file_tools  # noqa: E402
+from orion.tools import PermissionManager, ToolCore, ToolRegistry, builtin_tools  # noqa: E402
+from orion.tools.files import FileAccess, file_tools  # noqa: E402
 
 
 @pytest.fixture
@@ -96,7 +96,7 @@ def test_copy_is_free_move_and_delete_need_confirmation_and_delete_is_recoverabl
 
 
 def test_file_tools_are_off_unless_configured_and_run_on_the_pc_agent():
-    from jarvis.tools.builtin import FILE_TOOLS, PC_TOOLS
+    from orion.tools.builtin import FILE_TOOLS, PC_TOOLS
 
     assert not {t.name for t in builtin_tools({})} & set(FILE_TOOLS)
     names = {t.name for t in builtin_tools({"files": {"enabled": True, "roots": {"documents": "."}}})}
@@ -184,7 +184,7 @@ def test_patterns_and_everything_are_refused_before_any_confirmation(home, name)
 
 def test_names_with_paths_are_refused_before_reaching_the_agent():
     # Session QA : « Crée un fichier ../../etc/passwd » était transmis tel quel à l'agent du PC.
-    from jarvis.tools import parse_request
+    from orion.tools import parse_request
 
     tools = {t.name: t for t in file_tools(FileAccess({"documents": "."}, "."))}
     registry = ToolRegistry()

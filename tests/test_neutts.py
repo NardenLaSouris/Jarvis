@@ -11,11 +11,11 @@ import numpy as np
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-import jarvis.tts.neutts as engine_module  # noqa: E402
-from jarvis.__main__ import tts_test  # noqa: E402
-from jarvis.audio.files import RecordingSink  # noqa: E402
-from jarvis.config import load_config  # noqa: E402
-from jarvis.streaming import SpeechPipeline  # noqa: E402
+import orion.tts.neutts as engine_module  # noqa: E402
+from orion.__main__ import tts_test  # noqa: E402
+from orion.audio.files import RecordingSink  # noqa: E402
+from orion.config import load_config  # noqa: E402
+from orion.streaming import SpeechPipeline  # noqa: E402
 
 
 class FakeNeuTTS:
@@ -173,7 +173,7 @@ def test_repeated_sentences_are_synthesized_once():
 
 
 def test_default_engine_is_piper_with_jarvis_pronounced_with_s():
-    from jarvis.factory import build_tts
+    from orion.factory import build_tts
 
     tts = build_tts(load_config(ROOT / "config.toml", local=False))
     assert type(tts).__name__ == "ProcessedTTS" and type(tts._tts).__name__ == "PiperTTS"

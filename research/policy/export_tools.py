@@ -13,9 +13,9 @@ import sys
 
 sys.path.insert(0, ".")
 import harness  # noqa: E402
-from jarvis.profiles import category, load_profiles  # noqa: E402
-from jarvis.tools.base import Risk  # noqa: E402
-from jarvis.tools.permissions import PermissionManager  # noqa: E402
+from orion.profiles import category, load_profiles  # noqa: E402
+from orion.tools.base import Risk  # noqa: E402
+from orion.tools.permissions import PermissionManager  # noqa: E402
 
 RISK = {Risk.SAFE: "safe", Risk.CONFIRMATION_REQUIRED: "confirm", Risk.RESTRICTED: "restricted"}
 USERS = {"monsieur": "owner", "lea": "adult", "tom": "child", "invite": "guest"}

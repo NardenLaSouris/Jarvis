@@ -15,14 +15,14 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from jarvis.agent import Agent, AgentSettings, clean_for_speech  # noqa: E402
-from jarvis.audio.endpointing import EndpointerSettings, UtteranceRecorder  # noqa: E402
-from jarvis.audio.files import ArraySource, RecordingSink  # noqa: E402
-from jarvis.capabilities import CapabilityRegistry  # noqa: E402
-from jarvis.config import load_config  # noqa: E402
-from jarvis.personality import load_personality  # noqa: E402
-from jarvis.prompts import build_system_prompt  # noqa: E402
-from jarvis.router import IntentRouter  # noqa: E402
+from orion.agent import Agent, AgentSettings, clean_for_speech  # noqa: E402
+from orion.audio.endpointing import EndpointerSettings, UtteranceRecorder  # noqa: E402
+from orion.audio.files import ArraySource, RecordingSink  # noqa: E402
+from orion.capabilities import CapabilityRegistry  # noqa: E402
+from orion.config import load_config  # noqa: E402
+from orion.personality import load_personality  # noqa: E402
+from orion.prompts import build_system_prompt  # noqa: E402
+from orion.router import IntentRouter  # noqa: E402
 
 SR, FRAME = 16000, 1280
 
@@ -117,7 +117,7 @@ def test_agent_conversation_flow_with_follow_up_and_sleep():
 
 
 def test_latency_summary_lists_every_stage():
-    from jarvis.agent import format_latency
+    from orion.agent import format_latency
 
     latency = {"fin de parole": 0.9, "stt": 0.3, "llm_first_token": 0.4, "llm_first_sentence": 0.7,
                "tts_first": 0.2, "audio_first": 0.9, "llm_total": 2.1, "tts_total": 3.2, "total_response": 9.0,
@@ -140,7 +140,7 @@ if __name__ == "__main__":
 def test_choose_audio_saves_devices_in_config_without_touching_the_rest():
     import tempfile
 
-    from jarvis.__main__ import choose_audio
+    from orion.__main__ import choose_audio
 
     lines = ['[audio]', 'input_device = ""       # commentaire', 'output_device = "Ancien, MME"', '']
     with tempfile.TemporaryDirectory() as tmp:
@@ -159,7 +159,7 @@ def test_choose_audio_saves_devices_in_config_without_touching_the_rest():
 
 
 def test_stt_auto_device_picks_gpu_only_when_available():
-    import jarvis.stt.faster_whisper as fw
+    import orion.stt.faster_whisper as fw
 
     original = fw.cuda_device_count
     try:
@@ -172,7 +172,7 @@ def test_stt_auto_device_picks_gpu_only_when_available():
 
 
 def test_local_configuration_overrides_settings_per_machine(tmp_path):
-    from jarvis.config import load_config
+    from orion.config import load_config
 
     (tmp_path / "config.toml").write_text('[llm]\nmodel = "mistral:latest"\ntemperature = 0.3\n[face]\nport = 8765\n',
                                           encoding="utf-8")
@@ -190,7 +190,7 @@ def test_local_configuration_overrides_settings_per_machine(tmp_path):
 
 
 def test_toml_saved_with_a_bom_is_read(tmp_path):
-    from jarvis.config import load_config
+    from orion.config import load_config
 
     (tmp_path / "config.toml").write_text('[llm]\nmodel = "qwen2.5:3b"\n', encoding="utf-8-sig")
     (tmp_path / "config.local.toml").write_text('[face]\nhost = "0.0.0.0"\n', encoding="utf-8-sig")

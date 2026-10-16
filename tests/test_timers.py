@@ -16,15 +16,15 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from jarvis.activity import ActivityLog, JsonlActivityStore  # noqa: E402
-from jarvis.config import load_config  # noqa: E402
-from jarvis.events import ALL, EventBus  # noqa: E402
-from jarvis.personality import load_personality  # noqa: E402
-from jarvis.scheduling import DurationError, SchedulingError, Status, TimerManager, parse_duration, spoken_duration  # noqa: E402
-from jarvis.scheduling.durations import duration_in_text  # noqa: E402
-from jarvis.scheduling.scheduler import Scheduler  # noqa: E402
-from jarvis.tools import CONFIRM, DONE, REJECTED, PermissionManager, Risk, ToolCore, ToolRegistry, plan  # noqa: E402
-from jarvis.tools.timers import timer_tools  # noqa: E402
+from orion.activity import ActivityLog, JsonlActivityStore  # noqa: E402
+from orion.config import load_config  # noqa: E402
+from orion.events import ALL, EventBus  # noqa: E402
+from orion.personality import load_personality  # noqa: E402
+from orion.scheduling import DurationError, SchedulingError, Status, TimerManager, parse_duration, spoken_duration  # noqa: E402
+from orion.scheduling.durations import duration_in_text  # noqa: E402
+from orion.scheduling.scheduler import Scheduler  # noqa: E402
+from orion.tools import CONFIRM, DONE, REJECTED, PermissionManager, Risk, ToolCore, ToolRegistry, plan  # noqa: E402
+from orion.tools.timers import timer_tools  # noqa: E402
 
 PERSONALITY = load_personality(ROOT / "personality.toml")
 
@@ -409,7 +409,7 @@ def test_agent_close_stops_services():
             raise RuntimeError("arrêt impossible")
 
     agent_holder = {}
-    import jarvis.agent as agent_module
+    import orion.agent as agent_module
 
     original = agent_module.Agent.run
 
@@ -436,7 +436,7 @@ def test_configuration():
     "Je vous rappelle dans 30 secondes.", "Votre minuteur est lancé.", "Le rappel a été programmé.",
 ])
 def test_unbacked_timer_promises_are_blocked(claim):
-    from jarvis.router import claims_action
+    from orion.router import claims_action
 
     assert claims_action(claim)
 
@@ -444,7 +444,7 @@ def test_unbacked_timer_promises_are_blocked(claim):
 @pytest.mark.parametrize("sentence", ["Vous ne serez pas rappelé.", "Je vous rappelle que Paris est en France.",
                                       "Je ne peux pas lancer de minuteur."])
 def test_honest_sentences_are_not_blocked(sentence):
-    from jarvis.router import claims_action
+    from orion.router import claims_action
 
     assert not claims_action(sentence)
 
@@ -452,15 +452,15 @@ def test_honest_sentences_are_not_blocked(sentence):
 @pytest.mark.parametrize("heard", ["Rappele-moi dans 25 secondes de sortir le linge.", "Rapelle moi de manger",
                                    "Mets un minuteur de 10 minutes", "Quels rappels sont prévus ?"])
 def test_timer_requests_reach_the_tools(heard):
-    from jarvis.capabilities import CapabilityRegistry
-    from jarvis.router import IntentRouter
+    from orion.capabilities import CapabilityRegistry
+    from orion.router import IntentRouter
 
     router = IntentRouter(PERSONALITY, CapabilityRegistry(), tools=("create_timer", "create_reminder"))
     assert router.route(heard).label == "tool:tool.action"
 
 
 def test_remaining_time_is_rounded_to_the_minute():
-    from jarvis.scheduling.durations import spoken_remaining
+    from orion.scheduling.durations import spoken_remaining
 
     assert spoken_remaining(3598) == "1 heure"
     assert spoken_remaining(125) == "2 minutes"
@@ -489,8 +489,8 @@ def test_timer_and_reminder_tools_speak_without_the_llm(manager):
 def test_timers_and_reminders_survive_a_restart(tmp_path):
     from datetime import datetime, timedelta
 
-    from jarvis.events import EventBus
-    from jarvis.scheduling.manager import REMINDER_FINISHED, JsonScheduleStore, TimerManager
+    from orion.events import EventBus
+    from orion.scheduling.manager import REMINDER_FINISHED, JsonScheduleStore, TimerManager
 
     now = {"t": datetime(2026, 10, 4, 12, 0)}
     path = tmp_path / "schedule.json"
@@ -520,8 +520,8 @@ def test_reminder_day_is_never_ignored():
     # Session QA : « le 31 février à 10 heures » et « demain à 15 heures » donnaient un rappel aujourd'hui.
     from datetime import datetime
 
-    from jarvis.scheduling.manager import TimerManager
-    from jarvis.tools.timers import _reminder_day
+    from orion.scheduling.manager import TimerManager
+    from orion.tools.timers import _reminder_day
 
     assert _reminder_day("Rappelle-moi demain à 15 heures d'appeler Paul") == "1"
     assert _reminder_day("Rappelle-moi à 15 heures demain d'appeler Paul") == "1"
@@ -554,7 +554,7 @@ def test_reminders_reach_further_than_timers():
     # Session QA : « Rappelle-moi demain à 9 heures… » dit à 3 h 30 dépassait les 24 h des minuteurs.
     from datetime import datetime
 
-    from jarvis.scheduling.manager import TimerManager
+    from orion.scheduling.manager import TimerManager
 
     manager = TimerManager(clock=lambda: datetime(2026, 10, 5, 3, 30), max_seconds=86400,
                            max_reminder_seconds=72 * 3600)
@@ -572,7 +572,7 @@ def test_far_reminders_are_announced_by_day_and_hour():
     # Session QA : « je vous rappellerai d'appeler le garage dans 29 heures 28 minutes ».
     from datetime import datetime
 
-    from jarvis.scheduling.manager import TimerManager
+    from orion.scheduling.manager import TimerManager
 
     manager = TimerManager(clock=lambda: datetime(2026, 10, 5, 3, 30), max_reminder_seconds=72 * 3600)
     registry = ToolRegistry()
@@ -590,7 +590,7 @@ def test_far_reminders_are_announced_by_day_and_hour():
 
 def test_a_short_reminder_stays_relative_across_midnight():
     # Régression : à 23 h 58, un rappel « dans 20 minutes » était annoncé « demain à 0 h 18 ».
-    from jarvis.tools.timers import _when
+    from orion.tools.timers import _when
 
     assert _when({"remaining": "20 minutes", "at": "00:18", "day": 1, "far": False}) == "dans 20 minutes"
     assert _when({"remaining": "9 heures", "at": "09:00", "day": 1, "far": True}) == "demain à 9 heures"
@@ -599,7 +599,7 @@ def test_a_short_reminder_stays_relative_across_midnight():
 def test_linked_reminders_are_unique_survive_restarts_and_keep_a_postponement(tmp_path):
     from datetime import datetime, timedelta
 
-    from jarvis.scheduling.manager import JsonScheduleStore
+    from orion.scheduling.manager import JsonScheduleStore
 
     now = datetime(2026, 10, 11, 15, 30)
     store_path = tmp_path / "echeances.json"

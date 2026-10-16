@@ -15,14 +15,14 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
-from jarvis.capabilities import CapabilityRegistry  # noqa: E402
-from jarvis.routines import MemoryRoutineStore, RoutineEngine, RoutineError, parse_routine  # noqa: E402
-from jarvis.routines.alarm import AlarmPlayer, beep, load_sound  # noqa: E402
-from jarvis.routines.announce import Announcer  # noqa: E402
-from jarvis.router import IntentRouter  # noqa: E402
-from jarvis.scheduling.clock import parse_clock  # noqa: E402
-from jarvis.tools import DONE, PermissionManager, ToolCore, ToolRegistry, ToolResult, builtin_tools  # noqa: E402
-from jarvis.tools.alarms import alarm_tools  # noqa: E402
+from orion.capabilities import CapabilityRegistry  # noqa: E402
+from orion.routines import MemoryRoutineStore, RoutineEngine, RoutineError, parse_routine  # noqa: E402
+from orion.routines.alarm import AlarmPlayer, beep, load_sound  # noqa: E402
+from orion.routines.announce import Announcer  # noqa: E402
+from orion.router import IntentRouter  # noqa: E402
+from orion.scheduling.clock import parse_clock  # noqa: E402
+from orion.tools import DONE, PermissionManager, ToolCore, ToolRegistry, ToolResult, builtin_tools  # noqa: E402
+from orion.tools.alarms import alarm_tools  # noqa: E402
 from test_tools import PERSONALITY, FakeProcesses, FakeVolume, Launcher, Locker, PlannerLLM, routes, run_agent  # noqa: E402
 
 SATURDAY_22H = datetime(2026, 10, 3, 22, 0)
@@ -228,7 +228,7 @@ def test_alarm_requests_route_to_the_tools():
 def test_cancel_the_alarm_of_a_said_day():
     # Session QA : « annule le réveil de demain » : le LLM proposait « demain » comme heure, appel écarté, puis
     # « les rappels ne sont pas encore disponibles ».
-    from jarvis.tools.quick import quick_plan
+    from orion.tools.quick import quick_plan
 
     engine, core = alarm_core()
     submit(core, "create_alarm", time="7 heures", day="tomorrow")

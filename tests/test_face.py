@@ -14,15 +14,15 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from jarvis.agent import Agent, AgentSettings  # noqa: E402
-from jarvis.audio.endpointing import EndpointerSettings, UtteranceRecorder  # noqa: E402
-from jarvis.audio.files import ArraySource, RecordingSink  # noqa: E402
-from jarvis.capabilities import CapabilityRegistry  # noqa: E402
-from jarvis.config import load_config  # noqa: E402
-from jarvis.face import AudioActivity, FaceBridge, FaceServer, MeteredSink, VisualState  # noqa: E402
-from jarvis.face.state import envelope  # noqa: E402
-from jarvis.personality import load_personality  # noqa: E402
-from jarvis.router import IntentRouter  # noqa: E402
+from orion.agent import Agent, AgentSettings  # noqa: E402
+from orion.audio.endpointing import EndpointerSettings, UtteranceRecorder  # noqa: E402
+from orion.audio.files import ArraySource, RecordingSink  # noqa: E402
+from orion.capabilities import CapabilityRegistry  # noqa: E402
+from orion.config import load_config  # noqa: E402
+from orion.face import AudioActivity, FaceBridge, FaceServer, MeteredSink, VisualState  # noqa: E402
+from orion.face.state import envelope  # noqa: E402
+from orion.personality import load_personality  # noqa: E402
+from orion.router import IntentRouter  # noqa: E402
 
 SR = 16000
 
@@ -237,7 +237,7 @@ def test_busy_port_does_not_stop_jarvis(server):
 def test_face_can_be_disabled_or_unavailable():
     from dataclasses import replace
 
-    from jarvis.__main__ import start_face
+    from orion.__main__ import start_face
 
     cfg = load_config(ROOT / "config.toml", local=False)
     assert cfg.face.enabled and cfg.face.host == "127.0.0.1"
@@ -328,7 +328,7 @@ def test_face_has_no_impact_on_the_voice_pipeline():
 def test_night_hours_wrap_around_midnight():
     from datetime import time
 
-    from jarvis.face.server import is_night, night_hours
+    from orion.face.server import is_night, night_hours
 
     hours = night_hours("22:00", "07:00")
     assert [is_night(time(h, m), hours) for h, m in ((21, 59), (22, 0), (23, 30), (0, 0), (6, 59), (7, 0), (12, 0))] == [
@@ -342,7 +342,7 @@ def test_night_hours_wrap_around_midnight():
 def test_theme_follows_the_core_clock_for_every_page():
     from datetime import datetime
 
-    from jarvis.face.server import night_hours
+    from orion.face.server import night_hours
 
     clock = {"now": datetime(2026, 10, 3, 21, 59)}
     face = FaceServer(VisualState(), "127.0.0.1", 0, night=night_hours("22:00", "07:00"), clock=lambda: clock["now"])
@@ -358,7 +358,7 @@ def test_theme_follows_the_core_clock_for_every_page():
 
 
 def test_page_knows_both_themes():
-    js = (ROOT / "jarvis" / "face" / "static" / "face.js").read_text(encoding="utf-8")
+    js = (ROOT / "orion" / "face" / "static" / "face.js").read_text(encoding="utf-8")
     assert "setTheme" in js and "night:" in js and "data.theme" in js
     night = js.split("night: {", 1)[1].split("}", 1)[0]
     import re
@@ -374,8 +374,8 @@ def test_configuration_enables_night_from_22_to_7():
 
 
 def test_background_tools_during_standby_bring_the_face_back_to_standby():
-    from jarvis.events import TOOL_EXECUTED, TOOL_FAILED, TOOL_STARTED, Event, EventBus
-    from jarvis.face import FaceBridge, VisualState
+    from orion.events import TOOL_EXECUTED, TOOL_FAILED, TOOL_STARTED, Event, EventBus
+    from orion.face import FaceBridge, VisualState
 
     visual, bus = VisualState(), EventBus()
     FaceBridge(visual).attach(bus)
@@ -390,8 +390,8 @@ def test_background_tools_during_standby_bring_the_face_back_to_standby():
 
 
 def test_tools_inside_a_conversation_keep_the_conversation_states():
-    from jarvis.events import TOOL_EXECUTED, TOOL_STARTED, Event, EventBus
-    from jarvis.face import FaceBridge, VisualState
+    from orion.events import TOOL_EXECUTED, TOOL_STARTED, Event, EventBus
+    from orion.face import FaceBridge, VisualState
 
     visual, bus = VisualState(), EventBus()
     bridge = FaceBridge(visual)
@@ -408,8 +408,8 @@ def test_tools_inside_a_conversation_keep_the_conversation_states():
 def test_error_theme_while_a_component_is_down_then_back_to_the_previous_theme():
     from datetime import datetime
 
-    from jarvis.events import SYSTEM_ERROR, SYSTEM_RECOVERED, Event, EventBus
-    from jarvis.face import FaceBridge, FaceServer, VisualState
+    from orion.events import SYSTEM_ERROR, SYSTEM_RECOVERED, Event, EventBus
+    from orion.face import FaceBridge, FaceServer, VisualState
 
     visual, bus = VisualState(), EventBus()
     FaceBridge(visual).attach(bus)
@@ -427,7 +427,7 @@ def test_error_theme_while_a_component_is_down_then_back_to_the_previous_theme()
 def test_night_theme_comes_back_after_an_error():
     from datetime import datetime, time
 
-    from jarvis.face import FaceServer, VisualState
+    from orion.face import FaceServer, VisualState
 
     visual = VisualState()
     server = FaceServer(visual, night=(time(22, 0), time(7, 0)), clock=lambda: datetime(2026, 10, 4, 23, 0))
@@ -438,8 +438,8 @@ def test_night_theme_comes_back_after_an_error():
 
 
 def test_technical_failures_flash_red_but_refusals_do_not():
-    from jarvis.events import TOOL_FAILED, Event, EventBus
-    from jarvis.face import FaceBridge, VisualState
+    from orion.events import TOOL_FAILED, Event, EventBus
+    from orion.face import FaceBridge, VisualState
 
     clock = {"t": 0.0}
     visual, bus = VisualState(clock=lambda: clock["t"]), EventBus()
@@ -457,7 +457,7 @@ def test_technical_failures_flash_red_but_refusals_do_not():
 
 
 def test_worker_and_microphone_report_their_state():
-    from jarvis.llm.failover import FailoverLLM
+    from orion.llm.failover import FailoverLLM
 
     states = []
 
@@ -475,8 +475,8 @@ def test_worker_and_microphone_report_their_state():
 
 
 def test_error_messages_are_shown_in_plain_french():
-    from jarvis.events import SYSTEM_ERROR, SYSTEM_RECOVERED, TOOL_FAILED, Event, EventBus
-    from jarvis.face import FaceBridge, VisualState
+    from orion.events import SYSTEM_ERROR, SYSTEM_RECOVERED, TOOL_FAILED, Event, EventBus
+    from orion.face import FaceBridge, VisualState
 
     clock = {"t": 0.0}
     visual, bus = VisualState(clock=lambda: clock["t"]), EventBus()
@@ -499,8 +499,8 @@ def test_a_routine_started_during_an_announcement_ends_in_standby():
     # 6 octobre : point du jour lancé pendant une annonce (visage « speaking »), resté « en réflexion » 3 h 30.
     import numpy as np
 
-    from jarvis.events import TOOL_EXECUTED, TOOL_STARTED, Event, EventBus
-    from jarvis.face import FaceBridge, VisualState
+    from orion.events import TOOL_EXECUTED, TOOL_STARTED, Event, EventBus
+    from orion.face import FaceBridge, VisualState
 
     visual, bus = VisualState(), EventBus()
     FaceBridge(visual).attach(bus)
@@ -517,7 +517,7 @@ def test_orion_face_uses_the_aureon_palette_and_keeps_its_centre_empty():
     # Refonte ORION : vert forêt, vert secondaire, crème, doré en accent, fond noir profond ; centre vide.
     import re
 
-    static = ROOT / "jarvis" / "face" / "static"
+    static = ROOT / "orion" / "face" / "static"
     js = (static / "face.js").read_text(encoding="utf-8")
     day = js.split("    day: {", 1)[1].split("}", 1)[0]
     for color in ("[15, 61, 46]", "[60, 139, 111]", "[244, 239, 228]", "[201, 164, 92]", '"#0e0e0e"'):
@@ -538,4 +538,4 @@ def test_the_name_font_is_served_locally(server):
     assert status == 200 and kind == "font/woff2" and body[:4] == b"wOF2"
     css = get(url + "face.css")[2].decode()
     assert 'url("michroma.woff2")' in css and '"Michroma"' in css
-    assert (ROOT / "jarvis" / "face" / "static" / "OFL-michroma.txt").exists()  # licence de la police
+    assert (ROOT / "orion" / "face" / "static" / "OFL-michroma.txt").exists()  # licence de la police

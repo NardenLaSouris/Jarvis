@@ -1,4 +1,4 @@
-"""Appel d'absence (jarvis/call/trigger.py) : seulement maison vide, seulement les événements choisis, phrase du
+"""Appel d'absence (orion/call/trigger.py) : seulement maison vide, seulement les événements choisis, phrase du
 journal de la maison, limites du gestionnaire d'appels respectées."""
 
 from __future__ import annotations
@@ -9,13 +9,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from jarvis.call import CallManager, CallSettings  # noqa: E402
-from jarvis.call.trigger import AwayCallTrigger  # noqa: E402
-from jarvis.config import load_config  # noqa: E402
-from jarvis.events import Event, EventBus  # noqa: E402
-from jarvis.presence import HouseJournal  # noqa: E402
+from orion.call import CallManager, CallSettings  # noqa: E402
+from orion.call.trigger import AwayCallTrigger  # noqa: E402
+from orion.config import load_config  # noqa: E402
+from orion.events import Event, EventBus  # noqa: E402
+from orion.presence import HouseJournal  # noqa: E402
 from call_fakes import Mic, Phone, Speaker  # noqa: E402
-from jarvis.audio.switch import SwitchableSink, SwitchableSource  # noqa: E402
+from orion.audio.switch import SwitchableSink, SwitchableSource  # noqa: E402
 
 
 class Presence:
@@ -29,7 +29,7 @@ class Presence:
 def setup(tmp_path, occupancy="empty", **limits):
     phone = Phone()
     now = [1_000_000.0]
-    from jarvis.call import CallLimitSettings
+    from orion.call import CallLimitSettings
 
     manager = CallManager(CallSettings(device="pixel", limits=CallLimitSettings(**limits) if limits else CallLimitSettings()),
                           SwitchableSource(Mic(1), sleep=lambda s: None), SwitchableSink(Speaker()),

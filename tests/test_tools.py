@@ -23,23 +23,23 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-import jarvis.tools.applications as apps_module  # noqa: E402
-import jarvis.tools.audio as audio_module  # noqa: E402
-from jarvis.agent import Agent, AgentSettings  # noqa: E402
-from jarvis.audio.endpointing import EndpointerSettings, UtteranceRecorder  # noqa: E402
-from jarvis.audio.files import ArraySource, RecordingSink  # noqa: E402
-from jarvis.capabilities import CapabilityRegistry  # noqa: E402
-from jarvis.config import load_config  # noqa: E402
-from jarvis.factory import build_corrector, build_tools  # noqa: E402
-from jarvis.personality import load_personality  # noqa: E402
-from jarvis.router import IntentRouter  # noqa: E402
-from jarvis.tools.app_finder import AppFinder  # noqa: E402
-from jarvis.tools import (  # noqa: E402
+import orion.tools.applications as apps_module  # noqa: E402
+import orion.tools.audio as audio_module  # noqa: E402
+from orion.agent import Agent, AgentSettings  # noqa: E402
+from orion.audio.endpointing import EndpointerSettings, UtteranceRecorder  # noqa: E402
+from orion.audio.files import ArraySource, RecordingSink  # noqa: E402
+from orion.capabilities import CapabilityRegistry  # noqa: E402
+from orion.config import load_config  # noqa: E402
+from orion.factory import build_corrector, build_tools  # noqa: E402
+from orion.personality import load_personality  # noqa: E402
+from orion.router import IntentRouter  # noqa: E402
+from orion.tools.app_finder import AppFinder  # noqa: E402
+from orion.tools import (  # noqa: E402
     CANCELLED, CONFIRM, DONE, REJECTED, ConfirmationManager, Decision, Param, PermissionManager, Risk, Tool,
     ToolCore, ToolError, ToolRegistry, ToolsCapability, builtin_tools, parse_request, plan,
 )
-from jarvis.tools.applications import Application, load_applications  # noqa: E402
-from jarvis.tools.planner import plan_schema, planner_prompt  # noqa: E402
+from orion.tools.applications import Application, load_applications  # noqa: E402
+from orion.tools.planner import plan_schema, planner_prompt  # noqa: E402
 
 PERSONALITY = load_personality(ROOT / "personality.toml")
 CLOCK = lambda: datetime(2026, 9, 26, 13, 42)  # noqa: E731
@@ -338,7 +338,7 @@ def test_get_time_and_get_date():
 
 
 def test_system_info_is_useful_and_leaks_nothing(monkeypatch):
-    monkeypatch.setenv("JARVIS_TEST_SECRET", "sk-ne-doit-jamais-sortir")
+    monkeypatch.setenv("ORION_TEST_SECRET", "sk-ne-doit-jamais-sortir")
     info = make_core().submit(call("system_info")).result.result
     assert set(info) == {"os", "os_version", "architecture", "python", "cpu", "cpu_cores", "memory_total_gb",
                          "memory_available_gb", "disk_total_gb", "disk_free_gb", "gpu", "uptime_hours",
@@ -637,13 +637,13 @@ def test_tool_results_have_the_expected_shape():
 
 
 def test_every_execution_is_logged_without_secrets(caplog):
-    caplog.set_level(logging.INFO, logger="jarvis.tools")
+    caplog.set_level(logging.INFO, logger="orion.tools")
     core = make_core()
     core.submit(call("set_volume", volume=40))
     core.submit(call("open_url", url="https://example.com/reset?token=SECRET123#frag"))
     core.submit(call("lock_pc"))
     core.answer("non")
-    records = [json.loads(r.getMessage().split(" ", 1)[1]) for r in caplog.records if r.name == "jarvis.tools"]
+    records = [json.loads(r.getMessage().split(" ", 1)[1]) for r in caplog.records if r.name == "orion.tools"]
     assert records[0]["tool"] == "set_volume" and records[0]["parameters"] == {"volume": 40}
     assert records[0]["decision"] == "allow" and records[0]["success"] is True and records[0]["user"] == "owner"
     assert records[1]["tool"] == "open_url" and records[1]["success"] is True
@@ -899,7 +899,7 @@ def test_capability_description_is_a_short_summary():
 
 
 def test_tool_replies_speak_of_the_users_timer():
-    from jarvis.agent import polish_web_sentence
+    from orion.agent import polish_web_sentence
 
     assert polish_web_sentence("Mon minuteur a été annulé.", "Annule mon minuteur.", True) == "Votre minuteur a été annulé."
 
@@ -924,15 +924,15 @@ def test_follow_up_without_context_rule_still_reuses_the_previous_request():
 
 
 def test_jarvis_prefix_is_removed_from_tool_replies():
-    from jarvis.agent import polish_web_sentence
+    from orion.agent import polish_web_sentence
 
     assert polish_web_sentence("JARVIS. Votre minuteur est lancé.", "Mets un minuteur.", True) == "Votre minuteur est lancé."
 
 
 def test_llm_prompts_are_primed_in_background():
-    from jarvis.factory import prime_llm
-    from jarvis.llm.ollama import OllamaLLM
-    from jarvis.tools.planner import planner_prompt
+    from orion.factory import prime_llm
+    from orion.llm.ollama import OllamaLLM
+    from orion.tools.planner import planner_prompt
 
     class PrimedLLM:
         def __init__(self):
@@ -964,7 +964,7 @@ def test_conversation_moment_is_at_the_end_of_the_system_prompt():
 
 
 def test_invented_optional_numbers_are_dropped_but_required_ones_reject_the_call():
-    from jarvis.tools.planner import _grounded
+    from orion.tools.planner import _grounded
 
     registry = make_core().registry
     assert _grounded({"type": "tool_call", "tool": "set_volume", "parameters": {"volume": 50}}, "Monte le son",
@@ -974,7 +974,7 @@ def test_invented_optional_numbers_are_dropped_but_required_ones_reject_the_call
 
 
 def test_number_words_count_as_said():
-    from jarvis.tools.planner import _grounded
+    from orion.tools.planner import _grounded
 
     registry = make_core().registry
     call_ = {"type": "tool_call", "tool": "set_volume", "parameters": {"volume": 100}}
@@ -1005,7 +1005,7 @@ def test_stop_phrases_end_the_conversation():
 def test_wake_word_during_speech_interrupts_playback():
     import threading
 
-    from jarvis.agent import WakeWatcher
+    from orion.agent import WakeWatcher
 
     class Source:
         def __init__(self, frames):
@@ -1033,7 +1033,7 @@ def test_wake_word_during_speech_interrupts_playback():
 def test_wake_word_needs_consecutive_frames_and_logs_rejected_peaks(caplog):
     import logging
 
-    from jarvis.agent import WakeTrigger
+    from orion.agent import WakeTrigger
 
     trigger = WakeTrigger(0.7, patience=2)
     with caplog.at_level(logging.INFO):
@@ -1047,7 +1047,7 @@ def test_wake_word_needs_consecutive_frames_and_logs_rejected_peaks(caplog):
 def test_hung_tools_never_block_the_others():
     import threading
 
-    from jarvis.tools.base import Risk, Tool
+    from orion.tools.base import Risk, Tool
 
     core = make_core(timeout=0.3)
     release = threading.Event()
@@ -1117,8 +1117,8 @@ def test_nothing_carries_over_to_the_next_conversation():
 
 def test_huge_tool_results_are_bounded_before_reaching_the_llm():
     # Session QA : une réponse d'agent de 2 Mo partait entière au LLM (10 s de lecture, réponse confuse).
-    from jarvis.tools.base import ToolResult
-    from jarvis.tools.planner import MAX_PAYLOAD_FOR_LLM, tool_request
+    from orion.tools.base import ToolResult
+    from orion.tools.planner import MAX_PAYLOAD_FOR_LLM, tool_request
 
     huge = ToolResult("list_running_applications", True,
                       result={"applications": [f"app{i}" for i in range(10_000)], "note": "A" * 2_000_000})
@@ -1149,7 +1149,7 @@ def test_ordinary_pages_still_open_without_confirmation(url):
 
 
 def test_private_text_never_reaches_the_logs():
-    from jarvis.tools.core import loggable
+    from orion.tools.core import loggable
 
     data = {"tool": "send_mail", "parameters": {"to": "paul@example.test", "subject": "Dîner",
                                                 "body": "Mon code d'accès est 4242, ne le répète pas"}}

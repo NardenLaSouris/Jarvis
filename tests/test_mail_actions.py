@@ -1,4 +1,4 @@
-"""Suivi des mails (jarvis/mail/actions.py, deadlines.py) : échéances vérifiées par le Core, rappels J-1 et
+"""Suivi des mails (orion/mail/actions.py, deadlines.py) : échéances vérifiées par le Core, rappels J-1 et
 H-1 h 30 uniques, rattrapage, fils de discussion, réponse, échéance estimée à confirmer, « au plus vite », mail
 hostile sans effet, message jamais modifié. Fournisseur en mémoire, LLM simulé, aucun envoi."""
 
@@ -13,15 +13,15 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from jarvis.events import EventBus  # noqa: E402
-from jarvis.mail.actions import (  # noqa: E402
+from orion.events import EventBus  # noqa: E402
+from orion.mail.actions import (  # noqa: E402
     ABANDONED, ACTION, DEADLINE, REPLIED, RESOLVED, SCHEDULED, TO_ANALYZE, WAITING, MailActions, mail_action_tools,
 )
-from jarvis.mail.deadlines import deadline, vague  # noqa: E402
-from jarvis.mail.models import MailMessage  # noqa: E402
-from jarvis.mail.provider import MemoryMailProvider  # noqa: E402
-from jarvis.mail.tools import MailBox  # noqa: E402
-from jarvis.scheduling.manager import TimerManager  # noqa: E402
+from orion.mail.deadlines import deadline, vague  # noqa: E402
+from orion.mail.models import MailMessage  # noqa: E402
+from orion.mail.provider import MemoryMailProvider  # noqa: E402
+from orion.mail.tools import MailBox  # noqa: E402
+from orion.scheduling.manager import TimerManager  # noqa: E402
 
 RECEIVED = datetime(2026, 10, 11, 9, 0)  # dimanche
 
@@ -202,8 +202,8 @@ def test_state_survives_a_restart(tmp_path):
 
 
 def test_watcher_publishes_arrivals_and_feeds_the_tracker(tmp_path):
-    from jarvis.events import ALL
-    from jarvis.mail.watch import MailWatcher
+    from orion.events import ALL
+    from orion.mail.watch import MailWatcher
 
     provider = MemoryMailProvider([])
     box = MailBox(provider)

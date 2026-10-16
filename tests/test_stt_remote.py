@@ -14,8 +14,8 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from jarvis.stt.remote import RemoteSTT  # noqa: E402
-from jarvis.stt.server import handler  # noqa: E402
+from orion.stt.remote import RemoteSTT  # noqa: E402
+from orion.stt.server import handler  # noqa: E402
 
 TOKEN = "jeton-de-test-0123456789"
 

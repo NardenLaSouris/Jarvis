@@ -1,5 +1,5 @@
-# Agent Windows d'ORION (python -m jarvis.winagent). Le jeton partagé n'est jamais ici :
-# JARVIS_AGENT_TOKEN dans l'environnement ou dans .env (non versionné), identique côté Core.
+# Agent Windows d'ORION (python -m orion.winagent). Le jeton partagé n'est jamais ici :
+# ORION_AGENT_TOKEN dans l'environnement ou dans .env (non versionné), identique côté Core.
 
 [agent]
 host = "0.0.0.0"
@@ -8,7 +8,7 @@ port = 8765
 allowed_ips = ["192.168.1.91"]
 
 # Micro et sortie du PC relayés au Core (vide = périphériques par défaut de Windows ; sinon nom partiel
-# ou index, comme [audio] de config.toml ; liste : python -m jarvis --list-devices).
+# ou index, comme [audio] de config.toml ; liste : python -m orion --list-devices).
 [audio]
 input_device = "Chat Mic (2- TC-HELICON GoXLR), MME"
 output_device = "Music (2- TC-HELICON GoXLR), MME"

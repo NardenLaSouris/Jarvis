@@ -1,1 +1,3 @@
-"""ORION Control : application Windows de contrôle et de configuration d'ORION (via l'API du Core)."""
+"""Compatibilité temporaire : l'ancien nom du package (« jarvis ») pour les lanceurs déjà installés
+(service systemd, raccourcis Windows, passerelle d'appel). Le code est dans « orion ». À retirer une fois
+la migration de production faite (docs/migration_orion.md)."""

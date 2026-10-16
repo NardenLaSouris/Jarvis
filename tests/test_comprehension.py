@@ -14,11 +14,11 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from jarvis.context import ConversationContext  # noqa: E402
-from jarvis.router import claims_action  # noqa: E402
-from jarvis.scheduling.durations import spoken_numbers  # noqa: E402
-from jarvis.tools.planner import hypothetical, plan, quoted  # noqa: E402
-from jarvis.tools.quick import quick_plan  # noqa: E402
+from orion.context import ConversationContext  # noqa: E402
+from orion.router import claims_action  # noqa: E402
+from orion.scheduling.durations import spoken_numbers  # noqa: E402
+from orion.tools.planner import descriptive, hypothetical, plan, quoted  # noqa: E402
+from orion.tools.quick import quick_plan  # noqa: E402
 from test_tools import PlannerLLM, make_core, routes, run_agent  # noqa: E402
 
 
@@ -61,7 +61,7 @@ def context_after(tool, parameters=None, result=None):
     core = make_core()
     for name in ("read_mail", "summarize_mail", "check_mail", "list_timers", "create_timer"):
         if not core.registry.exists(name):
-            from jarvis.tools.base import Param, Risk, Tool
+            from orion.tools.base import Param, Risk, Tool
 
             params = {"position": Param(int, "rang", False, hidden=True)} if "mail" in name and name != "check_mail" \
                 else ({"duration": Param(str, "durée")} if name == "create_timer" else {})
@@ -110,7 +110,7 @@ def test_an_action_wanted_but_not_precise_enough_gets_a_question_not_an_inventio
 
 
 def timer_core():
-    from jarvis.tools.base import Risk, Tool
+    from orion.tools.base import Risk, Tool
 
     core = make_core()
     for name in ("list_timers", "create_timer", "cancel_timer"):
@@ -126,8 +126,8 @@ def test_an_existing_feature_is_never_called_unavailable(text):
 
 
 def test_orion_objects_pattern():
-    from jarvis.agent import ORION_OBJECTS
-    from jarvis.personality import normalize
+    from orion.agent import ORION_OBJECTS
+    from orion.personality import normalize
 
     assert ORION_OBJECTS.search(normalize("Résume-moi mes mails"))
     assert ORION_OBJECTS.search(normalize("Le minuteur, il en est où ?"))
@@ -168,7 +168,7 @@ def test_an_existing_feature_is_not_announced_unavailable_by_the_router():
 
 
 def test_each_chained_action_is_judged_on_its_own_part_of_the_request():
-    from jarvis.tools.base import Param, Risk, Tool
+    from orion.tools.base import Param, Risk, Tool
 
     core = make_core()
     for name, params in (("create_reminder", {"delay": Param(str, "délai"), "message": Param(str, "message")}),
@@ -219,10 +219,20 @@ def test_a_real_reminder_request_still_passes():
 
 
 def reminder_core():
-    from jarvis.scheduling import TimerManager
-    from jarvis.tools.timers import timer_tools
+    from orion.scheduling import TimerManager
+    from orion.tools.timers import timer_tools
 
     core = make_core()
     for tool in timer_tools(TimerManager()):
         core.registry.register(tool)  # le vrai outil de rappel : sans lui, le planificateur ne vérifie rien
     return core
+
+
+
+@pytest.mark.parametrize("text, expected", [
+    ("Hier le son était à 50, c'était trop fort.", True), ("La lumière était à 30 % tout à l'heure", True),
+    ("Remets le son comme il était", False), ("Mets le son à 50", False),
+    ("Tu peux remettre la lumière comme elle était ?", False), ("Allume la lumière comme hier", False),
+])
+def test_a_past_description_is_not_a_request(text, expected):
+    assert descriptive(text) is expected

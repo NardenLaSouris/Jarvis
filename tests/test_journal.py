@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from jarvis.journal import Journal, journal_tools  # noqa: E402
+from orion.journal import Journal, journal_tools  # noqa: E402
 
 NOW = datetime(2026, 10, 15, 18, 0)
 

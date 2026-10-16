@@ -13,7 +13,7 @@ PATTERNS = {
     "clé API style sk-": re.compile(r"\bsk-[A-Za-z0-9]{32,}"),
     "clé AWS": re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
     "jeton Hugging Face": re.compile(r"\bhf_[A-Za-z0-9]{30,}"),
-    "secret affecté en clair": re.compile(r"^\s*(MAIL_PASSWORD|JARVIS_AGENT_TOKEN|HF_TOKEN|LIGHT_KEY_\w+)\s*=\s*\S{6,}",
+    "secret affecté en clair": re.compile(r"^\s*(MAIL_PASSWORD|ORION_AGENT_TOKEN|HF_TOKEN|LIGHT_KEY_\w+)\s*=\s*\S{6,}",
                                           re.MULTILINE),
 }
 

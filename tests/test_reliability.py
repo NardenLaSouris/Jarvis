@@ -15,12 +15,12 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from jarvis.agent import MAX_CRASHES, Agent, AgentSettings  # noqa: E402
-from jarvis.audio.endpointing import EndpointerSettings, UtteranceRecorder  # noqa: E402
-from jarvis.audio.files import ArraySource, RecordingSink  # noqa: E402
-from jarvis.capabilities import CapabilityRegistry  # noqa: E402
-from jarvis.personality import load_personality  # noqa: E402
-from jarvis.router import IntentRouter  # noqa: E402
+from orion.agent import MAX_CRASHES, Agent, AgentSettings  # noqa: E402
+from orion.audio.endpointing import EndpointerSettings, UtteranceRecorder  # noqa: E402
+from orion.audio.files import ArraySource, RecordingSink  # noqa: E402
+from orion.capabilities import CapabilityRegistry  # noqa: E402
+from orion.personality import load_personality  # noqa: E402
+from orion.router import IntentRouter  # noqa: E402
 
 RATE, FRAME = 16000, 1280
 
@@ -81,7 +81,7 @@ def test_repeated_crashes_hand_over_to_systemd():
 
 
 def test_a_reset_connection_is_logged_quietly(caplog):
-    from jarvis.face.server import ExclusiveServer
+    from orion.face.server import ExclusiveServer
 
     server = ExclusiveServer.__new__(ExclusiveServer)
     try:
@@ -93,7 +93,7 @@ def test_a_reset_connection_is_logged_quietly(caplog):
 
 
 def test_downsampling_attenuates_aliasing_and_keeps_speech():
-    from jarvis.audio.resample import resample
+    from orion.audio.resample import resample
 
     rate = 48000
     t = np.arange(rate) / rate

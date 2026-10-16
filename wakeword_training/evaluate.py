@@ -21,9 +21,9 @@ from pathlib import Path
 
 import numpy as np
 
-from jarvis.audio.files import read_wav
-from jarvis.audio.resample import resample
-from jarvis.wakeword.openwakeword import FRAME_SAMPLES, OpenWakeWordDetector
+from orion.audio.files import read_wav
+from orion.audio.resample import resample
+from orion.wakeword.openwakeword import FRAME_SAMPLES, OpenWakeWordDetector
 from wakeword_training.augment import SR, NoiseBank
 from wakeword_training.features import make_scene, prepare_real_positive
 from wakeword_training.spec import DATA, MODELS_DIR, Spec

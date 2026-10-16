@@ -14,16 +14,16 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from jarvis.activity import ActivityEntry, ActivityLog, JsonlActivityStore  # noqa: E402
-from jarvis.config import load_config  # noqa: E402
-from jarvis.events import ALL, TOOL_EXECUTED, TOOL_FAILED, TOOL_STARTED, Event, EventBus  # noqa: E402
-from jarvis.face import FaceBridge, VisualState  # noqa: E402
-from jarvis.factory import build_events  # noqa: E402
-from jarvis.tools import (  # noqa: E402
+from orion.activity import ActivityEntry, ActivityLog, JsonlActivityStore  # noqa: E402
+from orion.config import load_config  # noqa: E402
+from orion.events import ALL, TOOL_EXECUTED, TOOL_FAILED, TOOL_STARTED, Event, EventBus  # noqa: E402
+from orion.face import FaceBridge, VisualState  # noqa: E402
+from orion.factory import build_events  # noqa: E402
+from orion.tools import (  # noqa: E402
     CONFIRM, DONE, REJECTED, ConfirmationManager, Decision, Param, PermissionManager, Risk, Tool, ToolCore, ToolError,
     ToolRegistry,
 )
-from jarvis.tools.base import APPLICATION_NOT_RUNNING  # noqa: E402
+from orion.tools.base import APPLICATION_NOT_RUNNING  # noqa: E402
 
 
 def call(tool, **parameters):
@@ -337,17 +337,17 @@ def test_restricted_tool_is_refused_even_after_a_yes():
 
 
 def test_permission_code_does_not_depend_on_the_llm():
-    import jarvis.tools.core as core_module
-    import jarvis.tools.permissions as permissions_module
+    import orion.tools.core as core_module
+    import orion.tools.permissions as permissions_module
 
     for module in (permissions_module, core_module):
         source = Path(module.__file__).read_text(encoding="utf-8")
-        assert "jarvis.llm" not in source and "planner" not in source
+        assert "orion.llm" not in source and "planner" not in source
 
 
 def test_pc_tool_policy_is_unchanged():
-    from jarvis.factory import build_tools
-    from jarvis.personality import load_personality
+    from orion.factory import build_tools
+    from orion.personality import load_personality
 
     core = build_tools(load_config(ROOT / "config.toml", local=False), load_personality(ROOT / "personality.toml"))
     risks = {t.name: t.risk for t in core.registry.list()}
@@ -359,7 +359,7 @@ def test_pc_tool_policy_is_unchanged():
 
 
 def test_tool_log_line_is_still_written(caplog):
-    caplog.set_level(logging.INFO, logger="jarvis.tools")
+    caplog.set_level(logging.INFO, logger="orion.tools")
     core_with(tool(), events=EventBus()).submit(call("echo"))
     record = json.loads(caplog.records[-1].getMessage().split(" ", 1)[1])
     assert record["tool"] == "echo" and record["success"] is True and "message" not in record

@@ -1,4 +1,4 @@
-"""Son des appels Linphone (jarvis/call/rtp.py) : description du son (SDP), choix du codec, son chiffré de bout en
+"""Son des appels Linphone (orion/call/rtp.py) : description du son (SDP), choix du codec, son chiffré de bout en
 bout en local (deux sessions SRTP sur la même machine), en Opus puis en G.711.
 
 Environnement de la passerelle seulement (pylibsrtp, PyAV) ; ignoré dans celui d'ORION :
@@ -20,7 +20,7 @@ sys.path.insert(0, str(ROOT))
 pytest.importorskip("pylibsrtp")
 pytest.importorskip("av")
 
-from jarvis.call.rtp import (  # noqa: E402
+from orion.call.rtp import (  # noqa: E402
     OFFER_PAYLOADS, OPUS, PCMU, MediaOffer, SipMedia, build_sdp, choose_codec, new_key, open_media_socket, parse_sdp,
     ulaw_decode, ulaw_encode,
 )

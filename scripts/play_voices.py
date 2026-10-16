@@ -7,9 +7,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from jarvis.audio.devices import SpeakerSink
-from jarvis.audio.files import read_wav
-from jarvis.config import load_config
+from orion.audio.devices import SpeakerSink
+from orion.audio.files import read_wav
+from orion.config import load_config
 
 
 def main() -> int:

@@ -24,8 +24,8 @@ from pathlib import Path
 
 import numpy as np
 
-from jarvis.audio.files import write_wav
-from jarvis.audio.resample import resample
+from orion.audio.files import write_wav
+from orion.audio.resample import resample
 from wakeword_training.edge import PREFIX as EDGE, EdgeVoice, render as render_edge
 from wakeword_training.spec import ROOT, VOICES_DIR, Spec
 

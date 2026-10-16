@@ -8,9 +8,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from jarvis.agent import SOURCES  # noqa: E402
-from jarvis.personality import normalize  # noqa: E402
-from jarvis.tools.network import network_tool, tcp_latency, url_target  # noqa: E402
+from orion.agent import SOURCES  # noqa: E402
+from orion.personality import normalize  # noqa: E402
+from orion.tools.network import network_tool, tcp_latency, url_target  # noqa: E402
 
 TARGETS = [("le worker LLM", "192.168.1.73", 11434), ("votre PC", "192.168.1.128", 8765), ("Internet", "1.1.1.1", 443)]
 

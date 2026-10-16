@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Installe Docker (paquets Ubuntu) et démarre les conteneurs de JARVIS (SearXNG pour la recherche Web).
+# Installe Docker (paquets Ubuntu) et démarre les conteneurs d'ORION (SearXNG pour la recherche Web).
 #   sudo bash scripts/install_docker.sh
 # Relançable sans risque : ce qui est déjà en place est conservé (clé SearXNG comprise).
 set -euo pipefail
@@ -33,7 +33,7 @@ fi
 docker compose -f "$ROOT/searxng/docker-compose.yml" up -d
 
 for _ in $(seq 30); do
-  if curl -fs -o /dev/null "http://127.0.0.1:8080/search?q=jarvis&format=json"; then
+  if curl -fs -o /dev/null "http://127.0.0.1:8080/search?q=orion&format=json"; then
     echo "SearXNG prêt sur http://127.0.0.1:8080 (redémarre avec Docker)."
     exit 0
   fi

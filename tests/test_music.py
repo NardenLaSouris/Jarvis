@@ -17,10 +17,10 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from jarvis.audio.music import CHUNK, DuckingSink, MusicRelay  # noqa: E402
-from jarvis.winagent.config import AgentConfig  # noqa: E402
-from jarvis.winagent.music import MusicPlayer  # noqa: E402
-from jarvis.winagent.server import AgentServer  # noqa: E402
+from orion.audio.music import CHUNK, DuckingSink, MusicRelay  # noqa: E402
+from orion.winagent.config import AgentConfig  # noqa: E402
+from orion.winagent.music import MusicPlayer  # noqa: E402
+from orion.winagent.server import AgentServer  # noqa: E402
 
 TOKEN = "t" * 40
 

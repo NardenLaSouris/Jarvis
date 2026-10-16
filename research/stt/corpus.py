@@ -1,6 +1,6 @@
 """Corpus SYNTHÉTIQUE du banc STT : voix Piper (aucun enregistrement réel ni privé), lu silencieusement en fichiers.
 
-    python research/stt/corpus.py SORTIE      (sur le mini-PC, voix dans /opt/jarvis/models/piper)
+    python research/stt/corpus.py SORTIE      (sur le mini-PC, voix dans /opt/orion/models/piper)
 
 Chaque phrase de référence est dite par plusieurs voix et à plusieurs débits ; des variantes ajoutent un bruit
 synthétique (bruit rose, brouhaha de phrases synthétiques) et une hésitation (pause au milieu). Des clips sans parole
@@ -72,9 +72,9 @@ def save(path: Path, audio: np.ndarray) -> None:
 
 
 def main(out: Path) -> None:
-    sys.path.insert(0, "/opt/jarvis")
-    from jarvis.tools.base import Param  # noqa: F401 - vérifie que le dépôt d'ORION est importable
-    from jarvis.tts.piper import PiperTTS
+    sys.path.insert(0, "/opt/orion")
+    from orion.tools.base import Param  # noqa: F401 - vérifie que le dépôt d'ORION est importable
+    from orion.tts.piper import PiperTTS
 
     out.mkdir(parents=True, exist_ok=True)
     rng = np.random.default_rng(7)
@@ -83,7 +83,7 @@ def main(out: Path) -> None:
     for voice, speaker in VOICES:
         for speed_name, speed in SPEEDS.items():
             key = (voice, speaker, speed)
-            voices[key] = PiperTTS(Path(f"/opt/jarvis/models/piper/{voice}.onnx"), length_scale=speed, speaker=speaker)
+            voices[key] = PiperTTS(Path(f"/opt/orion/models/piper/{voice}.onnx"), length_scale=speed, speaker=speaker)
     for category, sentences in SENTENCES.items():
         for i, text in enumerate(sentences):
             for (voice, speaker, speed), tts in voices.items():

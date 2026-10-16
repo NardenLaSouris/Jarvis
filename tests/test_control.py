@@ -14,9 +14,9 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
-from jarvis.control.bridge import Bridge  # noqa: E402
-from jarvis.control.client import CoreClient, CoreError  # noqa: E402
-from jarvis.control.settings import Settings, SettingsStore  # noqa: E402
+from orion.control.bridge import Bridge  # noqa: E402
+from orion.control.client import CoreClient, CoreError  # noqa: E402
+from orion.control.settings import Settings, SettingsStore  # noqa: E402
 from test_api import TOKEN, World  # noqa: E402
 from test_routines import SOIR  # noqa: E402
 
@@ -125,7 +125,7 @@ def test_settings_never_expose_the_token(bridge, tmp_path):
 
 def test_settings_store_defaults_and_token_fallback(tmp_path):
     env = tmp_path / ".env"
-    env.write_text("JARVIS_AGENT_TOKEN=" + "e" * 40 + "\n", encoding="utf-8")
+    env.write_text("ORION_AGENT_TOKEN=" + "e" * 40 + "\n", encoding="utf-8")
     store = SettingsStore(tmp_path / "app", env_file=env)
     assert store.load() == Settings() and store.token() == "e" * 40
     (tmp_path / "app").mkdir()
@@ -145,7 +145,7 @@ def test_settings_written_with_a_bom_are_still_read(tmp_path):
 
 @pytest.mark.skipif(sys.platform != "win32", reason="application Windows")
 def test_autostart_shortcut_is_created_with_fixed_arguments(monkeypatch, tmp_path):
-    import jarvis.control.app as app
+    import orion.control.app as app
 
     calls = []
     monkeypatch.setattr(app, "STARTUP_LINK", tmp_path / "ORION Control.lnk")

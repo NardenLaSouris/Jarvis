@@ -11,11 +11,11 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from jarvis.events import Event, EventBus  # noqa: E402
-from jarvis.mail import MailBox, MailSorter, MemoryMailProvider  # noqa: E402
-from jarvis.mail.watch import MAIL_RECEIVED, MailWatcher, in_quiet_hours, spoken  # noqa: E402
-from jarvis.presence.journal import HouseJournal, absence_summary  # noqa: E402
-from jarvis.routines.announce import Announcer  # noqa: E402
+from orion.events import Event, EventBus  # noqa: E402
+from orion.mail import MailBox, MailSorter, MemoryMailProvider  # noqa: E402
+from orion.mail.watch import MAIL_RECEIVED, MailWatcher, in_quiet_hours, spoken  # noqa: E402
+from orion.presence.journal import HouseJournal, absence_summary  # noqa: E402
+from orion.routines.announce import Announcer  # noqa: E402
 from test_mail import mail  # noqa: E402
 
 DAY = datetime(2026, 10, 8, 15, 0)
@@ -116,8 +116,8 @@ def test_morning_briefing_ends_with_the_mails_of_the_night(tmp_path):
 
 
 def test_watcher_is_built_only_when_mails_are_configured():
-    from jarvis.config import load_config
-    from jarvis.factory import build_mail_watcher
+    from orion.config import load_config
+    from orion.factory import build_mail_watcher
 
     cfg = load_config(ROOT / "config.toml", local=False)
     assert cfg.mail.watch_minutes == 5.0 and cfg.mail.announce == "important"
@@ -131,7 +131,7 @@ def test_watcher_is_built_only_when_mails_are_configured():
 
 import pytest  # noqa: E402
 
-from jarvis.agent import agrees  # noqa: E402
+from orion.agent import agrees  # noqa: E402
 
 
 @pytest.mark.parametrize("text, expected", [
@@ -144,8 +144,8 @@ def test_accepting_the_offer_of_an_announcement(text, expected):
 
 
 def test_after_a_mail_announcement_orion_listens_and_reads_it():
-    from jarvis.notifications import Notification
-    from jarvis.notifications.voice import VoiceNotificationChannel
+    from orion.notifications import Notification
+    from orion.notifications.voice import VoiceNotificationChannel
     from test_mail import mail_core
     from test_tools import PlannerLLM, run_agent
 

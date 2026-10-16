@@ -18,13 +18,13 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
-from jarvis.activity import ActivityLog, JsonlActivityStore  # noqa: E402
-from jarvis.api import CoreApi, CoreStatus  # noqa: E402
-from jarvis.events import EventBus  # noqa: E402
-from jarvis.routines import MemoryRoutineStore, RoutineEngine  # noqa: E402
-from jarvis.tools import PermissionManager, ToolCore, ToolRegistry, builtin_tools  # noqa: E402
-from jarvis.tools.devices import load_devices  # noqa: E402
-from jarvis.tools.lights import light_tools  # noqa: E402
+from orion.activity import ActivityLog, JsonlActivityStore  # noqa: E402
+from orion.api import CoreApi, CoreStatus  # noqa: E402
+from orion.events import EventBus  # noqa: E402
+from orion.routines import MemoryRoutineStore, RoutineEngine  # noqa: E402
+from orion.tools import PermissionManager, ToolCore, ToolRegistry, builtin_tools  # noqa: E402
+from orion.tools.devices import load_devices  # noqa: E402
+from orion.tools.lights import light_tools  # noqa: E402
 from test_lights import FakeDriver, rooms_from  # noqa: E402
 from test_routines import SOIR  # noqa: E402
 from test_tools import FakeProcesses, FakeVolume, Launcher, Locker  # noqa: E402
@@ -94,7 +94,7 @@ def test_security(tmp_path, world):
         assert other.call("GET", "/health")[0] == 403 and other.call("GET", "/status")[0] == 403
     finally:
         other.api.stop()
-    with pytest.raises(ValueError, match="JARVIS_AGENT_TOKEN"):
+    with pytest.raises(ValueError, match="ORION_AGENT_TOKEN"):
         CoreApi("127.0.0.1", 0, frozenset(), "", tools=None, routines=None, status=None)
 
 
@@ -175,7 +175,7 @@ def test_many_simultaneous_clients_are_all_served():
     import urllib.request
     from concurrent.futures import ThreadPoolExecutor
 
-    from jarvis.api import CoreApi, CoreStatus
+    from orion.api import CoreApi, CoreStatus
 
     api = CoreApi("127.0.0.1", 0, frozenset({"127.0.0.1"}), "t" * 40, tools=None, routines=None, status=CoreStatus())
     api.start()

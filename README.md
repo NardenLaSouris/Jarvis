@@ -1,10 +1,12 @@
 # ORION V2 — assistant vocal local (univers Aureon)
 
-ORION (anciennement JARVIS) : même assistant, nouvelle identité. Le nom, la voix, le visage (vert forêt, crème et or
-d'Aureon), ORION Control et la documentation disent « ORION ». Restent « jarvis » les identifiants techniques, pour ne
-casser aucune machine déjà installée : paquet Python (`python -m jarvis`), service systemd `jarvis`, dossier
-`/opt/jarvis`, variables `JARVIS_AGENT_TOKEN` et `JARVIS_CALENDAR_ICS`. « Jarvis » reste compris comme ancien nom
-(`former_names` dans `personality.toml`).
+ORION (anciennement JARVIS) : même assistant, nouvelle identité, jusque dans le code. Paquet Python `orion`
+(`python -m orion`), services `orion`, `orion-call` et `orion-librespot`, dossier d'installation `/opt/orion`, variables
+`ORION_AGENT_TOKEN` et `ORION_CALENDAR_ICS`. Pour ne casser aucune machine déjà installée : un petit paquet `jarvis`
+ne fait que renvoyer vers `orion` (`python -m jarvis`, `-m jarvis.winagent`, passerelle d'appel), les anciens noms
+`JARVIS_…` des fichiers `.env` sont encore lus, et le conteneur `jarvis-searxng` garde son nom. Migration des
+machines : `docs/migration_orion.md`. « Jarvis » reste compris comme ancien nom (`former_names` dans
+`personality.toml`).
 
 **Mot de réveil** : « Orion » (modèle `models/openwakeword/orion_fr.onnx`, spécification
 `wakeword_training/specs/orion_fr.toml`). Tant que ce modèle n'est pas entraîné et validé, le réveil reste
@@ -17,7 +19,7 @@ Tout tourne en local, sur trois machines du réseau :
 
 | Machine | Rôle |
 |---|---|
-| Mini-PC (Core, Linux, sans GPU) | `python -m jarvis` (service systemd utilisateur) : wake word, STT (faster-whisper sur processeur), routage, outils, Piper, routines, mémoire, API d'administration (8766), visage (8765), LLM de secours (Ollama local), SearXNG (Docker, 127.0.0.1:8080) |
+| Mini-PC (Core, Linux, sans GPU) | `python -m orion` (service systemd utilisateur) : wake word, STT (faster-whisper sur processeur), routage, outils, Piper, routines, mémoire, API d'administration (8766), visage (8765), LLM de secours (Ollama local), SearXNG (Docker, 127.0.0.1:8080) |
 | Katana (RTX 4070) | worker LLM : Ollama `qwen2.5:7b` sur GPU (11434, pare-feu : Core seulement) ; agent Windows |
 | PC principal | terminal audio (micro et voix relayés par l'agent Windows, 8765) ; actions sur le PC ; ORION Control |
 
@@ -32,42 +34,42 @@ confirmation, exécution, journal). Aucun shell, aucune commande libre.
   (1 à 2 s au lieu de 70 s), phrase claire sinon. Worker gelé (connexion acceptée, aucune réponse) : secours au
   bout de `first_token_timeout` (10 s), annoncé aussitôt (« Un instant, monsieur. »). Réglages `[llm] connect_timeout`, `fallback_timeout`, `probe_interval`,
   `slow_after`, `retry_after`, `first_token_timeout`.
-- **Commandes simples sans LLM** (`jarvis/tools/quick.py`, `[tools] fast_path`) : lumières, son, applications,
+- **Commandes simples sans LLM** (`orion/tools/quick.py`, `[tools] fast_path`) : lumières, son, applications,
   minuteurs, rappels, réveils, météo, musique, agenda, mémoire, routines, verrouillage, et leurs enchaînements
   (« allume la chambre à 30 %, en bleu »). 0,2 ms au lieu de 0,5 à 1,4 s de choix d'outil.
-- **Contexte conversationnel** (`jarvis/context.py`) : « Allume la chambre. » → « À 30 %. » → « Non, l'entrée. »
+- **Contexte conversationnel** (`orion/context.py`) : « Allume la chambre. » → « À 30 %. » → « Non, l'entrée. »
   → « En bleu. » ; « Quelle heure est-il ? » → « Et demain ? ». Oublié au retour en veille.
 - **Lumières** : ambiances (`set_scene` : cinéma, lecture, détente, nuit, travail, réveil ; `[lights.scenes]`),
   groupes (`[lights.groups]`), état lu sur l'ampoule (`light_status`), pièce inconnue signalée (« je n'ai pas de
   lumière configurée pour le bureau »), ampoules commandées en parallèle, une ampoule muette n'arrête pas les
-  autres, état centralisé de la maison (`jarvis/home.py`, valeurs lues ou seulement commandées).
-- **Mémoire explicite** (`jarvis/memory.py`) : `remember`, `recall`, `forget` (avec confirmation) ; rien n'est
-  retenu automatiquement ; `data/memory.json`, `python -m jarvis --memory`, `GET/DELETE /api/memory`.
+  autres, état centralisé de la maison (`orion/home.py`, valeurs lues ou seulement commandées).
+- **Mémoire explicite** (`orion/memory.py`) : `remember`, `recall`, `forget` (avec confirmation) ; rien n'est
+  retenu automatiquement ; `data/memory.json`, `python -m orion --memory`, `GET/DELETE /api/memory`.
 - **Actions programmées** : « Dans 10 minutes, allume la chambre », « Tous les jours à 21 h, mets la lumière à
   30 % », « Éteins tout à 23 h » → routine exécutée par le même Core ; actions à confirmer refusées. Rappels à
   heure précise, aujourd'hui, demain ou après-demain (une autre date renvoie au calendrier) ; « annule-le » vise
   le rappel ou le minuteur qui vient d'être créé ; minuteurs et rappels conservés au redémarrage
   (`[timers] persist`) ; `list_routines`, `run_routine`, `delete_routine`.
-- **Calendrier** (`jarvis/agenda.py`) : aujourd'hui, demain, un jour de la semaine (« jeudi », « lundi
+- **Calendrier** (`orion/agenda.py`) : aujourd'hui, demain, un jour de la semaine (« jeudi », « lundi
   prochain »), une date (« le 12 », « 2 janvier »), prochains, recherche, créneaux libres (aussi « jeudi
   après-midi »), ajout, suppression ; calendrier local + lecture d'un .ics ou d'une adresse iCal secrète (Google, Outlook).
 - **Fichiers** (sur le PC, par l'agent) : recherche, lecture de texte, création dans un dossier de travail,
   copie ; déplacement et suppression avec confirmation, suppression récupérable (corbeille d'ORION).
 - **Musique** : touches multimédia du PC ; Spotify par son API Web (après `--spotify-login`), joué par ORION
-  lui-même : librespot sur le Core (appareil « ORION », `deploy/jarvis-librespot.service`), son relayé vers le PC
+  lui-même : librespot sur le Core (appareil « ORION », `deploy/orion-librespot.service`), son relayé vers le PC
   comme la voix, baissé pendant qu'ORION écoute ou parle ; « est-ce que la musique joue ? » lu sur Spotify
   (`spotify_status`). Si l'appareil « ORION » disparaît (librespot perd sa session après des heures
   d'inactivité), ORION relance le service `[spotify] player_service` puis joue.
-- **Profils et terminaux** (`jarvis/profiles.py`) : rôles owner, adult, child, guest ; terminal → pièce et
+- **Profils et terminaux** (`orion/profiles.py`) : rôles owner, adult, child, guest ; terminal → pièce et
   utilisateur ; par défaut un propriétaire, comportement inchangé.
-- **Mails** (`jarvis/mail`, voir « Mails » plus bas) : lecture, tri, recherche, résumé sans rien marquer lu ;
+- **Mails** (`orion/mail`, voir « Mails » plus bas) : lecture, tri, recherche, résumé sans rien marquer lu ;
   archiver, supprimer, envoyer, répondre toujours confirmés ; contenu des mails traité comme donnée non fiable.
 - **Liens de téléchargement** : `open_url` reste sans confirmation, mais n'ouvre jamais un lien qui télécharge
   directement un programme (.exe, .msi, .ps1, .bat...).
 - **Réseau** : `network_status` ; sources des recherches Web journalisées et citées sur demande.
-- **Diagnostics** : `python -m jarvis --health`, `--diagnostics`, `--benchmark` (non destructifs).
+- **Diagnostics** : `python -m orion --health`, `--diagnostics`, `--benchmark` (non destructifs).
 - **Tests silencieux** : garde-fous contre tout son, navigateur, ampoule ou touche réels (`tests/conftest.py`).
-- **Données abîmées** (`jarvis/persist.py`) : un `data/*.json` illisible (routines, souvenirs, échéances,
+- **Données abîmées** (`orion/persist.py`) : un `data/*.json` illisible (routines, souvenirs, échéances,
   calendrier local) est renommé `<nom>.illisible-<date>` — jamais écrasé ni supprimé — et ORION démarre à vide.
 - **Garde-fous du choix d'outil** : une action doit être nommée par la demande (une lumière par un mot de
   l'éclairage ou une pièce, ouvrir par « ouvre / lance »…) ; une vraie question n'appelle que des outils de
@@ -78,7 +80,7 @@ confirmation, exécution, journal). Aucun shell, aucune commande libre.
 ## Architecture
 
 ```
-jarvis/
+orion/
   __main__.py          point d'entrée (CLI : --health, --diagnostics, --benchmark, --memory, --spotify-login...)
   config.py            configuration centrale (config.toml + config.local.toml non versionné)
   interfaces.py        contrats : AudioSource, AudioSink, WakeWordDetector, SpeechToText, LanguageModel, TextToSpeech
@@ -121,23 +123,23 @@ python3 -m venv .venv
 Sous Windows : `python -m venv .venv`, puis `.venv\Scripts\...` à la place de `.venv/bin/...`.
 
 Sur le mini-PC, ORION tourne en service utilisateur systemd (démarrage automatique, relance en cas
-d'arrêt inattendu) : voir l'en-tête de `deploy/jarvis.service` pour l'installer ;
-`systemctl --user restart jarvis` après une mise à jour, `journalctl --user -u jarvis -f` pour le journal.
+d'arrêt inattendu) : voir l'en-tête de `deploy/orion.service` pour l'installer ;
+`systemctl --user restart orion` après une mise à jour, `journalctl --user -u orion -f` pour le journal.
 
 ## Utilisation
 
 ```bash
-python -m jarvis                    # lancement normal
-python -m jarvis --list-devices     # périphériques audio (pour [audio] input_device / output_device)
-python -m jarvis --wake-test        # affiche en direct le score du wake word pour régler le seuil
-python -m jarvis --input-wav f.wav --output-dir out/   # simule le micro avec un fichier
-python -m jarvis --tts-test "Bonjour monsieur."        # voix d'ORION sur la sortie audio configurée
+python -m orion                    # lancement normal
+python -m orion --list-devices     # périphériques audio (pour [audio] input_device / output_device)
+python -m orion --wake-test        # affiche en direct le score du wake word pour régler le seuil
+python -m orion --input-wav f.wav --output-dir out/   # simule le micro avec un fichier
+python -m orion --tts-test "Bonjour monsieur."        # voix d'ORION sur la sortie audio configurée
 ```
 
 ## Réponse en flux (LLM → TTS → audio)
 
 ORION commence à parler dès que la première phrase de la réponse est prête, pendant qu'Ollama
-génère la suite (`jarvis/streaming.py`) :
+génère la suite (`orion/streaming.py`) :
 
 ```
 Ollama (stream) -> SentenceBuffer -> file de phrases -> thread TTS -> file audio -> AudioSink
@@ -169,7 +171,7 @@ Tout se règle dans `personality.toml`, sans toucher au code :
 - **Phrases** : réponses au wake word, phrases d'indisponibilité, réponse si le LLM est injoignable.
 - **Intentions prédéfinies** : formulations reconnues et variantes de réponse.
 
-Chaque demande transcrite passe par le routeur (`jarvis/router.py`), dans cet ordre :
+Chaque demande transcrite passe par le routeur (`orion/router.py`), dans cet ordre :
 
 1. **commandes critiques** : « stop », « tais-toi »…, et retour en veille ;
 2. **intentions prédéfinies** : salutations, remerciements, identité, nom, créateur, capacités,
@@ -239,7 +241,7 @@ résultat réel (état relu après l'action).
 | `close_application` | ferme une application autorisée | CONFIRMATION_REQUIRED |
 | `lock_pc` | verrouille la session (`LockWorkStation`) | CONFIRMATION_REQUIRED |
 
-Code : `jarvis/tools/system.py`, `applications.py`, `audio.py` (assemblés par `builtin.py`).
+Code : `orion/tools/system.py`, `applications.py`, `audio.py` (assemblés par `builtin.py`).
 
 ```
 demande -> routeur -> LLM : appel JSON contraint par le schéma de chaque outil -> validation stricte
@@ -258,7 +260,7 @@ demande -> routeur -> LLM : appel JSON contraint par le schéma de chaque outil 
 - ORION n'annonce une action réussie que si l'outil a réellement réussi (sinon : message d'erreur).
 - Chaque exécution est journalisée (`outil {...}` : outil, paramètres, décision, confirmation, succès, durée).
 - Transcription : Whisper reçoit le vocabulaire attendu (`[stt] vocabulary_hint`), puis
-  `jarvis/stt/correction.py` corrige une commande courte mal entendue (« ou vos teams » -> « ouvre steam »).
+  `orion/stt/correction.py` corrige une commande courte mal entendue (« ou vos teams » -> « ouvre steam »).
 
 ```bash
 python -m pytest tests/test_tools.py -q      # simulé : rien n'est réellement lancé, fermé, réglé ni verrouillé
@@ -270,9 +272,9 @@ python -m pytest tests/test_tools.py -q      # simulé : rien n'est réellement 
 minuteur », « Quels rappels sont prévus ? » : outils SAFE `create_timer`, `cancel_timer`, `list_timers`,
 `create_reminder`, `cancel_reminder`, `list_reminders`.
 
-- Le LLM transmet la durée telle qu'elle a été dite ; `jarvis/scheduling/durations.py` la convertit
+- Le LLM transmet la durée telle qu'elle a été dite ; `orion/scheduling/durations.py` la convertit
   (« 1 heure 30 », « une demi-heure », « trois quarts d'heure »...) et vérifie qu'elle figure dans la demande.
-- `TimerManager` (`jarvis/scheduling/`) : un seul fil pour toutes les échéances, arrêté avec ORION ;
+- `TimerManager` (`orion/scheduling/`) : un seul fil pour toutes les échéances, arrêté avec ORION ;
   publie `timer.created / cancelled / finished` et `reminder.*` sur le bus (journal d'activité inclus).
 - À l'échéance, une notification est créée (phrase `timer_finished` / `reminder_finished` de
   `personality.toml`, sans LLM) et ORION la prononce dès qu'il est libre, en veille comme en conversation.
@@ -285,7 +287,7 @@ afternoon / evening / day), dates calculées sur l'horloge du système.
 
 - Fournisseur : [Open-Meteo](https://open-meteo.com) — gratuit pour un usage personnel non commercial, sans clé
   ni compte, recherche de ville intégrée. Données météo : Open-Meteo.com, licence CC-BY 4.0.
-- `jarvis/weather/` : modèles internes (°C, km/h, mm), interface `WeatherProvider` (changer de fournisseur =
+- `orion/weather/` : modèles internes (°C, km/h, mm), interface `WeatherProvider` (changer de fournisseur =
   une nouvelle classe), `OpenMeteoProvider`, `WeatherService` (ville par défaut, périodes, cache court,
   événements `weather.requested / received / failed`, journalisés).
 - Une ville n'est utilisée que si elle a été dite ; sinon, `[weather] default_location` (cherchée par son nom,
@@ -306,7 +308,7 @@ python scripts/weather_check.py Lyon     # appel réel à Open-Meteo (manuel, ho
 source, priorité LOW / NORMAL / HIGH) -> NotificationManager -> canaux actifs qui l'acceptent -> voix (file FIFO)
 ```
 
-`jarvis/notifications/` : les fonctionnalités publient seulement leurs événements ; `EventNotifications`
+`orion/notifications/` : les fonctionnalités publient seulement leurs événements ; `EventNotifications`
 les traduit en notifications, `NotificationManager` les remet aux canaux (un canal en panne est journalisé
 sans bloquer les autres). Le canal vocal les prononce une à une avec le TTS d'ORION. Un futur canal
 (bureau, téléphone...) hérite de `NotificationChannel` (`send`, `start`, `stop`, priorité minimale) et
@@ -316,23 +318,23 @@ d'activité) et `notification.started / finished`. `[notifications] voice_enable
 
 ### Événements et journal d'activité
 
-Les composants communiquent par un bus d'événements interne (`jarvis/events.py`) : `publish(Event)`,
+Les composants communiquent par un bus d'événements interne (`orion/events.py`) : `publish(Event)`,
 `subscribe(type, handler)` (ou `"*"` pour tout recevoir), désabonnement. Un événement a un `type`
 (`domaine.action`), une `source`, un `payload` et un horodatage ; un abonné en erreur est journalisé
 sans bloquer les autres ni ORION.
 
 Chaque demande d'outil publie `tool.started` puis `tool.executed` ou `tool.failed` (outil, étape,
 décision, confirmation, erreur, durée, paramètres nettoyés ; jamais le résultat brut). Le visage écoute
-`tool.started` ; le journal d'activité (`jarvis/activity.py`, section `[activity]`) enregistre
+`tool.started` ; le journal d'activité (`orion/activity.py`, section `[activity]`) enregistre
 `tool.executed` et `tool.failed` dans `data/activity.jsonl` :
 
 ```bash
-python -m jarvis --activity        # [14:32:01] tool.executed — open_application ...
+python -m orion --activity        # [14:32:01] tool.executed — open_application ...
 ```
 
 ### Test manuel (vraies actions)
 
-Lancer `python -m jarvis`, puis dire « Jarvis… » avant chaque phrase et vérifier :
+Lancer `python -m orion`, puis dire « Jarvis… » avant chaque phrase et vérifier :
 
 1. « Ouvre Discord » : Discord s'ouvre, ORION le confirme (sans question).
 2. « Ouvre YouTube » : la page s'ouvre dans le navigateur par défaut.
@@ -354,7 +356,7 @@ LLM -> proposition (non fiable) -> parse_request (outil du registre, paramètres
     -> contexte de confiance construit par le Core : utilisateur et rôle (terminal, profils), risque et catégorie
        (registre), confirmation (recueillie par le Core, liée à l'action exacte, 30 s), origine (conversation,
        routine, API), modèle de confiance ou non ([llm] trusted)
-    -> porte de décision (jarvis/tools/policy.py) : PermissionManager, et Cedar selon le mode
+    -> porte de décision (orion/tools/policy.py) : PermissionManager, et Cedar selon le mode
     -> exécuter / demander confirmation / refuser -> journal sans valeur de paramètre
 ```
 
@@ -402,9 +404,9 @@ continue en vocal. Réglages dans `[face]` de `config.toml` (`host = "0.0.0.0"` 
 ou un écran mural du réseau local).
 
 ```bash
-python -m jarvis                  # ORION + visage
-python -m jarvis --no-face        # sans visage
-python -m jarvis --face-demo      # défilement des états, parole avec la vraie voix
+python -m orion                  # ORION + visage
+python -m orion --no-face        # sans visage
+python -m orion --face-demo      # défilement des états, parole avec la vraie voix
 ```
 
 Dans le navigateur : `?demo=1` (démo autonome, touches 1-4, T = thème), `?debug=1` (état et FPS),
@@ -439,13 +441,13 @@ appareils (états, commandes des lumières), historique filtrable, paramètres. 
 notification, Ctrl+Shift+J pour ouvrir ou masquer, démarrage automatique en option.
 
 Elle ne fait rien elle-même : elle demande tout au Core par son API d'administration (`[api]`, port 8766,
-IP autorisées + jeton `JARVIS_AGENT_TOKEN`). Les routines n'utilisent que les outils enregistrés, sans
+IP autorisées + jeton `ORION_AGENT_TOKEN`). Les routines n'utilisent que les outils enregistrés, sans
 confirmation requise ; aucune commande libre. Le jeton reste dans le processus Python (pont local
 127.0.0.1 protégé par une clé de session) : l'interface ne le voit jamais.
 
 ```powershell
 .venv\Scripts\python -m pip install -r requirements-control.txt
-.venv\Scripts\pythonw -m jarvis.control           # ou --hidden pour démarrer dans la zone de notification
+.venv\Scripts\pythonw -m orion.control           # ou --hidden pour démarrer dans la zone de notification
 ```
 
 Côté Core (mini-PC) : `[api] enabled = true` et `allowed_ips = ["<IP du PC>"]` dans `config.local.toml`,
@@ -454,7 +456,7 @@ Paramètres de l'application et journal : `%APPDATA%\ORION Control`.
 
 ## Présence à la maison (arrivées, départs, « Bon retour »)
 
-`jarvis/presence/` : ORION sait qui est à la maison et confirme un départ ou un retour à partir de **plusieurs
+`orion/presence/` : ORION sait qui est à la maison et confirme un départ ou un retour à partir de **plusieurs
 signaux** (téléphone, porte d'entrée, mouvement), jamais d'une porte seule. Sortir les poubelles ou récupérer un
 colis ne déclenche ni « départ » ni « Bon retour ».
 
@@ -475,20 +477,20 @@ colis ne déclenche ni « départ » ni « Bon retour ».
   `"127.0.0.1"` à `[api] allowed_ips`) :
 
 ```bash
-python -m jarvis --simulate door open
-python -m jarvis --simulate presence away
-python -m jarvis --simulate machine_a_laver finished
-python -m jarvis --simulate thermometre_salon measured 21.5
-python -m jarvis --simulate status
+python -m orion --simulate door open
+python -m orion --simulate presence away
+python -m orion --simulate machine_a_laver finished
+python -m orion --simulate thermometre_salon measured 21.5
+python -m orion --simulate status
 ```
 
-- **Brancher un vrai capteur** : écrire un pilote dans `jarvis/presence/sensors.py` (classe avec `start(emit)` et
+- **Brancher un vrai capteur** : écrire un pilote dans `orion/presence/sensors.py` (classe avec `start(emit)` et
   `stop()`, qui appelle `emit("porte_entree", "open")` quand le matériel le signale — MQTT, Zigbee, ESP32, Home
   Assistant...), l'ajouter à `DRIVERS`, puis `driver = "<nom>"` sur le capteur. Rien d'autre ne change.
 
 ## Mails (lecture, tri, résumé ; actions confirmées)
 
-Module `jarvis/mail` en IMAP/SMTP (bibliothèque standard), désactivé tant que `[mail]` n'est pas configuré :
+Module `orion/mail` en IMAP/SMTP (bibliothèque standard), désactivé tant que `[mail]` n'est pas configuré :
 « lis-moi mes mails » répond alors toujours que l'accès n'est pas disponible.
 
 - **Sans confirmation** (rien ne change dans la boîte) : `check_mail` (« ai-je des mails ? », importants d'abord,
@@ -504,7 +506,7 @@ Module `jarvis/mail` en IMAP/SMTP (bibliothèque standard), désactivé tant que
   pirate@... » ne peut rien déclencher. Les mails sont désignés par leur rang dans la dernière liste dite, jamais
   par un identifiant choisi par le LLM.
 - **Droits** : catégorie `mail` réservée au propriétaire (ni adulte, ni enfant, ni invité).
-- **Tri** (`jarvis/mail/priority.py`, déterministe) : important = expéditeur de `important_senders`, mail étoilé,
+- **Tri** (`orion/mail/priority.py`, déterministe) : important = expéditeur de `important_senders`, mail étoilé,
   ou objet avec un mot d'alerte (facture, rendez-vous, livraison...) ; bruit = envoi automatique (List-Unsubscribe,
   noreply, newsletter, notifications) ; normal sinon.
 
@@ -537,12 +539,12 @@ autres sont réglées et ORION le dit.
 ## Agent Windows (contrôle et audio du PC à distance)
 
 Quand le Core ORION tourne sur le mini-PC, le PC Windows peut exécuter des actions à sa demande via
-un petit agent HTTP du réseau local (`jarvis/winagent/`). Il n'expose que des actions explicitement
+un petit agent HTTP du réseau local (`orion/winagent/`). Il n'expose que des actions explicitement
 enregistrées, validées comme les outils du Core : aucune commande libre, aucun shell.
 
 | Point d'entrée | Accès |
 |---|---|
-| `GET /health` → `{"status": "ok", "agent": "jarvis-windows"}` | IP autorisée |
+| `GET /health` → `{"status": "ok", "agent": "orion-windows"}` | IP autorisée |
 | `POST /actions/<nom>` avec `{"parameters": {...}}` | IP autorisée + `Authorization: Bearer <jeton>` |
 | `GET /audio/input?rate=16000&frame=1280` : flux continu du micro (PCM int16 mono) | idem |
 | `POST /audio/output?rate=22050` (PCM int16 mono) puis `POST /audio/drain` : voix jouée sur le PC | idem |
@@ -551,7 +553,7 @@ Toute IP absente de `allowed_ips` reçoit 403, avant toute autre vérification. 
 encore enregistrée. Le micro n'est ouvert que pendant qu'un Core est connecté, et par un seul à la fois.
 
 Réglages dans `windows_agent.toml` (adresse, port, IP autorisées, micro et sortie du PC). Le jeton partagé n'est jamais dans
-le dépôt : `JARVIS_AGENT_TOKEN` dans l'environnement ou dans `.env` (32 caractères minimum, le même
+le dépôt : `ORION_AGENT_TOKEN` dans l'environnement ou dans `.env` (32 caractères minimum, le même
 côté Core). L'agent refuse de démarrer sans jeton ou sans IP autorisée.
 
 Lancement sous Windows (PowerShell, à la racine du projet) :
@@ -560,8 +562,8 @@ Lancement sous Windows (PowerShell, à la racine du projet) :
 python -m venv .venv                          # une seule fois
 .venv\Scripts\python -m pip install -r requirements.txt
 .venv\Scripts\python -c "import secrets; print(secrets.token_urlsafe(32))"   # génère un jeton
-notepad .env                                  # ajouter la ligne JARVIS_AGENT_TOKEN=<jeton généré>
-.venv\Scripts\python -m jarvis.winagent        # Ctrl+C pour arrêter ; -v pour le détail des requêtes
+notepad .env                                  # ajouter la ligne ORION_AGENT_TOKEN=<jeton généré>
+.venv\Scripts\python -m orion.winagent        # Ctrl+C pour arrêter ; -v pour le détail des requêtes
 ```
 
 Le même jeton va dans le `.env` du Core (mini-PC). Le chemin des fichiers se change avec
@@ -587,7 +589,7 @@ passez-la en « Privé » (Paramètres > Réseau) plutôt que d'élargir la règ
 Test depuis le mini-PC : `curl http://192.168.1.128:8765/health`.
 
 **Audio du PC, ORION sur le mini-PC.** Dans le `config.toml` du mini-PC :
-`[audio] remote = "http://192.168.1.128:8765"` (et `JARVIS_AGENT_TOKEN` dans son `.env`). ORION
+`[audio] remote = "http://192.168.1.128:8765"` (et `ORION_AGENT_TOKEN` dans son `.env`). ORION
 écoute alors le micro du PC et lui parle, à la place des périphériques locaux. Si le PC est éteint
 ou l'agent arrêté, ORION attend et se reconnecte seul ; la voix qui ne peut être jouée est ignorée,
 sans erreur. Le flux micro (~256 kbit/s) circule en clair sur le réseau local, réservé au Core.
@@ -605,8 +607,8 @@ STT -> routeur (web.search) -> SearXNG -> résultats structurés -> sélection d
     -> bloc de données NON FIABLES dans le message utilisateur -> Ollama -> réponse -> Piper
 ```
 
-- Moteur interchangeable (`jarvis/web/base.py`, `WebSearchProvider` : `search`, `fetch`, `extract`),
-  implémentation SearXNG dans `jarvis/web/searxng.py`.
+- Moteur interchangeable (`orion/web/base.py`, `WebSearchProvider` : `search`, `fetch`, `extract`),
+  implémentation SearXNG dans `orion/web/searxng.py`.
 - Résultats structurés (`title`, `url`, `snippet`, `source`, `position`, `published_at`), dédoublonnés ;
   seuls les 3 plus pertinents et un extrait de la meilleure page vont au LLM, sans URL.
 - Pages : adresses http(s) publiques uniquement (jamais le réseau local), redirections vérifiées,
@@ -636,8 +638,8 @@ docker compose -f searxng/docker-compose.yml down         # arrêter
 Tester :
 
 ```bash
-python -m jarvis --web-test "Combien coûte une RTX 3060 actuellement ?"   # sans micro ni voix
-python -m jarvis --web-test "Quelle est la dernière version de Python ?" -v  # + données envoyées au LLM
+python -m orion --web-test "Combien coûte une RTX 3060 actuellement ?"   # sans micro ni voix
+python -m orion --web-test "Quelle est la dernière version de Python ?" -v  # + données envoyées au LLM
 python -m pytest tests/test_web.py -q      # sans Internet : moteur et pages simulés
 ```
 
@@ -648,8 +650,8 @@ une phrase de 5 s est transcrite en ~0,3 s, contre ~3 s sur CPU. Il faut la bibl
 
 ```bash
 pip install -r requirements-gpu.txt
-python -m jarvis --stt-test                  # diagnostic : GPU, device utilisé, temps
-python -m jarvis --stt-test phrase.wav       # sur un enregistrement
+python -m orion --stt-test                  # diagnostic : GPU, device utilisé, temps
+python -m orion --stt-test phrase.wav       # sur un enregistrement
 ```
 
 Sans GPU NVIDIA, ou si CUDA échoue, le STT bascule automatiquement sur
@@ -662,10 +664,10 @@ Pour comparer plusieurs voix Piper à l'oreille, avec exactement le même chemin
 qu'ORION :
 
 ```bash
-python -m jarvis --tts-voices-test                                   # candidats par défaut
-python -m jarvis --tts-voices-test fr_FR-gilles-low fr_FR-upmc-medium:pierre
-python -m jarvis --tts-test "Bonjour monsieur" --tts-voice fr_FR-upmc-medium:pierre
-python -m jarvis --tts-voices-test --no-pronunciations               # sans le lexique (voir plus bas)
+python -m orion --tts-voices-test                                   # candidats par défaut
+python -m orion --tts-voices-test fr_FR-gilles-low fr_FR-upmc-medium:pierre
+python -m orion --tts-test "Bonjour monsieur" --tts-voice fr_FR-upmc-medium:pierre
+python -m orion --tts-voices-test --no-pronunciations               # sans le lexique (voir plus bas)
 ```
 
 - **Candidats par défaut** (voix masculines) : `fr_FR-tom-medium`, `fr_FR-gilles-low` et
@@ -750,7 +752,7 @@ bash tts_training/train.sh dataset "/chemin/des/wav"  # découpe, alignement, co
 bash tts_training/train.sh train                     # EPOCHS=1000 BATCH=16 par défaut
 bash tts_training/train.sh export                    # écrit models/piper/fr_FR-orion-medium.onnx(.json)
 bash tts_training/train.sh evaluate                  # intelligibilité comparée à siwis, WAV dans ~/orion_tts/evaluate
-python -m jarvis --tts-test "Bonjour monsieur."      # écoute avec la chaîne réelle d'ORION
+python -m orion --tts-test "Bonjour monsieur."      # écoute avec la chaîne réelle d'ORION
 ```
 
 Pour améliorer la voix : enregistrer de nouvelles sections (ajoutées au corpus avec le WAV correspondant),
@@ -798,20 +800,20 @@ et retente le worker 30 s plus tard. Les deux sont préchargés au lancement.
 
 Relevé sur trois jours : environ un réveil sur deux sans aucune demande ensuite (voix de jeu, Discord, TV).
 
-1. **Seconde vérification** (`[wake_word] verify`, `jarvis/wakeword/verify.py`) : après la détection, un petit
+1. **Seconde vérification** (`[wake_word] verify`, `orion/wakeword/verify.py`) : après la détection, un petit
    Whisper (`tiny`, 0,4 s sur le mini-PC) relit les deux dernières secondes ; la conversation ne s'ouvre que s'il
    y entend « Jarvis » (« Jervis », « J'avise » compris ; « service », « j'arrive », « j'avais » écartés). Un
    « Jarvis » écarté à tort se rattrape en le redisant entre 1 et 8 s plus tard (accepté sans vérification).
 2. **Captures** (`[wake_word] captures`, `captures_keep`) : l'audio et la fiche de chaque réveil (score,
    transcription, issue : demande, sans suite, écarté) dans `data/wakeword/captures`. Bilan et effet d'un autre
-   seuil : `python -m jarvis --wake-report`.
+   seuil : `python -m orion --wake-report`.
 3. **Réentraînement** : `python -m wakeword_training import-captures [dossier]` verse les faux réveils dans les
    mots pièges réels et vos « Jarvis » confirmés dans les positifs réels, puis `features`, `train`, `evaluate`.
    Vos propres enregistrements (`record positive`) restent le meilleur complément.
 
 ### Moteur et modèle
 
-- **Moteur :** openWakeWord (inférence ONNX locale, `jarvis/wakeword/openwakeword.py`).
+- **Moteur :** openWakeWord (inférence ONNX locale, `orion/wakeword/openwakeword.py`).
   Deux étages : un extracteur générique (spectrogramme mel → embeddings, commun à tous
   les mots) et un petit **classifieur propre au mot**.
 - **Modèle :** `models/openwakeword/orion_fr.onnx`, un classifieur entraîné dans ce dépôt
@@ -831,7 +833,7 @@ Relevé sur trois jours : environ un réveil sur deux sans aucune demande ensuit
 ### Tester le wake word
 
 ```bash
-python -m jarvis --wake-test
+python -m orion --wake-test
 ```
 
 L'outil affiche en direct le score, le seuil et chaque détection. Prononcez « Orion »
@@ -959,11 +961,11 @@ au seuil 0,5.
 ## Diagnostics
 
 ```bash
-python -m jarvis --health        # chaque composant en quelques secondes (code 1 si un indispensable échoue)
-python -m jarvis --diagnostics   # + configuration, outils et risques, derniers échecs
-python -m jarvis --benchmark     # wake word, STT, LLM, choix d'outil, outils, voix (rien n'est joué)
-python -m jarvis --memory        # ce qu'ORION a retenu
-python -m jarvis --spotify-login # relier Spotify (une fois)
+python -m orion --health        # chaque composant en quelques secondes (code 1 si un indispensable échoue)
+python -m orion --diagnostics   # + configuration, outils et risques, derniers échecs
+python -m orion --benchmark     # wake word, STT, LLM, choix d'outil, outils, voix (rien n'est joué)
+python -m orion --memory        # ce qu'ORION a retenu
+python -m orion --spotify-login # relier Spotify (une fois)
 ```
 
 Mesures sur le mini-PC (octobre 2026) : wake word 2,4 ms par image, STT 2,9 s pour 4 s de parole (whisper small
@@ -975,7 +977,7 @@ sur processeur, principal délai restant), premier mot du LLM 0,08 s (Katana), c
 ```bash
 python -m pytest -q tests                       # toute la suite, silencieuse : aucun son, micro, navigateur,
                                                 # ampoule, volume, application ou touche réels
-JARVIS_E2E=1 python -m pytest tests/test_pipeline_e2e.py   # vrais moteurs sur scenario.wav (voix synthétisée, non jouée)
+ORION_E2E=1 python -m pytest tests/test_pipeline_e2e.py   # vrais moteurs sur scenario.wav (voix synthétisée, non jouée)
 ```
 
 `tests/conftest.py` fait échouer tout accès réel au son, au navigateur, aux ampoules Tuya et aux touches
@@ -989,6 +991,6 @@ Les fichiers de référence sont régénérables :
 
 - Sonnerie du réveil : copier votre fichier (ex. « Back in Black ») dans `data/alarm.mp3` sur le Core.
 - Spotify : application sur developer.spotify.com (retour `http://127.0.0.1:8888/callback`),
-  `SPOTIFY_CLIENT_ID` dans `.env`, puis `python -m jarvis --spotify-login` (compte Premium).
-- Agenda existant : adresse iCal secrète dans `.env` (`JARVIS_CALENDAR_ICS=...`).
+  `SPOTIFY_CLIENT_ID` dans `.env`, puis `python -m orion --spotify-login` (compte Premium).
+- Agenda existant : adresse iCal secrète dans `.env` (`ORION_CALENDAR_ICS=...`).
 - Profils : `[users]` et `[terminals]` dans `config.local.toml` si plusieurs personnes utilisent ORION.

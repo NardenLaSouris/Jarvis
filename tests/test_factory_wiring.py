@@ -1,4 +1,4 @@
-"""Branchement réel (jarvis/factory.py) des règles d'appel, du suivi des mails et de « je sors », avec la vraie
+"""Branchement réel (orion/factory.py) des règles d'appel, du suivi des mails et de « je sors », avec la vraie
 configuration, des composants simulés et un dossier de données temporaire : aucune connexion, aucun appel."""
 
 from __future__ import annotations
@@ -11,13 +11,13 @@ from types import SimpleNamespace
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from jarvis.config import load_config  # noqa: E402
-from jarvis.events import Event, EventBus  # noqa: E402
-from jarvis.factory import build_call_rules, build_mail_actions  # noqa: E402
-from jarvis.mail.provider import MemoryMailProvider  # noqa: E402
-from jarvis.mail.tools import MailBox  # noqa: E402
-from jarvis.presence import PresenceEngine  # noqa: E402
-from jarvis.scheduling.manager import TimerManager  # noqa: E402
+from orion.config import load_config  # noqa: E402
+from orion.events import Event, EventBus  # noqa: E402
+from orion.factory import build_call_rules, build_mail_actions  # noqa: E402
+from orion.mail.provider import MemoryMailProvider  # noqa: E402
+from orion.mail.tools import MailBox  # noqa: E402
+from orion.presence import PresenceEngine  # noqa: E402
+from orion.scheduling.manager import TimerManager  # noqa: E402
 
 
 class Notifications:
@@ -33,7 +33,7 @@ class Calls:
         self.requested, self.messages = [], []
 
     def request(self, reason, origin):
-        from jarvis.call.session import CallSession
+        from orion.call.session import CallSession
 
         call = CallSession("linphone", reason, origin, 0.0)
         self.requested.append(call)
@@ -70,8 +70,8 @@ def test_factory_builds_and_connects_rules_and_mail_follow_up(tmp_path):
 
 
 def test_factory_connects_flex_to_the_voice_channel_with_the_real_inventory(tmp_path):
-    from jarvis.factory import connect_flex
-    from jarvis.tools import ToolRegistry
+    from orion.factory import connect_flex
+    from orion.tools import ToolRegistry
 
     cfg = load_config(ROOT / "config.toml")
     cfg = replace(cfg, memory=replace(cfg.memory, path=tmp_path / "memory.json"), audio=replace(cfg.audio, remote=""))

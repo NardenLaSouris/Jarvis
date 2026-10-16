@@ -1,4 +1,4 @@
-"""Appels vers le téléphone jumelé (jarvis/call) : états, limites, bascule du micro et de la sortie, conversation.
+"""Appels vers le téléphone jumelé (orion/call) : états, limites, bascule du micro et de la sortie, conversation.
 
 Horloge simulée, faux téléphone (sources et sorties en mémoire) : aucun réseau, aucun son.
 """
@@ -15,12 +15,12 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from jarvis.audio.switch import CALL, HOLD, HOME, SwitchableSink, SwitchableSource  # noqa: E402
-from jarvis.call import CallError, CallLimitSettings, CallManager, CallRefused, CallSession, CallSettings  # noqa: E402
-from jarvis.call.session import (  # noqa: E402
+from orion.audio.switch import CALL, HOLD, HOME, SwitchableSink, SwitchableSource  # noqa: E402
+from orion.call import CallError, CallLimitSettings, CallManager, CallRefused, CallSession, CallSettings  # noqa: E402
+from orion.call.session import (  # noqa: E402
     ACCEPTED, CONNECTED, ENDED, EXPIRED, FAILED, REFUSED, REQUESTED, RINGING,
 )
-from jarvis.config import load_config  # noqa: E402
+from orion.config import load_config  # noqa: E402
 from call_fakes import Mic, Phone, Speaker  # noqa: E402
 from test_tools import PERSONALITY, PlannerLLM, run_agent  # noqa: E402
 
@@ -308,7 +308,7 @@ def test_phone_call_refused_when_busy_or_from_another_device():
 
 
 def test_phone_calls_are_limited_against_loops():
-    from jarvis.call.manager import MAX_DIALS_PER_HOUR
+    from orion.call.manager import MAX_DIALS_PER_HOUR
 
     world = World()
     for i in range(MAX_DIALS_PER_HOUR):
@@ -328,7 +328,7 @@ def test_phone_call_is_greeted_like_a_wake_word():
 
 
 def test_admin_test_call_goes_through_the_core_and_its_limits():
-    from jarvis.api.server import CoreApi
+    from orion.api.server import CoreApi
 
     api = CoreApi.__new__(CoreApi)
     api.calls = None
@@ -400,6 +400,6 @@ def test_manager_keeps_pending_messages_and_sends_replies():
 
 
 def test_long_call_reason_is_never_cut_mid_word():
-    from jarvis.call.manager import MAX_REASON
+    from orion.call.manager import MAX_REASON
 
     assert MAX_REASON >= 2000  # une présentation Flex entière (« éclairag » coupé à 300 caractères)

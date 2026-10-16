@@ -15,10 +15,10 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from jarvis.face import FaceServer, VisualState  # noqa: E402
-from jarvis.face.server import night_hours  # noqa: E402
-from jarvis.face.themes import COLORS, THEMES, FaceThemeStore, face_theme_tool, said_theme  # noqa: E402
-from jarvis.tools.quick import quick_plan  # noqa: E402
+from orion.face import FaceServer, VisualState  # noqa: E402
+from orion.face.server import night_hours  # noqa: E402
+from orion.face.themes import COLORS, THEMES, FaceThemeStore, face_theme_tool, said_theme  # noqa: E402
+from orion.tools.quick import quick_plan  # noqa: E402
 from test_quick import full_core  # noqa: E402
 from test_tools import PlannerLLM, run_agent  # noqa: E402
 
@@ -61,8 +61,8 @@ def test_choice_by_voice_reaches_every_face_page(tmp_path):
 
 
 def test_error_still_wins_and_store_is_robust(tmp_path):
-    from jarvis.events import SYSTEM_ERROR, Event, EventBus
-    from jarvis.face import FaceBridge
+    from orion.events import SYSTEM_ERROR, Event, EventBus
+    from orion.face import FaceBridge
 
     store = FaceThemeStore(tmp_path / "face_theme.json")
     store.set("rose")
@@ -79,7 +79,7 @@ def test_error_still_wins_and_store_is_robust(tmp_path):
 
 
 def test_page_builds_any_colour_from_its_hue():
-    js = (ROOT / "jarvis" / "face" / "static" / "face.js").read_text(encoding="utf-8")
+    js = (ROOT / "orion" / "face" / "static" / "face.js").read_text(encoding="utf-8")
     assert "function huePalette" in js and "arcenciel" in js and "data.hue" in js
 
 
@@ -101,13 +101,13 @@ def test_llm_cannot_pick_a_colour_that_was_not_said(tmp_path):
 def test_holidays_come_by_themselves(day, season):
     from datetime import date
 
-    from jarvis.face.themes import season_of
+    from orion.face.themes import season_of
 
     assert season_of(date(*day)) == season
 
 
 def test_birthday_and_holiday_payload(tmp_path):
-    from jarvis.face.themes import SEASONS, parse_birthday
+    from orion.face.themes import SEASONS, parse_birthday
 
     store = FaceThemeStore(tmp_path / "face_theme.json")
     birthday = parse_birthday("10-05")
@@ -132,7 +132,7 @@ def test_holiday_themes_by_voice(tmp_path):
     core, store = core_with_colors(tmp_path)
     spoken, _ = run_agent(["Mets ton visage en mode Halloween."], PlannerLLM(), core, fast_path=True)
     assert spoken == ["Je passe en thème Halloween."] and store.get() == "halloween"
-    js = (ROOT / "jarvis" / "face" / "static" / "face.js").read_text(encoding="utf-8")
+    js = (ROOT / "orion" / "face" / "static" / "face.js").read_text(encoding="utf-8")
     assert all(effect in js for effect in ("snow", "embers", "confetti", "sparkle", "hearts", "clovers"))
     # Cœurs : renaissent en bas, en continu (une seule salve auparavant).
     assert 'const rising = kind === "embers" || kind === "hearts";' in js
@@ -143,7 +143,7 @@ def test_national_day_shows_its_three_colours_at_once(tmp_path):
     server = FaceServer(VisualState(), clock=lambda: datetime(2026, 7, 14, 12, 0), themes=store)
     payload = server.payload()
     assert payload["theme"] == "quatorzejuillet" and payload["palette"] == "tricolore"
-    js = (ROOT / "jarvis" / "face" / "static" / "face.js").read_text(encoding="utf-8")
+    js = (ROOT / "orion" / "face" / "static" / "face.js").read_text(encoding="utf-8")
     assert "tricolore: {" in js and "data.palette" in js
     patrick = FaceServer(VisualState(), clock=lambda: datetime(2026, 3, 17, 12, 0), themes=store).payload()
     assert patrick["effect"] == "clovers"
@@ -157,7 +157,7 @@ def test_national_day_shows_its_three_colours_at_once(tmp_path):
 def test_new_holidays(day, season):
     from datetime import date
 
-    from jarvis.face.themes import parse_born, season_of
+    from orion.face.themes import parse_born, season_of
 
     assert season_of(date(*day), (6, 27), parse_born("2026-10-02")) == season
 
@@ -168,7 +168,7 @@ def test_jarvis_birthday_greeting_counts_the_years(tmp_path):
     server = FaceServer(VisualState(), clock=lambda: datetime(2028, 10, 2, 9, 0),
                         themes=FaceThemeStore(tmp_path / "t.json"), born=date(2026, 10, 2))
     assert server.payload()["greeting"] == "Joyeux anniversaire ORION : 2 ans"
-    js = (ROOT / "jarvis" / "face" / "static" / "face.js").read_text(encoding="utf-8")
+    js = (ROOT / "orion" / "face" / "static" / "face.js").read_text(encoding="utf-8")
     assert all(effect in js for effect in ('"fish"', '"lily"', '"hyperspace"'))
 
 
@@ -177,9 +177,9 @@ def test_jarvis_birthday_greeting_counts_the_years(tmp_path):
 def test_upcoming_ring_for_events_timers_and_reminders():
     from datetime import timedelta
 
-    from jarvis.agenda import CalendarEvent
-    from jarvis.face.upcoming import Upcoming
-    from jarvis.scheduling.manager import TimerManager
+    from orion.agenda import CalendarEvent
+    from orion.face.upcoming import Upcoming
+    from orion.scheduling.manager import TimerManager
 
     now = datetime(2026, 10, 5, 14, 0)
 
@@ -210,15 +210,15 @@ def test_upcoming_reaches_the_face_and_never_breaks_it():
     assert FaceServer(visual).payload()["upcoming"]["label"] == "Dentiste"
     visual.upcoming = lambda: 1 / 0
     assert FaceServer(visual).payload()["upcoming"] is None
-    html = (ROOT / "jarvis" / "face" / "static" / "index.html").read_text(encoding="utf-8")
+    html = (ROOT / "orion" / "face" / "static" / "index.html").read_text(encoding="utf-8")
     assert 'id="upcoming"' in html and 'id="upcoming-label"' in html
 
 
 def test_holidays_have_their_own_multicolour_palette():
     # Plusieurs couleurs à la fois (sabres bleu, rouge et vert le 4 mai ; rouge, vert et or à Noël...).
-    from jarvis.face.themes import SEASONS
+    from orion.face.themes import SEASONS
 
-    js = (ROOT / "jarvis" / "face" / "static" / "face.js").read_text(encoding="utf-8")
+    js = (ROOT / "orion" / "face" / "static" / "face.js").read_text(encoding="utf-8")
     for season in ("starwars", "noel", "halloween", "nouvelan", "paques", "saintvalentin", "saintpatrick"):
         assert SEASONS[season]["palette"] == season and f"    {season}: {{" in js, season
     store_less = FaceServer(VisualState(), clock=lambda: datetime(2027, 5, 4, 12, 0))
@@ -229,6 +229,6 @@ def test_holidays_have_their_own_multicolour_palette():
 def test_hyperspace_stars_never_orbit():
     # Les étoiles tournaient autour du visage : la boucle commune des effets incrémente « a » (rotation des
     # confettis), qui est pour l'hyperespace la direction de l'étoile depuis le centre.
-    js = (ROOT / "jarvis" / "face" / "static" / "face.js").read_text(encoding="utf-8")
+    js = (ROOT / "orion" / "face" / "static" / "face.js").read_text(encoding="utf-8")
     block = js[js.index('if (kind === "hyperspace") {'):js.index('if (kind === "lily")')]
     assert "va: 0" in block

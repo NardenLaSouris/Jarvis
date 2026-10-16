@@ -2,7 +2,7 @@
 
 Tout appel réel au son (lecture, micro), au navigateur ou à une ampoule Tuya pendant un test échoue aussitôt :
 les tests passent par des faux (RecordingSink, FakeDriver, opener...). Le test de bout en bout, qui fait
-tourner les vrais moteurs (synthèse vocale comprise, sans lecture), ne s'exécute qu'avec JARVIS_E2E=1.
+tourner les vrais moteurs (synthèse vocale comprise, sans lecture), ne s'exécute qu'avec ORION_E2E=1.
 """
 
 from __future__ import annotations
@@ -44,7 +44,7 @@ def _silent(monkeypatch):
             if hasattr(tinytuya, name):
                 monkeypatch.setattr(tinytuya, name, _forbidden(f"appareil Tuya ({name})"))
     try:
-        import jarvis.tools.media as media
+        import orion.tools.media as media
     except ImportError:  # environnement minimal (passerelle d'appel) : aucune touche multimédia à protéger
         media = None
     if media is not None:

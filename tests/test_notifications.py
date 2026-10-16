@@ -15,16 +15,16 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
-from jarvis.activity import ActivityLog, JsonlActivityStore  # noqa: E402
-from jarvis.config import load_config  # noqa: E402
-from jarvis.events import ALL, Event, EventBus  # noqa: E402
-from jarvis.factory import build_notifications  # noqa: E402
-from jarvis.notifications import (  # noqa: E402
+from orion.activity import ActivityLog, JsonlActivityStore  # noqa: E402
+from orion.config import load_config  # noqa: E402
+from orion.events import ALL, Event, EventBus  # noqa: E402
+from orion.factory import build_notifications  # noqa: E402
+from orion.notifications import (  # noqa: E402
     EventNotifications, Notification, NotificationChannel, NotificationManager, Priority, VoiceNotificationChannel,
     with_de,
 )
-from jarvis.personality import load_personality  # noqa: E402
-from jarvis.scheduling import TimerManager  # noqa: E402
+from orion.personality import load_personality  # noqa: E402
+from orion.scheduling import TimerManager  # noqa: E402
 
 PERSONALITY = load_personality(ROOT / "personality.toml")
 TIMER_TEXTS = ("Monsieur, votre minuteur de 10 minutes est terminé.",

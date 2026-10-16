@@ -28,8 +28,8 @@ from pathlib import Path
 sys.path.insert(0, ".")
 
 import harness  # noqa: E402
-from jarvis.tools.base import ToolResult  # noqa: E402
-from jarvis.tools.core import CONFIRM, REJECTED  # noqa: E402
+from orion.tools.base import ToolResult  # noqa: E402
+from orion.tools.core import CONFIRM, REJECTED  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
 

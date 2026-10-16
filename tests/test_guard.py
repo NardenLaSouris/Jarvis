@@ -1,4 +1,4 @@
-"""Garde-fou de ce que dit un modèle non éprouvé (jarvis/llm/guard.py) et option think du client Ollama.
+"""Garde-fou de ce que dit un modèle non éprouvé (orion/llm/guard.py) et option think du client Ollama.
 
 Juge factice : aucune requête réseau, aucun modèle chargé.
 """
@@ -15,12 +15,12 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from jarvis.config import load_config  # noqa: E402
-from jarvis.factory import build_content_guard  # noqa: E402
-from jarvis.interfaces import Message  # noqa: E402
-from jarvis.llm.guard import ContentGuard  # noqa: E402
-from jarvis.llm.ollama import OllamaLLM  # noqa: E402
-from jarvis.personality import load_personality  # noqa: E402
+from orion.config import load_config  # noqa: E402
+from orion.factory import build_content_guard  # noqa: E402
+from orion.interfaces import Message  # noqa: E402
+from orion.llm.guard import ContentGuard  # noqa: E402
+from orion.llm.ollama import OllamaLLM  # noqa: E402
+from orion.personality import load_personality  # noqa: E402
 
 
 class Judge:

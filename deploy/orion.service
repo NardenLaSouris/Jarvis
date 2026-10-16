@@ -1,0 +1,21 @@
+# Service utilisateur systemd du Core ORION (mini-PC Linux), sans droits administrateur :
+#   mkdir -p ~/.config/systemd/user && cp deploy/orion.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload && systemctl --user enable --now orion
+#   journalctl --user -u orion -f                     # journal en direct
+#   sudo loginctl enable-linger $USER                  # démarrer avec la machine, sans session ouverte
+#   sudo timedatectl set-timezone Europe/Paris         # fuseau local : heure dite, thème nuit, météo
+# Le dépôt est supposé dans /opt/orion (sinon, adapter WorkingDirectory et ExecStart).
+
+[Unit]
+Description=ORION, assistant vocal (Core)
+After=network-online.target
+
+[Service]
+WorkingDirectory=/opt/orion
+ExecStart=/opt/orion/.venv/bin/python -m orion
+Environment=PYTHONUNBUFFERED=1
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

@@ -19,11 +19,11 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-import jarvis.factory as factory  # noqa: E402
-from jarvis.audio.network import NetworkSink, NetworkSource  # noqa: E402
-from jarvis.config import load_config  # noqa: E402
-from jarvis.winagent import AgentConfig, AgentServer  # noqa: E402
-from jarvis.winagent.audio import AudioRelay  # noqa: E402
+import orion.factory as factory  # noqa: E402
+from orion.audio.network import NetworkSink, NetworkSource  # noqa: E402
+from orion.config import load_config  # noqa: E402
+from orion.winagent import AgentConfig, AgentServer  # noqa: E402
+from orion.winagent.audio import AudioRelay  # noqa: E402
 
 TOKEN = "t" * 40
 FRAME = 1280
@@ -249,7 +249,7 @@ def test_wrong_token_is_reported(caplog):
 def test_configuration_selects_remote_audio(monkeypatch):
     cfg = load_config(ROOT / "config.toml", local=False)
     remote = replace(cfg, audio=replace(cfg.audio, remote="http://127.0.0.1:9"))
-    monkeypatch.setattr(factory, "secret", lambda name, env_file: TOKEN if name == "JARVIS_AGENT_TOKEN" else "")
+    monkeypatch.setattr(factory, "secret", lambda name, env_file: TOKEN if name == "ORION_AGENT_TOKEN" else "")
     assert isinstance(factory.build_sink(remote), NetworkSink)
     source = factory.build_source(remote)
     try:
@@ -257,7 +257,7 @@ def test_configuration_selects_remote_audio(monkeypatch):
     finally:
         source.close()
     monkeypatch.setattr(factory, "secret", lambda name, env_file: "")
-    with pytest.raises(ValueError, match="JARVIS_AGENT_TOKEN"):
+    with pytest.raises(ValueError, match="ORION_AGENT_TOKEN"):
         factory.build_sink(remote)
 
 
@@ -276,7 +276,7 @@ def test_token_never_appears_in_logs(caplog):
 
 
 def test_full_buffer_keeps_the_latest_audio_and_reports_once(caplog):
-    from jarvis.audio.network import FrameQueue
+    from orion.audio.network import FrameQueue
 
     frames = FrameQueue(3, "test")
     with caplog.at_level(logging.INFO):

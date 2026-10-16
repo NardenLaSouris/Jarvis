@@ -1,8 +1,8 @@
 import sys, json, wave, numpy as np
 sys.path.insert(0, ".")
 from faster_whisper import WhisperModel
-from jarvis.config import load_config
-from jarvis.factory import vocabulary_hint
+from orion.config import load_config
+from orion.factory import vocabulary_hint
 from bench import norm, wer
 cfg = load_config("config.toml"); hint = vocabulary_hint(cfg, "ORION")
 rows = [r for r in json.load(open("/home/user/stt-bench/audio/references.json")) if r["variant"] in ("brouhaha_8dB", "hesitation")][:10]

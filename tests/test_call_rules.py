@@ -1,4 +1,4 @@
-"""Règles d'appel (jarvis/call/rules.py, rule_parser.py, rule_tools.py) : validation par le Core, éléments ancrés
+"""Règles d'appel (orion/call/rules.py, rule_parser.py, rule_tools.py) : validation par le Core, éléments ancrés
 dans la phrase, déduplication, tentatives limitées, accusé « c'est noté », refus, limites anti-harcèlement, retour à
 la maison, reprise après redémarrage, sources non fiables ignorées, outils et conversation. Aucun appel réel."""
 
@@ -15,14 +15,14 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
-from jarvis.call.manager import CallRefused  # noqa: E402
-from jarvis.call.rule_parser import RuleQuestion, build_rule  # noqa: E402
-from jarvis.call.rules import (  # noqa: E402
+from orion.call.manager import CallRefused  # noqa: E402
+from orion.call.rule_parser import RuleQuestion, build_rule  # noqa: E402
+from orion.call.rules import (  # noqa: E402
     ACKNOWLEDGED, ANSWERED, FAILED, GAVE_UP, LIMIT_RETRY, MAX_JOB_AGE, PLANNED, REFUSED, RESOLVED, TRYING,
     UNACKNOWLEDGED, CallRules, RuleError, describe_rule, is_acknowledgement, validate_rule,
 )
-from jarvis.call.session import CallSession  # noqa: E402
-from jarvis.events import Event, EventBus  # noqa: E402
+from orion.call.session import CallSession  # noqa: E402
+from orion.events import Event, EventBus  # noqa: E402
 
 NOW = datetime(2026, 10, 11, 15, 30)
 
@@ -277,9 +277,9 @@ class RuleLLM:
 
 
 def test_tools_create_after_confirmation_list_disable_delete(tmp_path):
-    from jarvis.call.rule_parser import RuleParser
-    from jarvis.call.rule_tools import call_rule_tools
-    from jarvis.tools import PermissionManager, ToolCore, ToolRegistry
+    from orion.call.rule_parser import RuleParser
+    from orion.call.rule_tools import call_rule_tools
+    from orion.tools import PermissionManager, ToolCore, ToolRegistry
 
     w = World(tmp_path)
     llm = RuleLLM({"type": "rule", "event": "reminder_due", "conditions": ["away"], "channel": "call"})
@@ -302,8 +302,8 @@ def test_tools_create_after_confirmation_list_disable_delete(tmp_path):
 
 
 def test_agent_asks_a_targeted_question_then_completes_the_rule(tmp_path):
-    from jarvis.call.rule_parser import RuleParser
-    from jarvis.call.rule_tools import call_rule_tools
+    from orion.call.rule_parser import RuleParser
+    from orion.call.rule_tools import call_rule_tools
     from test_tools import PlannerLLM, make_core, run_agent
 
     w = World(tmp_path)
@@ -320,7 +320,7 @@ def test_agent_asks_a_targeted_question_then_completes_the_rule(tmp_path):
 
 
 def test_builtin_rule_calls_for_a_reminder_while_away_and_stays_removed(tmp_path):
-    from jarvis.call.rules import BUILTIN_REMINDERS, BUILTIN_RULE
+    from orion.call.rules import BUILTIN_REMINDERS, BUILTIN_RULE
 
     w = World(tmp_path)
     w.rules.ensure_builtin(BUILTIN_REMINDERS, BUILTIN_RULE, "rappel pendant votre absence")
@@ -335,7 +335,7 @@ def test_builtin_rule_calls_for_a_reminder_while_away_and_stays_removed(tmp_path
 
 
 def test_what_to_say_comes_from_your_words():
-    from jarvis.call.rules import _reason
+    from orion.call.rules import _reason
 
     data = {"type": "rule", "event": "at", "at_said": "dans 3 minutes", "conditions": [], "channel": "call",
             "say": "pour me dire que tu fais un test"}
@@ -347,9 +347,9 @@ def test_what_to_say_comes_from_your_words():
 
 
 def test_i_am_leaving_then_call_me_in_three_minutes(tmp_path):
-    from jarvis.call.rule_parser import RuleParser
-    from jarvis.call.rule_tools import call_rule_tools
-    from jarvis.presence.tools import departure_tool
+    from orion.call.rule_parser import RuleParser
+    from orion.call.rule_tools import call_rule_tools
+    from orion.presence.tools import departure_tool
     from test_presence import House
     from test_tools import PlannerLLM, make_core, run_agent
 
@@ -377,7 +377,7 @@ def test_i_am_leaving_then_call_me_in_three_minutes(tmp_path):
 # --- La veille d'un rappel ou d'un rendez-vous (message Linphone du 16 octobre 2026 : non compris) ---------------
 
 def test_the_eve_rule_is_understood_from_the_request():
-    from jarvis.call.rule_parser import build_rule
+    from orion.call.rule_parser import build_rule
 
     text = ("Si j’ai des rappels ou des échéances de l’agenda qui arrivent quand je suis pas à la maison appelle-moi "
             "la veille pour me le dire")
@@ -390,7 +390,7 @@ def test_the_eve_rule_is_understood_from_the_request():
 
 
 def test_the_eve_of_a_reminder_or_appointment_calls_when_away(tmp_path):
-    from jarvis.scheduling.eve import UPCOMING
+    from orion.scheduling.eve import UPCOMING
 
     world = World(tmp_path)
     world.rules.add({"trigger": {"type": "event", "event": "item_tomorrow"}, "conditions": [{"type": "away"}],
@@ -406,8 +406,8 @@ def test_the_eve_of_a_reminder_or_appointment_calls_when_away(tmp_path):
 
 
 def test_eve_watch_announces_once_at_eighteen_the_day_before_never_late():
-    from jarvis.events import EventBus
-    from jarvis.scheduling.eve import UPCOMING, EveWatch
+    from orion.events import EventBus
+    from orion.scheduling.eve import UPCOMING, EveWatch
 
     bus, seen = EventBus(), []
     bus.subscribe(UPCOMING, seen.append)

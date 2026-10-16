@@ -1,4 +1,4 @@
-"""Ce qu'ORION apprend (jarvis/learning.py) : vocabulaire réécrit et donné à Whisper, mot de réveil durci après un
+"""Ce qu'ORION apprend (orion/learning.py) : vocabulaire réécrit et donné à Whisper, mot de réveil durci après un
 faux réveil signalé, jamais de « oui » ou de « non » détourné."""
 
 from __future__ import annotations
@@ -11,10 +11,10 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from jarvis.learning import (  # noqa: E402
+from orion.learning import (  # noqa: E402
     SILENT_LIMIT, WAKE_DECAY, WAKE_MAX_RAISE, WAKE_STEP, Learning, learning_tools,
 )
-from jarvis.tools import PermissionManager, ToolCore, ToolError, ToolRegistry  # noqa: E402
+from orion.tools import PermissionManager, ToolCore, ToolError, ToolRegistry  # noqa: E402
 
 
 class Clock:

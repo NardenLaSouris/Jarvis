@@ -13,12 +13,12 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
-from jarvis.events import ALL, Event, EventBus  # noqa: E402
-from jarvis.routines import (  # noqa: E402
+from orion.events import ALL, Event, EventBus  # noqa: E402
+from orion.routines import (  # noqa: E402
     JsonRoutineStore, MemoryRoutineStore, RoutineEngine, RoutineError, describe, next_time, parse_routine,
 )
-from jarvis.tools import PermissionManager, ToolCore, ToolRegistry, builtin_tools  # noqa: E402
-from jarvis.tools.lights import light_tools  # noqa: E402
+from orion.tools import PermissionManager, ToolCore, ToolRegistry, builtin_tools  # noqa: E402
+from orion.tools.lights import light_tools  # noqa: E402
 from test_lights import FakeDriver, rooms_from  # noqa: E402
 from test_tools import FakeProcesses, FakeVolume, Launcher, Locker  # noqa: E402
 
@@ -176,8 +176,8 @@ def test_day_programme_can_leave_routines_out():
 
 def test_jarvis_starts_with_a_damaged_routines_file_and_keeps_it(tmp_path):
     # Session QA : routines.json abîmé -> exception au démarrage, JARVIS ne démarrait plus (relancé en boucle).
-    from jarvis.persist import load_json_list
-    from jarvis.routines import JsonRoutineStore
+    from orion.persist import load_json_list
+    from orion.routines import JsonRoutineStore
 
     for content in ('[1,2,{"x":', '{"routines": []}', "\x00\xff garbage"):
         path = tmp_path / "routines.json"

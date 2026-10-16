@@ -12,11 +12,11 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from jarvis.scheduling import TimerManager  # noqa: E402
-from jarvis.scheduling.actions import split_schedule  # noqa: E402
-from jarvis.tools.quick import quick_plan  # noqa: E402
-from jarvis.tools.routines import routine_tools  # noqa: E402
-from jarvis.tools.timers import timer_tools  # noqa: E402
+from orion.scheduling import TimerManager  # noqa: E402
+from orion.scheduling.actions import split_schedule  # noqa: E402
+from orion.tools.quick import quick_plan  # noqa: E402
+from orion.tools.routines import routine_tools  # noqa: E402
+from orion.tools.timers import timer_tools  # noqa: E402
 from test_routines import SOIR, Setup  # noqa: E402
 from test_tools import PlannerLLM, routes, run_agent  # noqa: E402
 
@@ -164,7 +164,7 @@ def test_routine_commands_without_llm():
 # --- Régressions de la session red team ------------------------------------------------------------
 
 def test_incoherent_times_are_refused_not_silently_fixed():
-    from jarvis.scheduling.clock import parse_clock
+    from orion.scheduling.clock import parse_clock
 
     assert parse_clock("-3 heures") is None and parse_clock("7 h 60") is None and parse_clock("99 h 99") is None
     assert parse_clock("7 h 30") == (7, 30) and parse_clock("21 heures") == (21, 0) and parse_clock("minuit") == (0, 0)
@@ -172,7 +172,7 @@ def test_incoherent_times_are_refused_not_silently_fixed():
     tools = {t.name: t for t in timer_tools(manager)}
     import pytest
 
-    from jarvis.tools import ToolError
+    from orion.tools import ToolError
 
     for value in ("-3 heures", "7 h 60"):
         with pytest.raises(ToolError):
@@ -182,7 +182,7 @@ def test_incoherent_times_are_refused_not_silently_fixed():
 def test_one_shot_routine_in_the_past_is_refused():
     import pytest
 
-    from jarvis.routines.model import RoutineError
+    from orion.routines.model import RoutineError
 
     setup = Setup(now=NOW)
     with pytest.raises(RoutineError, match="passée"):
@@ -190,3 +190,16 @@ def test_one_shot_routine_in_the_past_is_refused():
                              "actions": [{"type": "say", "text": "x"}]})
     assert setup.engine.create({"name": "y", "trigger": {"type": "at", "at": "2026-10-04T21:00:00"},
                                 "actions": [{"type": "say", "text": "x"}]})["once"] is True
+
+
+
+def test_a_disabled_routine_is_not_run_by_voice_until_reactivated():
+    setup = Setup(routines=[{**SOIR, "id": "soir1", "enabled": False}], now=NOW)
+    for tool in routine_tools(setup.engine):
+        setup.core.registry.register(tool)
+    result = setup.core.submit({"tool": "run_routine", "parameters": {"name": "soir"}}).result
+    assert not result.success and result.error == "routine_disabled"
+    assert result.message == "La routine « Soir » est désactivée. Dites « réactive la routine Soir » pour la remettre en service."
+    assert setup.driver.calls == [] and [r.enabled for r in setup.engine.routines()] == [False]  # ni lancée ni activée
+    assert setup.core.submit({"tool": "enable_routine", "parameters": {"name": "soir"}}).result.success
+    assert setup.core.submit({"tool": "run_routine", "parameters": {"name": "soir"}}).result.success

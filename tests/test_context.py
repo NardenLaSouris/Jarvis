@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from jarvis.context import ConversationContext  # noqa: E402
+from orion.context import ConversationContext  # noqa: E402
 from test_lights import FakeDriver  # noqa: E402
 from test_quick import full_core  # noqa: E402
 from test_tools import FakeVolume, PlannerLLM, make_core, routes, run_agent  # noqa: E402

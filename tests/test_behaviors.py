@@ -12,9 +12,9 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
-from jarvis.learning import Learning, instruction_of, learning_tools  # noqa: E402
-from jarvis.scheduling.actions import split_event  # noqa: E402
-from jarvis.tools import PermissionManager, ToolCore, ToolError, ToolRegistry  # noqa: E402
+from orion.learning import Learning, instruction_of, learning_tools  # noqa: E402
+from orion.scheduling.actions import split_event  # noqa: E402
+from orion.tools import PermissionManager, ToolCore, ToolError, ToolRegistry  # noqa: E402
 
 
 @pytest.mark.parametrize("text, event, command", [
@@ -58,8 +58,8 @@ def test_instructions_never_touch_security(tmp_path, text):
 
 
 def test_agent_adds_a_reaction_and_an_instruction_by_message(tmp_path):
-    from jarvis.routines import RoutineEngine
-    from jarvis.routines.store import MemoryRoutineStore
+    from orion.routines import RoutineEngine
+    from orion.routines.store import MemoryRoutineStore
     from test_tools import PlannerLLM, make_core, run_agent
 
     core = make_core()
@@ -91,7 +91,7 @@ def test_behavior_added_in_free_form_and_recalled_when_it_applies(tmp_path):
 
 
 def test_parameter_errors_are_said_plainly():
-    from jarvis.tools.base import Param, Risk, Tool
+    from orion.tools.base import Param, Risk, Tool
 
     core = ToolCore(ToolRegistry(), PermissionManager())
     core.registry.register(Tool("remember", "Retient.", {"fact": Param(str, "fait", max_length=10)}, {}, Risk.SAFE,

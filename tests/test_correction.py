@@ -11,11 +11,11 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from jarvis.config import load_config  # noqa: E402
-from jarvis.factory import build_corrector, vocabulary_hint  # noqa: E402
-from jarvis.personality import load_personality  # noqa: E402
-from jarvis.stt.correction import sound_key  # noqa: E402
-from jarvis.stt.faster_whisper import FasterWhisperSTT  # noqa: E402
+from orion.config import load_config  # noqa: E402
+from orion.factory import build_corrector, vocabulary_hint  # noqa: E402
+from orion.personality import load_personality  # noqa: E402
+from orion.stt.correction import sound_key  # noqa: E402
+from orion.stt.faster_whisper import FasterWhisperSTT  # noqa: E402
 
 CFG = load_config(ROOT / "config.toml", local=False)
 CORRECTOR = build_corrector(CFG, load_personality(ROOT / "personality.toml"))
@@ -124,8 +124,8 @@ def _vocabulary_checks():
 
 @pytest.mark.parametrize("heard", ["Quel heure est-il ?", "Quelle heure est-il ?"])
 def test_common_grammar_slips_still_route(heard):
-    from jarvis.capabilities import CapabilityRegistry
-    from jarvis.router import IntentRouter
+    from orion.capabilities import CapabilityRegistry
+    from orion.router import IntentRouter
 
     router = IntentRouter(load_personality(ROOT / "personality.toml"), CapabilityRegistry(), tools=("get_time",))
     assert router.route(heard).label == "tool:time"
@@ -133,7 +133,7 @@ def test_common_grammar_slips_still_route(heard):
 
 def test_other_command_verbs_are_never_turned_into_open():
     # Session QA : « Joue Spotify » corrigé en « ouvre spotify » ouvrait l'application au lieu de la musique.
-    from jarvis.stt.correction import CommandCorrector
+    from orion.stt.correction import CommandCorrector
 
     corrector = CommandCorrector({"ouvre": ("ouvre", "lance"), "ferme": ("ferme",)},
                                  {"spotify": "spotify", "steam": "steam", "discord": "discord"})

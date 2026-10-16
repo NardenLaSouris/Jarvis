@@ -6,13 +6,13 @@
   (`STT : matériel détecté -> cpu/int8` au démarrage). Le mini n'a pas de GPU ; l'accélération GPU citée dans la
   demande n'est pas utilisée par le service. Déplacer le STT sur le Katana (RTX 4070) est exclu par une consigne
   antérieure (« Le STT doit rester sur le mini-PC ») : non fait.
-- **Chemin audio** : micro du PC (agent Windows, `jarvis/audio/devices.py`) -> blocs de 80 ms, 16 kHz, int16, mono
-  -> réseau (`jarvis/audio/network.py`, tampon de 30 s) -> mot de réveil -> enregistreur à seuil d'énergie
-  (`jarvis/audio/endpointing.py` : seuil adaptatif au bruit, 3 blocs forts pour commencer, 0,48 s gardés avant,
+- **Chemin audio** : micro du PC (agent Windows, `orion/audio/devices.py`) -> blocs de 80 ms, 16 kHz, int16, mono
+  -> réseau (`orion/audio/network.py`, tampon de 30 s) -> mot de réveil -> enregistreur à seuil d'énergie
+  (`orion/audio/endpointing.py` : seuil adaptatif au bruit, 3 blocs forts pour commencer, 0,48 s gardés avant,
   arrêt après 0,9 s de silence, 15 s au plus ; les 0,32 s écoutées après le mot de réveil lui sont rendues) ->
   `FasterWhisperSTT.transcribe` (phrase entière, français imposé, beam 1, pas de texte précédent, indice de
   vocabulaire en `hotwords`, segments à `no_speech_prob` >= 0,6 écartés) -> correcteur des noms d'applications
-  (`jarvis/stt/correction.py`, existant, non modifié).
+  (`orion/stt/correction.py`, existant, non modifié).
 - **Rééchantillonnage** : aucun en ce moment (le micro accepte 16 kHz). Si un micro le refuse, capture à sa
   fréquence native puis interpolation linéaire **sans filtre** : repliement des aigus dans la bande de la voix.
 - **Micro réellement utilisé par l'agent du PC** : « Microphone (Voicemod Virtual Audio Device) », signalé muet
@@ -36,8 +36,8 @@
 
 | fichier | changement | pourquoi |
 |---|---|---|
-| `jarvis/stt/faster_whisper.py`, `config.py`, `factory.py`, `config.toml` | `[stt] vad_filter` (Silero, fourni avec faster-whisper), activé ; `false` = comportement d'origine | plus de texte inventé sur un silence, mieux sur l'hésitation, sans coût |
-| `jarvis/audio/resample.py` | moyenne glissante avant l'interpolation en réduction de fréquence | repliement des aigus (15 kHz atténué de 25 dB, voix intacte) |
+| `orion/stt/faster_whisper.py`, `config.py`, `factory.py`, `config.toml` | `[stt] vad_filter` (Silero, fourni avec faster-whisper), activé ; `false` = comportement d'origine | plus de texte inventé sur un silence, mieux sur l'hésitation, sans coût |
+| `orion/audio/resample.py` | moyenne glissante avant l'interpolation en réduction de fréquence | repliement des aigus (15 kHz atténué de 25 dB, voix intacte) |
 | `research/stt/corpus.py`, `bench.py`, `determinisme.py` | corpus synthétique, banc (WER, latence, texte inventé, segmentation), test de reproductibilité | mesures |
 | `tests/test_stt_options.py`, `tests/test_reliability.py`, `tests/test_correction.py` | options transmises à Whisper, segments sans parole écartés, rééchantillonnage | non-régression |
 

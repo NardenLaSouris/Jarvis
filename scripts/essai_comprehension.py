@@ -1,7 +1,7 @@
 """Essai en lecture seule de la compréhension avec le vrai LLM : règles d'appel et échéances de mails.
 
 Rien n'est enregistré dans ORION (dossier temporaire, aucun rappel réel, aucun appel) :
-    cd /opt/jarvis && .venv/bin/python scripts/essai_comprehension.py
+    cd /opt/orion && .venv/bin/python scripts/essai_comprehension.py
 """
 
 from __future__ import annotations
@@ -14,16 +14,16 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from jarvis.call.rule_parser import RuleParser, RuleQuestion  # noqa: E402
-from jarvis.call.rules import RuleError, describe_rule  # noqa: E402
-from jarvis.config import load_config  # noqa: E402
-from jarvis.events import EventBus  # noqa: E402
-from jarvis.factory import build_llm  # noqa: E402
-from jarvis.mail.actions import MailActions  # noqa: E402
-from jarvis.mail.models import MailMessage  # noqa: E402
-from jarvis.mail.provider import MemoryMailProvider  # noqa: E402
-from jarvis.mail.tools import MailBox  # noqa: E402
-from jarvis.scheduling.manager import TimerManager  # noqa: E402
+from orion.call.rule_parser import RuleParser, RuleQuestion  # noqa: E402
+from orion.call.rules import RuleError, describe_rule  # noqa: E402
+from orion.config import load_config  # noqa: E402
+from orion.events import EventBus  # noqa: E402
+from orion.factory import build_llm  # noqa: E402
+from orion.mail.actions import MailActions  # noqa: E402
+from orion.mail.models import MailMessage  # noqa: E402
+from orion.mail.provider import MemoryMailProvider  # noqa: E402
+from orion.mail.tools import MailBox  # noqa: E402
+from orion.scheduling.manager import TimerManager  # noqa: E402
 
 RULES = [
     "Appelle-moi quand je ne suis pas à la maison et qu'un rappel arrive à échéance.",

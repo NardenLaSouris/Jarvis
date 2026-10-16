@@ -18,21 +18,21 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from jarvis.agent import Agent, AgentSettings, without_urls  # noqa: E402
-from jarvis.audio.endpointing import EndpointerSettings, UtteranceRecorder  # noqa: E402
-from jarvis.audio.files import ArraySource, RecordingSink  # noqa: E402
-from jarvis.capabilities import CapabilityRegistry  # noqa: E402
-from jarvis.config import load_config  # noqa: E402
-from jarvis.factory import build_web  # noqa: E402
-from jarvis.personality import load_personality  # noqa: E402
-from jarvis.router import IntentRouter  # noqa: E402
-from jarvis.web.base import SearchResult, WebSearchError  # noqa: E402
-from jarvis.web.fetch import PageFetcher, extract_text, is_public_url  # noqa: E402
-from jarvis.prompts import WEB_RULES  # noqa: E402
-from jarvis.web.research import (  # noqa: E402
+from orion.agent import Agent, AgentSettings, without_urls  # noqa: E402
+from orion.audio.endpointing import EndpointerSettings, UtteranceRecorder  # noqa: E402
+from orion.audio.files import ArraySource, RecordingSink  # noqa: E402
+from orion.capabilities import CapabilityRegistry  # noqa: E402
+from orion.config import load_config  # noqa: E402
+from orion.factory import build_web  # noqa: E402
+from orion.personality import load_personality  # noqa: E402
+from orion.router import IntentRouter  # noqa: E402
+from orion.web.base import SearchResult, WebSearchError  # noqa: E402
+from orion.web.fetch import PageFetcher, extract_text, is_public_url  # noqa: E402
+from orion.prompts import WEB_RULES  # noqa: E402
+from orion.web.research import (  # noqa: E402
     DATA_END, DATA_START, WebContext, WebResearch, WebSearchCapability, search_query, select_relevant,
 )
-from jarvis.web.searxng import SearXNGProvider  # noqa: E402
+from orion.web.searxng import SearXNGProvider  # noqa: E402
 
 PERSONALITY = load_personality(ROOT / "personality.toml")
 PUBLIC = lambda host: ["93.184.216.34"]  # noqa: E731
@@ -488,7 +488,7 @@ def test_an_unreadable_page_falls_back_to_the_next_result():
 
 
 def test_web_answers_are_polished_before_being_spoken():
-    from jarvis.agent import polish_web_sentence
+    from orion.agent import polish_web_sentence
 
     question = "Jarvis, combien coûte une RTX 3060 ?"
     assert polish_web_sentence("JARVIS : Environ 279 €, selon www.idealo.fr.", question, first=True) == "Environ 279 €, selon."
@@ -497,7 +497,7 @@ def test_web_answers_are_polished_before_being_spoken():
 
 
 def test_web_test_command(capsys):
-    from jarvis.__main__ import web_test
+    from orion.__main__ import web_test
 
     cfg = load_config(ROOT / "config.toml", local=False)
     results = rtx_results()

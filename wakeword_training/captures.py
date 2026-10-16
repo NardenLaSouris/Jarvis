@@ -1,4 +1,4 @@
-"""Réveils capturés en service (jarvis/wakeword/captures.py) -> enregistrements réels de l'entraînement.
+"""Réveils capturés en service (orion/wakeword/captures.py) -> enregistrements réels de l'entraînement.
 
 - réveil sans suite ou écarté par la vérification : mot piège réel (``real/negative``), le plus utile pour
   apprendre les voix de jeu, de Discord ou de télévision de la maison ;
@@ -14,7 +14,7 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
-from jarvis.wakeword.captures import load_captures
+from orion.wakeword.captures import load_captures
 from wakeword_training.spec import Spec
 
 

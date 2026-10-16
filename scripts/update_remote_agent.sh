@@ -3,7 +3,7 @@
 #
 #   scripts/update_remote_agent.sh theju@192.168.1.73 ~/.ssh/id_ed25519_katana
 #
-# - Copie jarvis/, windows_agent.toml et scripts/ (git archive : seulement les fichiers versionnés, aucun secret ;
+# - Copie orion/ (et le renvoi jarvis/), windows_agent.toml et scripts/ (git archive : seulement les fichiers versionnés, aucun secret ;
 #   .env et windows_agent.local.toml de la machine sont conservés).
 # - Relance l'agent par une tâche planifiée temporaire en session interactive : un processus lancé par SSH meurt
 #   à la fin de la session, et l'agent doit pouvoir ouvrir des fenêtres sur le bureau.
@@ -14,16 +14,16 @@ ssh_opts=(-o ConnectTimeout=10)
 [ -n "$key" ] && ssh_opts+=(-i "$key")
 root="$(cd "$(dirname "$0")/.." && pwd)"
 archive="$(mktemp)"
-git -C "$root" archive --format=tar HEAD jarvis windows_agent.toml scripts > "$archive"
+git -C "$root" archive --format=tar HEAD orion jarvis windows_agent.toml scripts > "$archive"
 scp -q "${ssh_opts[@]}" "$archive" "$host:jarvis_agent.tar"
 rm -f "$archive"
 read -r -d '' script <<'PS' || true
 $dir = "$env:USERPROFILE\jarvis"
 Set-Location $dir
-Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match "jarvis.winagent" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match "(jarvis|orion).winagent" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
 tar -xf "$env:USERPROFILE\jarvis_agent.tar"
 Remove-Item "$env:USERPROFILE\jarvis_agent.tar"
-$action = New-ScheduledTaskAction -Execute "$dir\.venv\Scripts\pythonw.exe" -Argument "-m jarvis.winagent --log-file data\winagent.log" -WorkingDirectory $dir
+$action = New-ScheduledTaskAction -Execute "$dir\.venv\Scripts\pythonw.exe" -Argument "-m orion.winagent --log-file data\winagent.log" -WorkingDirectory $dir
 $principal = New-ScheduledTaskPrincipal -UserId ([System.Security.Principal.WindowsIdentity]::GetCurrent().Name) -LogonType Interactive
 Register-ScheduledTask -TaskName "ORION Agent relance" -Action $action -Principal $principal -Force | Out-Null
 Start-ScheduledTask -TaskName "ORION Agent relance"

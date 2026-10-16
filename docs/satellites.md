@@ -17,7 +17,7 @@
 
 1. **Un satellite = un petit appareil qui sert ces 4 points d'accès**, sans aucune intelligence : Raspberry Pi
    Zero 2 W ou Pi 3/4 avec un micro USB ou une carte ReSpeaker 2-Mic, et un petit haut-parleur. Le code de l'agent
-   Windows (`jarvis/winagent/server.py`, `audio.py`) devrait tourner sous Linux avec `sounddevice` (à vérifier) ;
+   Windows (`orion/winagent/server.py`, `audio.py`) devrait tourner sous Linux avec `sounddevice` (à vérifier) ;
    la partie « applications Windows » est à exclure.
 2. **Premier palier : un seul satellite** à la place du PC fixe (`[audio] remote = "http://<satellite>:8765"`) :
    aucun changement du Core. Flux continu 16 kHz = 32 ko/s, négligeable en Wi-Fi.

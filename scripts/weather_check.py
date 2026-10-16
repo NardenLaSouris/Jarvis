@@ -11,9 +11,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from jarvis.config import load_config  # noqa: E402
-from jarvis.factory import build_weather  # noqa: E402
-from jarvis.weather import WeatherError  # noqa: E402
+from orion.config import load_config  # noqa: E402
+from orion.factory import build_weather  # noqa: E402
+from orion.weather import WeatherError  # noqa: E402
 
 
 def main() -> int:

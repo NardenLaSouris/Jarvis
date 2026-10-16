@@ -1,10 +1,10 @@
 #!/bin/bash
 # Mise en service de la passerelle d'appel d'ORION (orion-call) sur le mini-PC. À lancer par vous, avec sudo :
-#   sudo bash /opt/jarvis/deploy/appels.sh <compte SIP d'ORION> <votre adresse Linphone>
-#   ex. : sudo bash /opt/jarvis/deploy/appels.sh orionproject sip:vous@sip.linphone.org
+#   sudo bash /opt/orion/deploy/appels.sh <compte SIP d'ORION> <votre adresse Linphone>
+#   ex. : sudo bash /opt/orion/deploy/appels.sh orionproject sip:vous@sip.linphone.org
 # Mise à jour du code après un « git pull » (sans sudo pour la copie, relance sans mot de passe) :
-#   bash /opt/jarvis/deploy/appels.sh --code
-# Retour arrière : sudo bash /opt/jarvis/deploy/appels_annuler.sh
+#   bash /opt/orion/deploy/appels.sh --code
+# Retour arrière : sudo bash /opt/orion/deploy/appels_annuler.sh
 #
 # Effet : compte système « orion-call » (sans shell ni groupe privilégié), environnement Python à part
 # (/opt/orion-call/venv, versions figées de requirements-call.txt), seulement les fichiers d'ORION utiles à la
@@ -13,7 +13,7 @@
 # /var/lib/orion-call, service systemd durci, port 8770 ouvert à la maison et au VPN seulement.
 set -euo pipefail
 
-ROOT=/opt/jarvis
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"  # dossier du dépôt (/opt/orion, ou /opt/jarvis avant la migration)
 BASE=/opt/orion-call
 DATA=/var/lib/orion-call
 CONF=/etc/orion-call
@@ -21,17 +21,23 @@ DEPLOY_USER=user
 VPN_PHONE=192.168.27.65  # iPhone par le VPN WireGuard de la Freebox (adresse fixe)
 
 copy_code() {  # fichiers d'ORION utiles à la passerelle, rien d'autre (ni Core, ni configuration, ni secrets)
-    for d in "$BASE/lib" "$BASE/lib/jarvis" "$BASE/lib/jarvis/call"; do
+    for d in "$BASE/lib" "$BASE/lib/orion" "$BASE/lib/orion/call" "$BASE/lib/jarvis" "$BASE/lib/jarvis/call"; do
         install -d -m 750 -o "$DEPLOY_USER" -g orion-call "$d"
     done
-    for f in __init__.py net.py persist.py config.py; do
-        install -m 640 -o "$DEPLOY_USER" -g orion-call "$ROOT/jarvis/$f" "$BASE/lib/jarvis/$f"
+    for f in __init__.py net.py persist.py config.py trace.py; do
+        install -m 640 -o "$DEPLOY_USER" -g orion-call "$ROOT/orion/$f" "$BASE/lib/orion/$f"
     done
+    install -m 640 -o "$DEPLOY_USER" -g orion-call "$ROOT"/orion/call/*.py "$BASE/lib/orion/call/"
+    # Ancien nom (unité installée avant la migration : « -m jarvis.call.gateway ») : simple renvoi vers orion.
+    install -m 640 -o "$DEPLOY_USER" -g orion-call "$ROOT/jarvis/__init__.py" "$BASE/lib/jarvis/__init__.py"
     install -m 640 -o "$DEPLOY_USER" -g orion-call "$ROOT"/jarvis/call/*.py "$BASE/lib/jarvis/call/"
 }
 
 if [ "${1:-}" = "--code" ]; then  # mise à jour : copie (vous êtes propriétaire de lib), puis relance
-    for f in __init__.py net.py persist.py config.py; do cp "$ROOT/jarvis/$f" "$BASE/lib/jarvis/$f"; done
+    mkdir -p "$BASE/lib/orion/call" "$BASE/lib/jarvis/call"
+    for f in __init__.py net.py persist.py config.py trace.py; do cp "$ROOT/orion/$f" "$BASE/lib/orion/$f"; done
+    cp "$ROOT"/orion/call/*.py "$BASE/lib/orion/call/"
+    cp "$ROOT/jarvis/__init__.py" "$BASE/lib/jarvis/__init__.py"  # ancien nom : renvoi vers orion
     cp "$ROOT"/jarvis/call/*.py "$BASE/lib/jarvis/call/"
     sudo -n systemctl restart orion-call && sleep 3 && systemctl is-active orion-call
     exit 0
@@ -55,7 +61,7 @@ install -d -m 755 -o root -g root "$BASE"
 "$BASE/venv/bin/pip" install -q -r "$ROOT/requirements-call.txt"
 "$BASE/venv/bin/python" -c "import aiortc, av, pylibsrtp, numpy; print('   aiortc', aiortc.__version__, '| av', av.__version__)"
 
-echo "3. Code de la passerelle (seulement jarvis/call et ses 4 modules de base)"
+echo "3. Code de la passerelle (seulement orion/call et ses 4 modules de base)"
 copy_code
 
 echo "4. Données et secrets"
@@ -107,7 +113,7 @@ Group=orion-call
 WorkingDirectory=$BASE
 Environment=PYTHONPATH=$BASE/lib PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 TZ=Europe/Paris
 EnvironmentFile=$CONF/env
-ExecStart=$BASE/venv/bin/python -m jarvis.call.gateway --config $CONF/call.toml
+ExecStart=$BASE/venv/bin/python -m orion.call.gateway --config $CONF/call.toml
 Restart=on-failure
 RestartSec=10
 NoNewPrivileges=yes

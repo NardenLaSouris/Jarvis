@@ -18,20 +18,20 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
-from jarvis.activity import ActivityLog, JsonlActivityStore  # noqa: E402
-from jarvis.capabilities import CapabilityRegistry  # noqa: E402
-from jarvis.config import load_config  # noqa: E402
-from jarvis.events import ALL, EventBus  # noqa: E402
-from jarvis.factory import build_weather  # noqa: E402
-from jarvis.personality import load_personality  # noqa: E402
-from jarvis.router import IntentRouter  # noqa: E402
-from jarvis.tools import CONFIRM, DONE, REJECTED, PermissionManager, Risk, ToolCore, ToolRegistry, plan  # noqa: E402
-from jarvis.tools.planner import plan_schema  # noqa: E402
-from jarvis.tools.weather import weather_tool  # noqa: E402
-from jarvis.weather import (  # noqa: E402
+from orion.activity import ActivityLog, JsonlActivityStore  # noqa: E402
+from orion.capabilities import CapabilityRegistry  # noqa: E402
+from orion.config import load_config  # noqa: E402
+from orion.events import ALL, EventBus  # noqa: E402
+from orion.factory import build_weather  # noqa: E402
+from orion.personality import load_personality  # noqa: E402
+from orion.router import IntentRouter  # noqa: E402
+from orion.tools import CONFIRM, DONE, REJECTED, PermissionManager, Risk, ToolCore, ToolRegistry, plan  # noqa: E402
+from orion.tools.planner import plan_schema  # noqa: E402
+from orion.tools.weather import weather_tool  # noqa: E402
+from orion.weather import (  # noqa: E402
     Location, OpenMeteoProvider, WeatherCurrent, WeatherError, WeatherService, condition, period,
 )
-from jarvis.weather.models import HourlyPoint, summarize  # noqa: E402
+from orion.weather.models import HourlyPoint, summarize  # noqa: E402
 
 PERSONALITY = load_personality(ROOT / "personality.toml")
 NOW = datetime(2026, 10, 2, 15, 20)
@@ -471,7 +471,7 @@ def test_configuration():
 
 
 def test_rain_risk_is_deterministic():
-    from jarvis.tools.weather import _rain_risk
+    from orion.tools.weather import _rain_risk
 
     assert [_rain_risk(p) for p in (0, 29, 30, 59, 60, 100)] == ["faible", "faible", "possible", "possible",
                                                                 "probable", "probable"]
@@ -479,7 +479,7 @@ def test_rain_risk_is_deterministic():
 
 
 def test_temperatures_end_sentences_so_answers_stay_short():
-    from jarvis.streaming import split_sentences
+    from orion.streaming import split_sentences
 
     assert split_sentences("Demain il fera 24°C. Il y aura 23% de pluie. Le vent sera faible.") == [
         "Demain il fera 24°C.", "Il y aura 23% de pluie.", "Le vent sera faible."]
@@ -568,7 +568,7 @@ def test_coordinates_and_unit_come_from_configuration():
     ("tous les demains", None), ("Zzyxqwvill", None), ("Tokyo", None), ("ab", None),
 ])
 def test_closest_french_city(heard, city):
-    from jarvis.weather.cities import closest_city
+    from orion.weather.cities import closest_city
 
     assert closest_city(heard) == city
 
@@ -609,7 +609,7 @@ def test_city_fallback_keeps_network_errors():
 
 
 def test_weather_is_spoken_without_the_llm():
-    from jarvis.tools.weather import weather_said
+    from orion.tools.weather import weather_said
 
     units = {"temperature": "°C"}
     assert weather_said({"type": "current", "location": "Nantes", "condition_text": "ciel couvert", "temperature": 17,
@@ -630,7 +630,7 @@ def test_weather_is_spoken_without_the_llm():
     ("Les paris sportifs", None), ("C'est nice", None), ("Trois tours de piste", None), ("Quel temps fait-il ?", None),
 ])
 def test_city_mentioned_as_a_place(text, city):
-    from jarvis.weather.cities import mentioned_city
+    from orion.weather.cities import mentioned_city
 
     assert mentioned_city(text) == city
 

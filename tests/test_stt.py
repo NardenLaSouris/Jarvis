@@ -14,9 +14,9 @@ import numpy as np
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-import jarvis.stt.faster_whisper as fw  # noqa: E402
-from jarvis.config import load_config  # noqa: E402
-from jarvis.factory import build_stt  # noqa: E402
+import orion.stt.faster_whisper as fw  # noqa: E402
+from orion.config import load_config  # noqa: E402
+from orion.factory import build_stt  # noqa: E402
 
 CFG = load_config(ROOT / "config.toml", local=False)
 

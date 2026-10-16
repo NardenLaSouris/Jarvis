@@ -10,9 +10,9 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
-import jarvis.diagnostics as diagnostics  # noqa: E402
-from jarvis.config import load_config  # noqa: E402
-from jarvis.diagnostics import FAIL, OK, WARN, Check, diagnostic_tool  # noqa: E402
+import orion.diagnostics as diagnostics  # noqa: E402
+from orion.config import load_config  # noqa: E402
+from orion.diagnostics import FAIL, OK, WARN, Check, diagnostic_tool  # noqa: E402
 
 
 def tool_with(monkeypatch, checks, **extra):
@@ -47,7 +47,7 @@ def test_agent_runs_the_diagnostic_instead_of_spotify(monkeypatch):
 def test_devices_online_offline_open_apps_phone_and_lights(monkeypatch):
     from types import SimpleNamespace
 
-    from jarvis.tools.devices import load_devices
+    from orion.tools.devices import load_devices
 
     devices = load_devices({"pc": {"name": "votre PC", "url": "http://192.0.2.10:8765", "default": True},
                             "portable": {"name": "votre PC portable", "url": "http://192.0.2.11:8765"},

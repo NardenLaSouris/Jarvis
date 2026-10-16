@@ -9,14 +9,14 @@ Linphone transporte les appels ; le Core décide.
 
 | Rôle | Où | Fichier |
 | --- | --- | --- |
-| Compte SIP d'ORION, appels, son chiffré, messages | passerelle `orion-call` (service système) | `jarvis/call/sip.py`, `linphone.py`, `rtp.py`, `gateway.py` |
-| Un appel : demande, sonnerie, décroché, fin, limites anti-harcèlement | Core | `jarvis/call/manager.py`, `limits.py`, `session.py` |
-| Règles d'appel, appels déclenchés, tentatives, accusé « c'est noté » | Core | `jarvis/call/rules.py` |
-| Phrase -> règle (LLM en valeurs fermées, vérifié par le Core) | Core | `jarvis/call/rule_parser.py`, `rule_tools.py` |
-| « Je sors » | Core | `jarvis/presence/declaration.py`, `presence/engine.py`, `presence/tools.py` |
-| Rappels (date absolue, clé, report gardé) | Core | `jarvis/scheduling/manager.py`, `tools/timers.py` |
-| Échéances des mails, rappels J-1 / H-1 h 30, suivi des fils | Core | `jarvis/mail/actions.py`, `deadlines.py` |
-| Dates dites ou écrites en français | Core | `jarvis/scheduling/when.py` |
+| Compte SIP d'ORION, appels, son chiffré, messages | passerelle `orion-call` (service système) | `orion/call/sip.py`, `linphone.py`, `rtp.py`, `gateway.py` |
+| Un appel : demande, sonnerie, décroché, fin, limites anti-harcèlement | Core | `orion/call/manager.py`, `limits.py`, `session.py` |
+| Règles d'appel, appels déclenchés, tentatives, accusé « c'est noté » | Core | `orion/call/rules.py` |
+| Phrase -> règle (LLM en valeurs fermées, vérifié par le Core) | Core | `orion/call/rule_parser.py`, `rule_tools.py` |
+| « Je sors » | Core | `orion/presence/declaration.py`, `presence/engine.py`, `presence/tools.py` |
+| Rappels (date absolue, clé, report gardé) | Core | `orion/scheduling/manager.py`, `tools/timers.py` |
+| Échéances des mails, rappels J-1 / H-1 h 30, suivi des fils | Core | `orion/mail/actions.py`, `deadlines.py` |
+| Dates dites ou écrites en français | Core | `orion/scheduling/when.py` |
 
 Aucun service supplémentaire, aucune nouvelle dépendance, aucun port ouvert sur Internet. Les règles,
 les appels déclenchés et le suivi des mails sont enregistrés à côté de la mémoire d'ORION (`data/`) :
@@ -147,7 +147,7 @@ ou par message Linphone. « Présente-toi » garde sa réponse courte habituelle
 - Réglages `[call] flex` et `flex_delay_seconds`. « Désactive le mode Flex » / « Active le mode Flex ». La règle
   apparaît aussi dans « Quelles sont mes règles d'appel ? ».
 
-La présentation est écrite par le Core (`jarvis/flex.py`) à partir de l'inventaire de ce qui est réellement branché,
+La présentation est écrite par le Core (`orion/flex.py`) à partir de l'inventaire de ce qui est réellement branché,
 jamais par le LLM. L'inventaire vient des outils enregistrés, des appareils déclarés, des lumières, des capteurs de
 présence, des appels, du suivi des mails, de la recherche et de l'apprentissage. Il classe chaque fonction comme :
 - opérationnelle ;
@@ -168,7 +168,7 @@ prononcer votre prénom.
 Sur le mini-PC (jamais sur le PC de jeu) :
 
 ```bash
-cd ~/v2-test && /opt/jarvis/.venv/bin/python -m pytest -q tests
+cd ~/v2-test && /opt/orion/.venv/bin/python -m pytest -q tests
 ```
 
 Fichiers propres à ces fonctions :
@@ -221,7 +221,7 @@ Les tests automatiques ne prouvent rien sur le vrai téléphone. Pour chaque ess
 
 ## Déploiement
 
-Le code est déployé comme le reste d'ORION (`git pull` dans `/opt/jarvis`, puis `sudo -n systemctl restart orion`).
+Le code est déployé comme le reste d'ORION (`git pull` dans `/opt/orion`, puis `sudo -n systemctl restart orion`).
 Aucune nouvelle configuration n'est nécessaire. Les appels automatiques n'existent que par les règles que vous
 créez, chacune avec votre « oui ». Le déclencheur d'absence de `[call] away_events` reste vide tant que vous ne le
 demandez pas.
@@ -229,7 +229,7 @@ demandez pas.
 Retour arrière (le code d'avant cette mission est le commit `a202fdb`) :
 
 ```bash
-cd /opt/jarvis && git checkout a202fdb && sudo -n systemctl restart orion
+cd /opt/orion && git checkout a202fdb && sudo -n systemctl restart orion
 ```
 
 Les fichiers `data/call_rules.json` et `data/mail_actions.json` sont alors ignorés ; les supprimer n'est pas

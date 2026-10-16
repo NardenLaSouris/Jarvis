@@ -15,9 +15,9 @@ from pathlib import Path
 
 import numpy as np
 
-from jarvis.audio.devices import MicrophoneSource
-from jarvis.audio.files import write_wav
-from jarvis.config import load_config
+from orion.audio.devices import MicrophoneSource
+from orion.audio.files import write_wav
+from orion.config import load_config
 from wakeword_training.spec import ROOT, Spec
 
 DISTANCES = ["près du micro (~50 cm)", "à distance normale (~1,5 m)", "loin, depuis l'autre bout de la pièce (~3 m)"]

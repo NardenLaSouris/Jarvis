@@ -9,8 +9,8 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from jarvis.audio.voicefx import ProcessedTTS, VoiceEffect, VoiceEffectSettings, with_effect  # noqa: E402
-from jarvis.config import load_config  # noqa: E402
+from orion.audio.voicefx import ProcessedTTS, VoiceEffect, VoiceEffectSettings, with_effect  # noqa: E402
+from orion.config import load_config  # noqa: E402
 
 
 def voice_like(rate: int = 22050, seconds: float = 1.5) -> np.ndarray:

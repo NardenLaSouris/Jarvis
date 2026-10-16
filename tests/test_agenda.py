@@ -13,9 +13,9 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from jarvis.agenda import Calendar, IcsCalendar, LocalCalendar, calendar_tools, parse_ics  # noqa: E402
-from jarvis.tools import PermissionManager, ToolCore, ToolRegistry  # noqa: E402
-from jarvis.tools.quick import quick_plan  # noqa: E402
+from orion.agenda import Calendar, IcsCalendar, LocalCalendar, calendar_tools, parse_ics  # noqa: E402
+from orion.tools import PermissionManager, ToolCore, ToolRegistry  # noqa: E402
+from orion.tools.quick import quick_plan  # noqa: E402
 
 NOW = datetime(2026, 10, 5, 9, 30)  # lundi
 ICS = """BEGIN:VCALENDAR
@@ -158,7 +158,7 @@ def test_named_time_zones_are_converted_to_local_time():
 def test_recurrences_are_expanded_with_exceptions_and_limits(tmp_path):
     from zoneinfo import ZoneInfo
 
-    from jarvis.agenda import occurrences
+    from orion.agenda import occurrences
 
     def paris(*args):  # heure de Paris vue depuis le fuseau de la machine qui lance les tests
         return datetime(*args, tzinfo=ZoneInfo("Europe/Paris")).astimezone().replace(tzinfo=None)
@@ -190,7 +190,7 @@ def test_recurring_event_appears_on_the_right_day_through_the_tools(tmp_path):
 import pytest  # noqa: E402
 from datetime import date  # noqa: E402
 
-from jarvis.agenda import said_date, said_moment  # noqa: E402
+from orion.agenda import said_date, said_moment  # noqa: E402
 
 
 @pytest.mark.parametrize("text, expected", [
@@ -231,7 +231,7 @@ def test_free_slots_of_an_afternoon(tmp_path):
 
 def test_an_invented_duration_is_dropped_not_the_whole_event(tmp_path):
     # Session QA : le LLM ajoutait « duration: 1 heure » jamais dit : rendez-vous refusé (« pas encore disponible »).
-    from jarvis.tools.planner import _grounded
+    from orion.tools.planner import _grounded
 
     calendar, local, core = setup(tmp_path)
     call = {"type": "tool_call", "tool": "add_event",
@@ -256,7 +256,7 @@ def test_an_invented_duration_is_dropped_not_the_whole_event(tmp_path):
     ("Quelle heure est-il ?", None),
 ])
 def test_periods_said_in_words(text, expected):
-    from jarvis.agenda import said_range
+    from orion.agenda import said_range
 
     assert said_range(text, date(2026, 10, 16)) == expected
 
@@ -267,7 +267,7 @@ def test_an_all_day_period_is_added_from_the_request(tmp_path):
     _sys.path.insert(0, str(Path(__file__).resolve().parent))
     from test_tools import PlannerLLM  # noqa: E402
 
-    from jarvis.tools.planner import plan
+    from orion.tools.planner import plan
 
     calendar, local, core = setup(tmp_path)
     text = "Ajoute dans mon agenda « log 92 » entre le 20 et le 28"

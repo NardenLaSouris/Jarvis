@@ -10,11 +10,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from jarvis.spotify import TOKEN_URL, SpotifyClient, login, pkce_pair, spotify_tools  # noqa: E402
+from orion.spotify import TOKEN_URL, SpotifyClient, login, pkce_pair, spotify_tools  # noqa: E402
 import pytest  # noqa: E402
 
-from jarvis.tools import PermissionManager, ToolCore, ToolError, ToolRegistry  # noqa: E402
-from jarvis.tools.quick import quick_plan  # noqa: E402
+from orion.tools import PermissionManager, ToolCore, ToolError, ToolRegistry  # noqa: E402
+from orion.tools.quick import quick_plan  # noqa: E402
 
 
 class FakeSpotify:
@@ -94,7 +94,7 @@ def test_expired_token_is_refreshed_and_saved(tmp_path):
 
 
 def test_login_checks_the_state_and_stores_the_token(tmp_path, monkeypatch):
-    import jarvis.spotify as module
+    import orion.spotify as module
 
     fake = FakeSpotify()
     shown = []
@@ -141,7 +141,7 @@ def test_search_never_asks_for_extra_scopes(tmp_path):
 # --- Filtre de cohérence ---------------------------------------------------------------------------
 
 def test_coherence_filter_picks_the_requested_track_or_nothing():
-    from jarvis.spotify import best_match, split_title_artist
+    from orion.spotify import best_match, split_title_artist
 
     items = [{"name": "Remember The Name (feat. Eminem & 50 Cent)", "artists": [{"name": "Ed Sheeran"}], "uri": "a"},
              {"name": "Without Me", "artists": [{"name": "Eminem"}], "uri": "b"},
@@ -153,8 +153,8 @@ def test_coherence_filter_picks_the_requested_track_or_nothing():
 
 
 def test_words_invented_by_the_llm_are_removed_from_the_search():
-    from jarvis.spotify import _said_words
-    from jarvis.tools.planner import plan
+    from orion.spotify import _said_words
+    from orion.tools.planner import plan
 
     assert _said_words("Butterfly Without Me Eminem", "Mais without me de Eminem sur Spotify") == "Without Me Eminem"
     assert _said_words("Butterfly", "Mets without me") is None
@@ -205,7 +205,7 @@ def test_misheard_mets_plays_the_right_track_and_questions_still_get_answers(tmp
 # --- Titres étrangers (transcription phonétique) et catalogue --------------------------------------
 
 def test_foreign_titles_heard_in_french_still_match():
-    from jarvis.spotify import best_match
+    from orion.spotify import best_match
 
     items = [{"name": "Astroboy", "artists": [{"name": "Indochine"}], "uri": "x"},
              {"name": "Du hast", "artists": [{"name": "Rammstein"}], "uri": "dh"},
@@ -220,7 +220,7 @@ def test_foreign_titles_heard_in_french_still_match():
 
 
 def test_title_containing_de_is_split_both_ways():
-    from jarvis.spotify import title_artist_splits
+    from orion.spotify import title_artist_splits
 
     assert title_artist_splits("nu ma las de limba noastra de O-Zone") == [
         ("nu ma las de limba noastra", "O-Zone"), ("nu ma las", "limba noastra de O-Zone"),
@@ -228,7 +228,7 @@ def test_title_containing_de_is_split_both_ways():
 
 
 def test_catalog_is_built_from_your_playlists_and_searched_first(tmp_path):
-    from jarvis.spotify import SpotifyCatalog
+    from orion.spotify import SpotifyCatalog
 
     class WithPlaylist(FakeSpotify):
         def __call__(self, method, url, headers, body, timeout):
@@ -250,7 +250,7 @@ def test_catalog_is_built_from_your_playlists_and_searched_first(tmp_path):
 
 
 def test_quick_music_commands_for_foreign_titles(tmp_path):
-    from jarvis.tools.quick import quick_plan
+    from orion.tools.quick import quick_plan
 
     registry = ToolRegistry()
     for tool in spotify_tools(client(tmp_path, FakeSpotify())):
@@ -263,7 +263,7 @@ def test_quick_music_commands_for_foreign_titles(tmp_path):
 
 
 def test_close_sounds_but_different_words_are_rejected():
-    from jarvis.phonetic import coverage
+    from orion.phonetic import coverage
 
     assert coverage("mein herz brent", "Rein raus") == 0.0
     assert coverage("dou ast", "Mon cœur bat vite") < 0.75
@@ -271,7 +271,7 @@ def test_close_sounds_but_different_words_are_rejected():
 
 
 def test_spotify_volume_and_play_spotify_are_not_confused_with_the_pc(tmp_path):
-    from jarvis.tools.quick import quick_plan
+    from orion.tools.quick import quick_plan
     from test_tools import make_core
 
     core = make_core()
@@ -330,7 +330,7 @@ def test_slow_or_unreachable_spotify_is_reported(tmp_path):
 
 
 def test_track_with_a_volume_sets_the_spotify_volume_not_the_pc(tmp_path):
-    from jarvis.tools.quick import quick_plan
+    from orion.tools.quick import quick_plan
     from test_tools import make_core
 
     core = make_core()
@@ -435,7 +435,7 @@ def test_music_status_is_read_not_guessed(tmp_path):
 def test_followed_playlists_are_skipped_without_asking(tmp_path):
     # Les playlists suivies (pas à vous) répondent 403 : une vingtaine d'avertissements à chaque mise à jour du
     # catalogue. Elles sont ignorées d'emblée.
-    from jarvis.spotify import SpotifyCatalog
+    from orion.spotify import SpotifyCatalog
 
     class Owned(FakeSpotify):
         def __call__(self, method, url, headers, body, timeout):
@@ -460,15 +460,15 @@ def test_followed_playlists_are_skipped_without_asking(tmp_path):
     assert not any("/theirs/" in u for u in asked)
 
 
-@pytest.mark.parametrize("system, command", [(False, ["systemctl", "--user", "restart", "jarvis-librespot"]),
-                                             (True, ["systemctl", "restart", "jarvis-librespot"])])
+@pytest.mark.parametrize("system, command", [(False, ["systemctl", "--user", "restart", "orion-librespot"]),
+                                             (True, ["systemctl", "restart", "orion-librespot"])])
 def test_player_revive_command_follows_service_scope(tmp_path, monkeypatch, system, command):
     import dataclasses
     import subprocess
 
-    import jarvis.factory as factory
-    import jarvis.spotify as spotify_module
-    from jarvis.config import load_config
+    import orion.factory as factory
+    import orion.spotify as spotify_module
+    from orion.config import load_config
 
     token = tmp_path / "token.json"
     token.write_text("{}", encoding="utf-8")
@@ -478,6 +478,6 @@ def test_player_revive_command_follows_service_scope(tmp_path, monkeypatch, syst
     monkeypatch.setattr(subprocess, "run", lambda args, **kw: calls.append(args))
     cfg = load_config(ROOT / "config.toml", local=False)
     cfg = dataclasses.replace(cfg, spotify=dataclasses.replace(cfg.spotify, token_path=token, device="ORION",
-                                                              player_service="jarvis-librespot", player_system=system))
+                                                              player_service="orion-librespot", player_system=system))
     factory.build_spotify(cfg).revive()
     assert calls == [command]

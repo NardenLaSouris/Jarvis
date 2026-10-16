@@ -28,7 +28,7 @@ embedding_model = "models/openwakeword/embedding_model.onnx"
 # ordinaires. Avec la vérification et le réveil franc ci-dessous : 89 % des « Orion » retenus au calme, 75 % dans le
 # bruit, 51 % à distance très réverbérante (redire le mot dans les 8 s suffit, accepté sans vérification), 1,5 faux
 # réveil par heure de parole continue, 6 % de phrases piégeuses (« nous aurions », « Marion »...).
-# À affiner avec `python -m jarvis --wake-test` et `--wake-report` sur la vraie voix.
+# À affiner avec `python -m orion --wake-test` et `--wake-report` sur la vraie voix.
 threshold = 0.5
 # 2 : un « Orion » dit vite ne reste que 2 ou 3 images au-dessus du seuil (relevé le 9 octobre 2026).
 patience = 2
@@ -40,7 +40,7 @@ sure_score = 0.95
 # 3 et non 4 : de vrais « Orion » dits vite (0,95 à 0,99 sur 3 images) étaient écartés par Whisper (« Ouyon »,
 # rien entendu). Banc : 89 % retenus au calme, 1,5 faux réveil/h de parole continue, 6 % de phrases piégeuses.
 sure_patience = 3
-# Audio et issue de chaque réveil (demande ou non) : python -m jarvis --wake-report pour choisir le seuil,
+# Audio et issue de chaque réveil (demande ou non) : python -m orion --wake-report pour choisir le seuil,
 # python -m wakeword_training import-captures pour réentraîner avec. 0 : aucune capture.
 captures = "data/wakeword/captures"
 captures_keep = 300
@@ -188,7 +188,7 @@ volume = 0
 briefing = true
 
 [mail]
-# Boîte mail en IMAP/SMTP (jarvis/mail). Lecture, recherche, tri, résumé : sans confirmation, sans rien marquer lu.
+# Boîte mail en IMAP/SMTP (orion/mail). Lecture, recherche, tri, résumé : sans confirmation, sans rien marquer lu.
 # Marquer lu, archiver, supprimer (corbeille), envoyer, répondre : toujours confirmés. Jamais de pièce jointe.
 # Mot de passe d'application dans .env : MAIL_PASSWORD=... (Gmail : compte Google > Sécurité > Mots de passe
 # des applications ; IMAP activé). Adresse et serveurs dans config.local.toml :
@@ -212,10 +212,10 @@ quiet_start = "22:30"
 quiet_end = "08:00"
 
 [presence]
-# Présence à la maison (jarvis/presence) : départs et retours confirmés à partir de plusieurs signaux (téléphone,
+# Présence à la maison (orion/presence) : départs et retours confirmés à partir de plusieurs signaux (téléphone,
 # porte d'entrée, mouvement), jamais d'une porte seule ; journal de la maison et routine « Bon retour » avec le
 # résumé de l'absence. Capteurs dans config.local.toml ; pilote « simulated » tant qu'il n'y a pas de matériel :
-#   python -m jarvis --simulate door open | door close | presence home | presence away | motion detected | status
+#   python -m orion --simulate door open | door close | presence home | presence away | motion detected | status
 # (sur le Core, par l'API d'administration : ajouter "127.0.0.1" à [api] allowed_ips)
 #   [presence.sensors.porte_entree]
 #   kind = "door"            # door, motion, presence, leak, smoke, temperature, appliance
@@ -280,7 +280,7 @@ min_interval_minutes = 10.0      # 10 min entre deux appels,
 refusal_pause_minutes = 30.0     # et 30 min de pause après un refus ou un appel sans réponse
 
 [api]
-# API d'administration pour ORION Control (HTTP, réseau local). Jeton : JARVIS_AGENT_TOKEN dans .env.
+# API d'administration pour ORION Control (HTTP, réseau local). Jeton : ORION_AGENT_TOKEN dans .env.
 # Seules les IP listées y accèdent (celle du PC qui exécute ORION Control).
 enabled = false
 host = "0.0.0.0"
@@ -311,7 +311,7 @@ timeout = 15.0          # délai maximal d'exécution d'un outil (s)
 # le LLM : réponse plus rapide. Elles le sont toujours en mode dégradé (worker LLM hors ligne).
 fast_path = true
 
-# Appareils du réseau : ORION agit sur un PC via l'agent qui y tourne (python -m jarvis.winagent), jamais sur
+# Appareils du réseau : ORION agit sur un PC via l'agent qui y tourne (python -m orion.winagent), jamais sur
 # la machine du Core. L'appareil visé vient des mots de la demande (alias, le plus long l'emporte), sinon
 # celui marqué default. Sans url : appareil interdit (toute action y est refusée). Vide : le Core agit sur sa
 # propre machine. Exemple (à mettre dans config.local.toml) :
@@ -445,7 +445,7 @@ forecast_cache_minutes = 15
 # Agenda (list_events, next_events, search_events, free_slots, add_event, delete_event avec confirmation).
 # Événements ajoutés par la voix : path. Lecture seule d'un calendrier existant : ics = fichier .ics ou adresse
 # iCal secrète (Google Agenda : Paramètres > Adresse secrète au format iCal ; Outlook : Publier un calendrier).
-# L'adresse est un secret : la mettre plutôt dans .env (JARVIS_CALENDAR_ICS=...). Répétitions et fuseaux gérés.
+# L'adresse est un secret : la mettre plutôt dans .env (ORION_CALENDAR_ICS=...). Répétitions et fuseaux gérés.
 enabled = true
 path = "data/calendar.json"
 ics = ""
@@ -458,16 +458,16 @@ announce_minutes = 15.0
 [spotify]
 # Spotify par son API Web (lecture d'un titre, d'une playlist, d'un artiste ; pause, suivant, volume). Une fois :
 # application sur developer.spotify.com (adresse de retour http://127.0.0.1:8888/callback), SPOTIFY_CLIENT_ID dans
-# .env, puis python -m jarvis --spotify-login. Compte Premium nécessaire. Sans cela : touches multimédia du PC.
+# .env, puis python -m orion --spotify-login. Compte Premium nécessaire. Sans cela : touches multimédia du PC.
 enabled = true
 token_path = "data/spotify_token.json"
-# Lecture par ORION lui-même : librespot sur le Core (deploy/jarvis-librespot.service) devient l'appareil Spotify
+# Lecture par ORION lui-même : librespot sur le Core (deploy/orion-librespot.service) devient l'appareil Spotify
 # « device », son son est relayé vers la sortie de la voix ([audio] remote) et baisse quand ORION écoute ou parle.
 # Vide : la musique joue sur un appareil Spotify existant (application du PC, téléphone).
 device = ""
 # Avec device : service du lecteur, relancé par ORION si l'appareil a disparu (librespot perd parfois sa session
 # Spotify Connect après des heures d'inactivité, tout en continuant de tourner).
-player_service = "jarvis-librespot"
+player_service = "orion-librespot"
 pipe = "data/music.fifo"
 duck_percent = 15       # niveau de la musique (%) pendant qu'ORION écoute ou parle
 
@@ -493,7 +493,7 @@ voice_enabled = true
 
 [activity]
 # Journal d'activité (actions des outils réussies ou échouées), une ligne JSON par événement.
-# Consulter : python -m jarvis --activity
+# Consulter : python -m orion --activity
 enabled = true
 path = "data/activity.jsonl"
 max_kb = 1024           # au-delà, le fichier est archivé en activity.1.jsonl
@@ -539,11 +539,11 @@ sample_rate = 16000
 # Taille d'un bloc audio : 1280 échantillons = 80 ms (attendu par openWakeWord).
 frame_samples = 1280
 # Micro et sortie d'ORION, indépendants de ceux de Windows. Pour choisir dans une liste :
-#   python -m jarvis --choose-audio
+#   python -m orion --choose-audio
 input_device = "Microphone (Voicemod Virtual Au, MME"       # vide = périphérique par défaut de Windows ; sinon nom partiel ou index
 output_device = "Chat (2- TC-HELICON GoXLR), MME"
-# Micro et sortie d'un autre PC via son agent ORION (python -m jarvis.winagent), par exemple
-# "http://192.168.1.128:8765" : remplace input_device et output_device. Jeton : JARVIS_AGENT_TOKEN dans .env.
+# Micro et sortie d'un autre PC via son agent ORION (python -m orion.winagent), par exemple
+# "http://192.168.1.128:8765" : remplace input_device et output_device. Jeton : ORION_AGENT_TOKEN dans .env.
 remote = ""
 # Délai max (s) pour commencer à parler après "Oui, monsieur ?".
 listen_timeout = 6.0

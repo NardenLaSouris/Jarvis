@@ -1,0 +1,400 @@
+"""LLM principal sur une autre machine (worker GPU, le Katana), LLM local en secours.
+
+État du worker, toujours explicite :
+- ONLINE : joignable et ses dernières réponses sont arrivées à temps ;
+- DEGRADED : joignable, mais ses dernières demandes ont échoué (délai dépassé, erreur d'Ollama) ou ont été lentes ;
+- OFFLINE : injoignable (machine éteinte, réseau, service arrêté).
+
+Avant chaque appel, une connexion TCP courte (``connect_timeout``) vérifie que le worker répond : s'il est éteint,
+ORION ne reste pas bloqué et passe aussitôt en mode dégradé. Tant qu'il est hors ligne, il n'est plus sollicité ;
+une sonde de fond le reteste toutes les ``probe_interval`` secondes et le reprend dès qu'il revient (reconnexion
+automatique, sans attendre une demande).
+
+Mode dégradé : la conversation passe au LLM local avec un prompt court (``compact_system``) — le prompt complet
+prendrait plus d'une minute sur processeur — et le choix d'outil n'est pas confié au LLM local (``json_fallback``) :
+ORION utilise alors ses commandes déterministes (voir jarvis.tools.quick).
+"""
+
+from __future__ import annotations
+
+import logging
+import queue
+import socket
+import threading
+import time
+from dataclasses import dataclass, field
+from typing import Callable, Iterator
+from urllib.parse import urlsplit
+
+from orion.interfaces import Message
+
+log = logging.getLogger(__name__)
+
+ONLINE, DEGRADED, OFFLINE = "ONLINE", "DEGRADED", "OFFLINE"
+PROBE_CONFIRM = 2.0  # s : délai du second essai de la sonde de fond avant de déclarer le worker hors ligne
+
+
+class FirstTokenTimeout(TimeoutError):
+    """Le worker accepte la demande mais ne répond pas (Ollama gelé, GPU saturé) : secours sans attendre le délai
+    complet entre deux morceaux."""
+
+    kind = "timeout"
+
+
+class LLMUnavailable(RuntimeError):
+    """Aucun LLM utilisable pour cet appel (worker hors ligne et pas de secours prévu pour ce type d'appel)."""
+
+    kind = "unavailable"
+
+
+def tcp_reachable(url: str, timeout: float = 1.0) -> bool:
+    parts = urlsplit(url)
+    try:
+        with socket.create_connection((parts.hostname, parts.port or 80), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
+@dataclass
+class WorkerStats:
+    """Métriques du worker : nombre de réussites et d'échecs par cause, latences (dernière et moyenne lissée)."""
+
+    ok: int = 0
+    errors: dict = field(default_factory=lambda: {"unreachable": 0, "timeout": 0, "error": 0})
+    last_latency: float | None = None
+    average_latency: float | None = None
+    last_error: str = ""
+    last_error_kind: str = ""
+
+    def success(self, seconds: float) -> None:
+        self.ok += 1
+        self.last_latency = seconds
+        self.average_latency = seconds if self.average_latency is None else 0.8 * self.average_latency + 0.2 * seconds
+
+    def failure(self, kind: str, message: str) -> None:
+        self.errors[kind] = self.errors.get(kind, 0) + 1
+        self.last_error, self.last_error_kind = message[:200], kind
+
+
+def _kind(exc: BaseException) -> str:
+    return getattr(exc, "kind", "error") if getattr(exc, "kind", "") in ("unreachable", "timeout") else "error"
+
+
+class FailoverLLM:
+    def __init__(self, primary, fallback, primary_url: str, retry_after: float = 30.0,
+                 reachable: Callable[[str], bool] = tcp_reachable, clock: Callable[[], float] = time.monotonic,
+                 *, slow_after: float = 8.0, probe_interval: float = 10.0, json_fallback: bool = False,
+                 compact_system: Callable[[], str] | None = None, first_token_timeout: float = 10.0,
+                 waiting_notice: str = "", json_timeout: float | None = None):
+        self._primary, self._fallback = primary, fallback
+        self._url = primary_url
+        self._retry_after = retry_after
+        self._reachable = reachable
+        self._clock = clock
+        self._slow_after = slow_after
+        self._first_token_timeout = first_token_timeout
+        # Choix d'outil : la réponse JSON n'arrive qu'une fois complète (prompt de 7 000 jetons lu, puis génération) :
+        # un premier appel à froid prend 8 à 10 s sans que le worker soit gelé. Délai propre, double par défaut.
+        self._json_timeout = json_timeout or 2 * first_token_timeout
+        # Dit dès qu'un worker gelé est abandonné : le secours (CPU) met encore une dizaine de secondes à répondre,
+        # 22 s de silence mesurées sinon.
+        self._waiting_notice = waiting_notice
+        self._probe_interval = probe_interval
+        self._json_fallback = json_fallback
+        self.compact_system = compact_system
+        self._down_since: float | None = None
+        self._state = ONLINE
+        self._since = clock()
+        self._last = primary
+        self.stats = WorkerStats()
+        self.fallback_stats = WorkerStats()
+        self._lock = threading.Lock()
+        self._stopping = threading.Event()
+        self._thread: threading.Thread | None = None
+        self.on_state: Callable[[str, bool], None] | None = None  # (état, utilisable) à chaque changement
+        self._prompts: list[list[Message]] = []
+
+    # --- État ----------------------------------------------------------------------------------------
+
+    @property
+    def state(self) -> str:
+        return self._state
+
+    @property
+    def degraded(self) -> bool:
+        """Vrai quand le worker n'est pas utilisable maintenant : ORION doit éviter ce qui exige le LLM principal."""
+        return self._state == OFFLINE or self._down_since is not None
+
+    @property
+    def last_stats(self) -> dict:
+        return getattr(self._last, "last_stats", {})
+
+    @property
+    def last_done_reason(self) -> str:
+        return getattr(self._last, "last_done_reason", "")
+
+    def status(self) -> dict:
+        s = self.stats
+        return {"state": self._state, "since_s": round(self._clock() - self._since, 1), "url": self._url,
+                "degraded": self.degraded, "ok": s.ok, "errors": dict(s.errors),
+                "last_latency_s": None if s.last_latency is None else round(s.last_latency, 2),
+                "average_latency_s": None if s.average_latency is None else round(s.average_latency, 2),
+                "last_error": s.last_error, "last_error_kind": s.last_error_kind,
+                "fallback": {"ok": self.fallback_stats.ok, "errors": dict(self.fallback_stats.errors)}}
+
+    def _set_state(self, state: str, reason: str = "") -> None:
+        with self._lock:
+            if state == self._state:
+                return
+            previous, self._state, self._since = self._state, state, self._clock()
+        level = logging.INFO if state == ONLINE else logging.WARNING
+        log.log(level, "Worker LLM %s : %s -> %s%s", self._url, previous, state, f" ({reason})" if reason else "")
+        if state == ONLINE and previous == OFFLINE:
+            self._rewarm()
+        if self.on_state is not None:
+            try:
+                self.on_state(state, state == ONLINE)
+            except Exception:
+                log.debug("Notification d'état du worker impossible", exc_info=True)
+
+    # --- Appels --------------------------------------------------------------------------------------
+
+    def chat(self, messages: list[Message]) -> str:
+        return self._call(lambda llm, msgs: llm.chat(msgs), messages)
+
+    def chat_json(self, messages: list[Message], schema: dict) -> dict:
+        # Choix d'outil : réponse courte, attendue d'un bloc ; un worker gelé ne bloque pas la demande 20 s.
+        def bounded(llm, msgs):
+            return self._within(lambda: llm.chat_json(msgs, schema), llm, self._json_timeout)
+
+        return self._call(bounded, messages, fallback=self._json_fallback)
+
+    def stream(self, messages: list[Message]) -> Iterator[str]:
+        """Bascule sur le secours si le principal échoue avant le premier fragment (jamais au milieu d'une phrase)."""
+        if self._primary_usable():
+            self._last = self._primary
+            started = self._clock()
+            pieces = self._bounded(self._primary.stream(messages))
+            try:
+                first = next(pieces)
+            except StopIteration:
+                self._succeeded(self._clock() - started)
+                return
+            except Exception as exc:
+                self._primary_failed(exc)
+                if isinstance(exc, FirstTokenTimeout) and self._waiting_notice:
+                    yield self._waiting_notice.rstrip() + " "
+            else:
+                self._succeeded(self._clock() - started)
+                yield first
+                yield from pieces
+                return
+        self._last = self._fallback
+        yield from self._fallback_call(lambda llm, msgs: llm.stream(msgs), messages, stream=True)
+
+    def _within(self, action, llm, timeout: float | None = None):
+        """Appel du worker principal borné à ``timeout`` (``first_token_timeout`` par défaut ; le secours garde son
+        propre délai)."""
+        timeout = timeout or self._first_token_timeout
+        if llm is not self._primary:
+            return action()
+        box: queue.Queue = queue.Queue()
+
+        def run() -> None:
+            try:
+                box.put(("ok", action()))
+            except Exception as exc:  # transmis à l'appelant
+                box.put(("error", exc))
+
+        threading.Thread(target=run, name="llm-json", daemon=True).start()
+        try:
+            kind, value = box.get(timeout=timeout)
+        except queue.Empty:
+            raise FirstTokenTimeout(f"aucune réponse en {timeout:.0f} s") from None
+        if kind == "error":
+            raise value
+        return value
+
+    def _bounded(self, pieces: Iterator[str]) -> Iterator[str]:
+        """Fragments du worker lus dans un fil : le premier doit arriver en ``first_token_timeout`` secondes (worker
+        gelé : 23 s de silence mesurées avant le secours). Les suivants restent bornés par le délai du client."""
+        box: queue.Queue = queue.Queue()
+        stop = threading.Event()
+
+        def pull() -> None:
+            try:
+                for piece in pieces:
+                    if stop.is_set():
+                        break
+                    box.put(("piece", piece))
+                box.put(("end", None))
+            except Exception as exc:  # transmis au lecteur
+                box.put(("error", exc))
+            finally:
+                close = getattr(pieces, "close", None)
+                if close is not None:
+                    close()
+
+        threading.Thread(target=pull, name="llm-flux", daemon=True).start()
+        try:
+            first = True
+            while True:
+                try:
+                    kind, value = box.get(timeout=self._first_token_timeout if first else None)
+                except queue.Empty:
+                    raise FirstTokenTimeout(f"aucune réponse en {self._first_token_timeout:.0f} s") from None
+                first = False
+                if kind == "end":
+                    return
+                if kind == "error":
+                    raise value
+                yield value
+        finally:
+            stop.set()
+
+    def warm_up(self) -> None:
+        self._each("préchargement", lambda llm: llm.warm_up(), lambda llm: llm.warm_up())
+
+    def prime(self, prompts: list[list[Message]]) -> None:
+        """Le principal lit les prompts complets ; le secours seulement le prompt court qu'il utilisera."""
+        self._prompts = prompts
+        compact = [[Message("system", self.compact_system()), Message("user", "Bonjour.")]] if self.compact_system \
+            else prompts
+        self._each("préparation des prompts", lambda llm: llm.prime(prompts), lambda llm: llm.prime(compact))
+
+    def _call(self, action, messages, fallback: bool = True):
+        if self._primary_usable():
+            started = self._clock()
+            try:
+                self._last = self._primary
+                result = action(self._primary, messages)
+                self._succeeded(self._clock() - started)
+                return result
+            except Exception as exc:
+                self._primary_failed(exc)
+        if not fallback:
+            raise LLMUnavailable(f"LLM principal {self._state.lower()} : pas de secours pour cet appel")
+        self._last = self._fallback
+        return self._fallback_call(action, messages)
+
+    def _fallback_call(self, action, messages, stream: bool = False):
+        messages = self._compact(messages)
+        if not stream:
+            try:
+                result = action(self._fallback, messages)
+            except Exception as exc:
+                self.fallback_stats.failure(_kind(exc), str(exc))
+                raise
+            self.fallback_stats.ok += 1
+            return result
+        return self._fallback_stream(action, messages)
+
+    def _fallback_stream(self, action, messages):
+        try:
+            yield from action(self._fallback, messages)
+        except Exception as exc:
+            self.fallback_stats.failure(_kind(exc), str(exc))
+            raise
+        self.fallback_stats.ok += 1
+
+    def _compact(self, messages: list[Message]) -> list[Message]:
+        if self.compact_system is None or not messages or messages[0].role != "system":
+            return messages
+        return [Message("system", self.compact_system()), *messages[1:]]
+
+    # --- Santé ---------------------------------------------------------------------------------------
+
+    def _primary_usable(self) -> bool:
+        if self._down_since is not None and self._clock() - self._down_since < self._retry_after:
+            return False
+        if not self._reachable(self._url):
+            self._primary_failed(ConnectionError("injoignable"), kind="unreachable")
+            return False
+        if self._down_since is not None:
+            log.info("LLM principal de retour (%s)", self._url)
+            self._down_since = None
+        return True
+
+    def _succeeded(self, seconds: float) -> None:
+        self.stats.success(seconds)
+        self._down_since = None
+        self._set_state(DEGRADED if seconds > self._slow_after else ONLINE,
+                        f"réponse lente : {seconds:.1f} s" if seconds > self._slow_after else "")
+
+    def _primary_failed(self, exc: Exception, kind: str | None = None) -> None:
+        kind = kind or _kind(exc)
+        self.stats.failure(kind, str(exc))
+        if self._down_since is None:
+            log.warning("LLM principal indisponible (%s, %s : %s) : mode dégradé", self._url, kind, exc)
+        self._down_since = self._clock()
+        self._set_state(OFFLINE if kind == "unreachable" else DEGRADED, kind)
+
+    def _rewarm(self) -> None:
+        """Worker revenu (redémarrage d'Ollama, machine rallumée) : le modèle et les prompts sont rechargés en fond,
+        pour que la première demande ne paie pas le chargement (7 s mesurées sur le Katana)."""
+        def run() -> None:
+            for attempt in (1, 2):  # Ollama tout juste démarré peut refuser le premier chargement
+                try:
+                    self._primary.warm_up()
+                    if self._prompts:
+                        self._primary.prime(self._prompts)
+                    log.info("Worker LLM %s : modèle et prompts rechargés", self._url)
+                    return
+                except Exception as exc:
+                    log.warning("Worker LLM %s : rechargement impossible (essai %d : %s)", self._url, attempt, exc)
+                    self._stopping.wait(5)
+
+        threading.Thread(target=run, name="llm-rechargement", daemon=True).start()
+
+    def probe(self, confirm: float = 0.0) -> str:
+        """Vérifie le worker (connexion TCP courte) et met l'état à jour ; rend l'état.
+
+        ``confirm`` (sonde de fond) : un échec isolé est revérifié après ce délai avant de déclarer le worker hors
+        ligne. Le Katana répondait à tout sauf, toutes les une à deux heures, à une seule connexion d'une seconde :
+        26 bascules « hors ligne » de 10 s en six jours (octobre 2026), réseau sans perte."""
+        if not self._reachable(self._url) and confirm > 0 and not self.degraded:
+            log.info("Worker LLM %s : pas de réponse, nouvel essai dans %.0f s", self._url, confirm)
+            if self._stopping.wait(confirm):
+                return self._state
+        if self._reachable(self._url):
+            if self._state == OFFLINE or self._down_since is not None:
+                self._down_since = None
+                self._set_state(ONLINE, "de nouveau joignable")
+        else:
+            self._primary_failed(ConnectionError("injoignable"), kind="unreachable")
+        return self._state
+
+    def start(self) -> None:
+        """Sonde de fond : reconnexion automatique dès que le worker revient."""
+        if self._thread is None and self._probe_interval > 0:
+            self._stopping.clear()
+            self._thread = threading.Thread(target=self._probe_loop, name="llm-worker", daemon=True)
+            self._thread.start()
+
+    def stop(self) -> None:
+        self._stopping.set()
+        if self._thread is not None:
+            self._thread.join(timeout=2)
+            self._thread = None
+
+    def _probe_loop(self) -> None:
+        while not self._stopping.wait(self._probe_interval):
+            try:
+                self.probe(confirm=PROBE_CONFIRM)
+            except Exception:  # la sonde ne doit jamais arrêter ORION
+                log.exception("Sonde du worker LLM en erreur")
+
+    def _each(self, label: str, primary_action, fallback_action) -> None:
+        """Les deux LLM : le principal d'abord (rapide), puis le secours, pour qu'une bascule soit aussitôt rapide."""
+        for name, llm, usable, action in (("principal", self._primary, self._reachable(self._url), primary_action),
+                                          ("local", self._fallback, True, fallback_action)):
+            if not usable:
+                log.info("LLM %s injoignable : %s ignoré(e)", name, label)
+                if name == "principal":
+                    self._primary_failed(ConnectionError("injoignable"), kind="unreachable")
+                continue
+            try:
+                action(llm)
+            except Exception as exc:
+                log.warning("LLM %s : %s impossible (%s)", name, label, exc)

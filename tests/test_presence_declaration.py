@@ -1,4 +1,4 @@
-"""« ORION, je sors. » : déclaration explicite de départ (jarvis/presence/declaration.py, outil declare_departure,
+"""« ORION, je sors. » : déclaration explicite de départ (orion/presence/declaration.py, outil declare_departure,
 moteur de présence). Transition immédiate et unique, délais habituels inchangés, phrases ambiguës sans effet,
 départ annoncé pour plus tard, retour détecté normalement, état gardé au redémarrage."""
 
@@ -14,11 +14,11 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
-from jarvis.presence import ARRIVAL_CONFIRMED, AWAY, DEPARTURE_CONFIRMED, HOME, PresenceSettings  # noqa: E402
-from jarvis.presence.declaration import LATER, NOW, SHORT, STAY, parse_declaration  # noqa: E402
-from jarvis.presence.engine import MOTION_WHILE_AWAY  # noqa: E402
-from jarvis.presence.tools import departure_tool  # noqa: E402
-from jarvis.tools import PermissionManager, ToolCore, ToolRegistry  # noqa: E402
+from orion.presence import ARRIVAL_CONFIRMED, AWAY, DEPARTURE_CONFIRMED, HOME, PresenceSettings  # noqa: E402
+from orion.presence.declaration import LATER, NOW, SHORT, STAY, parse_declaration  # noqa: E402
+from orion.presence.engine import MOTION_WHILE_AWAY  # noqa: E402
+from orion.presence.tools import departure_tool  # noqa: E402
+from orion.tools import PermissionManager, ToolCore, ToolRegistry  # noqa: E402
 from test_presence import House  # noqa: E402
 
 NOW_DT = datetime(2026, 10, 11, 15, 30)

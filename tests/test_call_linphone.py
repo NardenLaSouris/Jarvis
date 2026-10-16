@@ -1,4 +1,4 @@
-"""Passerelle et appareil « linphone » (jarvis/call/linphone.py) : le Core appelle votre adresse ou décroche vos
+"""Passerelle et appareil « linphone » (orion/call/linphone.py) : le Core appelle votre adresse ou décroche vos
 appels, avec un faux compte SIP et un faux son (aucun réseau, aucun téléphone). Environnement de la passerelle :
     ~/orion-call-venv/bin/python -m pytest tests/test_call_linphone.py
 """
@@ -18,10 +18,10 @@ sys.path.insert(0, str(ROOT))
 pytest.importorskip("pylibsrtp")
 pytest.importorskip("av")
 
-import jarvis.call.linphone as linphone  # noqa: E402
-from jarvis.call.devices import DeviceRegistry  # noqa: E402
-from jarvis.call.gateway import CallGateway  # noqa: E402
-from jarvis.call.sip import Dialog  # noqa: E402
+import orion.call.linphone as linphone  # noqa: E402
+from orion.call.devices import DeviceRegistry  # noqa: E402
+from orion.call.gateway import CallGateway  # noqa: E402
+from orion.call.sip import Dialog  # noqa: E402
 
 IPHONE_SDP = ("v=0\r\nc=IN IP4 203.0.113.5\r\nt=0 0\r\nm=audio 18912 RTP/SAVP 0 101\r\n"
               "a=rtpmap:101 telephone-event/8000\r\n"
@@ -185,7 +185,7 @@ def test_message_while_orion_is_down_gets_an_automatic_reply(world):
 
 
 def test_messages_are_limited_per_minute(world):
-    from jarvis.call.gateway import MESSAGES_PER_MINUTE
+    from orion.call.gateway import MESSAGES_PER_MINUTE
 
     gateway, _ = world()
     account = Sent()
@@ -196,7 +196,7 @@ def test_messages_are_limited_per_minute(world):
 
 
 def test_online_message_when_orion_becomes_available_without_bursts(world):
-    from jarvis.call.gateway import NOTICE_GAP, ONLINE_NOTICE
+    from orion.call.gateway import NOTICE_GAP, ONLINE_NOTICE
 
     gateway, _ = world()
     account = Sent()

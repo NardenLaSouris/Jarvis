@@ -1,4 +1,4 @@
-"""Passerelle d'appel (jarvis/call/gateway.py) : jumelage, authentification de l'appareil, réseaux autorisés,
+"""Passerelle d'appel (orion/call/gateway.py) : jumelage, authentification de l'appareil, réseaux autorisés,
 sonnerie et signaux jusqu'au gestionnaire d'appels du Core. Vrai serveur HTTP local (port libre), aucun téléphone.
 """
 
@@ -16,9 +16,9 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from jarvis.call.devices import MAX_FAILURES, PAIRING_TTL, DeviceRegistry, PairingError  # noqa: E402
-from jarvis.call.gateway import CallGateway  # noqa: E402
-from jarvis.call.link import GatewayLink  # noqa: E402
+from orion.call.devices import MAX_FAILURES, PAIRING_TTL, DeviceRegistry, PairingError  # noqa: E402
+from orion.call.gateway import CallGateway  # noqa: E402
+from orion.call.link import GatewayLink  # noqa: E402
 
 CORE_TOKEN = "jeton-du-core-pour-les-tests"
 
@@ -146,8 +146,8 @@ def test_other_device_cannot_answer_someone_elses_call(gateway):
 # --- Lien du Core ---------------------------------------------------------------------------------------------
 
 def test_core_link_rings_and_forwards_the_phone_signals_to_the_manager(gateway):
-    from jarvis.audio.switch import SwitchableSink, SwitchableSource
-    from jarvis.call import CallManager, CallSettings
+    from orion.audio.switch import SwitchableSink, SwitchableSource
+    from orion.call import CallManager, CallSettings
     from call_fakes import Mic, Speaker
 
     device_id, device = pair(gateway)
@@ -171,7 +171,7 @@ def test_core_link_rings_and_forwards_the_phone_signals_to_the_manager(gateway):
 def test_closing_the_call_mic_during_a_read_is_quiet(gateway):
     import threading
 
-    from jarvis.audio.network import NetworkSource
+    from orion.audio.network import NetworkSource
 
     device_id, device = pair(gateway)
     request(gateway, "POST", "/core/ring", {"call_id": "c4", "device": device_id}, core())
@@ -209,8 +209,8 @@ def test_phone_can_dial_orion_and_the_core_can_refuse(gateway):
 
 
 def test_core_link_answers_or_refuses_a_dialed_call(gateway):
-    from jarvis.audio.switch import SwitchableSink, SwitchableSource
-    from jarvis.call import CallManager, CallSettings
+    from orion.audio.switch import SwitchableSink, SwitchableSource
+    from orion.call import CallManager, CallSettings
     from call_fakes import Mic, Speaker
 
     device_id, device = pair(gateway)
@@ -244,7 +244,7 @@ def test_dialed_call_ends_when_orion_does_not_answer(gateway):
 
 
 def test_call_ends_when_the_core_disappears_or_after_the_maximum_duration(gateway):
-    from jarvis.call.gateway import CORE_TIMEOUT, MAX_CALL_SECONDS
+    from orion.call.gateway import CORE_TIMEOUT, MAX_CALL_SECONDS
 
     device_id, device = pair(gateway)
     core_alive(gateway)

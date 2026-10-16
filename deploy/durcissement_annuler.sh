@@ -1,9 +1,9 @@
 #!/bin/bash
 # Retour au service utilisateur d'origine (avant deploy/durcissement.sh) :
-#   sudo bash /opt/jarvis/deploy/durcissement_annuler.sh
+#   sudo bash /opt/orion/deploy/durcissement_annuler.sh
 set -euo pipefail
 
-ROOT=/opt/jarvis
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"  # dossier du dépôt (/opt/orion, ou /opt/jarvis avant la migration)
 DEPLOY_USER=user
 [ "$(id -u)" -eq 0 ] || { echo "À lancer avec sudo."; exit 1; }
 

@@ -14,8 +14,8 @@ sys.path.insert(0, str(ROOT))
 
 pytest.importorskip("faster_whisper")
 
-from jarvis.config import load_config  # noqa: E402
-from jarvis.stt.faster_whisper import FasterWhisperSTT  # noqa: E402
+from orion.config import load_config  # noqa: E402
+from orion.stt.faster_whisper import FasterWhisperSTT  # noqa: E402
 
 
 class FakeModel:
@@ -60,7 +60,7 @@ def test_wrong_sample_rate_is_refused():
 
 def test_vad_is_on_in_the_shipped_config_and_off_by_default():
     assert load_config(ROOT / "config.toml", local=False).stt.vad_filter is True
-    from jarvis.config import STTConfig
+    from orion.config import STTConfig
 
     assert STTConfig().vad_filter is False
 

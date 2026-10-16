@@ -14,14 +14,14 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
-import jarvis.tools.applications as apps_module  # noqa: E402
-import jarvis.tools.audio as audio_module  # noqa: E402
-from jarvis.tools import PermissionManager, ToolCore, ToolError, ToolRegistry, builtin_tools  # noqa: E402
-from jarvis.tools.builtin import PC_TOOLS  # noqa: E402
-from jarvis.tools.devices import AgentClient, load_devices, remote_tool  # noqa: E402
-from jarvis.tools.planner import plan_schema, planner_prompt  # noqa: E402
-from jarvis.winagent import AgentConfig, AgentServer  # noqa: E402
-from jarvis.winagent.__main__ import pc_actions  # noqa: E402
+import orion.tools.applications as apps_module  # noqa: E402
+import orion.tools.audio as audio_module  # noqa: E402
+from orion.tools import PermissionManager, ToolCore, ToolError, ToolRegistry, builtin_tools  # noqa: E402
+from orion.tools.builtin import PC_TOOLS  # noqa: E402
+from orion.tools.devices import AgentClient, load_devices, remote_tool  # noqa: E402
+from orion.tools.planner import plan_schema, planner_prompt  # noqa: E402
+from orion.winagent import AgentConfig, AgentServer  # noqa: E402
+from orion.winagent.__main__ import pc_actions  # noqa: E402
 from test_tools import PERSONALITY, FakeProcesses, FakeVolume, Launcher, Locker, PlannerLLM, routes, run_agent  # noqa: E402
 
 TOKEN = "t" * 40
@@ -183,7 +183,7 @@ def test_wrong_token_is_refused_by_the_agent(machines):
 
 
 def test_agent_exposes_only_pc_actions():
-    from jarvis.tools.builtin import FILE_TOOLS
+    from orion.tools.builtin import FILE_TOOLS
 
     names = {t.name for t in pc_actions({}).list()}
     assert names == set(PC_TOOLS) - set(FILE_TOOLS)  # fichiers : seulement avec [tools.files]
@@ -204,7 +204,7 @@ def test_absent_agent_is_reported_within_two_seconds():
     import socket
     import time
 
-    from jarvis.tools.devices import AgentClient, Device
+    from orion.tools.devices import AgentClient, Device
 
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
@@ -220,7 +220,7 @@ def test_garbage_from_an_agent_never_crashes_the_core():
     import http.server
     import threading
 
-    from jarvis.tools.devices import AgentClient, Device
+    from orion.tools.devices import AgentClient, Device
 
     replies = iter([(200, b"pas du json"), (200, b'{"status": "ok"}'), (500, b"<html>erreur</html>"),
                     (418, b'{"error": 42, "message": ["x"]}'),

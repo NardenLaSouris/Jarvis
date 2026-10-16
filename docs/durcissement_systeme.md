@@ -1,14 +1,14 @@
 # Durcissement du système du mini-PC (validé le 10 octobre 2026 — script prêt, à lancer par vous avec sudo)
 
 Constat (chantier 6, mesuré le 9 octobre 2026) : le service ORION tourne sous le compte `user`, propriétaire du
-code (`/opt/jarvis`), de la configuration et des politiques Cedar, et membre des groupes `sudo`, `docker` et `lxd`
+code (`/opt/orion`), de la configuration et des politiques Cedar, et membre des groupes `sudo`, `docker` et `lxd`
 (équivalents à root). Aucun outil d'ORION ne donne aujourd'hui accès au système de fichiers ou à un shell du mini
 (vérifié : outils de fichiers exécutés sur le PC, dans des dossiers autorisés ; aucune commande libre), mais si une
 faille du Core était exploitée, rien au niveau du système ne la limiterait.
 
 ## Application
 
-    sudo bash /opt/jarvis/deploy/durcissement.sh
+    sudo bash /opt/orion/deploy/durcissement.sh
 
 Le script ([deploy/durcissement.sh](../deploy/durcissement.sh)) :
 1. crée le compte de service `orion` (sans shell, sans groupe sudo, docker ni lxd) ;
@@ -32,7 +32,7 @@ Après : journal `journalctl -u orion -f` ; déploiement `git pull` puis `sudo s
 
 ## Retour arrière
 
-    sudo bash /opt/jarvis/deploy/durcissement_annuler.sh
+    sudo bash /opt/orion/deploy/durcissement_annuler.sh
 
-Supprime les services système, la règle polkit et la règle sudo, rend `/opt/jarvis` à `user`, retire les lignes
+Supprime les services système, la règle polkit et la règle sudo, rend `/opt/orion` à `user`, retire les lignes
 ajoutées à `config.local.toml` et relance les services utilisateur d'origine.

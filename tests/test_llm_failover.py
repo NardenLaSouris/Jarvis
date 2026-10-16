@@ -14,11 +14,11 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from jarvis.config import load_config  # noqa: E402
-from jarvis.factory import build_llm  # noqa: E402
-from jarvis.interfaces import Message  # noqa: E402
-from jarvis.llm.failover import DEGRADED, OFFLINE, ONLINE, FailoverLLM, LLMUnavailable, tcp_reachable  # noqa: E402
-from jarvis.llm.ollama import LLMError, LLMTimeout, LLMUnreachable, OllamaLLM  # noqa: E402
+from orion.config import load_config  # noqa: E402
+from orion.factory import build_llm  # noqa: E402
+from orion.interfaces import Message  # noqa: E402
+from orion.llm.failover import DEGRADED, OFFLINE, ONLINE, FailoverLLM, LLMUnavailable, tcp_reachable  # noqa: E402
+from orion.llm.ollama import LLMError, LLMTimeout, LLMUnreachable, OllamaLLM  # noqa: E402
 
 HELLO = [Message("user", "Bonjour")]
 
@@ -162,7 +162,7 @@ def test_ollama_errors_are_classified():
     import socket
     import urllib.error
 
-    from jarvis.llm.ollama import _network_error
+    from orion.llm.ollama import _network_error
 
     assert isinstance(_network_error("u", urllib.error.URLError(ConnectionRefusedError())), LLMUnreachable)
     assert isinstance(_network_error("u", urllib.error.URLError(socket.timeout())), LLMTimeout)

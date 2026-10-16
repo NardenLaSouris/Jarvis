@@ -23,8 +23,8 @@ from pathlib import Path
 
 import numpy as np
 
-from jarvis.audio.files import read_wav
-from jarvis.wakeword.openwakeword import FRAME_SAMPLES
+from orion.audio.files import read_wav
+from orion.wakeword.openwakeword import FRAME_SAMPLES
 from wakeword_training.augment import SR, NoiseBank
 from wakeword_training.evaluate import REFRACTORY_FRAMES, _detector, _stream_scores
 from wakeword_training.features import make_scene
@@ -45,7 +45,7 @@ def setting_key(low, sure) -> str:
 
 
 def _tail_frames() -> int:
-    from jarvis.agent import WAKE_TAIL
+    from orion.agent import WAKE_TAIL
 
     return int(np.ceil(WAKE_TAIL * SR / FRAME_SAMPLES))
 
@@ -99,11 +99,11 @@ _verifier = None
 def _verify(audio: np.ndarray, frame: int, phrase: str) -> tuple[bool, str]:
     """Comme ORION : WAKE_TAIL d'audio écouté après le déclenchement, puis le modèle de [wake_word] verify_model."""
     global _verifier
-    from jarvis.agent import WAKE_TAIL
+    from orion.agent import WAKE_TAIL
 
     if _verifier is None:
-        from jarvis.config import load_config
-        from jarvis.wakeword.verify import WakeVerifier
+        from orion.config import load_config
+        from orion.wakeword.verify import WakeVerifier
 
         model = load_config(ROOT / "config.toml", local=False).wake_word.verify_model
         _verifier = WakeVerifier(model, MODELS_DIR.parent / "whisper", "fr", phrase, threads=1)

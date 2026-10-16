@@ -17,7 +17,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from jarvis.config import load_config, secret  # noqa: E402
+from orion.config import load_config, secret  # noqa: E402
 
 OWW_RELEASE = "https://github.com/dscripka/openWakeWord/releases/download/v0.5.1"
 PIPER_VOICES = "https://huggingface.co/rhasspy/piper-voices/resolve/main"

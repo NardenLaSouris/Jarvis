@@ -328,7 +328,7 @@ def call(session: Session, args) -> int:
         with wave.open(args.voice) as w:
             rate, pcm = w.getframerate(), np.frombuffer(w.readframes(w.getnframes()), dtype="<i2")
         sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-        from jarvis.call.media import resample
+        from orion.call.media import resample
 
         link.play(resample(pcm, rate, RATE))
         while link.pending() and not hung_up.is_set():

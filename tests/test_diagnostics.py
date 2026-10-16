@@ -13,8 +13,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from jarvis import diagnostics  # noqa: E402
-from jarvis.config import load_config  # noqa: E402
+from orion import diagnostics  # noqa: E402
+from orion.config import load_config  # noqa: E402
 
 
 def closed_port() -> int:
@@ -59,7 +59,7 @@ def test_health_reads_the_json_stores(tmp_path):
 
 
 def test_cli_options_exist():
-    import jarvis.__main__ as main
+    import orion.__main__ as main
 
     source = Path(main.__file__).read_text(encoding="utf-8")
     assert all(option in source for option in ("--health", "--diagnostics", "--benchmark"))

@@ -1,4 +1,4 @@
-"""Message « Votre PC est allumé. » (jarvis/call/notices.py) : seulement après une vraie absence du PC."""
+"""Message « Votre PC est allumé. » (orion/call/notices.py) : seulement après une vraie absence du PC."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from jarvis.call.notices import MIN_GAP, MIN_OFFLINE, PC_ONLINE, PcOnlineNotice  # noqa: E402
+from orion.call.notices import MIN_GAP, MIN_OFFLINE, PC_ONLINE, PcOnlineNotice  # noqa: E402
 
 
 class Clock:

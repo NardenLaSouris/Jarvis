@@ -1,4 +1,4 @@
-"""Compte SIP d'ORION (jarvis/call/sip.py) face à un faux serveur SIP local (TCP) : authentification, appel sortant
+"""Compte SIP d'ORION (orion/call/sip.py) face à un faux serveur SIP local (TCP) : authentification, appel sortant
 (sonnerie, décroché, raccrochage), refus, annulation, appel entrant, appelant inconnu, raccrochage par l'iPhone.
 Aucun réseau extérieur, aucun téléphone."""
 
@@ -17,7 +17,7 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from jarvis.call.sip import UNREADABLE, Message, SipAccount, digest, parse, uri_of  # noqa: E402
+from orion.call.sip import UNREADABLE, Message, SipAccount, digest, parse, uri_of  # noqa: E402
 
 PASSWORD = "mot-de-passe-de-test"
 PEER = "sip:jules@sip.test"

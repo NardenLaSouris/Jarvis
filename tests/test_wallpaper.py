@@ -17,9 +17,9 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from jarvis.wallpaper.collector import Collector, CoreMachine, Source  # noqa: E402
-from jarvis.wallpaper.server import WallpaperServer  # noqa: E402
-from jarvis.wallpaper.sources import devices_source, mail_source, schedule_source  # noqa: E402
+from orion.wallpaper.collector import Collector, CoreMachine, Source  # noqa: E402
+from orion.wallpaper.server import WallpaperServer  # noqa: E402
+from orion.wallpaper.sources import devices_source, mail_source, schedule_source  # noqa: E402
 
 
 def wait_for(condition, seconds=3.0):
@@ -164,13 +164,13 @@ def test_read_only_and_reserved_to_allowed_addresses(server):
 
 
 def test_the_page_embeds_the_existing_face_untouched():
-    page = (ROOT / "jarvis" / "wallpaper" / "static" / "index.html").read_text(encoding="utf-8")
-    script = (ROOT / "jarvis" / "wallpaper" / "static" / "wallpaper.js").read_text(encoding="utf-8")
+    page = (ROOT / "orion" / "wallpaper" / "static" / "index.html").read_text(encoding="utf-8")
+    script = (ROOT / "orion" / "wallpaper" / "static" / "wallpaper.js").read_text(encoding="utf-8")
     assert '<iframe id="face"' in page and "facePort" in script  # le visage, sur son propre port, tel quel
 
 
 def test_connected_pcs_report_their_load_through_their_agent():
-    from jarvis.wallpaper.sources import pcs_source
+    from orion.wallpaper.sources import pcs_source
 
     devices = {"pc": SimpleNamespace(name="votre PC", url="http://pc:8765"),
                "portable": SimpleNamespace(name="votre PC portable", url="http://katana:8765"),
@@ -211,7 +211,7 @@ class FakeCore:
 
 @pytest.fixture
 def interactive():
-    from jarvis.wallpaper.inbox import WallpaperInbox
+    from orion.wallpaper.inbox import WallpaperInbox
 
     core, inbox = FakeCore(risky=("set_brightness",)), WallpaperInbox()
     wallpaper = WallpaperServer(Collector([]), "127.0.0.1", 0, tools=core, user="owner", inbox=inbox)
@@ -278,7 +278,7 @@ def test_written_requests_are_answered_by_orion_loop(interactive):
 
 
 def test_a_request_never_taken_is_dropped_not_run_later():
-    from jarvis.wallpaper.inbox import WallpaperInbox
+    from orion.wallpaper.inbox import WallpaperInbox
 
     inbox = WallpaperInbox()
     assert inbox.ask("Éteins tout", timeout=0.05) is None  # ORION occupée : rien n'a été pris

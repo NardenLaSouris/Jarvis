@@ -1,7 +1,3 @@
-"""Agent Windows : petit serveur HTTP du réseau local par lequel le Core ORION (mini-PC) demande des
-actions explicitement enregistrées sur le PC Windows. Aucune commande libre, aucun shell."""
-
-from jarvis.winagent.config import AgentConfig, load_agent_config
-from jarvis.winagent.server import AGENT_NAME, AgentServer
-
-__all__ = ["AGENT_NAME", "AgentConfig", "AgentServer", "load_agent_config"]
+"""Compatibilité temporaire : l'ancien nom du package (« jarvis ») pour les lanceurs déjà installés
+(service systemd, raccourcis Windows, passerelle d'appel). Le code est dans « orion ». À retirer une fois
+la migration de production faite (docs/migration_orion.md)."""

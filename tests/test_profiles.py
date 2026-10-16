@@ -12,10 +12,10 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from jarvis.profiles import load_profiles  # noqa: E402
-from jarvis.tools import PermissionManager, ToolCore  # noqa: E402
-from jarvis.tools.files import FileAccess, file_tools  # noqa: E402
-from jarvis.tools.routines import routine_tools  # noqa: E402
+from orion.profiles import load_profiles  # noqa: E402
+from orion.tools import PermissionManager, ToolCore  # noqa: E402
+from orion.tools.files import FileAccess, file_tools  # noqa: E402
+from orion.tools.routines import routine_tools  # noqa: E402
 from test_quick import full_core  # noqa: E402
 from test_routines import Setup  # noqa: E402
 from test_tools import PlannerLLM, run_agent  # noqa: E402
@@ -31,8 +31,8 @@ TERMINALS = {"bureau": {"name": "PC du bureau", "url": "http://192.168.1.128:876
 def core_for(profiles, tmp=Path(".")):
     import tempfile
 
-    from jarvis.agenda import Calendar, LocalCalendar, calendar_tools
-    from jarvis.memory import MemoryStore, memory_tools
+    from orion.agenda import Calendar, LocalCalendar, calendar_tools
+    from orion.memory import MemoryStore, memory_tools
 
     folder = Path(tempfile.mkdtemp())
     base = full_core()

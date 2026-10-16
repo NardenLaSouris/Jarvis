@@ -19,12 +19,12 @@ import numpy as np
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from jarvis.agent import Agent, AgentSettings  # noqa: E402
-from jarvis.audio.endpointing import EndpointerSettings, UtteranceRecorder  # noqa: E402
-from jarvis.audio.files import ArraySource, RecordingSink  # noqa: E402
-from jarvis.capabilities import CapabilityRegistry  # noqa: E402
-from jarvis.personality import load_personality, normalize  # noqa: E402
-from jarvis.router import IntentRouter, claims_action  # noqa: E402
+from orion.agent import Agent, AgentSettings  # noqa: E402
+from orion.audio.endpointing import EndpointerSettings, UtteranceRecorder  # noqa: E402
+from orion.audio.files import ArraySource, RecordingSink  # noqa: E402
+from orion.capabilities import CapabilityRegistry  # noqa: E402
+from orion.personality import load_personality, normalize  # noqa: E402
+from orion.router import IntentRouter, claims_action  # noqa: E402
 
 PERSONALITY = load_personality(ROOT / "personality.toml")
 MORNING = datetime(2026, 9, 24, 9, 0)
@@ -374,9 +374,9 @@ if __name__ == "__main__":
 def test_date_and_time_questions_are_answered_without_the_llm():
     from datetime import datetime
 
-    from jarvis.capabilities import CapabilityRegistry
-    from jarvis.personality import load_personality
-    from jarvis.router import IntentRouter
+    from orion.capabilities import CapabilityRegistry
+    from orion.personality import load_personality
+    from orion.router import IntentRouter
 
     router = IntentRouter(load_personality(ROOT / "personality.toml"), CapabilityRegistry(),
                           clock=lambda: datetime(2026, 9, 26, 14, 5))
@@ -390,7 +390,7 @@ def test_date_and_time_questions_are_answered_without_the_llm():
 def test_spoken_time_and_date_edge_cases():
     from datetime import datetime
 
-    from jarvis.personality import spoken_date, spoken_time
+    from orion.personality import spoken_date, spoken_time
 
     assert spoken_time(datetime(2026, 1, 1, 0, 0)) == "minuit"
     assert spoken_time(datetime(2026, 1, 1, 12, 30)) == "midi 30"
@@ -422,7 +422,7 @@ def test_user_name_is_never_spoken():
 
 
 def test_llm_replies_stay_short_unless_details_are_asked():
-    from jarvis.streaming import sentences_from_llm
+    from orion.streaming import sentences_from_llm
 
     text = ("La capitale est Paris. C'est la plus grande ville. Elle compte deux millions d'habitants. "
             "La tour Eiffel date de 1889. Elle mesure trois cents mètres. ")
@@ -453,7 +453,7 @@ def test_volume_change_claims_are_detected():
 
 
 def test_relative_volume_asks_for_a_level_only_when_the_tool_exists():
-    from jarvis.capabilities import CapabilityRegistry
+    from orion.capabilities import CapabilityRegistry
 
     with_tool = IntentRouter(PERSONALITY, CapabilityRegistry(), tools=("set_volume",))
     for request in ("Monte un peu le son.", "Jarvis, baisse le son.", "Plus fort !"):
@@ -465,7 +465,7 @@ def test_relative_volume_asks_for_a_level_only_when_the_tool_exists():
 
 
 def test_second_person():
-    from jarvis.personality import second_person
+    from orion.personality import second_person
 
     assert second_person("appeler ma mère") == "appeler votre mère"
     assert second_person("m'occuper de mes plantes") == "vous occuper de vos plantes"
@@ -473,7 +473,7 @@ def test_second_person():
 
 
 def test_misheard_brightness_still_reaches_the_lights_and_fake_tool_markup_is_never_spoken():
-    from jarvis.router import IntentRouter as Router
+    from orion.router import IntentRouter as Router
 
     router = Router(PERSONALITY, CapabilityRegistry(), tools=("set_brightness",))
     assert router.route("Luminausité 30%.").label == "tool:tool.action"

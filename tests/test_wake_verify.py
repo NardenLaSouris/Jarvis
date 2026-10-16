@@ -17,8 +17,8 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from jarvis.wakeword.captures import WakeCaptures, load_captures, report  # noqa: E402
-from jarvis.wakeword.verify import heard_wake  # noqa: E402
+from orion.wakeword.captures import WakeCaptures, load_captures, report  # noqa: E402
+from orion.wakeword.verify import heard_wake  # noqa: E402
 from test_tools import SLEEP, PlannerLLM, run_agent  # noqa: E402
 
 # Transcriptions réelles de whisper tiny et base sur les enregistrements de test (mini-PC, octobre 2026).
@@ -124,12 +124,12 @@ def test_captures_feed_the_training_set(tmp_path):
 
 
 def test_verification_hears_the_end_of_the_word_and_the_request_keeps_it():
-    from jarvis.agent import WAKE_TAIL, Agent, AgentSettings
-    from jarvis.audio.endpointing import EndpointerSettings, UtteranceRecorder
-    from jarvis.audio.files import ArraySource, RecordingSink
-    from jarvis.capabilities import CapabilityRegistry
-    from jarvis.personality import load_personality
-    from jarvis.router import IntentRouter
+    from orion.agent import WAKE_TAIL, Agent, AgentSettings
+    from orion.audio.endpointing import EndpointerSettings, UtteranceRecorder
+    from orion.audio.files import ArraySource, RecordingSink
+    from orion.capabilities import CapabilityRegistry
+    from orion.personality import load_personality
+    from orion.router import IntentRouter
 
     rate, frame = 16000, 1280
     silence = np.zeros(frame * 12, np.int16)
@@ -175,12 +175,12 @@ def test_verification_hears_the_end_of_the_word_and_the_request_keeps_it():
 
 
 def run_burst(frames, verifier, sure_score):
-    from jarvis.agent import Agent, AgentSettings
-    from jarvis.audio.endpointing import EndpointerSettings, UtteranceRecorder
-    from jarvis.audio.files import ArraySource, RecordingSink
-    from jarvis.capabilities import CapabilityRegistry
-    from jarvis.personality import load_personality
-    from jarvis.router import IntentRouter
+    from orion.agent import Agent, AgentSettings
+    from orion.audio.endpointing import EndpointerSettings, UtteranceRecorder
+    from orion.audio.files import ArraySource, RecordingSink
+    from orion.capabilities import CapabilityRegistry
+    from orion.personality import load_personality
+    from orion.router import IntentRouter
 
     rate, frame = 16000, 1280
     request = (5000 * np.sin(np.arange(rate) / rate * 2 * np.pi * 300)).astype(np.int16)
@@ -257,7 +257,7 @@ def test_whisper_gets_the_hey_orion_hint_only_for_that_wake_word(monkeypatch, ph
             return iter([SimpleNamespace(text=" Hey Orion.")]), None
 
     monkeypatch.setattr(faster_whisper, "WhisperModel", Model)
-    from jarvis.wakeword.verify import WakeVerifier
+    from orion.wakeword.verify import WakeVerifier
 
     verifier = WakeVerifier(phrase=phrase)
     confirmed, _ = verifier.check(np.zeros(16000, dtype=np.int16), 16000)

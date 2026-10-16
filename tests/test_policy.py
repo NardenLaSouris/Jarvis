@@ -21,14 +21,14 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from jarvis.profiles import category, load_profiles  # noqa: E402
-from jarvis.tools import ConfirmationManager, PermissionManager, ToolCore, ToolRegistry  # noqa: E402
-from jarvis.tools.base import Param, Risk, Tool  # noqa: E402
-from jarvis.tools.core import CONFIRM, DONE, REJECTED  # noqa: E402
-from jarvis.tools.files import FileAccess, file_tools  # noqa: E402
-from jarvis.tools.permissions import Decision  # noqa: E402
-from jarvis.tools.planner import plan  # noqa: E402
-from jarvis.tools.policy import PolicyGate, build_gate  # noqa: E402
+from orion.profiles import category, load_profiles  # noqa: E402
+from orion.tools import ConfirmationManager, PermissionManager, ToolCore, ToolRegistry  # noqa: E402
+from orion.tools.base import Param, Risk, Tool  # noqa: E402
+from orion.tools.core import CONFIRM, DONE, REJECTED  # noqa: E402
+from orion.tools.files import FileAccess, file_tools  # noqa: E402
+from orion.tools.permissions import Decision  # noqa: E402
+from orion.tools.planner import plan  # noqa: E402
+from orion.tools.policy import PolicyGate, build_gate  # noqa: E402
 
 FIXTURE = json.loads((ROOT / "tests" / "fixtures" / "policy_tools.json").read_text(encoding="utf-8"))["tools"]
 USERS = {"monsieur": "owner", "lea": "adult", "tom": "child", "invite": "guest"}
@@ -90,7 +90,7 @@ ENGINES = ["builtin", pytest.param("both", marks=cedar)]
                                   "update_core", "write_file"])
 def test_unknown_or_administrative_tool_is_rejected(tmp_path, engine, tool):
     core, executed = make(tmp_path, engine)
-    outcome = core.submit(call(tool, path="/opt/jarvis/policies/orion.cedar", command="rm -rf /"))
+    outcome = core.submit(call(tool, path="/opt/orion/policies/orion.cedar", command="rm -rf /"))
     assert outcome.status == REJECTED and executed == []
 
 
@@ -230,7 +230,7 @@ def test_an_injected_tool_call_in_read_content_reaches_no_tool(tmp_path):
 
 # --- Fichiers critiques -------------------------------------------------------------------------------------------
 
-@pytest.mark.parametrize("name", ["orion.cedar", "../critique/orion.cedar", "/opt/jarvis/policies/orion.cedar",
+@pytest.mark.parametrize("name", ["orion.cedar", "../critique/orion.cedar", "/opt/orion/policies/orion.cedar",
                                   "..\\critique\\orion.cedar", "config.toml", "*"])
 def test_critical_files_outside_the_allowed_folders_cannot_be_deleted(tmp_path, name):
     allowed, critical = tmp_path / "documents", tmp_path / "critique"
@@ -252,8 +252,8 @@ def test_critical_files_outside_the_allowed_folders_cannot_be_deleted(tmp_path, 
 # --- Routines : aucun privilège obtenu par un autre outil --------------------------------------------------------
 
 def test_a_routine_launched_by_voice_runs_with_the_requesters_rights(tmp_path):
-    from jarvis.routines import JsonRoutineStore, RoutineEngine
-    from jarvis.tools.routines import routine_tools
+    from orion.routines import JsonRoutineStore, RoutineEngine
+    from orion.tools.routines import routine_tools
 
     executed: list = []
     registry = registry_with(executed)
@@ -397,15 +397,15 @@ def test_structural_rules_hold_even_for_the_owner(tmp_path):
 
 def test_only_the_core_and_the_windows_agent_execute_tools():
     found = []
-    for path in (ROOT / "jarvis").rglob("*.py"):
+    for path in (ROOT / "orion").rglob("*.py"):
         for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             if re.search(r"\.execute\(", line) and "def execute" not in line:
                 found.append(f"{path.relative_to(ROOT).as_posix()}:{number}")
-    assert sorted(f.rsplit(":", 1)[0] for f in found) == ["jarvis/tools/core.py", "jarvis/winagent/server.py"]
+    assert sorted(f.rsplit(":", 1)[0] for f in found) == ["orion/tools/core.py", "orion/winagent/server.py"]
 
 
 def test_every_submission_goes_through_the_permission_check():
-    source = (ROOT / "jarvis" / "tools" / "core.py").read_text(encoding="utf-8")
+    source = (ROOT / "orion" / "tools" / "core.py").read_text(encoding="utf-8")
     body = source.split("    def _execute(")[0]
     assert body.count("self._execute(") == 2
     assert body.count("self.permissions.decide(") == 2

@@ -1,0 +1,149 @@
+"""Entrée micro et sortie haut-parleur via sounddevice (PortAudio)."""
+
+from __future__ import annotations
+
+import logging
+import time
+
+import numpy as np
+import sounddevice as sd
+
+from orion.audio.network import FrameQueue
+from orion.audio.resample import resample
+
+log = logging.getLogger(__name__)
+
+SILENT_PEAK = 30  # crête int16 en dessous de laquelle un micro est considéré muet
+
+
+def _device(value: str) -> int | str | None:
+    if not value:
+        return None
+    return int(value) if value.isdigit() else value
+
+
+def list_devices(kind: str) -> list[tuple[str, str]]:
+    """Périphériques d'entrée (kind="input") ou de sortie ("output") de l'API audio par défaut.
+
+    Rend des couples (requête à mettre dans config.toml, nom affiché).
+    """
+    api = sd.default.hostapi
+    api_name = sd.query_hostapis(api)["name"]
+    return [
+        (f"{d['name']}, {api_name}", d["name"])
+        for d in sd.query_devices()
+        if d["hostapi"] == api and d[f"max_{kind}_channels"] > 0 and "mappeur de sons" not in d["name"].lower()
+        and "sound mapper" not in d["name"].lower()
+    ]
+
+
+class MicrophoneSource:
+    """Capture continue du micro, découpée en blocs de ``frame_samples`` à ``sample_rate``."""
+
+    def __init__(self, sample_rate: int, frame_samples: int, device: str = "", max_buffered_s: float = 30.0):
+        self.sample_rate = sample_rate
+        self.frame_samples = frame_samples
+        self._queue = FrameQueue(int(max_buffered_s * sample_rate / frame_samples), "local")
+        device_id = _device(device)
+        try:
+            self._stream = self._open(device_id, sample_rate)
+        except sd.PortAudioError:
+            # Le périphérique refuse 16 kHz : on capture à sa fréquence native et on rééchantillonne.
+            native = int(sd.query_devices(device_id, "input")["default_samplerate"])
+            log.info("Micro ouvert à %d Hz (rééchantillonné vers %d Hz)", native, sample_rate)
+            self._stream = self._open(device_id, native)
+        self._stream.start()
+        name = sd.query_devices(self._stream.device)["name"]
+        log.info("Micro : %s", name)
+        self._check_signal(name)
+
+    def _check_signal(self, name: str, seconds: float = 0.5) -> None:
+        """Prévient si le micro choisi ne capte rien (périphérique virtuel, micro coupé...)."""
+        frames = [self._queue.get() for _ in range(max(1, int(seconds * self.sample_rate / self.frame_samples)))]
+        peak = int(np.abs(np.concatenate(frames).astype(np.int32)).max())
+        if peak < SILENT_PEAK:
+            log.warning(
+                "Le micro « %s » semble muet (crête %d). Vérifiez son niveau ou choisissez-en un autre "
+                "avec [audio] input_device (voir `python -m orion --list-devices`).", name, peak,
+            )
+
+    def _open(self, device, rate: int) -> sd.InputStream:
+        blocksize = int(round(self.frame_samples * rate / self.sample_rate))
+
+        def callback(indata, frames, time_info, status):
+            if status:
+                log.debug("Statut micro : %s", status)
+            self._queue.put_latest(resample(indata[:, 0].copy(), rate, self.sample_rate, self.frame_samples))
+
+        return sd.InputStream(
+            samplerate=rate, channels=1, dtype="int16", blocksize=blocksize,
+            device=device, callback=callback,
+        )
+
+    def read(self) -> np.ndarray | None:
+        return self._queue.get()
+
+    def flush(self) -> None:
+        self._queue.clear()
+
+    def close(self) -> None:
+        self._stream.stop()
+        self._stream.close()
+
+
+class SpeakerSink:
+    def __init__(self, device: str = ""):
+        self._device = _device(device)
+        self._stream: sd.OutputStream | None = None
+        self._aborted = False
+        self._rate = 0
+        self._stream_rate = 0
+
+    @property
+    def device_name(self) -> str:
+        return sd.query_devices(self._device, "output")["name"]
+
+    def play(self, audio: np.ndarray, sample_rate: int) -> None:
+        if audio.size == 0:
+            return
+        stream = self._open(sample_rate)
+        if self._stream_rate != sample_rate:
+            audio = resample(audio, sample_rate, self._stream_rate)
+        data = np.ascontiguousarray(audio.astype(np.int16).reshape(-1, 1))
+        block = max(1, self._stream_rate // 10)
+        self._aborted = False
+        for start in range(0, len(data), block):
+            if self._aborted:
+                stream.abort()
+                self.close()
+                return
+            stream.write(data[start:start + block])
+
+    def drain(self) -> None:
+        if self._stream is not None:
+            time.sleep(self._stream.latency)
+
+    def close(self) -> None:
+        if self._stream is not None:
+            self._stream.close()
+            self._stream = None
+
+    def stop(self) -> None:
+        """Coupe la lecture en cours (interruption par le wake word), en moins de 0,1 s. Seul le fil de lecture
+        touche au flux (appeler PortAudio depuis deux fils à la fois peut le faire planter)."""
+        self._aborted = True
+
+    def _open(self, sample_rate: int) -> sd.OutputStream:
+        if self._stream is not None and self._rate == sample_rate:
+            return self._stream
+        self.close()
+        try:
+            stream = sd.OutputStream(samplerate=sample_rate, channels=1, dtype="int16", device=self._device)
+            self._stream_rate = sample_rate
+        except sd.PortAudioError:
+            native = int(sd.query_devices(self._device, "output")["default_samplerate"])
+            stream = sd.OutputStream(samplerate=native, channels=1, dtype="int16", device=self._device)
+            self._stream_rate = native
+        stream.start()
+        self._stream, self._rate = stream, sample_rate
+        return stream

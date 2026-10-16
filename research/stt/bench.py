@@ -24,7 +24,7 @@ import numpy as np
 
 sys.path.insert(0, ".")
 
-from jarvis.scheduling.durations import _number, tokens  # noqa: E402
+from orion.scheduling.durations import _number, tokens  # noqa: E402
 
 NO_SPEECH = 0.6
 EXTRA_HINT = "Éteins la lumière. Retourne en veille. Quelle heure est-il ? Quoi de neuf ? Présente-toi."
@@ -82,8 +82,8 @@ def read(path: Path) -> np.ndarray:
 
 def recorded_share(audio: np.ndarray) -> float:
     """Part de l'énergie de parole gardée par l'enregistreur d'ORION (début et fin de phrase, pauses d'hésitation)."""
-    from jarvis.audio.endpointing import EndpointerSettings, UtteranceRecorder
-    from jarvis.audio.files import ArraySource
+    from orion.audio.endpointing import EndpointerSettings, UtteranceRecorder
+    from orion.audio.files import ArraySource
 
     scene = np.concatenate([np.zeros(16000, np.int16), audio, np.zeros(32000, np.int16)])
     source = ArraySource(scene, 16000, 1280)
@@ -103,8 +103,8 @@ def main() -> None:
     args = parser.parse_args()
     from faster_whisper import WhisperModel
 
-    from jarvis.config import load_config
-    from jarvis.factory import vocabulary_hint
+    from orion.config import load_config
+    from orion.factory import vocabulary_hint
 
     cfg = load_config("config.toml")
     hint = vocabulary_hint(cfg, "ORION")

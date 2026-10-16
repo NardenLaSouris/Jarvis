@@ -16,10 +16,10 @@ import numpy as np
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from jarvis.audio.files import read_wav  # noqa: E402
-from jarvis.config import load_config  # noqa: E402
-from jarvis.factory import build_wake_word  # noqa: E402
-from jarvis.wakeword.openwakeword import FRAME_SAMPLES, FeatureExtractor  # noqa: E402
+from orion.audio.files import read_wav  # noqa: E402
+from orion.config import load_config  # noqa: E402
+from orion.factory import build_wake_word  # noqa: E402
+from orion.wakeword.openwakeword import FRAME_SAMPLES, FeatureExtractor  # noqa: E402
 
 FIXTURES = ROOT / "tests" / "fixtures" / "wakeword"
 # Enregistrements de référence (tests/fixtures/wakeword) : « Jarvis », avec l'ancien modèle et son seuil. Le modèle
@@ -129,7 +129,7 @@ def test_exported_classifier_is_loadable():
         return
     import tempfile
 
-    from jarvis.wakeword.openwakeword import OpenWakeWordDetector
+    from orion.wakeword.openwakeword import OpenWakeWordDetector
     from wakeword_training.train import MLP, export_onnx
 
     mlp = MLP(16 * 96, 8, np.random.default_rng(0))

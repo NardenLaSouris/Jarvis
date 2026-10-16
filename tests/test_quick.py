@@ -14,11 +14,11 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from jarvis.scheduling import TimerManager  # noqa: E402
-from jarvis.tools import Param, PermissionManager, Risk, Tool  # noqa: E402
-from jarvis.tools.lights import light_tools  # noqa: E402
-from jarvis.tools.quick import quick_plan  # noqa: E402
-from jarvis.tools.timers import timer_tools  # noqa: E402
+from orion.scheduling import TimerManager  # noqa: E402
+from orion.tools import Param, PermissionManager, Risk, Tool  # noqa: E402
+from orion.tools.lights import light_tools  # noqa: E402
+from orion.tools.quick import quick_plan  # noqa: E402
+from orion.tools.timers import timer_tools  # noqa: E402
 from test_lights import FakeDriver, rooms_from  # noqa: E402
 from test_tools import PlannerLLM, make_core, routes, run_agent  # noqa: E402
 
@@ -155,8 +155,8 @@ def test_degraded_mode_keeps_confirmations():
 
 
 def test_media_keys_without_spotify_and_guard():
-    from jarvis.tools import ToolCore, ToolRegistry, builtin_tools
-    from jarvis.tools.media import media_tools
+    from orion.tools import ToolCore, ToolRegistry, builtin_tools
+    from orion.tools.media import media_tools
 
     pressed = []
     registry = ToolRegistry()
@@ -177,7 +177,7 @@ def test_media_keys_without_spotify_and_guard():
 # --- Régressions de la session red team ------------------------------------------------------------
 
 def test_everything_off_means_the_lights_never_the_pc_sound():
-    from jarvis.tools.planner import plan
+    from orion.tools.planner import plan
 
     assert quick_plan("Éteins tout.", REGISTRY) == call("light_off")
     assert quick_plan("Allume tout", REGISTRY) == call("light_on")
@@ -213,7 +213,7 @@ def test_light_tools_must_be_named_by_the_request():
     llm = PlannerLLM({"type": "tool_call", "tool": "set_brightness", "parameters": {"brightness": 25}})
     spoken, events = run_agent(["Réveille-moi à 25 heures"], llm, full_core(driver))
     assert driver.calls == [] and "lumières" not in spoken[0]
-    from jarvis.tools.planner import _named
+    from orion.tools.planner import _named
 
     registry = full_core().registry
     assert _named("set_brightness", "Mets l'entrée à 25", registry)
@@ -261,7 +261,7 @@ def test_timer_requests_never_become_a_spotify_search(text):
 
 def test_a_question_never_triggers_an_action():
     # Session QA : « Est-ce que la musique joue ? » faisait lecture/pause sur le PC (LLM : media_play_pause).
-    from jarvis.tools.planner import _question
+    from orion.tools.planner import _question
 
     driver = FakeDriver()
     llm = PlannerLLM({"type": "tool_call", "tool": "light_off", "parameters": {"room": "chambre"}})
@@ -299,8 +299,8 @@ def test_negative_volume_is_refused_by_the_tool_with_its_range(text, level):
 
 def test_pc_power_and_music_stop_without_llm():
     # Journal d'octobre 2026 : ces commandes passaient par le LLM (1,6 à 2,7 s chacune).
-    from jarvis.tools import ToolRegistry
-    from jarvis.tools.base import Param, Risk, Tool
+    from orion.tools import ToolRegistry
+    from orion.tools.base import Param, Risk, Tool
 
     registry = ToolRegistry()
     for name, risk in (("wake_pc", Risk.SAFE), ("shutdown_pc", Risk.CONFIRMATION_REQUIRED), ("spotify_pause", Risk.SAFE),

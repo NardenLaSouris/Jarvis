@@ -1,41 +1,44 @@
-"""ORION est une femme : présentation, prompts du LLM et phrases toutes faites accordés au féminin ; elle vouvoie
-l'utilisateur et l'appelle « monsieur », sans jamais prononcer son prénom."""
+"""Migration du nom JARVIS -> ORION : anciens secrets toujours lus, anciens points d entrée toujours valides."""
 
 from __future__ import annotations
 
-import re
+import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from jarvis.capabilities import CapabilityRegistry  # noqa: E402
-from jarvis.personality import load_personality  # noqa: E402
-from jarvis.prompts import build_compact_prompt, build_system_prompt  # noqa: E402
-
-PERSONALITY = load_personality(ROOT / "personality.toml")
-MASCULINE_SELF = re.compile(r"\b(?:je suis|je me suis|j'étais|je serai|je serais)\s+(?:vraiment\s+|très\s+)?"
-                            r"(prêt|désolé|navré|ravi|heureux|attentif|réveillé|arrêté|sûr|certain|content|"
-                            r"développé|occupé|connecté|un assistant)\b", re.IGNORECASE)
+from orion.config import secret  # noqa: E402
 
 
-def test_identity_answers_are_feminine():
-    for response in next(i for i in PERSONALITY.intents if i.name == "identity").responses:
-        assert "assistante" in response and "assistant " not in response.replace("assistante", "")
+def test_renamed_secrets_are_still_read_under_their_old_name(tmp_path, monkeypatch):
+    for name in ("ORION_AGENT_TOKEN", "JARVIS_AGENT_TOKEN"):
+        monkeypatch.delenv(name, raising=False)
+    env = tmp_path / ".env"
+    env.write_text("JARVIS_AGENT_TOKEN=ancien-nom-0123456789\n", encoding="utf-8")  # .env d avant la migration
+    assert secret("ORION_AGENT_TOKEN", env) == "ancien-nom-0123456789"
+    env.write_text("JARVIS_AGENT_TOKEN=ancien\nORION_AGENT_TOKEN=nouveau\n", encoding="utf-8")
+    assert secret("ORION_AGENT_TOKEN", env) == "nouveau"  # le nouveau nom l emporte
+    assert secret("ORION_INCONNU", env) == ""
 
 
-def test_prompts_tell_the_llm_she_is_a_woman_and_keep_monsieur():
-    full = build_system_prompt(PERSONALITY, CapabilityRegistry())
-    compact = build_compact_prompt(PERSONALITY)
-    for prompt in (full, compact):
-        assert "assistante" in prompt and "féminin" in prompt and "« monsieur »" in prompt
-    assert "Jules" not in full.split("Identité")[1][:400].replace("son prénom", "")
+@pytest.mark.parametrize("module", ["jarvis", "jarvis.winagent", "orion", "orion.winagent"])
+def test_old_and_new_entry_points_start_orion(module):
+    # Service systemd et raccourcis Windows installés avant la migration lancent encore « -m jarvis… ».
+    out = subprocess.run([sys.executable, "-m", module, "--help"], cwd=ROOT, capture_output=True, text=True,
+                         timeout=60)
+    assert out.returncode == 0, out.stderr[-400:]
+    assert "ORION" in out.stdout
 
 
-def test_no_masculine_first_person_in_canned_phrases():
-    text = (ROOT / "personality.toml").read_text(encoding="utf-8")
-    phrases = [line for line in text.splitlines() if not line.strip().startswith("#")
-               and "filler" not in line and "heureux de vous" not in line and "ravi de vous" not in line]
-    offending = [line.strip() for line in phrases if MASCULINE_SELF.search(line)]
-    assert offending == []
+def test_the_compatibility_package_only_forwards():
+    shim = ROOT / "jarvis"
+    files = sorted(p.relative_to(shim).as_posix() for p in shim.rglob("*.py"))
+    assert files == ["__init__.py", "__main__.py", "call/__init__.py", "call/gateway.py", "control/__init__.py",
+                     "control/__main__.py", "winagent/__init__.py", "winagent/__main__.py"]
+    for path in shim.rglob("*.py"):
+        code = path.read_text(encoding="utf-8")
+        assert "def " not in code and "class " not in code, path  # aucun code propre : un renvoi vers orion

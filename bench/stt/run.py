@@ -2,7 +2,7 @@
 
 À lancer sur la machine qui transcrit (le mini-PC), dans une copie de travail, de préférence quand ORION est peu
 sollicité (le banc occupe le processeur) :
-    nice python bench/stt/run.py --config /opt/jarvis/config.toml [--audio DOSSIER] [--models small,base]
+    nice python bench/stt/run.py --config /opt/orion/config.toml [--audio DOSSIER] [--models small,base]
 
 Deux corpus :
 - synthétique (par défaut) : les phrases de phrases.txt dites par trois voix Piper (siwis, tom, upmc), jamais la
@@ -28,11 +28,11 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from jarvis.audio.resample import resample  # noqa: E402
-from jarvis.config import load_config  # noqa: E402
-from jarvis.factory import vocabulary_hint  # noqa: E402
-from jarvis.personality import normalize  # noqa: E402
-from jarvis.stt.faster_whisper import FasterWhisperSTT  # noqa: E402
+from orion.audio.resample import resample  # noqa: E402
+from orion.config import load_config  # noqa: E402
+from orion.factory import vocabulary_hint  # noqa: E402
+from orion.personality import normalize  # noqa: E402
+from orion.stt.faster_whisper import FasterWhisperSTT  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
 VOICES = ("fr_FR-siwis-medium", "fr_FR-tom-medium", "fr_FR-upmc-medium")
@@ -54,7 +54,7 @@ def wer(reference: str, hypothesis: str) -> tuple[int, int]:
 
 
 def synthetic(models_dir: Path) -> list[tuple[str, np.ndarray, str]]:
-    from jarvis.tts.piper import PiperTTS
+    from orion.tts.piper import PiperTTS
 
     phrases = [p.strip() for p in (HERE / "phrases.txt").read_text(encoding="utf-8").splitlines()
                if p.strip() and not p.startswith("#")]

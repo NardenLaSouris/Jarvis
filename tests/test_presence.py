@@ -21,12 +21,12 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from jarvis.events import ALL, Event, EventBus  # noqa: E402
-from jarvis.presence import (  # noqa: E402
+from orion.events import ALL, Event, EventBus  # noqa: E402
+from orion.presence import (  # noqa: E402
     ARRIVAL_CONFIRMED, AWAY, DEPARTURE_CONFIRMED, HOME, POSSIBLE_ARRIVAL, POSSIBLE_DEPARTURE, HouseJournal,
     PresenceEngine, PresenceSettings, SensorError, SensorHub, absence_summary, load_sensors,
 )
-from jarvis.presence.system import build_presence  # noqa: E402
+from orion.presence.system import build_presence  # noqa: E402
 
 SENSORS = {
     "porte_entree": {"kind": "door", "room": "l'entrée", "entrance": True},
@@ -276,7 +276,7 @@ def test_unknown_sensor_bad_values_and_payloads_are_refused():
 
 
 def test_simulation_cannot_drive_a_real_sensor_and_forged_events_are_ignored(monkeypatch):
-    from jarvis.presence import sensors as sensors_module
+    from orion.presence import sensors as sensors_module
 
     monkeypatch.setitem(sensors_module.DRIVERS, "mqtt", sensors_module.SimulatedDriver)
     table = {**SENSORS, "porte_entree": {**SENSORS["porte_entree"], "driver": "mqtt"}}
@@ -441,8 +441,8 @@ def presence_config(tmp_path, **overrides):
 
 
 def test_welcome_routine_runs_only_on_a_confirmed_arrival(tmp_path):
-    from jarvis.routines import MemoryRoutineStore, RoutineEngine
-    from jarvis.routines.announce import Announcer
+    from orion.routines import MemoryRoutineStore, RoutineEngine
+    from orion.routines.announce import Announcer
     from test_tools import make_core
 
     clock = {"t": T0}
@@ -488,7 +488,7 @@ def test_welcome_routine_runs_only_on_a_confirmed_arrival(tmp_path):
 
 
 def test_simulator_through_the_admin_api_and_the_command_line(tmp_path, monkeypatch, capsys):
-    from jarvis.__main__ import simulate
+    from orion.__main__ import simulate
     from test_api import TOKEN, World
 
     world = World(tmp_path)
@@ -506,7 +506,7 @@ def test_simulator_through_the_admin_api_and_the_command_line(tmp_path, monkeypa
         status, data = world.call("GET", "/presence")
         assert status == 200 and data["house"] == "occupied" and "porte_entree" in data["sensors"]
         # Ligne de commande : même chemin, par l'API sur cette machine.
-        monkeypatch.setenv("JARVIS_AGENT_TOKEN", TOKEN)
+        monkeypatch.setenv("ORION_AGENT_TOKEN", TOKEN)
         cfg = SimpleNamespace(api=SimpleNamespace(enabled=True, port=world.api.address[1]))
         assert simulate(cfg, ["telephone_owner", "away"]) == 0
         assert simulate(cfg, ["door", "close"]) == 0
@@ -518,8 +518,8 @@ def test_simulator_through_the_admin_api_and_the_command_line(tmp_path, monkeypa
 
 
 def test_presence_question_by_voice(tmp_path):
-    from jarvis.presence.tools import presence_tool
-    from jarvis.tools.quick import quick_plan
+    from orion.presence.tools import presence_tool
+    from orion.tools.quick import quick_plan
     from test_quick import full_core
 
     house = House(users=("owner", "lea"))
@@ -534,7 +534,7 @@ def test_presence_question_by_voice(tmp_path):
 
 
 def test_event_trigger_is_validated():
-    from jarvis.routines.model import RoutineError, parse_trigger
+    from orion.routines.model import RoutineError, parse_trigger
 
     assert parse_trigger({"type": "event", "event": "arrival"}) == {"type": "event", "event": "arrival"}
     assert parse_trigger({"type": "event", "event": "departure", "user": "lea"})["user"] == "lea"
@@ -598,7 +598,7 @@ def test_network_sensor_needs_a_local_address():
 
 
 def test_network_driver_reports_home_at_once_and_away_only_after_a_long_silence():
-    from jarvis.presence.network import NetworkDriver
+    from orion.presence.network import NetworkDriver
 
     sensor = load_sensors({"tel": {"kind": "presence", "user": "owner", "driver": "network",
                                    "address": "192.168.1.62"}}, {"owner"})["tel"]
@@ -623,7 +623,7 @@ def test_network_driver_reports_home_at_once_and_away_only_after_a_long_silence(
 
 
 def test_probe_checks_the_mac_address(monkeypatch):
-    import jarvis.presence.network as network
+    import orion.presence.network as network
 
     monkeypatch.setattr(network, "_ping", lambda address: False)
     monkeypatch.setattr(network, "_nudge", lambda address: None)

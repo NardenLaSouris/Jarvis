@@ -9,8 +9,8 @@ enregistreur. Scénario :
   -> 10 s de silence -> phrase sans wake word, qui doit être ignorée.
 
 Nécessite les modèles téléchargés et Ollama démarré. La voix est réellement synthétisée (sans être jouée) :
-avec pytest, ce test ne tourne que sur demande (JARVIS_E2E=1), pour que la suite reste silencieuse.
-Lancement : python tests/test_pipeline_e2e.py   (ou JARVIS_E2E=1 pytest tests/test_pipeline_e2e.py)
+avec pytest, ce test ne tourne que sur demande (ORION_E2E=1), pour que la suite reste silencieuse.
+Lancement : python tests/test_pipeline_e2e.py   (ou ORION_E2E=1 pytest tests/test_pipeline_e2e.py)
 """
 
 from __future__ import annotations
@@ -25,9 +25,9 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from jarvis.audio.files import ArraySource, RecordingSink, read_wav  # noqa: E402
-from jarvis.config import load_config  # noqa: E402
-from jarvis.factory import build_agent  # noqa: E402
+from orion.audio.files import ArraySource, RecordingSink, read_wav  # noqa: E402
+from orion.config import load_config  # noqa: E402
+from orion.factory import build_agent  # noqa: E402
 
 
 def run_scenario(output_dir: Path | None = None) -> tuple[list[tuple[str, str]], RecordingSink]:
@@ -44,7 +44,7 @@ def run_scenario(output_dir: Path | None = None) -> tuple[list[tuple[str, str]],
     return events, sink
 
 
-@pytest.mark.skipif(os.environ.get("JARVIS_E2E") != "1", reason="vrais moteurs : JARVIS_E2E=1 pour lancer")
+@pytest.mark.skipif(os.environ.get("ORION_E2E") != "1", reason="vrais moteurs : ORION_E2E=1 pour lancer")
 def test_full_pipeline():
     events, sink = run_scenario()
     kinds = [k for k, _ in events if k != "timing"]

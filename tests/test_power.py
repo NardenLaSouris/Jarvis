@@ -1,4 +1,4 @@
-"""Arrêt et allumage des PC (jarvis/tools/power.py) : arrêt toujours confirmé et exécuté par l'agent du PC,
+"""Arrêt et allumage des PC (orion/tools/power.py) : arrêt toujours confirmé et exécuté par l'agent du PC,
 allumage par paquet de réveil vers l'adresse matérielle configurée. Aucune action réelle."""
 
 from __future__ import annotations
@@ -11,12 +11,12 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from jarvis.tools import PermissionManager, ToolCore, ToolRegistry, builtin_tools  # noqa: E402
-from jarvis.tools.base import Risk  # noqa: E402
-from jarvis.tools.builtin import PC_TOOLS  # noqa: E402
-from jarvis.tools.devices import load_devices  # noqa: E402
-from jarvis.tools.planner import named  # noqa: E402
-from jarvis.tools.power import magic_packet, shutdown_tool, wake_tool  # noqa: E402
+from orion.tools import PermissionManager, ToolCore, ToolRegistry, builtin_tools  # noqa: E402
+from orion.tools.base import Risk  # noqa: E402
+from orion.tools.builtin import PC_TOOLS  # noqa: E402
+from orion.tools.devices import load_devices  # noqa: E402
+from orion.tools.planner import named  # noqa: E402
+from orion.tools.power import magic_packet, shutdown_tool, wake_tool  # noqa: E402
 
 DEVICES = {
     "pc": {"name": "votre PC", "url": "http://192.0.2.10:8765", "default": True, "aliases": ["mon pc"],
@@ -86,8 +86,8 @@ def test_unclear_single_word_asks_again_once_then_gives_up():
 
 
 def test_yep_confirms_with_the_personality_lists():
-    from jarvis.personality import load_personality
-    from jarvis.tools import ConfirmationManager
+    from orion.personality import load_personality
+    from orion.tools import ConfirmationManager
 
     personality = load_personality(ROOT / "personality.toml")
     calls = []
@@ -98,7 +98,7 @@ def test_yep_confirms_with_the_personality_lists():
 
 
 def test_face_returns_to_standby_after_a_message():
-    from jarvis.face.bridge import FaceBridge
+    from orion.face.bridge import FaceBridge
 
     class Visual:
         state = "standby"

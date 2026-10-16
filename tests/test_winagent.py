@@ -17,20 +17,20 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from jarvis.tools import Param, Risk, Tool, ToolRegistry  # noqa: E402
-from jarvis.tools.base import ToolError  # noqa: E402
-from jarvis.winagent import AgentConfig, AgentServer, load_agent_config  # noqa: E402
-from jarvis.winagent.__main__ import main  # noqa: E402
+from orion.tools import Param, Risk, Tool, ToolRegistry  # noqa: E402
+from orion.tools.base import ToolError  # noqa: E402
+from orion.winagent import AgentConfig, AgentServer, load_agent_config  # noqa: E402
+from orion.winagent.__main__ import main  # noqa: E402
 
 TOKEN = "t" * 40
 
 
 @pytest.fixture(autouse=True)
 def no_token_in_environment(monkeypatch):
-    monkeypatch.delenv("JARVIS_AGENT_TOKEN", raising=False)
+    monkeypatch.delenv("ORION_AGENT_TOKEN", raising=False)
 
 
-def write(tmp_path, toml="", env=f"JARVIS_AGENT_TOKEN={TOKEN}\n"):
+def write(tmp_path, toml="", env=f"ORION_AGENT_TOKEN={TOKEN}\n"):
     config, secrets = tmp_path / "agent.toml", tmp_path / ".env"
     config.write_text(toml, encoding="utf-8")
     secrets.write_text(env, encoding="utf-8")
@@ -75,17 +75,17 @@ def test_configuration_is_read_from_toml_and_env_file(tmp_path):
 
 
 def test_environment_token_wins_over_env_file(tmp_path, monkeypatch):
-    monkeypatch.setenv("JARVIS_AGENT_TOKEN", "e" * 40)
+    monkeypatch.setenv("ORION_AGENT_TOKEN", "e" * 40)
     assert load_agent_config(*write(tmp_path, '[agent]\nallowed_ips = ["192.168.1.91"]\n')).token == "e" * 40
 
 
 @pytest.mark.parametrize("toml, env, message", [
-    ('[agent]\nallowed_ips = ["192.168.1.91"]\n', "", "JARVIS_AGENT_TOKEN"),
-    ('[agent]\nallowed_ips = ["192.168.1.91"]\n', "JARVIS_AGENT_TOKEN=court\n", "trop court"),
-    ("[agent]\n", f"JARVIS_AGENT_TOKEN={TOKEN}\n", "allowed_ips"),
-    ('[agent]\nallowed_ips = ["192.168.1.300"]\n', f"JARVIS_AGENT_TOKEN={TOKEN}\n", "IP invalide"),
-    ('[agent]\nallowed_ips = ["192.168.1.91"]\nport = "8765"\n', f"JARVIS_AGENT_TOKEN={TOKEN}\n", "Port invalide"),
-    ('[agent]\nallowed_ips = ["192.168.1.91"]\nshell = true\n', f"JARVIS_AGENT_TOKEN={TOKEN}\n", "inconnus"),
+    ('[agent]\nallowed_ips = ["192.168.1.91"]\n', "", "ORION_AGENT_TOKEN"),
+    ('[agent]\nallowed_ips = ["192.168.1.91"]\n', "ORION_AGENT_TOKEN=court\n", "trop court"),
+    ("[agent]\n", f"ORION_AGENT_TOKEN={TOKEN}\n", "allowed_ips"),
+    ('[agent]\nallowed_ips = ["192.168.1.300"]\n', f"ORION_AGENT_TOKEN={TOKEN}\n", "IP invalide"),
+    ('[agent]\nallowed_ips = ["192.168.1.91"]\nport = "8765"\n', f"ORION_AGENT_TOKEN={TOKEN}\n", "Port invalide"),
+    ('[agent]\nallowed_ips = ["192.168.1.91"]\nshell = true\n', f"ORION_AGENT_TOKEN={TOKEN}\n", "inconnus"),
 ])
 def test_unsafe_configuration_is_refused(tmp_path, toml, env, message):
     with pytest.raises(ValueError, match=message):
@@ -101,7 +101,7 @@ def test_shipped_configuration_only_allows_the_core(tmp_path):
 def test_main_refuses_to_start_without_token(tmp_path, capsys):
     config, secrets = write(tmp_path, '[agent]\nallowed_ips = ["192.168.1.91"]\n', "")
     assert main(["--config", str(config), "--env", str(secrets)]) == 2
-    assert "JARVIS_AGENT_TOKEN" in capsys.readouterr().err
+    assert "ORION_AGENT_TOKEN" in capsys.readouterr().err
 
 
 # --- /health et filtrage par IP --------------------------------------------------------------------
@@ -109,7 +109,7 @@ def test_main_refuses_to_start_without_token(tmp_path, capsys):
 def test_health_answers_the_allowed_core():
     server = agent()
     try:
-        assert request(server, "/health") == (200, {"status": "ok", "agent": "jarvis-windows"})
+        assert request(server, "/health") == (200, {"status": "ok", "agent": "orion-windows"})
     finally:
         server.stop()
 
@@ -222,7 +222,7 @@ def test_action_errors_are_structured_without_internal_details():
 
 def test_env_file_saved_with_a_bom_is_read(tmp_path):
     config, secrets = write(tmp_path, '[agent]\nallowed_ips = ["192.168.1.91"]\n')
-    secrets.write_text(f"JARVIS_AGENT_TOKEN={TOKEN}\n", encoding="utf-8-sig")
+    secrets.write_text(f"ORION_AGENT_TOKEN={TOKEN}\n", encoding="utf-8-sig")
     assert load_agent_config(config, secrets).token == TOKEN
 
 
@@ -266,7 +266,7 @@ def test_errors_go_to_the_log_file_when_started_without_window(tmp_path):
         for handler in root.handlers:
             handler.close()
         root.handlers = handlers
-    assert "JARVIS_AGENT_TOKEN" in log.read_text(encoding="utf-8")
+    assert "ORION_AGENT_TOKEN" in log.read_text(encoding="utf-8")
 
 
 def test_refused_requests_with_a_body_get_their_error_not_a_reset():

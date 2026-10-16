@@ -1,4 +1,4 @@
-// Charte Aureon, celle du visage d'ORION (jarvis/face/static/face.js) : vert forêt (structure), vert secondaire
+// Charte Aureon, celle du visage d'ORION (orion/face/static/face.js) : vert forêt (structure), vert secondaire
 // (actif), crème (important), doré (accents rares), noir profond (fond). Police du nom : Michroma.
 
 export const colors = {

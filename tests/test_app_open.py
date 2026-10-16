@@ -16,12 +16,12 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import jarvis.tools.applications as apps_module  # noqa: E402
-from jarvis.tools.app_finder import (  # noqa: E402
+import orion.tools.applications as apps_module  # noqa: E402
+from orion.tools.app_finder import (  # noqa: E402
     AppFinder, Found, _found, read_lnk, shortcut, split_windows_args, steam_game, steam_library, store_app,
 )
-from jarvis.tools.planner import plan  # noqa: E402
-from jarvis.tools.quick import quick_plan  # noqa: E402
+from orion.tools.planner import plan  # noqa: E402
+from orion.tools.quick import quick_plan  # noqa: E402
 from test_tools import CONFIRM, REJECTED, FakeProcesses, Launcher, PlannerLLM, call, make_core  # noqa: E402
 
 

@@ -22,10 +22,10 @@ from pathlib import Path
 
 sys.path.insert(0, ".")
 
-from jarvis.interfaces import Message  # noqa: E402
-from jarvis.llm.ollama import OllamaLLM  # noqa: E402
-from jarvis.tools.base import ToolResult  # noqa: E402
-from jarvis.tools.planner import plan, tool_request  # noqa: E402
+from orion.interfaces import Message  # noqa: E402
+from orion.llm.ollama import OllamaLLM  # noqa: E402
+from orion.tools.base import ToolResult  # noqa: E402
+from orion.tools.planner import plan, tool_request  # noqa: E402
 
 HOST = "http://192.168.1.73:11434"
 
@@ -259,19 +259,19 @@ def main() -> None:
     parser.add_argument("model")
     parser.add_argument("--think", choices=["true", "false"])
     parser.add_argument("--out", type=Path)
-    parser.add_argument("--guard", action="store_true", help="garde-fou d'ORION (jarvis/llm/guard.py) avant chaque réponse")
+    parser.add_argument("--guard", action="store_true", help="garde-fou d'ORION (orion/llm/guard.py) avant chaque réponse")
     args = parser.parse_args()
     think = None if args.think is None else args.think == "true"
     agent = harness.build([])
     harness.CONTROL["stop"]()
     registry = agent._tools.registry
     system = agent._router.system_prompt()
-    from jarvis.config import load_config
+    from orion.config import load_config
 
     cfg_tokens = load_config("config.toml").llm.max_tokens
     llm = Client(args.model, think=think, temperature=0.7, max_tokens=cfg_tokens)
     report = {"model": args.model, "think": think, "guard": args.guard, "max_tokens": cfg_tokens, "sections": {}}
-    from jarvis.llm.guard import ContentGuard
+    from orion.llm.guard import ContentGuard
 
     guard = ContentGuard(llm) if args.guard else None
 

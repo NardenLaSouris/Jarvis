@@ -1,7 +1,7 @@
 # ORION mobile
 
 Application d'appel d'ORION (Expo, React Native, TypeScript), Android d'abord, iOS ensuite.
-Architecture : `docs/` du dépôt et `jarvis/call/` (le Core seul décide d'un appel ; le téléphone jumelé est le seul
+Architecture : `docs/` du dépôt et `orion/call/` (le Core seul décide d'un appel ; le téléphone jumelé est le seul
 destinataire ; la passerelle `orion-call` fait sonner et transporte l'audio).
 
 ## État
